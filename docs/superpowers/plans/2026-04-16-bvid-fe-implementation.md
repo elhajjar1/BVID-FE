@@ -706,9 +706,15 @@ def _k_bending_ssss(lam: Laminate, pan: PanelGeometry, x0: float, y0: float,
     w_over_P *= 4 / (a*b)
     return 1.0 / w_over_P
 
-def _k_contact_hertz(lam: Laminate, imp: ImpactorGeometry) -> float:
-    """Hertzian contact stiffness: k = (4/3) * sqrt(R) * E_eff.
-    E_eff combines impactor (assumed steel, E=200 GPa) and transverse laminate modulus."""
+def _k_contact_hertz_linearized(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
+    """Linear-equivalent Hertzian contact stiffness at load P (N).
+
+    Nonlinear Hertz: P = k_nl * delta^(3/2) with k_nl = (4/3) * sqrt(R) * E_eff.
+    Linearized secant stiffness at threshold load:
+        delta = (P / k_nl)^(2/3);   k_lin = P / delta = k_nl^(2/3) * P^(1/3)
+    This gives the right units (N/mm) for use in series with the plate bending
+    stiffness in the Olsson k_cb = 1/(1/k_b + 1/k_c) series combination.
+    """
     R = imp.diameter_mm / 2.0     # mm
     E_steel = 200e3               # MPa = N/mm^2
     nu_steel = 0.3
@@ -716,7 +722,8 @@ def _k_contact_hertz(lam: Laminate, imp: ImpactorGeometry) -> float:
     nu_plate = 0.3
     inv_E = (1 - nu_steel**2)/E_steel + (1 - nu_plate**2)/E_plate
     E_eff = 1.0 / inv_E
-    return (4.0/3.0) * math.sqrt(R) * E_eff     # N/mm^(3/2), linearized below
+    k_nl = (4.0/3.0) * math.sqrt(R) * E_eff                  # N/mm^(3/2)
+    return (k_nl ** (2.0/3.0)) * (P ** (1.0/3.0))            # N/mm
 
 def threshold_load(lam: Laminate, pan: PanelGeometry, imp: ImpactorGeometry) -> float:
     """Olsson threshold load Pc (N). Uses geometric-mean flexural rigidity D_eff."""
@@ -728,15 +735,15 @@ def threshold_load(lam: Laminate, pan: PanelGeometry, imp: ImpactorGeometry) -> 
 def onset_energy(lam: Laminate, pan: PanelGeometry, imp: ImpactorGeometry,
                 location_xy_mm: tuple[float, float] | None = None) -> float:
     """Impact energy (J) at which damage onsets. Uses Pc and the series stiffness
-    k_cb combining plate bending + Hertzian contact at the impact location."""
+    k_cb combining plate bending + Hertzian contact (linearized at Pc)."""
     if location_xy_mm is None:
         location_xy_mm = (pan.Lx_mm/2, pan.Ly_mm/2)
     x0, y0 = location_xy_mm
-    k_b = _k_bending_ssss(lam, pan, x0, y0, n_modes=NAVIER_N)
-    k_c = _k_contact_hertz(lam, imp)
-    k_cb = 1.0 / (1.0/k_b + 1.0/k_c)
-    Pc = threshold_load(lam, pan, imp)
-    # Energy in mJ (N*mm), convert to J
+    Pc = threshold_load(lam, pan, imp)                       # N
+    k_b = _k_bending_ssss(lam, pan, x0, y0, n_modes=NAVIER_N) # N/mm
+    k_c = _k_contact_hertz_linearized(lam, imp, P=Pc)        # N/mm (linearized at Pc)
+    k_cb = 1.0 / (1.0/k_b + 1.0/k_c)                         # N/mm
+    # Energy in N*mm (= mJ), convert to J
     E_mJ = Pc**2 / (2.0 * k_cb)
     return E_mJ * 1e-3
 ```
@@ -1092,15 +1099,24 @@ def soutis_cai(m, dpa_mm2, A_panel_mm2, sigma_pristine_MPa):
     kd = 1.0 / (1.0 + m.soutis_k_s * (dpa_mm2 / A_panel_mm2) ** m.soutis_m)
     return kd * sigma_pristine_MPa
 
-def whitney_nuismer_tai(m, dpa_mm2, sigma_pristine_MPa):
-    """Point-stress on equivalent circular hole of diameter 2*sqrt(DPA/π)."""
+def whitney_nuismer_tai(m, dpa_mm2, sigma_pristine_MPa, Kt_inf: float = 3.0):
+    """Point-stress criterion on equivalent circular hole of diameter 2*sqrt(DPA/pi).
+
+    Whitney & Nuismer 1974 normalized notched strength:
+        sigma_N / sigma_0 = 2 / (2 + xi^2 + 3*xi^4 - (Kt_inf - 3)*(5*xi^6 - 7*xi^8))
+    where xi = R / (R + d0), R is the hole radius, d0 is the material
+    characteristic distance, and Kt_inf is the infinite-plate stress
+    concentration factor (3.0 for isotropic; >3.0 for orthotropic laminates
+    aligned along the fiber direction — override per material if needed).
+    """
     if dpa_mm2 <= 0:
         return sigma_pristine_MPa
     R = math.sqrt(dpa_mm2 / math.pi)
     d0 = m.wn_d0_mm
     xi = R / (R + d0)
-    Kt_factor = (1 + 0.5*xi**2 + 1.5*xi**4 - (3 - 1)*(5*xi**6 - 7*xi**8))   # Whitney-Nuismer
-    return sigma_pristine_MPa / Kt_factor
+    denom = 2.0 + xi**2 + 3*xi**4 - (Kt_inf - 3.0) * (5*xi**6 - 7*xi**8)
+    kd = 2.0 / denom
+    return kd * sigma_pristine_MPa
 ```
 
 - [ ] **Step 4: Run — pass**
@@ -1443,7 +1459,7 @@ git commit -am "Add linear buckling eigenvalue solver using scipy eigsh with shi
   4. Build 5×5 basis of clamped-beam eigenfunction products `φ_mn(η, ξ) = w_m(η) * w_n(ξ)`.
   5. Assemble K (stiffness) and K_g (in-plane unit compressive load) via Gauss quadrature (10×10).
   6. Solve `eigsh(K, M=K_g, k=1, sigma=0)`; return smallest positive eigenvalue as critical buckling load.
-  Also implement `find_critical_interface(damage, laminate)` by scoring each interface as `area * |z_centroid|` (maximum through-thickness asymmetry × largest ellipse).
+  Also implement `find_critical_interface(damage, laminate)`. Score each interface `i` as `max_area_i * max(|z_upper_i|, |z_lower_i|)` where `max_area_i` is the largest ellipse area at that interface and `z_upper/lower` are the distances from the damaged interface to the outer and inner laminate surfaces. This scoring handles symmetric layups correctly (a mid-plane interface has `z_upper = z_lower = h/2`, not zero) and returns the interface where asymmetry of the remaining sublaminate is largest. Tie-break by largest ellipse area.
 
 - [ ] **Step 4: Run — pass**
 
@@ -1713,9 +1729,9 @@ Adapt from WrinkleFE `wrinklefe.spec` and PorosityFE `PorosityFE.spec`. Bundle p
 **Files:**
 - Create: `.github/workflows/release.yml`
 
-- [ ] On tag push `v*`, build PyInstaller app on macOS + Windows runners, upload as GitHub Release artifacts.
+- [ ] On tag push `v*`, build PyInstaller app on macOS + Windows runners, upload as GitHub Release artifacts. Artifacts are **unsigned** for v0.1.0 (no Apple Developer ID / Windows code-signing certificate configured). Release notes must instruct macOS users to clear the quarantine flag with `xattr -rd com.apple.quarantine BVID-FE.app` after download. Code signing is deferred to v0.2.0+ once certificates are procured.
 
-- [ ] Commit: `Add release workflow producing signed-app artifacts on tag push`
+- [ ] Commit: `Add release workflow producing unsigned app artifacts on tag push`
 
 ---
 
