@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bvidfe"
+version = "0.1.0.dev0"
+description = "Barely Visible Impact Damage residual-strength analysis for composite laminates"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "Rani Elhajjar"}]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt6>=6.5", "pyvista>=0.42", "pyvistaqt>=0.11"]
+dev = ["pytest>=7", "pytest-qt>=4.3", "ruff>=0.5", "black>=24"]
+all = ["bvidfe[gui,dev]"]
+
+[project.scripts]
+bvidfe = "bvidfe.cli:main"
+bvidfe-gui = "bvidfe.gui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:pytest-qt"

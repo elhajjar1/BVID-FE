@@ -1,0 +1,6 @@
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7
+PyQt6>=6.5
+pyvista>=0.42
+pyvistaqt>=0.11
