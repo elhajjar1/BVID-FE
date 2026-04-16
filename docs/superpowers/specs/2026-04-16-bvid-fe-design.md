@@ -170,6 +170,16 @@ class AnalysisConfig:
             self.mesh = MeshParams()
 
 @dataclass
+class FieldResults:                                    # populated by fe3d tier only
+    displacement: np.ndarray                           # (n_nodes, 3)
+    stress_global: np.ndarray                          # (n_elem, n_gp, 6) Voigt
+    strain_global: np.ndarray                          # (n_elem, n_gp, 6) Voigt
+    stress_local: np.ndarray                           # (n_elem, n_gp, 6) material frame
+    failure_index: np.ndarray                          # (n_elem, n_gp) Tsai-Wu / LaRC05
+    buckling_mode_shape: np.ndarray | None = None      # (n_nodes, 3) first mode
+    cohesive_damage: np.ndarray | None = None          # (n_cohesive_elems,) SDV
+
+@dataclass
 class AnalysisResults:
     residual_strength_MPa: float
     pristine_strength_MPa: float
@@ -230,7 +240,7 @@ E_onset = P_c² / (2 · k_cb)
 k_cb = 1 / (1/k_bending + 1/k_contact_Hertz)
 ```
 
-where `D_eff` is the effective flexural rigidity from CLT ABD (geometric mean of D11, D22), `k_bending` is a Navier series for the panel bending stiffness at the impact location, and `k_contact_Hertz` is the Hertzian contact stiffness of the impactor on the laminate surface. If `E_impact ≤ E_onset`, no damage is produced (`DamageState` is empty).
+where `D_eff` is the effective flexural rigidity from CLT ABD (geometric mean of D11, D22), `k_bending` is a Navier series for the panel bending stiffness at the impact location (truncated to the first **11 × 11 modes** — plenty for engineering accuracy on a rectangular plate; configurable via `impact.olsson.NAVIER_N`), and `k_contact_Hertz` is the Hertzian contact stiffness of the impactor on the laminate surface. If `E_impact ≤ E_onset`, no damage is produced (`DamageState` is empty).
 
 **4.1.2 Total damage projected area**:
 
@@ -242,7 +252,7 @@ with `h` the laminate thickness and `α` a material-family calibration constant 
 
 **4.1.3 Per-interface distribution + dent + fiber break** (`impact/shape_templates.py`, `dent_model.py`).
 
-- DPA is distributed across interfaces using a layup-dependent "peanut" template: ellipses are largest near the back face and oriented along the back-face ply direction. Ellipse aspect ratio per interface `AR_i = f(Δθ_i)` where `Δθ_i` is the ply-angle mismatch across interface `i`. Larger mismatch → more elongated lobe. The template conserves total DPA after accounting for overlap (polygon union).
+- DPA is distributed across interfaces using a layup-dependent "peanut" template: ellipses are largest near the back face and oriented along the back-face ply direction. Ellipse aspect ratio per interface `AR_i = f(Δθ_i)` where `Δθ_i` is the ply-angle mismatch across interface `i`. Larger mismatch → more elongated lobe. **DPA conservation after overlap requires a scaling step:** the template first assigns relative ellipse sizes from the peanut model, then a single scalar multiplier on all ellipse areas is solved (1D Brent root-find on union area) so that the polygon-union footprint equals the Olsson-predicted DPA within 1% tolerance.
 - Dent depth: thickness-normalized empirical fit `d/h = β · ((E - E_onset) / (G_Ic · h²))^γ`, with `β` and `γ` material-specific constants.
 - Fiber-break core radius: `r_fb = η · √(max(0, E - E_fb_threshold))`. Often `η = 0` or `E_fb_threshold` is very high, yielding no fiber-break core (which matches most BVID tests).
 
@@ -267,7 +277,7 @@ The tier is selected by `AnalysisConfig.tier`.
 
 - **CAI** — sublaminate buckling + post-buckling propagation:
   1. Identify the critical delaminated interface: largest through-thickness asymmetry × largest ellipse.
-  2. Compute sublaminate buckling load via orthotropic Rayleigh-Ritz over the elliptical delamination footprint (5-term series is adequate for engineering accuracy). Simply-supported boundary on the ellipse perimeter.
+  2. Compute sublaminate buckling load via orthotropic Rayleigh-Ritz over the elliptical delamination footprint using **products of clamped-beam eigenfunctions in η = x/a and ξ = y/b (local ellipse axes), 5 × 5 terms**. This basis satisfies the zero-deflection boundary on the ellipse perimeter analytically after mapping, and 5 × 5 is adequate for engineering accuracy on the first buckling mode. Simply-supported boundary on the ellipse perimeter (zero deflection, zero moment).
   3. Post-buckling propagation via ERR-based advance (Griffith-style) coupled with Soutis's residual-strength envelope. Returns `σ_CAI`.
 - **TAI** — Soutis notch model: treat DPA as an equivalent open hole of diameter `2·√(DPA/π)`, apply cohesive-zone / average-stress criterion with in-situ tensile strength.
 
@@ -278,7 +288,7 @@ The tier is selected by `AnalysisConfig.tier`.
   - Inside each `DelaminationEllipse` footprint: tractions held at zero (pre-cracked).
   - Outside ellipses: bilinear traction-separation law with strengths derived from material `G_Ic`, `G_IIc`.
 - **Fiber-break core:** elements inside `fiber_break_radius_mm` get isotropic near-zero stiffness (~1 MPa), same treatment PorosityFE uses for void elements.
-- **CAI path:** assemble linear stiffness K from the damaged mesh, solve generalized eigenproblem `K · φ = λ · K_g · φ` for the lowest mode via `scipy.sparse.linalg.eigs`, scale mode to unit amplitude, evaluate LaRC05 at post-buckled stress state. Residual strength = applied load × eigenvalue at first-ply failure.
+- **CAI path:** assemble linear stiffness K and geometric stiffness K_g from the damaged mesh under a unit reference load, solve the symmetric generalized eigenproblem `K · φ = λ · K_g · φ` for the lowest few modes via `scipy.sparse.linalg.eigsh` (symmetric solver; `sigma=0`, `which='LM'` with shift-invert for the smallest magnitudes). Scale the first mode to unit amplitude, evaluate LaRC05 at the post-buckled stress state. Residual strength = applied load × eigenvalue at first-ply failure.
 - **TAI path:** static solve under prescribed uniaxial tension displacement; Tsai-Wu evaluated at every Gauss point; fail when max Tsai-Wu index = 1. No buckling step.
 
 All tiers return the same `AnalysisResults` schema. `field_results` is only populated for `fe3d`.
@@ -361,7 +371,7 @@ PyQt6 desktop application. Main window: left dock (input panels), tabbed central
 | `MaterialPanel` | Material library dropdown + editable orthotropic fields; layup (comma-separated angles) + ply thickness. |
 | `PanelPanel` | Panel `Lx`, `Ly`; boundary condition dropdown. |
 | `InputModePanel` | Radio: *Impact-driven* vs *Damage-driven*. Switches active panel below. |
-| `ImpactPanel` | Impact energy (J), impactor diameter, impactor mass, location. Shows computed `E_onset` live. |
+| `ImpactPanel` | Impact energy (J), impactor diameter, impactor mass, impactor **shape** dropdown (hemispherical / flat / conical), location. Shows computed `E_onset` live. |
 | `DamagePanel` | Damage-entry table (one row per delaminated interface: index, major, minor, orientation, centroid); dent-depth field; fiber-break-radius field; **Import C-scan…** button. |
 | `AnalysisPanel` | Tier dropdown (empirical / semi_analytical / fe3d); loading dropdown (compression / tension); mesh params (only when fe3d selected); **Run** button. |
 | `SweepPanel` | Parametric sweep tab (energy range, layup variations, output CSV path). |
@@ -427,6 +437,10 @@ validation/
     ├── validation_cai_all.png
     └── validation_per_dataset_*.png
 ```
+
+**MAE metric definition:** Mean Absolute Percentage Error on predicted residual strength, computed as
+`MAE = (1/N) · Σ |σ_pred_i − σ_test_i| / σ_test_i · 100%`
+across all N cases in a dataset. Pristine-strength predictions are also compared; a case counts only toward the post-impact residual strength MAE.
 
 **Target pass table (published in README):**
 
