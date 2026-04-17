@@ -21,6 +21,7 @@ import numpy as np
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState, DelaminationEllipse
+from bvidfe.failure.soutis_openhole import soutis_cai, whitney_nuismer_tai
 
 
 def _sublaminate_D_matrix(
@@ -101,3 +102,61 @@ def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]
             best_score = score
             best_idx = idx
     return best_idx
+
+
+def semi_analytical_cai(
+    lam: Laminate,
+    damage: DamageState,
+    sigma_pristine_MPa: float,
+    A_panel_mm2: float,
+) -> tuple[float, Optional[int], Optional[float]]:
+    """Semi-analytical compression-after-impact residual strength (MPa).
+
+    Takes the minimum of:
+      (a) Soutis empirical knockdown at total DPA, and
+      (b) critical sublaminate buckling stress at the most critical interface.
+
+    Returns (sigma_CAI_MPa, critical_interface_index, critical_buckling_eigenvalue).
+    If the damage state is empty, returns (sigma_pristine, None, None).
+    """
+    if not damage.delaminations:
+        return sigma_pristine_MPa, None, None
+
+    # Soutis bound
+    dpa = damage.projected_damage_area_mm2
+    sigma_soutis = soutis_cai(lam.material, dpa, A_panel_mm2, sigma_pristine_MPa)
+
+    # Sublaminate buckling bound
+    crit_idx = find_critical_interface(damage, lam)
+    if crit_idx is None:
+        return sigma_soutis, None, None
+
+    # Largest ellipse at that interface drives buckling
+    ellipses_at_crit = [e for e in damage.delaminations if e.interface_index == crit_idx]
+    critical_ellipse = max(ellipses_at_crit, key=lambda e: e.area_mm2)
+    N_cr_per_mm = sublaminate_buckling_load(lam, critical_ellipse)  # N/mm
+
+    # Sublaminate thickness
+    sub_n_plies = min(crit_idx + 1, len(lam.layup_deg) - crit_idx - 1)
+    if sub_n_plies <= 0:
+        return sigma_soutis, crit_idx, None
+    h_sub = sub_n_plies * lam.ply_thickness_mm
+    sigma_buckling = N_cr_per_mm / h_sub if h_sub > 0 else float("inf")
+
+    sigma_cai = min(sigma_soutis, sigma_buckling)
+    return sigma_cai, crit_idx, N_cr_per_mm
+
+
+def semi_analytical_tai(
+    lam: Laminate,
+    damage: DamageState,
+    sigma_pristine_MPa: float,
+) -> float:
+    """Semi-analytical tension-after-impact residual strength.
+
+    v0.1.0: delegates to Whitney-Nuismer open-hole equivalent (same as empirical tier).
+    The full Soutis cohesive-zone notch model with in-situ ply strength is
+    deferred to v0.2.0.
+    """
+    dpa = damage.projected_damage_area_mm2
+    return whitney_nuismer_tai(lam.material, dpa, sigma_pristine_MPa)
