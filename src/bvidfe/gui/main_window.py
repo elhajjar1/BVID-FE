@@ -237,6 +237,47 @@ class BvidMainWindow(QMainWindow):
             return
         csv_path = self.sweep_panel.get_csv_path() or None
 
+        # Same fe3d mesh-size guard as single-run. A sweep is N x single-run
+        # cost, so the soft warning threshold here is stricter.
+        if cfg.tier == "fe3d":
+            from bvidfe.analysis.fe_mesh import estimate_fe_mesh_size
+            from bvidfe.analysis.fe_tier import FE3D_MAX_DOF
+
+            stats = estimate_fe_mesh_size(cfg)
+            n_runs = len(energies)
+            if stats["n_dof"] > FE3D_MAX_DOF:
+                QMessageBox.critical(
+                    self,
+                    "Mesh too large for fe3d tier",
+                    f"Sweep mesh has {stats['n_elements']:,} elements / "
+                    f"{stats['n_dof']:,} DOFs, exceeding the safe-size cap "
+                    f"of {FE3D_MAX_DOF:,}.\n\n"
+                    f"Increase 'In-plane size (mm)', decrease 'Elements per ply', "
+                    f"or switch to tier='empirical' / 'semi_analytical'.",
+                )
+                self.statusBar().showMessage("Sweep cancelled: mesh too large", 5000)
+                return
+            # Soft threshold: N runs * ~single-run cost. Warn at 10k elements * N.
+            if stats["n_elements"] * n_runs > 50_000 or n_runs > 20:
+                msg = (
+                    f"Sweep: {n_runs} fe3d runs, each with {stats['n_elements']:,} "
+                    f"elements ({stats['n_dof']:,} DOFs).\n\n"
+                    f"Total projected cost \u2248 {n_runs * stats['n_elements']:,} "
+                    f"element-solves. Expect multi-minute wall time.\n\n"
+                    f"Suggested: start with tier='empirical' for a quick sweep, "
+                    f"then use fe3d for spot-checks at key energies.\n\n"
+                    f"Run anyway?"
+                )
+                result = QMessageBox.question(
+                    self,
+                    "Large fe3d sweep",
+                    msg,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if result != QMessageBox.StandardButton.Yes:
+                    self.statusBar().showMessage("Sweep cancelled", 3000)
+                    return
+
         self.statusBar().showMessage("Running sweep\u2026")
         worker = SweepWorker(cfg, energies_J=energies, csv_path=csv_path)
         worker.resultReady.connect(self._on_sweep_ready)

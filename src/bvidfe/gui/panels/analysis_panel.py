@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from bvidfe.analysis.config import MeshParams
+
 
 class AnalysisPanel(QWidget):
     """Input panel for analysis tier, loading mode, mesh parameters, and run trigger."""
@@ -34,13 +36,15 @@ class AnalysisPanel(QWidget):
         self.mesh_group = QGroupBox("Mesh parameters (fe3d only)")
         mg = QFormLayout(self.mesh_group)
 
+        # Defaults track MeshParams so tightening the dataclass tightens the UI too
+        _mp_defaults = MeshParams()
         self.elements_per_ply = QSpinBox()
         self.elements_per_ply.setRange(1, 20)
-        self.elements_per_ply.setValue(4)
+        self.elements_per_ply.setValue(_mp_defaults.elements_per_ply)
 
         self.in_plane_size = QDoubleSpinBox()
         self.in_plane_size.setRange(0.1, 100.0)
-        self.in_plane_size.setValue(1.0)
+        self.in_plane_size.setValue(_mp_defaults.in_plane_size_mm)
         self.in_plane_size.setDecimals(2)
 
         mg.addRow("Elements per ply:", self.elements_per_ply)
