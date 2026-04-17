@@ -16,3 +16,14 @@ jobs:
       - run: ruff check src tests
       - run: black --check src tests
       - run: pytest -v
+
+  validation:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: python validation/validate_bvid_public.py --gate

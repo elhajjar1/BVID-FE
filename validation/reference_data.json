@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "description": "Top-level index of BVID validation datasets. See validation/README.md.",
+  "datasets_to_digitize_for_v0.2.0": [
+    {"name": "soutis_as4_3501-6", "reference": "Soutis & Curtis 1996", "target_mae_pct": 12},
+    {"name": "caprino_as4_epoxy", "reference": "Caprino 1984", "target_mae_pct": 15},
+    {"name": "sanchez-saez_im7_8552", "reference": "Sanchez-Saez et al. 2005", "target_mae_pct": 12},
+    {"name": "nasa_cai_round_robin", "reference": "NASA/TM-2007", "target_mae_pct": 15}
+  ]
+}
