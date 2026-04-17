@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "dent_depth_mm": 0.38,
+  "fiber_break_radius_mm": 0.0,
+  "delaminations": [
+    {"interface_index": 0, "centroid_mm": [75, 50], "major_mm": 6.0,  "minor_mm": 3.0,  "orientation_deg": 0},
+    {"interface_index": 1, "centroid_mm": [75, 50], "major_mm": 9.0,  "minor_mm": 4.5,  "orientation_deg": 22},
+    {"interface_index": 2, "centroid_mm": [75, 50], "major_mm": 12.0, "minor_mm": 6.0,  "orientation_deg": 0},
+    {"interface_index": 3, "centroid_mm": [75, 50], "major_mm": 16.0, "minor_mm": 8.0,  "orientation_deg": 67},
+    {"interface_index": 4, "centroid_mm": [75, 50], "major_mm": 19.0, "minor_mm": 9.5,  "orientation_deg": 90},
+    {"interface_index": 5, "centroid_mm": [75, 50], "major_mm": 22.0, "minor_mm": 11.0, "orientation_deg": 112},
+    {"interface_index": 6, "centroid_mm": [75, 50], "major_mm": 24.0, "minor_mm": 12.0, "orientation_deg": 135}
+  ]
+}
