@@ -1,0 +1,52 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[all]"
+          pip install pyinstaller
+
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller BvidFE.spec --noconfirm --clean
+          cd dist && zip -r BVID-FE-${{ github.ref_name }}-macOS.zip BVID-FE.app
+
+      - name: Build Windows app
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller BvidFE.spec --noconfirm --clean
+          cd dist && 7z a BVID-FE-${{ github.ref_name }}-Windows.zip BVID-FE
+
+      - name: Create release and upload artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/BVID-FE-${{ github.ref_name }}-macOS.zip
+            dist/BVID-FE-${{ github.ref_name }}-Windows.zip
+          generate_release_notes: true
+          body: |
+            BVID-FE release. Artifacts are **unsigned** for v0.1.x.
+            macOS users may need to clear the quarantine flag:
+                xattr -rd com.apple.quarantine BVID-FE.app
+            Code signing is deferred to v0.2.0+.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
