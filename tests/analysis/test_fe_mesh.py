@@ -74,3 +74,34 @@ def test_mesh_node_coordinates_span_panel():
     assert mesh.node_coords[:, 0].min() == 0.0
     assert abs(mesh.node_coords[:, 0].max() - 20.0) < 1e-9
     assert abs(mesh.node_coords[:, 1].max() - 10.0) < 1e-9
+
+
+def test_estimate_fe_mesh_size_returns_sensible_counts():
+    from bvidfe.analysis.config import AnalysisConfig, MeshParams
+    from bvidfe.analysis.fe_mesh import estimate_fe_mesh_size
+    from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
+    from bvidfe.impact.mapping import ImpactEvent
+
+    cfg = AnalysisConfig(
+        material="IM7/8552",
+        layup_deg=[0, 90, 0, 90],
+        ply_thickness_mm=0.2,
+        panel=PanelGeometry(20, 10),
+        loading="compression",
+        tier="fe3d",
+        impact=ImpactEvent(5.0, ImpactorGeometry(), mass_kg=5.5),
+        mesh=MeshParams(elements_per_ply=2, in_plane_size_mm=2.0),
+    )
+    stats = estimate_fe_mesh_size(cfg)
+    assert stats["n_elements"] == 10 * 5 * 8
+    assert stats["n_dof"] == 3 * 11 * 6 * 9
+
+
+def test_default_mesh_params_are_conservative():
+    from bvidfe.analysis.config import MeshParams
+
+    mp = MeshParams()
+    # At these defaults a 150x100 panel with 8 plies must stay below 10k elements
+    # (so non-expert users don't hang their GUI).
+    assert mp.elements_per_ply == 1
+    assert mp.in_plane_size_mm >= 5.0

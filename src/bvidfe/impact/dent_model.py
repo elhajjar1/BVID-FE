@@ -24,7 +24,10 @@ def dent_depth_mm(
         return 0.0
     numerator = (E_impact_J - E_onset_J) * 1e3  # N*mm
     denom = m.G_Ic * h_mm**2  # N*mm
-    return h_mm * m.dent_beta * (numerator / denom) ** m.dent_gamma
+    raw = h_mm * m.dent_beta * (numerator / denom) ** m.dent_gamma
+    # Physical cap: dent cannot exceed 50% of laminate thickness
+    # (beyond that it's perforation, not BVID)
+    return min(raw, 0.5 * h_mm)
 
 
 def fiber_break_radius_mm(m: OrthotropicMaterial, E_impact_J: float) -> float:

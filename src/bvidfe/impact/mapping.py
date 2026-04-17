@@ -10,6 +10,7 @@ Pipeline:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Tuple
 
@@ -50,6 +51,20 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
     dpa_target = material.olsson_alpha * (event.energy_J - E_onset) * 1e3 / (material.G_IIc * h)
     if dpa_target <= 0:
         return DamageState([], dent_depth_mm=0.0, fiber_break_radius_mm=0.0)
+
+    # Cap DPA at 80% of panel area to avoid physically unreasonable footprints
+    A_panel = panel.Lx_mm * panel.Ly_mm
+    A_cap = 0.8 * A_panel
+    if dpa_target > A_cap:
+        warnings.warn(
+            f"Olsson-predicted DPA ({dpa_target:.0f} mm^2) exceeds 80% of panel "
+            f"area ({A_cap:.0f} mm^2). Clipping to {A_cap:.0f} mm^2. The impact "
+            f"energy may exceed the panel's capacity to contain damage without "
+            f"edge effects; consider a larger panel or lower energy.",
+            UserWarning,
+            stacklevel=2,
+        )
+        dpa_target = A_cap
 
     dent = dent_depth_mm(material, event.energy_J, E_onset, h)
     r_fb = fiber_break_radius_mm(material, event.energy_J)

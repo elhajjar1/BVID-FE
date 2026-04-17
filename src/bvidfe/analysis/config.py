@@ -15,8 +15,8 @@ from bvidfe.impact.mapping import ImpactEvent
 class MeshParams:
     """Mesh resolution parameters for the 3D FE tier."""
 
-    elements_per_ply: int = 4
-    in_plane_size_mm: float = 1.0
+    elements_per_ply: int = 1
+    in_plane_size_mm: float = 5.0
     cohesive_zone_factor: float = 1.0
 
 

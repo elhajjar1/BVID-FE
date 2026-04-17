@@ -163,6 +163,33 @@ class BvidMainWindow(QMainWindow):
             self.statusBar().showMessage(f"Invalid config: {exc}", 10000)
             return
 
+        # fe3d mesh-size sanity check
+        if cfg.tier == "fe3d":
+            from bvidfe.analysis.fe_mesh import estimate_fe_mesh_size
+
+            stats = estimate_fe_mesh_size(cfg)
+            if stats["n_elements"] > 50_000 or stats["n_dof"] > 150_000:
+                msg = (
+                    f"The requested fe3d mesh has {stats['n_elements']:,} elements "
+                    f"({stats['n_dof']:,} DOFs).\n\n"
+                    f"Python FE in this version is single-threaded; expect multi-minute "
+                    f"wall time above ~10k elements.\n\n"
+                    f"Suggested tweaks:\n"
+                    f"  - increase 'In-plane size (mm)' in the Analysis panel\n"
+                    f"  - decrease 'Elements per ply'\n"
+                    f"  - switch tier to empirical or semi_analytical\n\n"
+                    f"Run anyway?"
+                )
+                result = QMessageBox.question(
+                    self,
+                    "Large mesh",
+                    msg,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if result != QMessageBox.StandardButton.Yes:
+                    self.statusBar().showMessage("Run cancelled", 3000)
+                    return
+
         self._last_config = cfg
         self.statusBar().showMessage("Running analysis\u2026")
         worker = AnalysisWorker(cfg)

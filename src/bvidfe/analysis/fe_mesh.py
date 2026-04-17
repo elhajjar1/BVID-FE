@@ -21,6 +21,28 @@ from bvidfe.damage.state import DamageState, DelaminationEllipse
 DAMAGE_STIFFNESS_FACTOR = 1.0e-4
 
 
+def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:
+    """Return a dict with n_elements, n_nodes, n_dof for a would-be fe_mesh build.
+
+    Use this to warn the user BEFORE running the analysis."""
+    mesh = config.mesh if config.mesh is not None else MeshParams()
+    n_plies = len(config.layup_deg)
+    nx = max(1, math.ceil(config.panel.Lx_mm / mesh.in_plane_size_mm))
+    ny = max(1, math.ceil(config.panel.Ly_mm / mesh.in_plane_size_mm))
+    nz = n_plies * mesh.elements_per_ply
+    n_elements = nx * ny * nz
+    n_nodes = (nx + 1) * (ny + 1) * (nz + 1)
+    n_dof = 3 * n_nodes
+    return {
+        "n_elements": n_elements,
+        "n_nodes": n_nodes,
+        "n_dof": n_dof,
+        "nx": nx,
+        "ny": ny,
+        "nz": nz,
+    }
+
+
 @dataclass
 class FeMesh:
     """Structured hex mesh with per-element ply/damage metadata."""

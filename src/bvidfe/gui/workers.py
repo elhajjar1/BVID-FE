@@ -25,7 +25,7 @@ class AnalysisWorker(QThread):
 
     def run(self) -> None:  # type: ignore[override]
         try:
-            self.progress.emit(25)
+            self.progress.emit(10)
             result = BvidAnalysis(self.config).run()
             self.progress.emit(100)
             self.resultReady.emit(result)
