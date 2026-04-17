@@ -9,6 +9,10 @@ from typing import Union
 
 from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.results import AnalysisResults
+from bvidfe.analysis.semi_analytical import (
+    semi_analytical_cai,
+    semi_analytical_tai,
+)
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
 from bvidfe.damage.state import DamageState
@@ -71,8 +75,12 @@ class BvidAnalysis:
             buckling_eigs = None
             critical_interface = None
             field_results = None
+        elif self.config.tier == "semi_analytical":
+            sigma, critical_interface, N_cr = self._semi_analytical(lam, damage, sigma_0)
+            buckling_eigs = [N_cr] if N_cr is not None else None
+            field_results = None
         else:
-            raise NotImplementedError(f"tier '{self.config.tier}' is not yet wired in Phase 6")
+            raise NotImplementedError(f"tier '{self.config.tier}' is not yet wired in Phase 9")
 
         return AnalysisResults(
             residual_strength_MPa=sigma,
@@ -92,6 +100,14 @@ class BvidAnalysis:
             return self.config.damage
         assert self.config.impact is not None  # asserted in __post_init__
         return impact_to_damage(self.config.impact, lam, self.config.panel)
+
+    def _semi_analytical(self, lam: Laminate, damage: DamageState, sigma_0: float):
+        A_panel = self.config.panel.Lx_mm * self.config.panel.Ly_mm
+        if self.config.loading == "compression":
+            return semi_analytical_cai(lam, damage, sigma_0, A_panel)
+        # tension
+        sigma = semi_analytical_tai(lam, damage, sigma_0)
+        return sigma, None, None
 
     def _empirical(self, lam: Laminate, damage: DamageState, sigma_0: float) -> float:
         A_panel = self.config.panel.Lx_mm * self.config.panel.Ly_mm
