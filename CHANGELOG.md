@@ -2,6 +2,54 @@
 
 All notable changes to BVID-FE are documented in this file.
 
+## [0.2.0-dev] - unreleased
+
+In-progress work toward v0.2.0. No tag yet.
+
+### Added
+
+- **True linear buckling eigensolve in the `fe3d` CAI tier**
+  `Hex8Element.geometric_stiffness_matrix(sigma_bar)` integrates
+  `gradN.T @ S @ gradN` over the element via 2×2×2 Gauss quadrature and
+  expands to a 24×24 K_g via `np.kron`. A new `fe3d_cai_buckling()` in
+  `analysis/fe_tier.py` assembles K and K_g under a uniform uniaxial
+  pre-stress (scaled by per-element damage factor), applies rigid-body
+  penalty BCs, and solves `K·φ = λ·K_g·φ` via `eigsh` shift-invert.
+  `BvidAnalysis.run()` for `tier="fe3d"` now returns the minimum of the
+  buckling stress and the first-ply-failure stress, capturing whichever
+  mode governs. `AnalysisResults.buckling_eigenvalues` is populated with
+  the smallest positive eigenvalue. First-ply-failure is retained as
+  `_fe3d_cai_first_ply_failure` — together they give engineers an upper
+  bound (FPF) and a lower bound (buckling) on the residual strength.
+- **Working 3D Mesh GUI tab** via `pyvistaqt.QtInteractor`. The old
+  `v0.2.0` placeholder is replaced with a real interactive 3D viewer that
+  renders the FE mesh coloured by per-element damage factor. Works for
+  all tiers (empirical / semi-analytical / fe3d) — for tiers that don't
+  otherwise build a mesh, the viewer constructs one with default
+  `MeshParams` just for visualization.
+- **Validation harness** (`validation/validate_bvid_public.py`):
+  `DatasetCase` dataclass + `run_dataset()` + MAE% metric. Auto-discovers
+  any JSON dataset in `validation/datasets/`. Ships with a synthetic
+  self-check dataset (MAE ≈ 0% by construction) so the harness is
+  exercised in CI; real published datasets (Soutis, Caprino,
+  Sanchez-Saez, NASA round-robin) remain to be digitized by hand.
+- **CI regression gate** — new `validation` job in
+  `.github/workflows/tests.yml` running
+  `python validation/validate_bvid_public.py --gate`.
+- Seven new tests on the geometric-stiffness / buckling path; three on
+  the 3D Mesh tab; three on the validator smoke path. **192 tests now
+  passing** (up from 179 at v0.1.0).
+
+### Known limitations (still deferred)
+
+- Material calibration constants remain placeholders until real datasets
+  land.
+- `fe3d` tier still uses stiffness-reduction at delaminations rather than
+  zero-thickness cohesive surfaces (different physics — stiffness
+  reduction captures the stiffness loss but not the debonding/sliding).
+- Buckling Mode / Stress Field GUI tabs are still placeholders.
+- Release artifacts are still unsigned.
+
 ## [0.1.0] - 2026-04-17
 
 Graduated from `v0.1.0-alpha`. Adds the PyQt6 desktop GUI and packaging infrastructure.
