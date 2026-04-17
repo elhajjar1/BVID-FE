@@ -93,6 +93,7 @@ class BvidMainWindow(QMainWindow):
         # Central tabbed results area
         from bvidfe.gui.tabs.damage_map_tab import DamageMapTab
         from bvidfe.gui.tabs.knockdown_tab import KnockdownTab
+        from bvidfe.gui.tabs.mesh_3d_tab import Mesh3DTab
         from bvidfe.gui.tabs.placeholder_tab import PlaceholderTab
         from bvidfe.gui.tabs.summary_tab import SummaryTab
 
@@ -100,7 +101,7 @@ class BvidMainWindow(QMainWindow):
         self.summary_tab = SummaryTab(self)
         self.damage_map_tab = DamageMapTab(self)
         self.knockdown_tab = KnockdownTab(self)
-        self.mesh_tab = PlaceholderTab("3D Mesh viewer — available in v0.2.0", self)
+        self.mesh_tab = Mesh3DTab(self)
         self.buckling_tab = PlaceholderTab("Buckling mode shape — available in v0.2.0", self)
         self.stress_tab = PlaceholderTab("Stress field contour — available in v0.2.0", self)
 
@@ -113,6 +114,7 @@ class BvidMainWindow(QMainWindow):
         self.setCentralWidget(self.results_tabs)
 
         self._last_result = None
+        self._last_config = None
         self._build_file_menu()
 
     def _on_mode_changed(self) -> None:
@@ -161,6 +163,7 @@ class BvidMainWindow(QMainWindow):
             self.statusBar().showMessage(f"Invalid config: {exc}", 10000)
             return
 
+        self._last_config = cfg
         self.statusBar().showMessage("Running analysis\u2026")
         worker = AnalysisWorker(cfg)
         worker.resultReady.connect(self._on_analysis_ready)
@@ -197,6 +200,8 @@ class BvidMainWindow(QMainWindow):
         self._last_result = result
         self.summary_tab.update(result)
         self.damage_map_tab.update(result, panel=self.panel_panel_as_geometry())
+        if self._last_config is not None:
+            self.mesh_tab.update(self._last_config, result)
         self.statusBar().showMessage(
             f"Analysis complete: knockdown = {result.knockdown:.3f}", 10000
         )
