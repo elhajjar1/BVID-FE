@@ -6,7 +6,10 @@ First-ply-failure on damaged mesh is retained as a fallback / comparison.
 
 from __future__ import annotations
 
+import logging
 import os
+import sys
+import time
 from typing import List
 
 import numpy as np
@@ -28,6 +31,21 @@ from bvidfe.solver.boundary import (
 )
 from bvidfe.solver.buckling import linear_buckling
 from bvidfe.solver.static import solve_linear_static
+
+# Configure a module-level logger that writes to stderr. Users launching
+# the GUI from a terminal (or running the CLI / Python API) will see
+# one log line per FE stage, making long runs observable.
+_log = logging.getLogger("bvidfe.fe3d")
+if not _log.handlers:
+    _h = logging.StreamHandler(sys.stderr)
+    _h.setFormatter(logging.Formatter("[bvidfe.fe3d %(asctime)s] %(message)s", "%H:%M:%S"))
+    _log.addHandler(_h)
+    _log.setLevel(os.environ.get("BVIDFE_LOG_LEVEL", "INFO").upper())
+
+
+def _t(msg: str, t0: float) -> None:
+    """Log a timing line: message + seconds since t0."""
+    _log.info("%s (%.2fs)", msg, time.time() - t0)
 
 
 # Hard cap on fe3d problem size. Beyond ~500k DOFs the pure-Python assembler
@@ -193,8 +211,12 @@ def _fe3d_cai_first_ply_failure(
     index reaches 1 on the damaged mesh. Retained as fallback / comparison path.
     """
     _guard_problem_size(cfg)
+    t0 = time.time()
+    _log.info("fe3d FPF: mesh build start")
     mesh = build_fe_mesh(cfg, damage)
+    _t(f"mesh build done: {mesh.n_elements} elements, {mesh.n_dof} DOFs", t0)
     elements = _build_elements(mesh, lam)
+    _t("elements built", t0)
     strain_at_failure = _solve_failure_strain_analytic(
         cfg,
         mesh,
@@ -202,8 +224,14 @@ def _fe3d_cai_first_ply_failure(
         strain_sign=-1,
         criterion="larc05",
     )
+    _t("FPF analytic solve done", t0)
     E = _effective_modulus(lam)
     sigma = strain_at_failure * E
+    _log.info(
+        "fe3d FPF done: residual = %.1f MPa (total %.2fs)",
+        min(sigma, sigma_pristine_MPa),
+        time.time() - t0,
+    )
     return min(sigma, sigma_pristine_MPa)
 
 
@@ -233,11 +261,16 @@ def fe3d_cai_buckling(
         lambda_crit        : smallest positive buckling load factor (0 if solve failed)
     """
     _guard_problem_size(cfg)
+    t0 = time.time()
+    _log.info("fe3d buckling: mesh build start")
     mesh = build_fe_mesh(cfg, damage)
+    _t(f"mesh build done: {mesh.n_elements} elements, {mesh.n_dof} DOFs", t0)
     elements = _build_elements(mesh, lam)
+    _t("elements built", t0)
 
     # Assemble elastic stiffness K
     K = assemble_global_stiffness(elements, mesh.element_dof_maps, mesh.n_dof)
+    _t("K assembled", t0)
 
     # Assemble geometric stiffness K_g under uniform uniaxial pre-stress sigma_ref along x.
     # Damaged elements carry damage_factor * sigma_ref (reduced load fraction).
@@ -261,10 +294,9 @@ def fe3d_cai_buckling(
     data = np.concatenate(data_chunks) if data_chunks else np.array([], dtype=float)
 
     Kg = sp.coo_matrix((data, (rows, cols)), shape=(K.shape[0], K.shape[0])).tocsc()
+    _t("Kg assembled", t0)
 
     # Apply penalty BCs to K (not Kg) to suppress rigid-body modes.
-    # Fix node 0 fully (DOFs 0,1,2), plus translational DOFs on two
-    # neighbour nodes to remove all six rigid-body modes.
     n_dof = K.shape[0]
     bcs = [
         BoundaryCondition(dof=0, value=0.0),
@@ -281,14 +313,23 @@ def fe3d_cai_buckling(
     try:
         n_req = min(6, n_dof - 1)
         eigs, _ = linear_buckling(K_mod, Kg, n_modes=n_req)
+        _t(f"eigsh returned {len(eigs)} values", t0)
         positive_eigs = [float(e) for e in eigs if e > 1e-6]
         if not positive_eigs:
+            _log.info("fe3d buckling: no positive eigenvalue, returning pristine")
             return sigma_pristine_MPa, 0.0
         lambda_crit = min(positive_eigs)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("fe3d buckling eigensolve failed: %s", exc)
         return sigma_pristine_MPa, 0.0
 
     sigma_critical = lambda_crit * sigma_ref_MPa
+    _log.info(
+        "fe3d buckling done: lambda_crit=%.4g sigma_crit=%.1f MPa (total %.2fs)",
+        lambda_crit,
+        sigma_critical,
+        time.time() - t0,
+    )
     return min(sigma_critical, sigma_pristine_MPa), lambda_crit
 
 

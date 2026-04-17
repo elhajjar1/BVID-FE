@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import threading
+import time
 import traceback
 from dataclasses import replace
 from pathlib import Path
@@ -12,6 +14,8 @@ import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+
+_log = logging.getLogger("bvidfe.gui")
 
 
 class AnalysisWorker(QThread):
@@ -36,6 +40,10 @@ class AnalysisWorker(QThread):
     def run(self) -> None:  # type: ignore[override]
         result_box: list[object] = [None]
         error_box: list[str] = []
+        t_start = time.time()
+        _log.info(
+            "AnalysisWorker started: tier=%s loading=%s", self.config.tier, self.config.loading
+        )
 
         def _do_work() -> None:
             try:
@@ -56,10 +64,17 @@ class AnalysisWorker(QThread):
             if t.is_alive() and pct < 90:
                 pct = min(90, pct + 5)
                 self.progress.emit(pct)
+                _log.info("AnalysisWorker heartbeat: %d%% (%.1fs)", pct, time.time() - t_start)
 
         if error_box:
+            _log.warning(
+                "AnalysisWorker error after %.1fs: %s",
+                time.time() - t_start,
+                error_box[0].splitlines()[-1],
+            )
             self.error.emit(error_box[0])
             return
+        _log.info("AnalysisWorker done (%.1fs)", time.time() - t_start)
         self.progress.emit(100)
         self.resultReady.emit(result_box[0])
 
