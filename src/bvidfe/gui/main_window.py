@@ -5,7 +5,6 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDockWidget,
-    QLabel,
     QMainWindow,
     QScrollArea,
     QStatusBar,
@@ -73,11 +72,26 @@ class BvidMainWindow(QMainWindow):
         dock.setWidget(scroll)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
-        # Central tabbed results area (placeholder for future result views)
+        # Central tabbed results area
+        from bvidfe.gui.tabs.damage_map_tab import DamageMapTab
+        from bvidfe.gui.tabs.knockdown_tab import KnockdownTab
+        from bvidfe.gui.tabs.placeholder_tab import PlaceholderTab
+        from bvidfe.gui.tabs.summary_tab import SummaryTab
+
         self.results_tabs = QTabWidget(self)
-        placeholder = QLabel("Run an analysis to see results.")
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.results_tabs.addTab(placeholder, "Summary")
+        self.summary_tab = SummaryTab(self)
+        self.damage_map_tab = DamageMapTab(self)
+        self.knockdown_tab = KnockdownTab(self)
+        self.mesh_tab = PlaceholderTab("3D Mesh viewer — available in v0.2.0", self)
+        self.buckling_tab = PlaceholderTab("Buckling mode shape — available in v0.2.0", self)
+        self.stress_tab = PlaceholderTab("Stress field contour — available in v0.2.0", self)
+
+        self.results_tabs.addTab(self.summary_tab, "Summary")
+        self.results_tabs.addTab(self.damage_map_tab, "Damage Map")
+        self.results_tabs.addTab(self.knockdown_tab, "Knockdown Curve")
+        self.results_tabs.addTab(self.mesh_tab, "3D Mesh")
+        self.results_tabs.addTab(self.buckling_tab, "Buckling Mode")
+        self.results_tabs.addTab(self.stress_tab, "Stress Field")
         self.setCentralWidget(self.results_tabs)
 
     def _on_mode_changed(self) -> None:
