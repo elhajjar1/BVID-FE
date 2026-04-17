@@ -2,6 +2,29 @@
 
 All notable changes to BVID-FE are documented in this file.
 
+## [0.1.0] - 2026-04-17
+
+Graduated from `v0.1.0-alpha`. Adds the PyQt6 desktop GUI and packaging infrastructure.
+
+### Added (since v0.1.0-alpha)
+
+- **PyQt6 desktop GUI** (`bvidfe-gui` console script):
+  - Seven input panels (MaterialPanel, PanelPanel, InputModePanel, ImpactPanel, DamagePanel, AnalysisPanel, SweepPanel)
+  - Six result tabs (Summary, Damage Map, Knockdown Curve, 3D Mesh/Buckling/Stress placeholders)
+  - `AnalysisWorker` and `SweepWorker` QThread subclasses for off-UI-thread computation
+  - File menu: Save/Load Config (JSON), Export Results JSON, Export Damage Map PNG
+  - Headless pytest-qt test coverage for all panels and workers
+- **PyInstaller spec** (`BvidFE.spec`) for building macOS and Windows standalone apps
+- **GitHub Actions release workflow** (`.github/workflows/release.yml`): on-tag build of macOS + Windows bundles, auto-uploaded to GitHub Releases
+- 30 additional tests (149 → 179), including pytest-qt GUI smoke tests
+
+### Remaining limitations (deferred to v0.2.0)
+
+- Material calibration constants are still placeholders pending validation against published CAI/TAI datasets (Soutis, Caprino, Sanchez-Saez, NASA round-robin)
+- `fe3d` tier uses stiffness reduction + first-ply-failure; true cohesive surfaces and buckling-based CAI eigensolve are deferred
+- 3D Mesh / Buckling / Stress GUI tabs are placeholder widgets (2D plots are fully wired)
+- Release artifacts are **unsigned** (no Apple Developer ID or Windows signing cert configured); macOS users may need `xattr -rd com.apple.quarantine BVID-FE.app`
+
 ## [0.1.0-alpha] - 2026-04-16
 
 Initial release.

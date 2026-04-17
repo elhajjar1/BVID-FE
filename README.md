@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen.svg)](https://github.com/elhajjar1/BVID-FE/actions)
+[![Tests](https://img.shields.io/badge/tests-179%20passing-brightgreen.svg)](https://github.com/elhajjar1/BVID-FE/actions)
 
 A Python library for predicting residual strength and stiffness of fiber-reinforced composite laminates containing Barely Visible Impact Damage (BVID).
 
@@ -25,9 +25,11 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
 - **Four material presets**: AS4/3501-6, IM7/8552, T700/2510, T800/epoxy
 - **CLI** for single-run and batch use
+- **PyQt6 desktop GUI** with seven input panels, three result tabs (Summary, Damage Map, Knockdown Curve), threaded analysis / sweep workers, and a File menu (Save/Load Config, Export Results JSON, Export Damage Map PNG)
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output
 - **2D plots**: damage map, knockdown curves, tier comparison charts
 - **3D PyVista plots**: delamination surfaces, buckling mode shape, stress contour
+- **PyInstaller packaging** for standalone macOS and Windows apps via GitHub Actions release workflow
 
 ## Installation
 
@@ -39,6 +41,14 @@ pytest -v
 ```
 
 ## Quick Start
+
+### Desktop GUI
+
+```bash
+bvidfe-gui
+```
+
+Launches the PyQt6 desktop application: configure material + layup, panel size, impact event or damage state, pick a tier, click **Run analysis**. Results appear in the Summary and Damage Map tabs. File menu → Save/Load Config to persist setups, Export Results JSON/PNG for reporting.
 
 ### Command-line interface
 
