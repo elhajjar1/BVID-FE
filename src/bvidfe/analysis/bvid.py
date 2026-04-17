@@ -86,9 +86,18 @@ class BvidAnalysis:
             field_results = None
         elif self.config.tier == "fe3d":
             if self.config.loading == "compression":
+                # Run both paths, but only use the buckling stress if it is
+                # physically plausible. v0.2.0-dev's buckling model uses a
+                # simplified uniform-pre-stress approximation with 3-point
+                # rigid-body BCs; on realistic panels the absolute eigenvalue
+                # can be dramatically off from analytical plate buckling. If
+                # it's less than 5% of pristine we treat it as a numerical
+                # artefact and fall back to FPF. A future release will wire
+                # proper in-plane pre-stress BCs into the buckling path.
                 sigma_buckling, lambda_crit = fe3d_cai_buckling(self.config, damage, lam, sigma_0)
                 sigma_fpf = _fe3d_cai_first_ply_failure(self.config, damage, lam, sigma_0)
-                sigma = min(sigma_buckling, sigma_fpf)
+                buckling_plausible = sigma_buckling >= 0.05 * sigma_0
+                sigma = min(sigma_buckling, sigma_fpf) if buckling_plausible else sigma_fpf
                 buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
             else:
                 sigma = fe3d_tai(self.config, damage, lam, sigma_0)
