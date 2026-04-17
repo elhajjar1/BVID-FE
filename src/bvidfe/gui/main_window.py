@@ -163,21 +163,44 @@ class BvidMainWindow(QMainWindow):
             self.statusBar().showMessage(f"Invalid config: {exc}", 10000)
             return
 
-        # fe3d mesh-size sanity check
+        # fe3d mesh-size sanity check. Oversized problems can both hang the
+        # GUI and, more seriously, crash the process outright via SIGSEGV from
+        # scipy's native sparse solvers when memory is exhausted. The solver
+        # itself enforces a hard cap (FE3D_MAX_DOF) via FE3DSizeError; this
+        # GUI dialog is a friendly early check.
         if cfg.tier == "fe3d":
             from bvidfe.analysis.fe_mesh import estimate_fe_mesh_size
+            from bvidfe.analysis.fe_tier import FE3D_MAX_DOF
 
             stats = estimate_fe_mesh_size(cfg)
+            if stats["n_dof"] > FE3D_MAX_DOF:
+                # Past the hard cap: block run outright, explain clearly
+                QMessageBox.critical(
+                    self,
+                    "Mesh too large for fe3d tier",
+                    f"The requested fe3d mesh has {stats['n_elements']:,} elements "
+                    f"({stats['n_dof']:,} DOFs), which exceeds the safe-size cap "
+                    f"of {FE3D_MAX_DOF:,} DOFs.\n\n"
+                    f"At this size the pure-Python FE assembler and scipy sparse "
+                    f"solvers can exhaust memory and crash the process.\n\n"
+                    f"Please do one of:\n"
+                    f"  \u2022 increase 'In-plane size (mm)' in the Analysis panel\n"
+                    f"  \u2022 decrease 'Elements per ply'\n"
+                    f"  \u2022 switch tier to empirical or semi_analytical",
+                )
+                self.statusBar().showMessage("Run cancelled: mesh too large", 5000)
+                return
+
             if stats["n_elements"] > 50_000 or stats["n_dof"] > 150_000:
                 msg = (
                     f"The requested fe3d mesh has {stats['n_elements']:,} elements "
                     f"({stats['n_dof']:,} DOFs).\n\n"
                     f"Python FE in this version is single-threaded; expect multi-minute "
-                    f"wall time above ~10k elements.\n\n"
+                    f"wall time at this size.\n\n"
                     f"Suggested tweaks:\n"
-                    f"  - increase 'In-plane size (mm)' in the Analysis panel\n"
-                    f"  - decrease 'Elements per ply'\n"
-                    f"  - switch tier to empirical or semi_analytical\n\n"
+                    f"  \u2022 increase 'In-plane size (mm)' in the Analysis panel\n"
+                    f"  \u2022 decrease 'Elements per ply'\n"
+                    f"  \u2022 switch tier to empirical or semi_analytical\n\n"
                     f"Run anyway?"
                 )
                 result = QMessageBox.question(

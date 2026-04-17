@@ -1,7 +1,7 @@
 import pytest
 
 from bvidfe.analysis.config import AnalysisConfig, MeshParams
-from bvidfe.analysis.fe_tier import fe3d_cai, fe3d_tai
+from bvidfe.analysis.fe_tier import FE3DSizeError, fe3d_cai, fe3d_tai
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
@@ -44,3 +44,28 @@ def test_fe3d_tai_pristine_positive(small_cfg):
     damage = DamageState([], 0.0)
     sigma = fe3d_tai(small_cfg, damage, lam, sigma_pristine_MPa=800.0)
     assert sigma > 0
+
+
+def test_fe3d_rejects_oversized_mesh():
+    """Defense-in-depth: fe3d solvers raise FE3DSizeError before calling
+    scipy's native code on an OOM-risk problem. Prevents the SIGSEGV that
+    the v0.1.0 build exhibited on a 150x100 panel with default mesh."""
+    oversized_cfg = AnalysisConfig(
+        material="IM7/8552",
+        layup_deg=[0, 45, -45, 90] * 4,  # 16 plies
+        ply_thickness_mm=0.152,
+        panel=PanelGeometry(150, 100),
+        loading="compression",
+        tier="fe3d",
+        impact=ImpactEvent(20.0, ImpactorGeometry(), mass_kg=5.5),
+        mesh=MeshParams(elements_per_ply=4, in_plane_size_mm=1.0),  # the old default
+    )
+    lam = Laminate(
+        MATERIAL_LIBRARY["IM7/8552"],
+        oversized_cfg.layup_deg,
+        oversized_cfg.ply_thickness_mm,
+    )
+    with pytest.raises(FE3DSizeError):
+        fe3d_cai(oversized_cfg, DamageState([], 0.0), lam, 500.0)
+    with pytest.raises(FE3DSizeError):
+        fe3d_tai(oversized_cfg, DamageState([], 0.0), lam, 800.0)

@@ -6,13 +6,14 @@ First-ply-failure on damaged mesh is retained as a fallback / comparison.
 
 from __future__ import annotations
 
+import os
 from typing import List
 
 import numpy as np
 import scipy.sparse as sp
 
 from bvidfe.analysis.config import AnalysisConfig
-from bvidfe.analysis.fe_mesh import FeMesh, build_fe_mesh
+from bvidfe.analysis.fe_mesh import FeMesh, build_fe_mesh, estimate_fe_mesh_size
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
 from bvidfe.elements.hex8 import Hex8Element
@@ -27,6 +28,36 @@ from bvidfe.solver.boundary import (
 )
 from bvidfe.solver.buckling import linear_buckling
 from bvidfe.solver.static import solve_linear_static
+
+
+# Hard cap on fe3d problem size. Beyond ~500k DOFs the pure-Python assembler
+# + scipy sparse LU factorization start risking memory exhaustion and native-
+# code crashes (scipy calls into BLAS/SuiteSparse which cannot be caught by
+# Python exception handling — an OOM there is a SIGSEGV in the parent process).
+# Override via BVIDFE_FE3D_MAX_DOF env var at your own risk.
+FE3D_MAX_DOF: int = int(os.environ.get("BVIDFE_FE3D_MAX_DOF", "500000"))
+
+
+class FE3DSizeError(RuntimeError):
+    """Raised when an fe3d problem exceeds the safe-size cap."""
+
+
+def _guard_problem_size(cfg: AnalysisConfig) -> None:
+    """Raise FE3DSizeError if the mesh would exceed the safe-size cap.
+
+    Called at the top of fe3d_cai_buckling / fe3d_cai / fe3d_tai so callers
+    get a clean Python exception instead of a native-code crash.
+    """
+    stats = estimate_fe_mesh_size(cfg)
+    if stats["n_dof"] > FE3D_MAX_DOF:
+        raise FE3DSizeError(
+            f"fe3d problem too large: {stats['n_elements']:,} elements / "
+            f"{stats['n_dof']:,} DOFs exceeds the safe-size cap of "
+            f"{FE3D_MAX_DOF:,} DOFs. Increase MeshParams.in_plane_size_mm, "
+            f"decrease elements_per_ply, or switch to tier='empirical' / "
+            f"tier='semi_analytical'. Override the cap via the "
+            f"BVIDFE_FE3D_MAX_DOF environment variable at your own risk."
+        )
 
 
 def _build_elements(mesh: FeMesh, lam: Laminate) -> List[Hex8Element]:
@@ -126,6 +157,7 @@ def _fe3d_cai_first_ply_failure(
     Original v0.1.0 implementation — bisects on applied strain until LaRC05 failure
     index reaches 1 on the damaged mesh. Retained as fallback / comparison path.
     """
+    _guard_problem_size(cfg)
     mesh = build_fe_mesh(cfg, damage)
     elements = _build_elements(mesh, lam)
     strain_at_failure = _bisect_failure_strain(
@@ -165,6 +197,7 @@ def fe3d_cai_buckling(
         sigma_critical_MPa : min(lambda_crit * sigma_ref, sigma_pristine_MPa)
         lambda_crit        : smallest positive buckling load factor (0 if solve failed)
     """
+    _guard_problem_size(cfg)
     mesh = build_fe_mesh(cfg, damage)
     elements = _build_elements(mesh, lam)
 
@@ -248,6 +281,7 @@ def fe3d_tai(
     sigma_pristine_MPa: float,
 ) -> float:
     """3D FE tension-after-impact residual strength (MPa)."""
+    _guard_problem_size(cfg)
     mesh = build_fe_mesh(cfg, damage)
     elements = _build_elements(mesh, lam)
     strain_at_failure = _bisect_failure_strain(
