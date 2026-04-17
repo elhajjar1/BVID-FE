@@ -9,7 +9,11 @@ from typing import Union
 
 from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.results import AnalysisResults
-from bvidfe.analysis.fe_tier import fe3d_cai, fe3d_tai
+from bvidfe.analysis.fe_tier import (
+    _fe3d_cai_first_ply_failure,
+    fe3d_cai_buckling,
+    fe3d_tai,
+)
 from bvidfe.analysis.semi_analytical import (
     semi_analytical_cai,
     semi_analytical_tai,
@@ -81,10 +85,16 @@ class BvidAnalysis:
             buckling_eigs = [N_cr] if N_cr is not None else None
             field_results = None
         elif self.config.tier == "fe3d":
-            sigma = self._fe3d(lam, damage, sigma_0)
-            buckling_eigs = None
+            if self.config.loading == "compression":
+                sigma_buckling, lambda_crit = fe3d_cai_buckling(self.config, damage, lam, sigma_0)
+                sigma_fpf = _fe3d_cai_first_ply_failure(self.config, damage, lam, sigma_0)
+                sigma = min(sigma_buckling, sigma_fpf)
+                buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
+            else:
+                sigma = fe3d_tai(self.config, damage, lam, sigma_0)
+                buckling_eigs = None
             critical_interface = None
-            field_results = None  # minimal in v0.1.0; v0.2.0 will populate
+            field_results = None
         else:
             raise NotImplementedError(f"tier '{self.config.tier}' is not recognized")
 
@@ -114,11 +124,6 @@ class BvidAnalysis:
         # tension
         sigma = semi_analytical_tai(lam, damage, sigma_0)
         return sigma, None, None
-
-    def _fe3d(self, lam: Laminate, damage: DamageState, sigma_0: float) -> float:
-        if self.config.loading == "compression":
-            return fe3d_cai(self.config, damage, lam, sigma_0)
-        return fe3d_tai(self.config, damage, lam, sigma_0)
 
     def _empirical(self, lam: Laminate, damage: DamageState, sigma_0: float) -> float:
         A_panel = self.config.panel.Lx_mm * self.config.panel.Ly_mm

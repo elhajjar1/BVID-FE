@@ -161,3 +161,42 @@ class Hex8Element:
             B, _ = self.B_matrix(xi, eta, zeta)
             out[ig] = B @ u_elem
         return out
+
+    def geometric_stiffness_matrix(self, sigma_bar_3x3: np.ndarray) -> np.ndarray:
+        """Element geometric stiffness for a constant stress state.
+
+        sigma_bar_3x3 : (3, 3) symmetric stress matrix in the global frame.
+
+        Returns 24x24 geometric stiffness K_g. K_g is symmetric and proportional
+        to the applied stress state. Used for linear buckling eigenproblems.
+
+        Derivation: for a nonlinear strain perturbation eps_nl = 0.5 grad(u).T grad(u),
+        the contribution to the stiffness from the pre-stress state sigma is
+            K_g = integral_V grad(N).T @ sigma @ grad(N) dV
+        where grad(N) is the 3x8 matrix of nodal shape function spatial gradients.
+        In Kronecker form, K_g (24x24) = kron(H_3x3_per_node_pair, I_3).
+        """
+        sigma_bar = np.asarray(sigma_bar_3x3, dtype=float)
+        if sigma_bar.shape != (3, 3):
+            raise ValueError(f"sigma_bar must be (3,3), got {sigma_bar.shape}")
+
+        gp, wt = gauss_points_hex(order=2)
+        Kg = np.zeros((24, 24))
+
+        for ig in range(gp.shape[0]):
+            xi, eta, zeta = gp[ig]
+            dN_nat = self.shape_derivatives(xi, eta, zeta)  # (3, 8)
+            J = self.jacobian(xi, eta, zeta)
+            detJ = np.linalg.det(J)
+            J_inv = np.linalg.inv(J)
+            gradN = J_inv @ dN_nat  # (3, 8) — d N_k/d{x,y,z}
+
+            # H_{ij} = gradN_i^T @ sigma @ gradN_j is a scalar;
+            # each node-pair (i, j) contributes H_ij * I_3 to the 3x3 DOF block.
+            # Vectorised: Hmat = gradN.T @ sigma @ gradN  (8, 8)
+            Hmat = gradN.T @ sigma_bar @ gradN  # (8, 8)
+
+            # Expand (8, 8) to (24, 24): each entry becomes I_3 * H_ij
+            Kg += np.kron(Hmat, np.eye(3)) * (detJ * wt[ig])
+
+        return Kg
