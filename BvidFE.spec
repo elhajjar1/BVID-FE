@@ -208,8 +208,9 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": "BVID-FE",
             "CFBundleDisplayName": "BVID-FE",
-            "CFBundleShortVersionString": "0.1.0",
-            "CFBundleVersion": "0.1.0",
+            # Read version from installed bvidfe package so it stays in sync
+            "CFBundleShortVersionString": __import__("bvidfe").__version__,
+            "CFBundleVersion": __import__("bvidfe").__version__,
             "NSHighResolutionCapable": True,
             "NSPrincipalClass": "NSApplication",
             "LSMinimumSystemVersion": "12.0",
