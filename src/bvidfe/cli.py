@@ -57,7 +57,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--loading", choices=["compression", "tension"])
     p.add_argument("--tier", default="empirical", choices=["empirical", "semi_analytical", "fe3d"])
-    p.add_argument("--energy", type=float, help="Impact energy in Joules")
+    p.add_argument(
+        "--energy",
+        type=float,
+        help="Impact energy in Joules (impact-driven workflow). Mutually exclusive with --cscan.",
+    )
+    p.add_argument(
+        "--cscan",
+        type=str,
+        help="Path to a C-scan JSON file (inspection-driven workflow). "
+        "Mutually exclusive with --energy. See docs/cscan_schema.md for the format.",
+    )
     p.add_argument(
         "--impactor-diameter",
         type=float,
@@ -99,28 +109,50 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.list_materials:
         _list_materials()
         return 0
-    # Enforce required args now (we made them optional so --list-materials
-    # can work without them)
+    # Base required args (always needed)
     missing = [
         n
-        for n in ("material", "layup", "thickness", "panel", "loading", "energy")
+        for n in ("material", "layup", "thickness", "panel", "loading")
         if getattr(args, n) is None
     ]
     if missing:
         parser.error(f"missing required arguments: {', '.join('--' + m for m in missing)}")
-    cfg = AnalysisConfig(
-        material=args.material,
-        layup_deg=args.layup,
-        ply_thickness_mm=args.thickness,
-        panel=args.panel,
-        loading=args.loading,
-        tier=args.tier,
-        impact=ImpactEvent(
-            energy_J=args.energy,
-            impactor=ImpactorGeometry(diameter_mm=args.impactor_diameter),
-            mass_kg=args.mass,
-        ),
-    )
+    # Exactly one of --energy (impact-driven) or --cscan (inspection-driven)
+    if args.energy is None and args.cscan is None:
+        parser.error("must provide either --energy (impact-driven) or --cscan (inspection-driven)")
+    if args.energy is not None and args.cscan is not None:
+        parser.error("--energy and --cscan are mutually exclusive")
+
+    if args.energy is not None:
+        cfg = AnalysisConfig(
+            material=args.material,
+            layup_deg=args.layup,
+            ply_thickness_mm=args.thickness,
+            panel=args.panel,
+            loading=args.loading,
+            tier=args.tier,
+            impact=ImpactEvent(
+                energy_J=args.energy,
+                impactor=ImpactorGeometry(diameter_mm=args.impactor_diameter),
+                mass_kg=args.mass,
+            ),
+        )
+    else:
+        from pathlib import Path
+
+        from bvidfe.damage.io import load_cscan_json
+
+        cscan_path = Path(args.cscan)
+        damage = load_cscan_json(cscan_path)
+        cfg = AnalysisConfig(
+            material=args.material,
+            layup_deg=args.layup,
+            ply_thickness_mm=args.thickness,
+            panel=args.panel,
+            loading=args.loading,
+            tier=args.tier,
+            damage=damage,
+        )
     result = BvidAnalysis(cfg).run()
     if args.quick:
         print(f"{result.knockdown:.6f}")

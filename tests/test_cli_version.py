@@ -31,6 +31,64 @@ def test_cli_list_materials_prints_all_presets():
         assert name in res.stdout
 
 
+def test_cli_cscan_flag_runs_inspection_driven():
+    """--cscan runs the inspection-driven path from CLI (mutually exclusive with --energy)."""
+    res = subprocess.run(
+        [
+            "./.venv/bin/bvidfe",
+            "--material",
+            "IM7/8552",
+            "--layup",
+            "0,45,-45,90,90,-45,45,0",
+            "--thickness",
+            "0.152",
+            "--panel",
+            "150x100",
+            "--loading",
+            "compression",
+            "--tier",
+            "semi_analytical",
+            "--cscan",
+            "examples/sample_cscan.json",
+            "--quick",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr
+    kd = float(res.stdout.strip())
+    assert 0.0 < kd < 1.0
+
+
+def test_cli_rejects_energy_and_cscan_together():
+    """--energy and --cscan are mutually exclusive."""
+    res = subprocess.run(
+        [
+            "./.venv/bin/bvidfe",
+            "--material",
+            "IM7/8552",
+            "--layup",
+            "0,90,0,90",
+            "--thickness",
+            "0.2",
+            "--panel",
+            "100x50",
+            "--loading",
+            "compression",
+            "--energy",
+            "20",
+            "--cscan",
+            "examples/sample_cscan.json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode != 0
+    assert "mutually exclusive" in res.stderr
+
+
 def test_cli_quick_flag_prints_only_knockdown():
     """--quick prints just the knockdown as a scalar, no JSON."""
     res = subprocess.run(
