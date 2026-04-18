@@ -108,7 +108,7 @@ class BvidMainWindow(QMainWindow):
         self.results_tabs.addTab(self.summary_tab, "Summary")
         self.results_tabs.addTab(self.damage_map_tab, "Damage Map")
         self.results_tabs.addTab(self.knockdown_tab, "Knockdown Curve")
-        self.results_tabs.addTab(self.mesh_tab, "3D Mesh")
+        self.results_tabs.addTab(self.mesh_tab, "Damage View")
         self.results_tabs.addTab(self.buckling_tab, "Buckling Mode")
         self.results_tabs.addTab(self.stress_tab, "Stress Field")
         self.setCentralWidget(self.results_tabs)
