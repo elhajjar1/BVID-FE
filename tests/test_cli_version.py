@@ -18,6 +18,19 @@ def test_cli_version_flag_prints_version():
     assert bvidfe.__version__ in res.stdout
 
 
+def test_cli_list_materials_prints_all_presets():
+    """--list-materials prints all 4 material presets and exits cleanly."""
+    res = subprocess.run(
+        ["./.venv/bin/bvidfe", "--list-materials"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0
+    for name in ("AS4/3501-6", "IM7/8552", "T700/2510", "T800/epoxy"):
+        assert name in res.stdout
+
+
 def test_cli_quick_flag_prints_only_knockdown():
     """--quick prints just the knockdown as a scalar, no JSON."""
     res = subprocess.run(

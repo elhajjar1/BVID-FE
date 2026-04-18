@@ -43,23 +43,21 @@ def _build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"bvidfe {bvidfe.__version__}",
     )
-    p.add_argument("--material", required=True, help="Material preset name (e.g. IM7/8552)")
+    p.add_argument("--material", help="Material preset name (e.g. IM7/8552)")
     p.add_argument(
         "--layup",
-        required=True,
         type=_parse_layup,
         help="Comma-separated ply angles in degrees, e.g. 0,45,-45,90",
     )
-    p.add_argument("--thickness", required=True, type=float, help="Ply thickness in millimeters")
+    p.add_argument("--thickness", type=float, help="Ply thickness in millimeters")
     p.add_argument(
         "--panel",
-        required=True,
         type=_parse_panel,
         help="Panel dimensions as LxY in millimeters, e.g. 150x100",
     )
-    p.add_argument("--loading", required=True, choices=["compression", "tension"])
+    p.add_argument("--loading", choices=["compression", "tension"])
     p.add_argument("--tier", default="empirical", choices=["empirical", "semi_analytical", "fe3d"])
-    p.add_argument("--energy", type=float, required=True, help="Impact energy in Joules")
+    p.add_argument("--energy", type=float, help="Impact energy in Joules")
     p.add_argument(
         "--impactor-diameter",
         type=float,
@@ -73,11 +71,43 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print only the knockdown scalar (residual / pristine) to stdout instead of the full JSON. "
         "Useful for shell pipelines: e.g. `bvidfe ... --quick | xargs -I {} ...`.",
     )
+    p.add_argument(
+        "--list-materials",
+        action="store_true",
+        help="List available material presets with key properties and exit.",
+    )
     return p
 
 
+def _list_materials() -> None:
+    from bvidfe.core.material import MATERIAL_LIBRARY
+
+    print(f"{'Name':<18} {'E11':>8} {'E22':>7} {'Xt':>7} {'Xc':>7} {'Yt':>5} {'Yc':>5}")
+    print(
+        f"{'':-<18} {'-' * 8:>8} {'-' * 7:>7} {'-' * 7:>7} {'-' * 7:>7} {'-' * 5:>5} {'-' * 5:>5}"
+    )
+    for name, m in MATERIAL_LIBRARY.items():
+        print(
+            f"{name:<18} {m.E11:>8.0f} {m.E22:>7.0f} {m.Xt:>7.0f} {m.Xc:>7.0f} {m.Yt:>5.0f} {m.Yc:>5.0f}"
+        )
+    print("\nUnits: MPa. Use --material <Name> to select.")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.list_materials:
+        _list_materials()
+        return 0
+    # Enforce required args now (we made them optional so --list-materials
+    # can work without them)
+    missing = [
+        n
+        for n in ("material", "layup", "thickness", "panel", "loading", "energy")
+        if getattr(args, n) is None
+    ]
+    if missing:
+        parser.error(f"missing required arguments: {', '.join('--' + m for m in missing)}")
     cfg = AnalysisConfig(
         material=args.material,
         layup_deg=args.layup,
