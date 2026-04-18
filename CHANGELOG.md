@@ -39,9 +39,60 @@ In-progress work toward v0.2.0. No tag yet.
 - **CI regression gate** — new `validation` job in
   `.github/workflows/tests.yml` running
   `python validation/validate_bvid_public.py --gate`.
-- Seven new tests on the geometric-stiffness / buckling path; three on
-  the 3D Mesh tab; three on the validator smoke path. **192 tests now
-  passing** (up from 179 at v0.1.0).
+- **Auto-populated Knockdown Curve tab.** Every single-run analysis now
+  kicks off an empirical-tier energy sweep in the background (8 points,
+  sub-second) so the Knockdown Curve tab always shows a
+  knockdown-vs-energy plot for context, without requiring the user to
+  click "Run energy sweep" explicitly.
+- **Buckling Eigenvalues tab** (was "Buckling Mode" placeholder): bar
+  chart of the first up to 6 buckling eigenvalues for semi_analytical
+  and fe3d runs; explanatory note for the empirical tier (no eigensolve).
+- **Damage Severity tab** (was "Stress Field" placeholder): top-down
+  heatmap showing how many interfaces are delaminated at each (x, y)
+  column — through-thickness sum of `(1 - damage_factor)`, colored
+  hot. Analogous to a C-scan plan view.
+- **Stage-by-stage logging**: new `bvidfe.fe3d` and `bvidfe.gui` loggers
+  write to stderr so users launching the app from a terminal see mesh
+  build, K/Kg assembly, eigensolve, FPF, and heartbeat progress lines
+  in real time. Controlled via `BVIDFE_LOG_LEVEL` env var.
+- **Mesh-size guard** (`FE3DSizeError` + GUI dialog): both single-run
+  and sweep paths check the fe3d problem size against
+  `BVIDFE_FE3D_MAX_DOF` (default 500k). Hard stop above cap, soft
+  warning for merely-large sizes. Prevents SIGSEGV from scipy's sparse
+  solvers when memory is exhausted.
+- **Heartbeat progress** in both workers: AnalysisWorker ticks every
+  2 s during long fe3d runs, SweepWorker ticks per-energy. Prevents
+  the status bar looking frozen during multi-minute runs.
+- **Vectorized assembler + analytic FPF** in the fe3d tier: 6.5x
+  speedup on realistic 5k-element meshes by (a) replacing the 24×24
+  Python loop per element with one numpy broadcast, and (b) replacing
+  the 12-iteration bisection for first-ply-failure with a single FE
+  solve + closed-form quadratic root (Tsai-Wu and LaRC05 are both
+  quadratic in stress and stress scales linearly with applied strain).
+- **Sanity-check on buckling eigenvalue**: `fe3d_cai` falls back to
+  FPF-only when the uniform-pre-stress buckling approximation returns
+  a critical stress below 5% of pristine (indicates a numerical
+  artefact on the simplified BC set).
+- **Conservative defaults + inline fe3d caveat**: `MeshParams` defaults
+  to 1 element/ply + 5 mm in-plane (from 4/1.0), and the Summary tab
+  appends a note when `tier=fe3d` explaining that fe3d knockdown is
+  largely flat vs. impact energy on the current simplified model and
+  pointing users to empirical/semi_analytical for energy-dependent
+  curves.
+- **DPA cap + dent cap**: `impact_to_damage` clips DPA at 80% of panel
+  area (emits `UserWarning`) and `dent_depth_mm` clips dent at 50% of
+  laminate thickness. Prevents physically-absurd outputs like a 16 mm
+  dent on a 1.2 mm laminate.
+- **Four runnable examples** (`examples/01_empirical_quick.py` through
+  `04_inspection_driven.py`) + `sample_cscan.json`: copy-paste workflows
+  for single-run, tier comparison, energy sweep, and damage-driven
+  analysis. Each writes outputs to `examples/output/`.
+- **14 edge-case robustness tests** (`tests/test_edge_cases.py`): below-
+  threshold energies, huge-energy DPA saturation, tiny panels, empty
+  damage states, mixed tier switching, CLI end-to-end subprocess, and
+  parametric monotonicity across 4 energies.
+- **216 tests now passing** (was 179 at v0.1.0 — +37 new tests across
+  analysis, elements, solver, GUI, CLI, and edge cases).
 
 ### Known limitations (still deferred)
 
@@ -56,13 +107,14 @@ In-progress work toward v0.2.0. No tag yet.
   the stress-concentration-driven first-ply-failure strain is controlled
   by the healthy/damaged *boundary* rather than the damage magnitude,
   and the buckling eigenvalue is not reliably physical on our simplified
-  BCs so it usually gets rejected by the 5%-pristine sanity check. For
-  energy-dependent residual strength use `tier=empirical` (Soutis
+  BCs so it usually gets rejected by the 5%-pristine sanity check. An
+  attempt at v0.2.0-dev to add graded damage + real in-plane pre-stress
+  BCs to fix this was shelved: the proper-BC buckling eigensolve was
+  14× low vs. analytical plate buckling (sign-convention / stress-field
+  interpretation issues that need more time than a single session).
+  For energy-dependent residual strength use `tier=empirical` (Soutis
   scales with DPA) or `tier=semi_analytical` (Rayleigh-Ritz sublaminate
-  buckling scales with ellipse size). Fixing this requires proper
-  in-plane compression BCs for the buckling pre-solve and/or cohesive
-  surface elements instead of stiffness reduction — v0.3.0 scope.
-- Buckling Mode / Stress Field GUI tabs are still placeholders.
+  buckling scales with ellipse size). Fixing fe3d is v0.3.0 scope.
 - Release artifacts are still unsigned.
 
 ## [0.1.0] - 2026-04-17

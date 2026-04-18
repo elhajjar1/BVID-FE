@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-179%20passing-brightgreen.svg)](https://github.com/elhajjar1/BVID-FE/actions)
+[![Tests](https://img.shields.io/badge/tests-216%20passing-brightgreen.svg)](https://github.com/elhajjar1/BVID-FE/actions)
 
 A Python library for predicting residual strength and stiffness of fiber-reinforced composite laminates containing Barely Visible Impact Damage (BVID).
 
@@ -25,7 +25,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
 - **Four material presets**: AS4/3501-6, IM7/8552, T700/2510, T800/epoxy
 - **CLI** for single-run and batch use
-- **PyQt6 desktop GUI** with seven input panels, three result tabs (Summary, Damage Map, Knockdown Curve), threaded analysis / sweep workers, and a File menu (Save/Load Config, Export Results JSON, Export Damage Map PNG)
+- **PyQt6 desktop GUI** with seven input panels and six result tabs — Summary (with inline fe3d caveat), Damage Map, Knockdown Curve (auto-populates via a background empirical sweep after every single run), Damage View (matplotlib orthographic top/side/front projections + text summary), Buckling Eigenvalues (bar chart), and Damage Severity (through-thickness heatmap). Threaded workers with heartbeat progress, mesh-size guards on the fe3d tier, and a File menu (Save/Load Config, Export Results JSON, Export Damage Map PNG)
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output
 - **2D plots**: damage map, knockdown curves, tier comparison charts
 - **3D PyVista plots**: delamination surfaces, buckling mode shape, stress contour
@@ -141,6 +141,7 @@ A structured hexahedral mesh is built for the damaged laminate. Delaminated inte
 - Material calibration constants (`olsson_alpha`, `soutis_k_s`, `dent_beta`, and related parameters) are reasonable defaults for typical CFRP systems. Precise values need to be calibrated against material-specific coupon test data before use in certification.
 - LaRC05 is implemented as a minimal Hashin-3D reduction. Full plane-search fiber-kinking is deferred to a future release.
 - The `fe3d` tier uses stiffness reduction at delaminated interfaces instead of true cohesive surfaces with bilinear traction-separation laws.
+- **The `fe3d` tier's knockdown is approximately flat vs. impact energy** above the Olsson threshold, because the damaged-mesh first-ply-failure strain is controlled by stress concentration at the healthy/damaged boundary (not damage magnitude), and the uniform-pre-stress buckling path falls back to FPF for small damages. For energy-dependent knockdown curves use `tier="empirical"` (Soutis scales with DPA) or `tier="semi_analytical"` (Rayleigh-Ritz scales with ellipse size). The `fe3d` tier is most useful for stress-field context and visualization, not for energy-scaling studies. A proper fix — in-plane pre-stress BCs + cohesive surfaces — is v0.3.0 scope.
 - `fe3d` CAI uses first-ply-failure on the damaged mesh, not a buckling eigenvalue solve; the eigenvalue approach is deferred to v0.2.0.
 - No GUI in v0.1.0 (deferred to v0.2.0).
 - No validated datasets in v0.1.0; comparison against published Soutis, Caprino, and NASA datasets is planned for v0.2.0.
