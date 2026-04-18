@@ -19,4 +19,18 @@ class SummaryTab(QWidget):
         lay.addWidget(self.text_area)
 
     def update(self, results: AnalysisResults) -> None:  # type: ignore[override]
-        self.text_area.setPlainText(results.summary())
+        text = results.summary()
+        # Append a user-facing note when the fe3d tier is used explaining why
+        # knockdown may not track impact energy the way empirical does.
+        if results.tier_used == "fe3d" and results.knockdown > 0:
+            text += (
+                "\n\nNote: the fe3d tier's residual-strength prediction is "
+                "controlled by stress concentration at the healthy/damaged "
+                "element boundary and in this v0.2.0-dev release does not "
+                "strongly scale with impact energy once damage exceeds the "
+                "Olsson threshold. For energy-dependent knockdown curves "
+                "switch the tier to 'empirical' (Soutis scales with DPA) or "
+                "'semi_analytical' (Rayleigh-Ritz sublaminate buckling "
+                "scales with the largest ellipse)."
+            )
+        self.text_area.setPlainText(text)

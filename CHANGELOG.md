@@ -21,12 +21,15 @@ In-progress work toward v0.2.0. No tag yet.
   the smallest positive eigenvalue. First-ply-failure is retained as
   `_fe3d_cai_first_ply_failure` — together they give engineers an upper
   bound (FPF) and a lower bound (buckling) on the residual strength.
-- **Working 3D Mesh GUI tab** via `pyvistaqt.QtInteractor`. The old
-  `v0.2.0` placeholder is replaced with a real interactive 3D viewer that
-  renders the FE mesh coloured by per-element damage factor. Works for
-  all tiers (empirical / semi-analytical / fe3d) — for tiers that don't
-  otherwise build a mesh, the viewer constructs one with default
-  `MeshParams` just for visualization.
+- **"Damage View" GUI tab** (originally planned as "3D Mesh"). After
+  three VTK embedding approaches (QtInteractor, lazy-init QtInteractor,
+  BackgroundPlotter) all deadlocked Qt's main event loop on macOS, the
+  tab was reworked to a matplotlib-based four-panel orthographic view:
+  top (x-y), side (x-z), front (y-z), and a text summary panel. Renders
+  in ~50 ms on the main thread, no OpenGL dependency. True VTK 3D
+  visualization remains available via the `bvidfe.viz.plots_3d` Python
+  API and the `examples/` scripts, just not embedded inside the GUI's
+  event loop.
 - **Validation harness** (`validation/validate_bvid_public.py`):
   `DatasetCase` dataclass + `run_dataset()` + MAE% metric. Auto-discovers
   any JSON dataset in `validation/datasets/`. Ships with a synthetic
@@ -47,6 +50,18 @@ In-progress work toward v0.2.0. No tag yet.
 - `fe3d` tier still uses stiffness-reduction at delaminations rather than
   zero-thickness cohesive surfaces (different physics — stiffness
   reduction captures the stiffness loss but not the debonding/sliding).
+- **`fe3d` knockdown is approximately flat vs. impact energy** for any
+  damage above the Olsson threshold. This is a structural limitation of
+  the stiffness-reduction + uniform-pre-stress buckling simplifications:
+  the stress-concentration-driven first-ply-failure strain is controlled
+  by the healthy/damaged *boundary* rather than the damage magnitude,
+  and the buckling eigenvalue is not reliably physical on our simplified
+  BCs so it usually gets rejected by the 5%-pristine sanity check. For
+  energy-dependent residual strength use `tier=empirical` (Soutis
+  scales with DPA) or `tier=semi_analytical` (Rayleigh-Ritz sublaminate
+  buckling scales with ellipse size). Fixing this requires proper
+  in-plane compression BCs for the buckling pre-solve and/or cohesive
+  surface elements instead of stiffness reduction — v0.3.0 scope.
 - Buckling Mode / Stress Field GUI tabs are still placeholders.
 - Release artifacts are still unsigned.
 
