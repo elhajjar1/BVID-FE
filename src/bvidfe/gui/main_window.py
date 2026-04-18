@@ -290,21 +290,62 @@ class BvidMainWindow(QMainWindow):
         worker.start()
 
     def _on_analysis_ready(self, result) -> None:
+        """Called on the Qt main thread when an AnalysisWorker finishes.
+
+        Wrapped in per-tab try/except so any matplotlib/VTK hiccup in one
+        tab cannot take down the whole app — Qt 6.5+ aborts the process
+        on any unhandled exception raised inside a slot. Each failure
+        gets logged to stderr + the status bar; other tabs still update.
+        """
+        import traceback
+        import logging
+
+        log = logging.getLogger("bvidfe.gui")
+
         self._last_result = result
-        self.summary_tab.update(result)
-        self.damage_map_tab.update(result, panel=self.panel_panel_as_geometry())
+
+        tab_updates = [
+            ("Summary", lambda: self.summary_tab.update(result)),
+            (
+                "Damage Map",
+                lambda: self.damage_map_tab.update(result, panel=self.panel_panel_as_geometry()),
+            ),
+        ]
         if self._last_config is not None:
-            self.mesh_tab.update(self._last_config, result)
-            self.stress_tab.update(self._last_config, result)
-        self.buckling_tab.update(result)
-        self.statusBar().showMessage(
-            f"Analysis complete: knockdown = {result.knockdown:.3f}", 10000
-        )
+            tab_updates.extend(
+                [
+                    ("Damage View", lambda: self.mesh_tab.update(self._last_config, result)),
+                    (
+                        "Damage Severity",
+                        lambda: self.stress_tab.update(self._last_config, result),
+                    ),
+                ]
+            )
+        tab_updates.append(("Buckling", lambda: self.buckling_tab.update(result)))
+
+        failed: list[str] = []
+        for name, fn in tab_updates:
+            try:
+                fn()
+            except Exception:  # noqa: BLE001
+                failed.append(name)
+                log.exception("Tab update failed: %s", name)
+                traceback.print_exc()
+
+        msg = f"Analysis complete: knockdown = {result.knockdown:.3f}"
+        if failed:
+            msg += f" — tab update errors: {', '.join(failed)} (see terminal)"
+        self.statusBar().showMessage(msg, 10000)
+
         # Auto-populate the Knockdown Curve tab with a quick empirical sweep
         # around the current impact energy. Runs in the background at empirical
         # tier (sub-second) so the user always has a knockdown-vs-energy plot
         # for context, without having to click Run energy sweep explicitly.
-        self._auto_populate_knockdown_curve()
+        try:
+            self._auto_populate_knockdown_curve()
+        except Exception:  # noqa: BLE001
+            log.exception("Failed to start auto knockdown curve sweep")
+            traceback.print_exc()
 
     def _auto_populate_knockdown_curve(self) -> None:
         """Kick off a quick empirical-tier energy sweep in a background thread
