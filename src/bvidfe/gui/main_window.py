@@ -221,9 +221,20 @@ class BvidMainWindow(QMainWindow):
         worker.resultReady.connect(self._on_analysis_ready)
         worker.error.connect(self._on_worker_error)
         worker.progress.connect(self._on_progress)
-        worker.finished.connect(lambda: worker.deleteLater())
+        worker.finished.connect(lambda w=worker: self._on_analysis_worker_finished(w))
         self._analysis_worker = worker
         worker.start()
+
+    def _on_analysis_worker_finished(self, worker) -> None:
+        """Cleanup when an AnalysisWorker finishes. Mirrors the SweepWorker
+        variant so neither main-window reference can dangle past its Qt
+        object being deleteLater()'d."""
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
+        if self._analysis_worker is worker:
+            self._analysis_worker = None
 
     def _run_sweep(self) -> None:
         from bvidfe.gui.workers import SweepWorker
@@ -285,7 +296,7 @@ class BvidMainWindow(QMainWindow):
         worker.resultReady.connect(self._on_sweep_ready)
         worker.error.connect(self._on_worker_error)
         worker.progress.connect(self._on_progress)
-        worker.finished.connect(lambda: worker.deleteLater())
+        worker.finished.connect(lambda w=worker: self._on_sweep_worker_finished(w))
         self._sweep_worker = worker
         worker.start()
 
@@ -356,8 +367,17 @@ class BvidMainWindow(QMainWindow):
         """
         if self._last_config is None or self._last_config.impact is None:
             return
-        if self._sweep_worker is not None and self._sweep_worker.isRunning():
-            return
+        # The previous SweepWorker may have been deleteLater()'d by Qt. In that
+        # case the Python wrapper raises `RuntimeError: wrapped C/C++ object
+        # of type SweepWorker has been deleted` when we call methods on it.
+        # We treat that as "no worker running, safe to start a new one" and
+        # clear the dangling reference.
+        if self._sweep_worker is not None:
+            try:
+                if self._sweep_worker.isRunning():
+                    return
+            except RuntimeError:
+                self._sweep_worker = None
         from dataclasses import replace
 
         import numpy as np
@@ -377,9 +397,23 @@ class BvidMainWindow(QMainWindow):
         worker = SweepWorker(empirical_cfg, energies_J=energies, csv_path=None)
         worker.resultReady.connect(self._on_auto_sweep_ready)
         worker.error.connect(lambda tb: None)  # swallow errors silently for auto-sweep
-        worker.finished.connect(lambda: worker.deleteLater())
+        # On finish: deleteLater() the Qt object AND clear the main-window's
+        # Python reference so the next _auto_populate call sees a None worker
+        # instead of a deleted one.
+        worker.finished.connect(lambda w=worker: self._on_sweep_worker_finished(w))
         self._sweep_worker = worker
         worker.start()
+
+    def _on_sweep_worker_finished(self, worker) -> None:
+        """Cleanup when a SweepWorker finishes: deleteLater the Qt object and
+        null out our Python reference so _auto_populate_knockdown_curve won't
+        poke a dangling pointer next time."""
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
+        if self._sweep_worker is worker:
+            self._sweep_worker = None
 
     def _on_auto_sweep_ready(self, df) -> None:
         """Populate the Knockdown Curve tab with the auto-sweep results."""
