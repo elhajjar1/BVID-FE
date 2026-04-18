@@ -67,6 +67,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Impactor diameter in mm (default 16.0)",
     )
     p.add_argument("--mass", type=float, default=5.5, help="Impactor mass in kg (default 5.5)")
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="Print only the knockdown scalar (residual / pristine) to stdout instead of the full JSON. "
+        "Useful for shell pipelines: e.g. `bvidfe ... --quick | xargs -I {} ...`.",
+    )
     return p
 
 
@@ -86,8 +92,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     result = BvidAnalysis(cfg).run()
-    json.dump(result.to_dict(), sys.stdout, indent=2, default=str)
-    sys.stdout.write("\n")
+    if args.quick:
+        print(f"{result.knockdown:.6f}")
+    else:
+        json.dump(result.to_dict(), sys.stdout, indent=2, default=str)
+        sys.stdout.write("\n")
     return 0
 
 
