@@ -91,8 +91,7 @@ def main() -> None:
     ax.set_xlabel("Impact energy [J]")
     ax.set_ylabel("Knockdown (residual / pristine)")
     ax.set_title(
-        "Knockdown-vs-energy: empirical vs. semi_analytical "
-        "(IM7/8552 quasi-iso, 150x100)"
+        "Knockdown-vs-energy: empirical vs. semi_analytical " "(IM7/8552 quasi-iso, 150x100)"
     )
     ax.set_ylim(0, 1.05)
     ax.grid(True, linestyle="--", alpha=0.3)
