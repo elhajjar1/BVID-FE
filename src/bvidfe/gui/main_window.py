@@ -402,6 +402,59 @@ class BvidMainWindow(QMainWindow):
         export_png.triggered.connect(self._export_damage_png)
         menu.addAction(export_png)
 
+        menu.addSeparator()
+
+        compare_tiers = QAction("Compare Tiers (empirical + semi_analytical)\u2026", self)
+        compare_tiers.triggered.connect(self._compare_tiers)
+        menu.addAction(compare_tiers)
+
+    def _compare_tiers(self) -> None:
+        """Run empirical + semi_analytical sweeps on the current config and
+        overlay them on the Knockdown Curve tab.
+
+        Both tiers are fast (sub-second for empirical; ~1 second for
+        semi_analytical). fe3d is skipped because a sweep at fe3d can
+        take many minutes. Users who want fe3d in the comparison can
+        trigger a dedicated sweep via the Sweep panel.
+        """
+        try:
+            cfg = self._build_config()
+        except (ValueError, AssertionError) as exc:
+            self.statusBar().showMessage(f"Invalid config: {exc}", 10000)
+            return
+        if cfg.impact is None:
+            self.statusBar().showMessage("Tier comparison requires an impact-driven config.", 5000)
+            return
+
+        from dataclasses import replace
+
+        import numpy as np
+
+        from bvidfe.analysis import BvidAnalysis
+
+        self.statusBar().showMessage("Running tier comparison\u2026")
+        e_cur = cfg.impact.energy_J
+        energies = list(np.linspace(2.0, max(5.0, 1.5 * e_cur), 8))
+
+        kd_by_tier: dict[str, list[float]] = {}
+        for tier in ("empirical", "semi_analytical"):
+            kd = []
+            for E in energies:
+                new_impact = replace(cfg.impact, energy_J=float(E))
+                run_cfg = replace(cfg, impact=new_impact, tier=tier, mesh=None)
+                try:
+                    result = BvidAnalysis(run_cfg).run()
+                    kd.append(result.knockdown)
+                except Exception:  # noqa: BLE001
+                    kd.append(float("nan"))
+            kd_by_tier[tier] = kd
+
+        self.knockdown_tab.update_tier_comparison(energies, kd_by_tier)
+        self.statusBar().showMessage(
+            f"Tier comparison complete: {len(energies)} energies x " f"{len(kd_by_tier)} tiers",
+            8000,
+        )
+
     def _save_config(self) -> None:
         path_str, _ = QFileDialog.getSaveFileName(
             self, "Save AnalysisConfig", "bvidfe_config.json", "JSON (*.json)"
