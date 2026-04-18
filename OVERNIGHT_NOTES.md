@@ -2,12 +2,17 @@
 
 ## TL;DR
 
-- **217 tests passing** (up from 197 at start of night)
+- **218 tests passing** (up from 197 at start of night)
 - `dist/BVID-FE.app` rebuilt with all improvements (quarantine cleared)
 - Launch from terminal for visible progress logs:
   ```bash
   ./dist/BVID-FE.app/Contents/MacOS/BVID-FE
   ```
+- New CLI flags: `bvidfe --version` and `bvidfe ... --quick` (returns just the knockdown scalar)
+- New GUI Help menu with tier-selection guidance
+- File → Compare Tiers action overlays empirical + semi_analytical knockdown curves
+- Knockdown Curve tab auto-populates after every single run (background empirical sweep)
+- Two former placeholder tabs are now real matplotlib content: Buckling Eigenvalues (bar chart) and Damage Severity (through-thickness heatmap)
 
 ## What shipped overnight
 
