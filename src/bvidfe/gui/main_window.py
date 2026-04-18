@@ -91,10 +91,11 @@ class BvidMainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
         # Central tabbed results area
+        from bvidfe.gui.tabs.buckling_tab import BucklingTab
         from bvidfe.gui.tabs.damage_map_tab import DamageMapTab
         from bvidfe.gui.tabs.knockdown_tab import KnockdownTab
         from bvidfe.gui.tabs.mesh_3d_tab import Mesh3DTab
-        from bvidfe.gui.tabs.placeholder_tab import PlaceholderTab
+        from bvidfe.gui.tabs.stress_field_tab import StressFieldTab
         from bvidfe.gui.tabs.summary_tab import SummaryTab
 
         self.results_tabs = QTabWidget(self)
@@ -102,15 +103,15 @@ class BvidMainWindow(QMainWindow):
         self.damage_map_tab = DamageMapTab(self)
         self.knockdown_tab = KnockdownTab(self)
         self.mesh_tab = Mesh3DTab(self)
-        self.buckling_tab = PlaceholderTab("Buckling mode shape — available in v0.2.0", self)
-        self.stress_tab = PlaceholderTab("Stress field contour — available in v0.2.0", self)
+        self.buckling_tab = BucklingTab(self)
+        self.stress_tab = StressFieldTab(self)
 
         self.results_tabs.addTab(self.summary_tab, "Summary")
         self.results_tabs.addTab(self.damage_map_tab, "Damage Map")
         self.results_tabs.addTab(self.knockdown_tab, "Knockdown Curve")
         self.results_tabs.addTab(self.mesh_tab, "Damage View")
-        self.results_tabs.addTab(self.buckling_tab, "Buckling Mode")
-        self.results_tabs.addTab(self.stress_tab, "Stress Field")
+        self.results_tabs.addTab(self.buckling_tab, "Buckling Eigenvalues")
+        self.results_tabs.addTab(self.stress_tab, "Damage Severity")
         self.setCentralWidget(self.results_tabs)
 
         self._last_result = None
@@ -293,8 +294,59 @@ class BvidMainWindow(QMainWindow):
         self.damage_map_tab.update(result, panel=self.panel_panel_as_geometry())
         if self._last_config is not None:
             self.mesh_tab.update(self._last_config, result)
+            self.stress_tab.update(self._last_config, result)
+        self.buckling_tab.update(result)
         self.statusBar().showMessage(
             f"Analysis complete: knockdown = {result.knockdown:.3f}", 10000
+        )
+        # Auto-populate the Knockdown Curve tab with a quick empirical sweep
+        # around the current impact energy. Runs in the background at empirical
+        # tier (sub-second) so the user always has a knockdown-vs-energy plot
+        # for context, without having to click Run energy sweep explicitly.
+        self._auto_populate_knockdown_curve()
+
+    def _auto_populate_knockdown_curve(self) -> None:
+        """Kick off a quick empirical-tier energy sweep in a background thread
+        and update the Knockdown Curve tab when it finishes.
+
+        Skipped if the user ran a damage-driven analysis (no impact energy to
+        sweep around) or if a sweep is already running.
+        """
+        if self._last_config is None or self._last_config.impact is None:
+            return
+        if self._sweep_worker is not None and self._sweep_worker.isRunning():
+            return
+        from dataclasses import replace
+
+        import numpy as np
+
+        from bvidfe.gui.workers import SweepWorker
+
+        # Build a pure-empirical config so the sweep runs fast regardless of
+        # the user's currently-selected tier.
+        base = self._last_config
+        empirical_cfg = replace(base, tier="empirical", mesh=None)
+        # Sweep 8 energies between 2 J and 1.5 * current energy, so the
+        # current single-run point sits roughly in the middle of the curve.
+        e_cur = base.impact.energy_J
+        e_max = max(5.0, 1.5 * e_cur)
+        energies = list(np.linspace(2.0, e_max, 8))
+
+        worker = SweepWorker(empirical_cfg, energies_J=energies, csv_path=None)
+        worker.resultReady.connect(self._on_auto_sweep_ready)
+        worker.error.connect(lambda tb: None)  # swallow errors silently for auto-sweep
+        worker.finished.connect(lambda: worker.deleteLater())
+        self._sweep_worker = worker
+        worker.start()
+
+    def _on_auto_sweep_ready(self, df) -> None:
+        """Populate the Knockdown Curve tab with the auto-sweep results."""
+        energies = df["energy_J"].tolist() if "energy_J" in df.columns else list(range(len(df)))
+        knockdowns = df["knockdown"].tolist()
+        self.knockdown_tab.update_series(
+            energies,
+            knockdowns,
+            tier_label="empirical (auto)",
         )
 
     def _on_sweep_ready(self, df) -> None:
