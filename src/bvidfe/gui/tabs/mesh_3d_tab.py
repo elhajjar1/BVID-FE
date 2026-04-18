@@ -1,30 +1,21 @@
-"""3D mesh viewer tab powered by pyvistaqt + PyVista.
+"""3D mesh viewer tab.
 
-Renders the FE mesh built for the current analysis config, coloured by
-damage factor, so the user can see where delaminations drop element
-stiffness.
-
-Why lazy initialization
------------------------
-``pyvistaqt.QtInteractor`` creates a VTK render window at widget
-construction time.  On macOS this triggers full OpenGL context setup,
-which can block the Qt main thread for several seconds.  Any
-tab-switch to a tab containing a live QtInteractor also forces a
-re-render — on a 10k-element mesh this adds another few seconds of
-main-thread work each time.
-
-To keep the app snappy, the Mesh3DTab defers all VTK work until the
-user explicitly clicks a "Render 3D mesh" button.  The placeholder
-button is cheap, lives in the tab by default, and the expensive
-QtInteractor is only instantiated on demand.
+v0.2.0-dev note: embedding a ``pyvistaqt.QtInteractor`` inside a Qt
+tab freezes the main window on macOS in several configurations — the
+OpenGL context creation blocks the Qt main thread, and once created
+the interactor can fail to paint the viewport until external events
+force it.  Rather than fight that, this tab now opens a **separate
+window** (``pyvistaqt.BackgroundPlotter``) when the user clicks the
+Render button.  The tab itself stays lightweight and never freezes
+the main GUI.
 
 Headless note
 -------------
-Under ``QT_QPA_PLATFORM=offscreen`` (CI / test runs) ``QtInteractor``
-segfaults inside ``vtkRenderWindow.SetWindowInfo()``.  The tab
-substitutes a lightweight ``_StubPlotter`` that exposes the same
-surface used by tests (``clear``, ``add_mesh``, ``add_axes``,
-``reset_camera``, ``actors``).
+Under ``QT_QPA_PLATFORM=offscreen`` (CI / test runs) ``BackgroundPlotter``
+also creates an OpenGL context and can segfault.  The tab substitutes a
+lightweight ``_StubPlotter`` that exposes the same surface used by
+tests (``clear``, ``add_mesh``, ``add_axes``, ``reset_camera``,
+``actors``).
 """
 
 from __future__ import annotations
@@ -46,7 +37,7 @@ _log = logging.getLogger("bvidfe.gui")
 
 
 class _StubPlotter:
-    """Minimal stand-in for ``QtInteractor`` used in headless test runs."""
+    """Minimal stand-in for ``BackgroundPlotter`` used in headless test runs."""
 
     def __init__(self) -> None:
         self.actors: dict[str, Any] = {}
@@ -69,62 +60,59 @@ class _StubPlotter:
     def reset_camera(self) -> None:
         pass
 
+    def render(self) -> None:
+        pass
+
+    def show(self) -> None:
+        pass
+
     def close(self) -> None:
         pass
 
 
 class Mesh3DTab(QWidget):
-    """Lazy 3D mesh viewer. VTK initialization is deferred until the
-    user clicks the render button so that switching to this tab never
-    freezes the GUI with an OpenGL context creation on the main thread.
-    """
+    """3D mesh viewer launcher. Opens a separate PyVista window on demand."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
 
-        # Latest analysis state — stored here so that clicking Render
-        # after an analysis completes immediately renders the latest mesh.
         self._pending_config: Optional[AnalysisConfig] = None
         self._pending_results: Optional[AnalysisResults] = None
-        self._initialized: bool = False
         self.plotter: Any = None
 
-        # Placeholder UI
-        self._placeholder_label = QLabel(
-            "3D mesh viewer is not initialized.\n\n"
-            "Click below to render. Rendering a 10k-element mesh takes a\n"
-            "few seconds on macOS because VTK needs to set up an OpenGL\n"
-            "context on first use.",
+        self._info_label = QLabel(
+            "3D mesh viewer\n\n"
+            "Runs an analysis first, then click the button below to open\n"
+            "the 3D view in a separate window. The separate-window approach\n"
+            "avoids a known pyvistaqt/Qt embedding issue on macOS that can\n"
+            "freeze the main window.",
             self,
         )
-        self._placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._layout.addWidget(self._placeholder_label)
+        self._info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._layout.addWidget(self._info_label)
 
-        self._render_button = QPushButton("Render 3D mesh", self)
+        self._render_button = QPushButton("Open 3D mesh in separate window", self)
         self._render_button.clicked.connect(self._on_render_clicked)
         self._layout.addWidget(self._render_button)
-
-        if _HEADLESS:
-            # In headless mode we auto-initialize the stub so tests don't
-            # have to click a button.
-            self._init_plotter()
 
     # ------------------------------------------------------------------
     # Public API — called from BvidMainWindow on analysis completion
     # ------------------------------------------------------------------
 
     def update(self, config: AnalysisConfig, results: AnalysisResults) -> None:  # type: ignore[override]
-        """Store the latest config + results so the tab can render when asked.
-
-        If the viewer has already been initialized (user has clicked render
-        at least once), re-render immediately with the new result.
-        """
+        """Cache latest state. If an external window is already open and
+        the user wants auto-refresh, we re-render into it."""
         self._pending_config = config
         self._pending_results = results
-        if self._initialized:
-            self._render_pending()
+        if self.plotter is not None and not _HEADLESS:
+            try:
+                self._render_pending()
+            except Exception as exc:  # noqa: BLE001
+                # If the external window was closed by the user, discard it.
+                _log.info("Mesh3DTab: external plotter unavailable (%s); discarded", exc)
+                self.plotter = None
 
     # ------------------------------------------------------------------
     # Internals
@@ -132,36 +120,36 @@ class Mesh3DTab(QWidget):
 
     def _on_render_clicked(self) -> None:
         if self._pending_results is None:
-            self._placeholder_label.setText(
-                "No analysis result yet. Run an analysis first,\nthen return "
-                "here and click the render button."
+            self._info_label.setText(
+                "No analysis result yet. Run an analysis first,\nthen click this button."
             )
             return
-        if not self._initialized:
-            self._init_plotter()
-        self._render_pending()
+        try:
+            self._render_pending()
+        except Exception:  # noqa: BLE001
+            _log.exception("Mesh3DTab: failed to open 3D viewer")
+            self._info_label.setText(
+                "Failed to open 3D viewer.\n"
+                "See terminal for the traceback. (This usually means a\n"
+                "VTK/OpenGL driver issue that is specific to macOS.)"
+            )
 
-    def _init_plotter(self) -> None:
-        """Create the QtInteractor (or stub) and swap it in for the placeholder."""
-        t0 = time.time()
-        _log.info("Mesh3DTab: initializing VTK plotter (first render)")
-        # Remove placeholder widgets
-        self._placeholder_label.hide()
-        self._render_button.hide()
-        self._layout.removeWidget(self._placeholder_label)
-        self._layout.removeWidget(self._render_button)
-        self._placeholder_label.deleteLater()
-        self._render_button.deleteLater()
-
+    def _get_or_create_plotter(self) -> Any:
+        """Return the current plotter, creating a fresh one if needed."""
+        if self.plotter is not None:
+            return self.plotter
         if _HEADLESS:
             self.plotter = _StubPlotter()
-        else:
-            from pyvistaqt import QtInteractor
+            return self.plotter
+        from pyvistaqt import BackgroundPlotter
 
-            self.plotter = QtInteractor(self, off_screen=False)
-            self._layout.addWidget(self.plotter)
-        self._initialized = True
-        _log.info("Mesh3DTab: VTK plotter ready (%.2fs)", time.time() - t0)
+        _log.info("Mesh3DTab: opening BackgroundPlotter window")
+        self.plotter = BackgroundPlotter(
+            title="BVID-FE — 3D Mesh",
+            window_size=(900, 700),
+            show=True,
+        )
+        return self.plotter
 
     def _render_pending(self) -> None:
         assert self._pending_config is not None
@@ -183,17 +171,17 @@ class Mesh3DTab(QWidget):
             time.time() - t0,
         )
         grid = mesh_to_pyvista(fe_mesh)
-        self.plotter.clear()
-        self.plotter.add_mesh(
+        plotter = self._get_or_create_plotter()
+        plotter.clear()
+        plotter.add_mesh(
             grid,
             scalars="damage_factor",
             cmap="RdYlGn",
             clim=(0.0, 1.0),
             show_edges=False,
-            scalar_bar_args={"title": "Damage factor"},
         )
-        self.plotter.add_axes()
-        self.plotter.reset_camera()
+        plotter.add_axes()
+        plotter.reset_camera()
         _log.info("Mesh3DTab: render complete (%.2fs total)", time.time() - t0)
 
     def closeEvent(self, event):  # type: ignore[override]

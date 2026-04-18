@@ -27,26 +27,44 @@ def sample_cfg_and_result():
 
 
 def test_mesh_3d_tab_constructs(qtbot):
+    """The tab constructs without touching VTK. Plotter is lazily created."""
     from bvidfe.gui.tabs.mesh_3d_tab import Mesh3DTab
 
     tab = Mesh3DTab()
     qtbot.addWidget(tab)
-    assert tab.plotter is not None  # QtInteractor attached
+    # Lazy design: no plotter until the user clicks the Open button.
+    assert tab.plotter is None
+    assert tab._render_button is not None
 
 
-def test_mesh_3d_tab_updates_with_result(qtbot, sample_cfg_and_result):
+def test_mesh_3d_tab_caches_state_without_rendering(qtbot, sample_cfg_and_result):
+    """update(config, result) before the user clicks Open should cache only."""
     from bvidfe.gui.tabs.mesh_3d_tab import Mesh3DTab
 
     cfg, result = sample_cfg_and_result
     tab = Mesh3DTab()
     qtbot.addWidget(tab)
-    tab.update(cfg, result)  # must not raise
-    # After updating, the plotter should have at least one actor
+    tab.update(cfg, result)
+    # No plotter created yet — but the state is cached for later rendering.
+    assert tab.plotter is None
+    assert tab._pending_results is result
+
+
+def test_mesh_3d_tab_render_after_click_creates_stub(qtbot, sample_cfg_and_result):
+    """Clicking Open with a cached result creates the plotter (stub headless)."""
+    from bvidfe.gui.tabs.mesh_3d_tab import Mesh3DTab
+
+    cfg, result = sample_cfg_and_result
+    tab = Mesh3DTab()
+    qtbot.addWidget(tab)
+    tab.update(cfg, result)
+    tab._on_render_clicked()  # simulates button click
+    assert tab.plotter is not None
     assert len(tab.plotter.actors) >= 1
 
 
 def test_mesh_3d_tab_update_with_empty_damage(qtbot):
-    """Empty damage shouldn't crash the viewer."""
+    """Empty damage shouldn't crash the render path."""
     from bvidfe.damage.state import DamageState
     from bvidfe.gui.tabs.mesh_3d_tab import Mesh3DTab
 
@@ -59,9 +77,10 @@ def test_mesh_3d_tab_update_with_empty_damage(qtbot):
         tier="empirical",
         damage=DamageState([], dent_depth_mm=0.0),
     )
-    # Build a minimal AnalysisResults-ish object via actually running the analysis
     result = BvidAnalysis(cfg).run()
 
     tab = Mesh3DTab()
     qtbot.addWidget(tab)
-    tab.update(cfg, result)  # must not raise
+    tab.update(cfg, result)
+    tab._on_render_clicked()
+    assert tab.plotter is not None
