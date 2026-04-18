@@ -10,6 +10,7 @@ import json
 import sys
 from typing import List, Sequence
 
+import bvidfe
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.impact.mapping import ImpactEvent
@@ -36,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="bvidfe",
         description="BVID-FE: Barely Visible Impact Damage residual-strength analysis.",
+    )
+    p.add_argument(
+        "--version",
+        action="version",
+        version=f"bvidfe {bvidfe.__version__}",
     )
     p.add_argument("--material", required=True, help="Material preset name (e.g. IM7/8552)")
     p.add_argument(

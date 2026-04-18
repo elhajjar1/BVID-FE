@@ -117,6 +117,7 @@ class BvidMainWindow(QMainWindow):
         self._last_result = None
         self._last_config = None
         self._build_file_menu()
+        self._build_help_menu()
 
     def _on_mode_changed(self) -> None:
         """Toggle impact / damage panels based on the selected input mode."""
@@ -552,3 +553,62 @@ class BvidMainWindow(QMainWindow):
             return
         self.damage_map_tab.canvas.figure.savefig(path_str, dpi=150)
         self.statusBar().showMessage(f"Saved PNG to {path_str}", 5000)
+
+    # ------------------------------------------------------------------
+    # Help menu
+    # ------------------------------------------------------------------
+
+    def _build_help_menu(self) -> None:
+        menu = self.menuBar().addMenu("&Help")
+        about = QAction("About BVID-FE\u2026", self)
+        about.triggered.connect(self._show_about_dialog)
+        menu.addAction(about)
+        how_to = QAction("How to interpret the tiers\u2026", self)
+        how_to.triggered.connect(self._show_tier_help)
+        menu.addAction(how_to)
+
+    def _show_about_dialog(self) -> None:
+        import bvidfe
+
+        QMessageBox.about(
+            self,
+            "About BVID-FE",
+            f"<h3>BVID-FE {bvidfe.__version__}</h3>"
+            "<p>Barely Visible Impact Damage residual-strength analysis for "
+            "fiber-reinforced composite laminates.</p>"
+            "<p>MIT License. Third in a family of defect-specific composite "
+            "tools (alongside PorosityFE and WrinkleFE).</p>"
+            "<p>Three modeling tiers: empirical (Soutis / Whitney-Nuismer), "
+            "semi-analytical (Rayleigh-Ritz sublaminate buckling), and 3D FE "
+            "(first-ply-failure on damaged hex mesh). Two workflow paths: "
+            "impact-driven (Olsson threshold + peanut-template DPA) and "
+            "inspection-driven (C-scan JSON import).</p>"
+            "<p><a href='https://github.com/elhajjar1/BVID-FE'>"
+            "github.com/elhajjar1/BVID-FE</a></p>",
+        )
+
+    def _show_tier_help(self) -> None:
+        QMessageBox.information(
+            self,
+            "BVID-FE modeling tiers",
+            "<h4>Which tier should I use?</h4>"
+            "<table>"
+            "<tr><th>Tier</th><th>Runtime</th><th>Good for</th></tr>"
+            "<tr><td><b>empirical</b></td><td>&lt; 1 s</td>"
+            "<td>Design allowables, energy-knockdown curves, quick screening. "
+            "Soutis formula scales with DPA.</td></tr>"
+            "<tr><td><b>semi_analytical</b></td><td>~ 1 s</td>"
+            "<td>More conservative than empirical when large sublaminate "
+            "buckling governs. Scales with the largest ellipse. Good for "
+            "post-buckling CAI estimates.</td></tr>"
+            "<tr><td><b>fe3d</b></td><td>~ 10 s to several minutes</td>"
+            "<td>Stress-field context, damage-through-thickness visualisation, "
+            "first-ply-failure upper bound. <b>Not recommended for "
+            "energy-knockdown sweeps</b> — knockdown is approximately flat "
+            "vs. energy on the current simplified model. For energy-dependent "
+            "studies use empirical or semi_analytical.</td></tr>"
+            "</table>"
+            "<p>Quick start: run <b>empirical</b> first for the "
+            "knockdown-vs-energy shape, then spot-check interesting energies "
+            "with <b>semi_analytical</b> to see the buckling contribution.</p>",
+        )
