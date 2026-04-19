@@ -2,9 +2,22 @@
 
 Generates a regular brick mesh of the full panel with per-element ply
 assignment and damage-aware stiffness reduction. The stiffness-reduction
-approach (factor 1e-4 inside delamination footprints) is a simplification
+approach (a scalar factor inside delamination footprints) is a simplification
 of zero-thickness cohesive surfaces and is adequate for linear buckling
 in v0.1.0. True cohesive surfaces are deferred.
+
+DAMAGE_STIFFNESS_FACTOR = 0.3 represents typical residual in-plane
+stiffness after delamination — the plies themselves are intact (so in-plane
+load-carrying is mostly preserved), only the through-thickness coupling is
+lost. Literature values for this "effective residual layer modulus"
+fraction range from 0.1 to 0.5 for CFRP (see e.g. Bolotin 2001 review).
+The prior value of 1e-4 was physically unrealistic — it treated damaged
+elements as essentially null in the stress field, which meant the
+failure-index criterion could never flag damaged regions, and the fe3d
+residual-strength prediction actually *increased* with impact energy past
+the point where damage exceeded ~15% of the panel area (because the peak
+stress in undamaged elements drops as the damage footprint grows and
+spreads the load over a larger periphery).
 """
 
 from __future__ import annotations
@@ -18,7 +31,7 @@ import numpy as np
 from bvidfe.analysis.config import AnalysisConfig, MeshParams
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 
-DAMAGE_STIFFNESS_FACTOR = 1.0e-4
+DAMAGE_STIFFNESS_FACTOR = 0.30
 
 
 def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:

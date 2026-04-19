@@ -23,6 +23,20 @@ from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 from bvidfe.failure.soutis_openhole import soutis_cai, whitney_nuismer_tai
 
+# Sublaminate buckling coefficient multiplier on the SSSS Rayleigh-Ritz result
+# for other panel boundary conditions. The delaminated sublaminate's edge
+# condition is tied to how the parent panel is supported — stiffer parent
+# boundaries transmit more lateral restraint to the sublaminate. Values are
+# ratios of fundamental compression buckling coefficients (k) from
+# Timoshenko & Gere (1961) Theory of Elastic Stability §9.2 for square
+# plates; they transfer approximately to the rectangular orthotropic case
+# used here.
+_BOUNDARY_BUCKLING_FACTOR: dict[str, float] = {
+    "simply_supported": 1.0,
+    "clamped": 1.9,
+    "free": 0.5,
+}
+
 
 def _sublaminate_D_matrix(
     material: OrthotropicMaterial,
@@ -35,10 +49,16 @@ def _sublaminate_D_matrix(
     return D
 
 
-def sublaminate_buckling_load(lam: Laminate, ellipse: DelaminationEllipse) -> float:
+def sublaminate_buckling_load(
+    lam: Laminate,
+    ellipse: DelaminationEllipse,
+    boundary: str = "simply_supported",
+) -> float:
     """Critical buckling force per unit width (N/mm) for the sublaminate above
-    the given ellipse's interface, modeled as a simply-supported rectangle
-    with semi-axes = ellipse major/minor.
+    the given ellipse's interface, modeled as a rectangle with semi-axes =
+    ellipse major/minor. Applies a boundary-dependent multiplier (see module
+    constants) so that the panel's edge condition influences the sublaminate
+    buckling prediction.
     """
     i = ellipse.interface_index
     full_layup = lam.layup_deg
@@ -73,7 +93,8 @@ def sublaminate_buckling_load(lam: Laminate, ellipse: DelaminationEllipse) -> fl
             N_mn = (pi2 / a**2) * num / m_mode**2
             if N_mn < best:
                 best = N_mn
-    return best
+    boundary_factor = _BOUNDARY_BUCKLING_FACTOR.get(boundary, 1.0)
+    return best * boundary_factor
 
 
 def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]:
@@ -109,12 +130,15 @@ def semi_analytical_cai(
     damage: DamageState,
     sigma_pristine_MPa: float,
     A_panel_mm2: float,
+    boundary: str = "simply_supported",
 ) -> tuple[float, Optional[int], Optional[float]]:
     """Semi-analytical compression-after-impact residual strength (MPa).
 
     Takes the minimum of:
       (a) Soutis empirical knockdown at total DPA, and
-      (b) critical sublaminate buckling stress at the most critical interface.
+      (b) critical sublaminate buckling stress at the most critical interface
+          (boundary-aware — clamped parent panels are ~1.9x stiffer, free
+          ~0.5x, relative to simply-supported).
 
     Returns (sigma_CAI_MPa, critical_interface_index, critical_buckling_eigenvalue).
     If the damage state is empty, returns (sigma_pristine, None, None).
@@ -134,7 +158,7 @@ def semi_analytical_cai(
     # Largest ellipse at that interface drives buckling
     ellipses_at_crit = [e for e in damage.delaminations if e.interface_index == crit_idx]
     critical_ellipse = max(ellipses_at_crit, key=lambda e: e.area_mm2)
-    N_cr_per_mm = sublaminate_buckling_load(lam, critical_ellipse)  # N/mm
+    N_cr_per_mm = sublaminate_buckling_load(lam, critical_ellipse, boundary=boundary)  # N/mm
 
     # Sublaminate thickness
     sub_n_plies = min(crit_idx + 1, len(lam.layup_deg) - crit_idx - 1)

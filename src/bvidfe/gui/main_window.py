@@ -59,6 +59,20 @@ class BvidMainWindow(QMainWindow):
         self.input_mode_panel.configChanged.connect(self._on_mode_changed)
         self._on_mode_changed()  # set initial enabled state
 
+        # Wire live-preview of Olsson onset energy. Every input that feeds into
+        # E_onset(lam, panel, impactor) now triggers a recomputation so the user
+        # sees the threshold update as they type — including the boundary-aware
+        # bending stiffness and the shape-aware contact stiffness added in
+        # v0.2.0-dev. The ``ImpactPanel.set_onset_energy`` method already
+        # existed but was never being called by anything; this plumbing wires
+        # it in for the first time.
+        self.material_panel.configChanged.connect(self._update_live_onset)
+        self.panel_panel.configChanged.connect(self._update_live_onset)
+        self.impact_panel.configChanged.connect(self._update_live_onset)
+        self.input_mode_panel.configChanged.connect(self._update_live_onset)
+        # Initial render
+        self._update_live_onset()
+
         # Keep a reference to workers to prevent garbage-collection during run
         self._analysis_worker: AnalysisWorker | None = None
         self._sweep_worker: SweepWorker | None = None
@@ -124,6 +138,71 @@ class BvidMainWindow(QMainWindow):
         mode = self.input_mode_panel.current_mode()
         self.impact_panel.setEnabled(mode == "impact")
         self.damage_panel.setEnabled(mode == "damage")
+
+    def _update_live_onset(self) -> None:
+        """Recompute and display the Olsson onset energy AND the predicted
+        DPA preview in the Impact panel.
+
+        Called every time any input that feeds ``onset_energy()`` or the DPA
+        target changes — material, layup, ply thickness, panel dimensions /
+        boundary, impactor diameter / shape / mass, and impact energy. Both
+        previews are boundary- and shape-aware since v0.2.0-dev, so the user
+        should see the labels move immediately in response to a boundary,
+        shape, or mass toggle.
+
+        The DPA preview also surfaces the 80% panel-area saturation cap in
+        red bold text so the user sees "⚠ SATURATED" before clicking Run —
+        previously they'd only discover saturation from the Summary-tab
+        notice after a completed run.
+
+        Invalid / partial inputs (e.g. the user is mid-edit) silently blank
+        both labels rather than crashing the GUI.
+        """
+        # Only show the preview in impact-driven mode; in damage-driven mode
+        # there is no impact event and E_onset / DPA are undefined.
+        if self.input_mode_panel.current_mode() != "impact":
+            self.impact_panel.onset_label.setText("E_onset: \u2014 J (damage-driven mode)")
+            self.impact_panel.dpa_label.setText("DPA: \u2014 mm\u00b2 (damage-driven mode)")
+            self.impact_panel.dpa_label.setStyleSheet("")
+            return
+        try:
+            import warnings
+            from bvidfe.core.geometry import PanelGeometry
+            from bvidfe.core.laminate import Laminate
+            from bvidfe.core.material import MATERIAL_LIBRARY
+            from bvidfe.impact.mapping import impact_to_damage
+            from bvidfe.impact.olsson import onset_energy
+
+            mat_name = self.material_panel.get_material_name()
+            mat = MATERIAL_LIBRARY[mat_name]
+            lam = Laminate(
+                mat,
+                self.material_panel.get_layup_deg(),
+                self.material_panel.get_ply_thickness_mm(),
+            )
+            panel = PanelGeometry(
+                Lx_mm=self.panel_panel.get_Lx_mm(),
+                Ly_mm=self.panel_panel.get_Ly_mm(),
+                boundary=self.panel_panel.get_boundary(),
+            )
+            event = self.impact_panel.get_impact_event()
+            with warnings.catch_warnings():
+                # Suppress the "free" boundary / small-mass / DPA-cap
+                # warnings from the live preview — users will see them in
+                # the Summary tab after running.
+                warnings.simplefilter("ignore")
+                E = onset_energy(lam, panel, event.impactor)
+                damage = impact_to_damage(event, lam, panel)
+            self.impact_panel.set_onset_energy(E)
+            A_panel = panel.Lx_mm * panel.Ly_mm
+            self.impact_panel.set_dpa_preview(
+                damage.projected_damage_area_mm2, A_panel
+            )
+        except Exception:
+            # Any malformed intermediate state during typing — just blank both.
+            self.impact_panel.onset_label.setText("E_onset: \u2014 J")
+            self.impact_panel.dpa_label.setText("DPA: \u2014 mm\u00b2")
+            self.impact_panel.dpa_label.setStyleSheet("")
 
     def _build_config(self):
         """Assemble an AnalysisConfig from current panel state."""

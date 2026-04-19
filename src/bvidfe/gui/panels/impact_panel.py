@@ -50,6 +50,11 @@ class ImpactPanel(QWidget):
         self.location_y.setValue(0.0)
 
         self.onset_label = QLabel("E_onset: \u2014 J")
+        # Live DPA preview: updated by BvidMainWindow whenever any input
+        # affecting impact_to_damage() changes. Shows both absolute mm^2 and
+        # percentage of panel area so the user can see saturation coming
+        # (the 80% cap is hit *frequently* on default 150x100 panels).
+        self.dpa_label = QLabel("DPA: \u2014 mm\u00b2")
 
         for w in (
             self.energy_spin,
@@ -69,6 +74,7 @@ class ImpactPanel(QWidget):
         form.addRow("Location X (mm):", self.location_x)
         form.addRow("Location Y (mm):", self.location_y)
         form.addRow("", self.onset_label)
+        form.addRow("", self.dpa_label)
 
     def _on_changed(self, *_: object) -> None:
         self.configChanged.emit()
@@ -91,3 +97,27 @@ class ImpactPanel(QWidget):
     def set_onset_energy(self, E_onset_J: float) -> None:
         """Update the live E_onset display label."""
         self.onset_label.setText(f"E_onset: {E_onset_J:.2f} J")
+
+    def set_dpa_preview(self, dpa_mm2: float, A_panel_mm2: float) -> None:
+        """Update the live DPA preview label, including % of panel area and
+        an unmissable saturation warning when the 80% cap has engaged.
+
+        Args:
+            dpa_mm2: predicted damage area for the current inputs, already
+                clipped to the 80% cap if applicable.
+            A_panel_mm2: panel surface area — used to report DPA as a
+                percentage and to flag saturation.
+        """
+        if A_panel_mm2 <= 0:
+            self.dpa_label.setText("DPA: \u2014 mm\u00b2")
+            return
+        pct = 100.0 * dpa_mm2 / A_panel_mm2
+        if pct >= 79.0:
+            # Emoji warning + red styling so it's impossible to miss.
+            self.dpa_label.setText(
+                f"DPA: {dpa_mm2:.0f} mm\u00b2 ({pct:.1f}% of panel) \u26a0 SATURATED"
+            )
+            self.dpa_label.setStyleSheet("color: darkred; font-weight: bold;")
+        else:
+            self.dpa_label.setText(f"DPA: {dpa_mm2:.0f} mm\u00b2 ({pct:.1f}% of panel)")
+            self.dpa_label.setStyleSheet("")

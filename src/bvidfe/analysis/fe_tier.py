@@ -296,7 +296,9 @@ def fe3d_cai_buckling(
     Kg = sp.coo_matrix((data, (rows, cols)), shape=(K.shape[0], K.shape[0])).tocsc()
     _t("Kg assembled", t0)
 
-    # Apply penalty BCs to K (not Kg) to suppress rigid-body modes.
+    # Apply penalty BCs to K (not Kg) — rigid-body suppression plus
+    # boundary-dependent lateral restraint so the GUI's boundary selector
+    # produces a visible effect on the buckling eigenvalue.
     n_dof = K.shape[0]
     bcs = [
         BoundaryCondition(dof=0, value=0.0),
@@ -306,6 +308,28 @@ def fe3d_cai_buckling(
         BoundaryCondition(dof=5, value=0.0),
         BoundaryCondition(dof=7, value=0.0),
     ]
+    # Boundary-dependent out-of-plane (u_z) restraint on the panel edges:
+    #   simply_supported : pin u_z on the two loaded edges (x_min, x_max)
+    #   clamped          : pin u_z on all four lateral edges
+    #   free             : no additional restraint (only rigid-body)
+    boundary = cfg.panel.boundary
+    if boundary != "free":
+        coords = mesh.node_coords
+        tol = 1e-6
+        x_min, x_max = coords[:, 0].min(), coords[:, 0].max()
+        y_min, y_max = coords[:, 1].min(), coords[:, 1].max()
+        loaded_edge_mask = (np.abs(coords[:, 0] - x_min) < tol) | (
+            np.abs(coords[:, 0] - x_max) < tol
+        )
+        if boundary == "clamped":
+            lateral_edge_mask = loaded_edge_mask | (
+                np.abs(coords[:, 1] - y_min) < tol
+            ) | (np.abs(coords[:, 1] - y_max) < tol)
+        else:  # simply_supported
+            lateral_edge_mask = loaded_edge_mask
+        for node_idx in np.where(lateral_edge_mask)[0]:
+            # u_z is DOF 3*node_idx + 2
+            bcs.append(BoundaryCondition(dof=3 * int(node_idx) + 2, value=0.0))
     F_dummy = np.zeros(n_dof)
     K_mod, _ = apply_dirichlet_penalty(K, F_dummy, bcs, penalty=1.0e10)
 

@@ -21,6 +21,8 @@ class DamageMapTab(QWidget):
         lay.addWidget(self.canvas)
 
     def update(self, results: AnalysisResults, panel: PanelGeometry) -> None:  # type: ignore[override]
-        fig = plot_damage_map(results.damage, panel)
-        self.canvas.figure = fig
+        # Draw into the canvas's own Figure rather than replacing it — see
+        # KnockdownTab.update_series for the full rationale (pyplot-created
+        # Figures retain a non-Qt canvas binding that causes rendering leaks).
+        plot_damage_map(results.damage, panel, fig=self.canvas.figure)
         self.canvas.draw()

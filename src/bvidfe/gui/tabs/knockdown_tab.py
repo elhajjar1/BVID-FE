@@ -27,8 +27,16 @@ class KnockdownTab(QWidget):
         knockdowns: Sequence[float],
         tier_label: str = "",
     ) -> None:
-        fig = plot_knockdown_curve(list(energies_J), list(knockdowns), tier_label=tier_label)
-        self.canvas.figure = fig
+        # Draw into the canvas's own Figure. Replacing ``self.canvas.figure``
+        # with a new pyplot-created Figure leaves the new figure's ``canvas``
+        # attribute pointing at a non-Qt Agg canvas, which causes rendering
+        # leaks from other tabs' figures on Qt6/macOS.
+        plot_knockdown_curve(
+            list(energies_J),
+            list(knockdowns),
+            tier_label=tier_label,
+            fig=self.canvas.figure,
+        )
         self.canvas.draw()
 
     def update_tier_comparison(
@@ -37,8 +45,9 @@ class KnockdownTab(QWidget):
         knockdowns_by_tier: Dict[str, Sequence[float]],
     ) -> None:
         """Plot multiple tiers' knockdown curves overlaid on the same axes."""
-        fig = plot_tier_comparison(
-            list(energies_J), {k: list(v) for k, v in knockdowns_by_tier.items()}
+        plot_tier_comparison(
+            list(energies_J),
+            {k: list(v) for k, v in knockdowns_by_tier.items()},
+            fig=self.canvas.figure,
         )
-        self.canvas.figure = fig
         self.canvas.draw()

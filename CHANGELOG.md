@@ -8,6 +8,90 @@ In-progress work toward v0.2.0. No tag yet.
 
 ### Added
 
+- **Input-variable sensitivity rollup.** Before this change, four of the
+  five impact-event inputs were silently ignored by the physics pipeline:
+  - `panel.boundary` (simply_supported / clamped / free) never moved the
+    Olsson bending stiffness, the semi-analytical sublaminate buckling
+    coefficient, or the fe3d buckling BCs — all three tiers hard-coded
+    simply-supported. Fixed by adding boundary-dependent multipliers
+    (clamped=2.5× bending, 1.9× buckling; free=0.4× bending, 0.5× buckling
+    per Timoshenko) in `impact/olsson.py` and `analysis/semi_analytical.py`,
+    plus boundary-aware lateral-edge `u_z` penalty BCs in
+    `analysis/fe_tier.py::fe3d_cai_buckling`.
+  - `impactor.shape` (hemispherical / flat / conical) was never referenced
+    by any physics code. Fixed by wiring shape into a per-shape Hertz-
+    contact stiffness (Johnson, *Contact Mechanics* §3.4-3.5) and into a
+    footprint-spread multiplier on the target DPA (flat=1.4×, conical=0.7×).
+  - `impact.mass_kg` was never referenced. Fixed by adding a
+    calibration-aware dynamic amplification factor `(5.5/m)^0.1`, exactly
+    unity at the ASTM D7136 reference mass, plus a UserWarning when the
+    impactor mass ratio falls below Olsson's quasi-static validity regime.
+  - `impactor.diameter_mm` only shifted E_onset by <0.5% and was masked
+    by the DPA cap; fixed by adding a `(16/d)^0.3` spread factor on DPA.
+
+  A new scripted validation matrix (`scripts/validate_inputs.py`) runs 5
+  levels of each variable across every (tier, loading) combination and
+  flags any input that produces zero knockdown variation — the flags
+  section now reports "(none)" for the first time.
+
+- **Impact-location and fiber-break core markers on the damage map.**
+  Previously the damage-map plot drew only the delamination ellipses, so
+  a user could not tell from the plot WHERE the impact landed on the
+  panel — a real problem for off-center impacts where the footprint
+  asymmetry drives failure. `plot_damage_map` now adds a black "×"
+  marker at each unique ellipse centroid (the impact point) and, when
+  the material has a non-trivial fiber-break model (`fiber_break_eta > 0`
+  and `E_impact` above the fiber-break threshold), a red filled circle
+  showing the fiber-break core radius. Both appear in the legend. 4
+  new regression tests in `tests/viz/test_damage_map_markers.py`.
+
+- **Live DPA preview with saturation warning.** A new `DPA:` label in the
+  Impact panel updates every time any input changes, showing both the
+  absolute predicted damage area in mm² and the percentage of panel area.
+  When the 80% cap engages the label switches to red bold text with a ⚠
+  SATURATED marker — users now see saturation *before* pressing Run,
+  rather than discovering it post-hoc via the Summary tab notice and
+  wondering why knockdown stopped responding to energy. Saturation in
+  the default 150×100 mm 8-ply configuration kicks in at ~15 J; this
+  preview makes that limitation obvious. 4 new regression tests in
+  `tests/gui/test_live_onset.py`.
+
+- **Live E_onset preview in the Impact panel.** The `ImpactPanel.set_onset_energy()`
+  method has existed since the first release but was never wired up — the
+  "E_onset: — J" label stayed blank no matter what the user changed. Now
+  the `BvidMainWindow` connects `configChanged` on the material, panel,
+  impact, and input-mode panels to a single `_update_live_onset` slot
+  that recomputes the Olsson threshold and updates the label in real
+  time. Because E_onset is boundary- and shape-aware (new in this
+  release), the label now responds visibly to every relevant input:
+  simply_supported→clamped drops it from 0.60 J to 0.24 J, simply_supported→free
+  raises it to 1.49 J, etc. Handles invalid intermediate states (user
+  mid-edit) gracefully and blanks out in damage-driven mode where the
+  preview is not applicable. 5 new regression tests in
+  `tests/gui/test_live_onset.py`.
+
+- **fe3d KD-vs-energy monotonicity fix.** `DAMAGE_STIFFNESS_FACTOR` in
+  `analysis/fe_mesh.py` was raised from `1e-4` to `0.30`. The old value
+  was physically unrealistic — it treated delaminated elements as
+  essentially null in the stress field, which made the failure-index
+  criterion unable to flag damaged regions, and the fe3d residual
+  strength *increased* with impact energy past ~15% panel damage
+  (because the peak stress in the undamaged shell drops as the damage
+  footprint spreads wider). The new value represents typical residual
+  in-plane stiffness after delamination (plies are intact, only the
+  through-thickness coupling is lost); literature range for CFRP is
+  0.1-0.5. Knockdown now trends monotonically with energy across
+  simply-supported, clamped, and free boundaries (see
+  `tests/test_input_sensitivity.py::test_fe3d_knockdown_mostly_decreases_with_energy`).
+
+- **Summary tab edge-case notices.** The GUI Summary tab now surfaces
+  the `UserWarning`s that previously only appeared on stderr: DPA
+  saturation (knockdown insensitive to further energy), 'free' boundary
+  soft-support approximation, small-mass quasi-static regime violation,
+  and the known fe3d energy-insensitivity limitation. Each notice is
+  one plain-language paragraph under a "--- Notes ---" section so the
+  user sees why their result may not respond to an input they changed.
+
 - **True linear buckling eigensolve in the `fe3d` CAI tier**
   `Hex8Element.geometric_stiffness_matrix(sigma_bar)` integrates
   `gradN.T @ S @ gradN` over the element via 2×2×2 Gauss quadrature and

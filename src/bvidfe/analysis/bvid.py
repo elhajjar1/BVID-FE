@@ -129,7 +129,13 @@ class BvidAnalysis:
     def _semi_analytical(self, lam: Laminate, damage: DamageState, sigma_0: float):
         A_panel = self.config.panel.Lx_mm * self.config.panel.Ly_mm
         if self.config.loading == "compression":
-            return semi_analytical_cai(lam, damage, sigma_0, A_panel)
+            return semi_analytical_cai(
+                lam,
+                damage,
+                sigma_0,
+                A_panel,
+                boundary=self.config.panel.boundary,
+            )
         # tension
         sigma = semi_analytical_tai(lam, damage, sigma_0)
         return sigma, None, None
