@@ -81,6 +81,11 @@ hidden_imports = (
         "bvidfe.gui.tabs.knockdown_tab",
         "bvidfe.gui.tabs.placeholder_tab",
         "bvidfe.gui.tabs.summary_tab",
+        # v0.2.0-dev additions — lazy-imported inside BvidMainWindow.__init__
+        # so PyInstaller's static analysis may miss them without this hint:
+        "bvidfe.gui.tabs.buckling_tab",
+        "bvidfe.gui.tabs.stress_field_tab",
+        "bvidfe.gui.tabs.mesh_3d_tab",
     ]
     # ---- matplotlib backends ----
     + [

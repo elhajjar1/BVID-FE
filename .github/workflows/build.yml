@@ -1,0 +1,69 @@
+name: build-artifacts
+
+# Lightweight build workflow: produces macOS .app + Windows .exe folder as
+# GitHub Actions artifacts (downloadable from the run page for ~90 days).
+# Intended for iterating on the app without cutting a tagged release.
+#
+# Trigger in one of two ways:
+#  - Go to Actions → build-artifacts → "Run workflow" → pick a branch, Run
+#  - Push to any branch matching build-* (e.g. build-test1)
+#
+# For a public release with notes + permanent download, use release.yml
+# (triggered by pushing a tag like v0.2.0).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "build-*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[all]"
+          pip install pyinstaller
+
+      # Smoke-check: import the app and run the test suite headlessly
+      # before burning CI minutes on PyInstaller.
+      - name: Run test suite (headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          BVIDFE_LOG_LEVEL: WARNING
+        run: pytest tests/ -q --tb=short
+
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        run: pyinstaller BvidFE.spec --noconfirm --clean
+
+      - name: Build Windows app
+        if: runner.os == 'Windows'
+        run: pyinstaller BvidFE.spec --noconfirm --clean
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BVID-FE-macOS
+          path: dist/BVID-FE.app
+          retention-days: 90
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BVID-FE-Windows
+          path: dist/BVID-FE
+          retention-days: 90

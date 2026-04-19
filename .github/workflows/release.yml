@@ -4,6 +4,16 @@ on:
   push:
     tags:
       - "v*"
+  # Allow a maintainer to trigger a release-style build by hand from the
+  # Actions UI without cutting a tag. When triggered manually the workflow
+  # still uploads macOS + Windows artifacts, but creates a pre-release
+  # instead of a tagged release.
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag name for the manual pre-release (e.g. v0.2.0-dev1)"
+        required: true
+        default: "v0.2.0-dev-manual"
 
 jobs:
   build:
@@ -28,25 +38,30 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           pyinstaller BvidFE.spec --noconfirm --clean
-          cd dist && zip -r BVID-FE-${{ github.ref_name }}-macOS.zip BVID-FE.app
+          cd dist && zip -r BVID-FE-${{ github.event.inputs.release_tag || github.ref_name }}-macOS.zip BVID-FE.app
 
       - name: Build Windows app
         if: runner.os == 'Windows'
         run: |
           pyinstaller BvidFE.spec --noconfirm --clean
-          cd dist && 7z a BVID-FE-${{ github.ref_name }}-Windows.zip BVID-FE
+          cd dist && 7z a BVID-FE-${{ github.event.inputs.release_tag || github.ref_name }}-Windows.zip BVID-FE
 
       - name: Create release and upload artifact
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/BVID-FE-${{ github.ref_name }}-macOS.zip
-            dist/BVID-FE-${{ github.ref_name }}-Windows.zip
+            dist/BVID-FE-${{ github.event.inputs.release_tag || github.ref_name }}-macOS.zip
+            dist/BVID-FE-${{ github.event.inputs.release_tag || github.ref_name }}-Windows.zip
+          # When manually triggered, mark as pre-release
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
           generate_release_notes: true
           body: |
-            BVID-FE release. Artifacts are **unsigned** for v0.1.x.
+            BVID-FE release. Artifacts are **unsigned** for v0.1.x/v0.2.x.
             macOS users may need to clear the quarantine flag:
                 xattr -rd com.apple.quarantine BVID-FE.app
+            Windows users: unzip and run `BVID-FE\BVID-FE.exe`. SmartScreen
+            may warn on first launch — click "More info" → "Run anyway".
             Code signing is deferred to v0.2.0+.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
