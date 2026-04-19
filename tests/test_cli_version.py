@@ -1,11 +1,12 @@
 """Tests for CLI version + quick flags."""
 
 import subprocess
+import sys
 
 
 def test_cli_version_flag_prints_version():
     res = subprocess.run(
-        ["./.venv/bin/bvidfe", "--version"],
+        [sys.executable, "-m", "bvidfe.cli", "--version"],
         capture_output=True,
         text=True,
         check=False,
@@ -21,7 +22,7 @@ def test_cli_version_flag_prints_version():
 def test_cli_list_materials_prints_all_presets():
     """--list-materials prints all 4 material presets and exits cleanly."""
     res = subprocess.run(
-        ["./.venv/bin/bvidfe", "--list-materials"],
+        [sys.executable, "-m", "bvidfe.cli", "--list-materials"],
         capture_output=True,
         text=True,
         check=False,
@@ -35,7 +36,7 @@ def test_cli_cscan_flag_runs_inspection_driven():
     """--cscan runs the inspection-driven path from CLI (mutually exclusive with --energy)."""
     res = subprocess.run(
         [
-            "./.venv/bin/bvidfe",
+            sys.executable, "-m", "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
@@ -65,7 +66,7 @@ def test_cli_rejects_energy_and_cscan_together():
     """--energy and --cscan are mutually exclusive."""
     res = subprocess.run(
         [
-            "./.venv/bin/bvidfe",
+            sys.executable, "-m", "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
@@ -93,7 +94,7 @@ def test_cli_quick_flag_prints_only_knockdown():
     """--quick prints just the knockdown as a scalar, no JSON."""
     res = subprocess.run(
         [
-            "./.venv/bin/bvidfe",
+            sys.executable, "-m", "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",

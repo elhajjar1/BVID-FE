@@ -2,12 +2,15 @@
 
 import json
 import subprocess
+import sys
 
 
 def _run_cli(*args):
-    # Use the installed console script for a real end-to-end test
+    # Invoke the CLI via ``python -m bvidfe.cli`` so the same command works
+    # whether the package is installed in .venv/ (local dev) or on the system
+    # PATH (CI runners). Hardcoding "./.venv/bin/bvidfe" breaks in CI.
     return subprocess.run(
-        ["./.venv/bin/bvidfe", *args],
+        [sys.executable, "-m", "bvidfe.cli", *args],
         capture_output=True,
         text=True,
         check=False,

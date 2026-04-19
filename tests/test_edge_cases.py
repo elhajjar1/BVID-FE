@@ -6,6 +6,7 @@ panels, huge energies that saturate the DPA cap, empty damage states,
 mixed tier switching on the same config, etc.
 """
 
+import sys
 import warnings
 
 import pytest
@@ -152,7 +153,7 @@ def test_cli_runs_end_to_end():
 
     res = subprocess.run(
         [
-            "./.venv/bin/bvidfe",
+            sys.executable, "-m", "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
