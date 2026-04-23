@@ -162,9 +162,10 @@ a = Analysis(
         "notebook",
         "pytest",
         "sphinx",
-        "docutils",
-        "xmlrpc",
-        "pydoc",
+        # NOTE: do NOT exclude pydoc / xmlrpc / docutils —
+        # scipy._lib._docscrape imports pydoc, and rich-rst pulls in
+        # docutils. Excluding them breaks the windowed bundle at
+        # "import scipy" time (ModuleNotFoundError: No module named 'pydoc').
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
