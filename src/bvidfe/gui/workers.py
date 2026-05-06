@@ -170,3 +170,82 @@ class SweepWorker(QThread):
             self.resultReady.emit(df)
         except Exception:
             self.error.emit(traceback.format_exc())
+
+
+class TierComparisonWorker(QThread):
+    """Runs an N-tier x M-energy knockdown sweep in a background thread.
+
+    Replaces the old synchronous loop in ``BvidMainWindow._compare_tiers``
+    that ran 16 ``BvidAnalysis`` calls (2 tiers x 8 energies, ~12 s wall
+    clock at default settings) on the GUI thread. Results are emitted as a
+    ``(energies, kd_by_tier)`` tuple matching the existing
+    ``KnockdownTab.update_tier_comparison`` signature; per-(tier, energy)
+    failures are absorbed into NaN entries (no abort) and described in a
+    third tuple element so the caller can surface them in the status bar.
+    """
+
+    # (energies: list[float], kd_by_tier: dict[str, list[float]],
+    #  failed_pairs: list[tuple[str, float, str]])
+    resultReady = pyqtSignal(object)
+    error = pyqtSignal(str)
+    progress = pyqtSignal(int)
+
+    def __init__(
+        self,
+        base_config: AnalysisConfig,
+        tiers: Sequence[str],
+        energies_J: Sequence[float],
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self.base_config = base_config
+        self.tiers = list(tiers)
+        self.energies_J = list(energies_J)
+
+    def run(self) -> None:  # type: ignore[override]
+        try:
+            if self.base_config.impact is None:
+                raise ValueError("tier comparison requires base_config.impact to be set")
+            t_start = time.time()
+            _log.info(
+                "TierComparisonWorker started: tiers=%s n_energies=%d",
+                self.tiers,
+                len(self.energies_J),
+            )
+
+            total_pairs = max(1, len(self.tiers) * len(self.energies_J))
+            kd_by_tier: dict[str, list[float]] = {t: [] for t in self.tiers}
+            failed_pairs: list[tuple[str, float, str]] = []
+            self.progress.emit(2)
+
+            done = 0
+            for tier in self.tiers:
+                for E in self.energies_J:
+                    new_impact = replace(self.base_config.impact, energy_J=float(E))
+                    cfg = replace(self.base_config, impact=new_impact, tier=tier, mesh=None)
+                    try:
+                        result = BvidAnalysis(cfg).run()
+                        kd_by_tier[tier].append(float(result.knockdown))
+                    except Exception:  # noqa: BLE001
+                        kd_by_tier[tier].append(float("nan"))
+                        msg = traceback.format_exc().splitlines()[-1]
+                        failed_pairs.append((tier, float(E), msg))
+                        _log.warning(
+                            "TierComparisonWorker: tier=%s energy=%.2fJ failed: %s",
+                            tier,
+                            E,
+                            msg,
+                        )
+                    done += 1
+                    self.progress.emit(2 + int(96 * done / total_pairs))
+
+            _log.info(
+                "TierComparisonWorker done: %d pair(s) (%d failed) in %.1fs",
+                total_pairs,
+                len(failed_pairs),
+                time.time() - t_start,
+            )
+            self.progress.emit(100)
+            self.resultReady.emit((list(self.energies_J), kd_by_tier, failed_pairs))
+        except Exception:
+            self.error.emit(traceback.format_exc())

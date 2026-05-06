@@ -8,6 +8,23 @@ In-progress work toward v0.2.0. No tag yet.
 
 ### Fixed
 
+- **GUI tier-comparison no longer freezes the main thread.** The
+  "Compare Tiers (empirical + semi_analytical)..." menu action ran 16
+  `BvidAnalysis.run()` calls (2 tiers x 8 energies, ~12 s wall clock at
+  default settings) directly on the Qt main thread inside
+  `BvidMainWindow._compare_tiers`. The status bar updated to "Running
+  tier comparison..." but the entire UI was unresponsive until the loop
+  finished — including the Knockdown Curve tab where the result would
+  ultimately appear. Fixed by extracting the loop into a new
+  `TierComparisonWorker(QThread)` in `gui/workers.py` that mirrors the
+  existing `AnalysisWorker` / `SweepWorker` pattern (resultReady / error /
+  progress signals, daemon-thread heartbeats, deleteLater cleanup).
+  Per-(tier, energy) failures are absorbed into NaN entries with a
+  third tuple element listing the skipped pairs so the status bar can
+  report them instead of aborting the whole comparison. Two new tests
+  in `tests/gui/test_workers.py` cover the happy-path and the
+  bogus-tier partial-failure path.
+
 - **Hex8 elements now validate the Jacobian determinant.** `Hex8Element.B_matrix`
   and `Hex8Element.geometric_stiffness_matrix` previously called
   `np.linalg.inv(J)` with no check on `np.linalg.det(J)` — an inverted element

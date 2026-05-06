@@ -76,6 +76,7 @@ class BvidMainWindow(QMainWindow):
         # Keep a reference to workers to prevent garbage-collection during run
         self._analysis_worker: AnalysisWorker | None = None
         self._sweep_worker: SweepWorker | None = None
+        self._tier_compare_worker = None  # type: ignore[assignment]  # TierComparisonWorker
         self.analysis_panel.runRequested.connect(self._run_analysis)
         self.sweep_panel.sweepRequested.connect(self._run_sweep)
 
@@ -564,14 +565,19 @@ class BvidMainWindow(QMainWindow):
         menu.addAction(compare_tiers)
 
     def _compare_tiers(self) -> None:
-        """Run empirical + semi_analytical sweeps on the current config and
-        overlay them on the Knockdown Curve tab.
+        """Run empirical + semi_analytical sweeps on the current config in a
+        background ``TierComparisonWorker`` and overlay them on the Knockdown
+        Curve tab when the worker finishes.
 
         Both tiers are fast (sub-second for empirical; ~1 second for
-        semi_analytical). fe3d is skipped because a sweep at fe3d can
-        take many minutes. Users who want fe3d in the comparison can
+        semi_analytical) but on the GUI thread the combined ~12 s sweep
+        froze the UI completely. fe3d is skipped because a sweep at fe3d
+        can take many minutes; users who want fe3d in the comparison can
         trigger a dedicated sweep via the Sweep panel.
         """
+        if self._tier_compare_worker is not None:
+            self.statusBar().showMessage("Tier comparison already running\u2026", 3000)
+            return
         try:
             cfg = self._build_config()
         except (ValueError, AssertionError) as exc:
@@ -581,34 +587,50 @@ class BvidMainWindow(QMainWindow):
             self.statusBar().showMessage("Tier comparison requires an impact-driven config.", 5000)
             return
 
-        from dataclasses import replace
-
         import numpy as np
 
-        from bvidfe.analysis import BvidAnalysis
+        from bvidfe.gui.workers import TierComparisonWorker
 
-        self.statusBar().showMessage("Running tier comparison\u2026")
         e_cur = cfg.impact.energy_J
         energies = list(np.linspace(2.0, max(5.0, 1.5 * e_cur), 8))
+        tiers = ("empirical", "semi_analytical")
 
-        kd_by_tier: dict[str, list[float]] = {}
-        for tier in ("empirical", "semi_analytical"):
-            kd = []
-            for E in energies:
-                new_impact = replace(cfg.impact, energy_J=float(E))
-                run_cfg = replace(cfg, impact=new_impact, tier=tier, mesh=None)
-                try:
-                    result = BvidAnalysis(run_cfg).run()
-                    kd.append(result.knockdown)
-                except Exception:  # noqa: BLE001
-                    kd.append(float("nan"))
-            kd_by_tier[tier] = kd
+        self.statusBar().showMessage("Running tier comparison\u2026")
+        worker = TierComparisonWorker(cfg, tiers, energies)
+        worker.resultReady.connect(self._on_tier_compare_ready)
+        worker.error.connect(self._on_worker_error)
+        worker.progress.connect(self._on_progress)
+        worker.finished.connect(lambda w=worker: self._on_tier_compare_finished(w))
+        self._tier_compare_worker = worker
+        worker.start()
 
+    def _on_tier_compare_ready(self, payload) -> None:
+        """Push the worker result into the Knockdown Curve tab and report
+        any per-(tier, energy) failures via the status bar."""
+        energies, kd_by_tier, failed_pairs = payload
         self.knockdown_tab.update_tier_comparison(energies, kd_by_tier)
-        self.statusBar().showMessage(
-            f"Tier comparison complete: {len(energies)} energies x " f"{len(kd_by_tier)} tiers",
-            8000,
-        )
+        if failed_pairs:
+            self.statusBar().showMessage(
+                f"Tier comparison complete: {len(energies)} energies x "
+                f"{len(kd_by_tier)} tiers ({len(failed_pairs)} pair(s) skipped \u2014 see log)",
+                10000,
+            )
+        else:
+            self.statusBar().showMessage(
+                f"Tier comparison complete: {len(energies)} energies x "
+                f"{len(kd_by_tier)} tiers",
+                8000,
+            )
+
+    def _on_tier_compare_finished(self, worker) -> None:
+        """Cleanup when a TierComparisonWorker finishes; mirrors the
+        AnalysisWorker / SweepWorker variants."""
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
+        if self._tier_compare_worker is worker:
+            self._tier_compare_worker = None
 
     def _save_config(self) -> None:
         path_str, _ = QFileDialog.getSaveFileName(
