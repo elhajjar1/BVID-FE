@@ -20,8 +20,8 @@ from bvidfe.analysis.fe_mesh import FeMesh, build_fe_mesh, estimate_fe_mesh_size
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
 from bvidfe.elements.hex8 import Hex8Element
-from bvidfe.failure.larc05 import larc05_index
-from bvidfe.failure.tsai_wu import tsai_wu_index
+from bvidfe.failure.larc05 import larc05_index, larc05_index_batch
+from bvidfe.failure.tsai_wu import tsai_wu_index, tsai_wu_index_batch
 from bvidfe.solver.assembler import assemble_global_stiffness
 from bvidfe.solver.boundary import (
     BoundaryCondition,
@@ -217,6 +217,13 @@ def _solve_failure_strain_analytic(
     This replaces the prior 10-12 iteration bisection (each iteration
     reassembled and re-solved the full FE system), giving a ~10x speedup
     for the FPF path with identical results on the quadratic branches.
+
+    The per-element inner Gauss-point loop is vectorised via the batch
+    criterion helpers (``larc05_index_batch`` / ``tsai_wu_index_batch``).
+    Numerical equivalence with the prior scalar form is locked by
+    ``tests/analysis/test_fpf_strain_solve_equivalence.py`` against the
+    ``_solve_failure_strain_analytic_scalar_ref`` reference implementation
+    kept in this module purely for the equivalence test.
     """
     material = _resolve_material(cfg)
 
@@ -227,41 +234,101 @@ def _solve_failure_strain_analytic(
         bcs = tension_bcs(mesh.node_coords, strain_sign * strain_cap)
     u_ref = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
 
-    c_crit_min = np.inf  # smallest positive multiplier across all GPs
+    c_crit_min = np.inf
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
-        sigma_field_ref = elem.stress_at_gauss_points(u_ref[dof_map])  # (n_gp, 6)
+        sigma_ref = elem.stress_at_gauss_points(u_ref[dof_map])  # (n_gp, 6)
+
+        if criterion == "larc05":
+            idx_ref = larc05_index_batch(material, sigma_ref)  # (n_gp,)
+            valid = idx_ref > 0
+            if not bool(valid.any()):
+                continue
+            # LaRC05 modes are sums of squared normalised stresses, so
+            # idx(c) = c^2 * idx(1)  ->  c_crit = 1 / sqrt(idx_ref).
+            c_crit = np.where(
+                valid, 1.0 / np.sqrt(np.where(valid, idx_ref, 1.0)), np.inf
+            )
+            c_crit_elem_min = float(c_crit.min())
+        else:
+            # Tsai-Wu: idx(c) = a*c + b*c^2. Solve a, b from two samples
+            # (c=1 and c=2). System: a + b = idx_ref;  2a + 4b = idx_2.
+            idx_ref = tsai_wu_index_batch(material, sigma_ref)  # (n_gp,)
+            sigma_2 = 2.0 * sigma_ref
+            idx_2 = tsai_wu_index_batch(material, sigma_2)  # (n_gp,)
+            b = (idx_2 - 2.0 * idx_ref) / 2.0
+            a = idx_ref - b
+            valid = idx_ref > 0
+            tiny = 1e-14
+            # Initialise c_crit = +inf so masked-out points never drive the min.
+            c_crit = np.full_like(idx_ref, np.inf, dtype=float)
+            # Branch 1: |b| < tiny and |a| > tiny -> c = 1/a.
+            mask_lin = valid & (np.abs(b) < tiny) & (np.abs(a) >= tiny)
+            # Use np.where to keep divisor non-zero for inactive lanes.
+            c_lin = 1.0 / np.where(mask_lin, a, 1.0)
+            c_crit = np.where(mask_lin, c_lin, c_crit)
+            # Branch 2: |b| >= tiny and disc >= 0 -> c = (-a + sqrt(disc)) / (2b).
+            mask_quad = valid & (np.abs(b) >= tiny)
+            disc = a * a + 4.0 * b
+            mask_quad_real = mask_quad & (disc >= 0)
+            sqrt_disc = np.sqrt(np.where(mask_quad_real, disc, 0.0))
+            c_quad = (-a + sqrt_disc) / np.where(mask_quad_real, 2.0 * b, 1.0)
+            c_crit = np.where(mask_quad_real, c_quad, c_crit)
+            # Filter c_crit > 0 (Tsai-Wu can produce a non-physical
+            # negative root when the linear and quadratic terms have
+            # opposite signs in a way that doesn't bracket failure).
+            c_crit = np.where(c_crit > 0, c_crit, np.inf)
+            c_crit_elem_min = float(c_crit.min())
+
+        if c_crit_elem_min < c_crit_min:
+            c_crit_min = c_crit_elem_min
+
+    if not np.isfinite(c_crit_min) or c_crit_min <= 0:
+        return strain_cap  # nothing failed up to strain_cap
+    return min(strain_cap, c_crit_min * strain_cap)
+
+
+def _solve_failure_strain_analytic_scalar_ref(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    strain_sign: int,
+    criterion: str,
+    strain_cap: float = 0.05,
+) -> float:
+    """Reference (pre-vectorisation) scalar implementation of
+    ``_solve_failure_strain_analytic``.
+
+    Kept intact for the equivalence test in
+    ``tests/analysis/test_fpf_strain_solve_equivalence.py`` so any future
+    edit to the production routine immediately surfaces a numerical
+    drift. NOT called from production code; do not use directly.
+    """
+    material = _resolve_material(cfg)
+
+    if criterion == "larc05":
+        bcs = compression_bcs(mesh.node_coords, strain_sign * strain_cap)
+    else:
+        bcs = tension_bcs(mesh.node_coords, strain_sign * strain_cap)
+    u_ref = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
+
+    c_crit_min = np.inf
+    for eidx, elem in enumerate(elements):
+        dof_map = mesh.element_dof_maps[eidx]
+        sigma_field_ref = elem.stress_at_gauss_points(u_ref[dof_map])
         for gp in range(sigma_field_ref.shape[0]):
             sigma_ref = sigma_field_ref[gp]
-            # For each criterion, evaluate the index at c=1 (reference state).
-            # If index at c=1 is below 1, scale c to bring it to 1.
             if criterion == "larc05":
                 idx_ref = larc05_index(material, sigma_ref)
             else:
                 idx_ref = tsai_wu_index(material, sigma_ref)
             if idx_ref <= 0:
                 continue
-            # Both LaRC05 (in each branch) and Tsai-Wu have
-            #   idx(c) = a * c + b * c^2  where a, b evaluated at sigma_ref.
-            # For pure stress scaling: idx(c) / idx(1) = (a*c + b*c^2)/(a + b).
-            # In the LaRC05 case all active terms are c^2 terms (no linear in
-            # stress), so idx(c) = c^2 * idx_ref ⇒ c_crit = 1/sqrt(idx_ref).
-            # Tsai-Wu has linear terms in stress, so use general quadratic
-            # solve. We build a,b by evaluating idx at c=1 and c=0.5:
-            #   idx(1.0) = a + b
-            #   idx(0.5) = 0.5 a + 0.25 b
-            # -> b = 4/3 * (idx_1 - 2*idx_half)*(-1) ... easier: evaluate at
-            # c=1 and c=2, solve 2-eqn linear system.
             if criterion == "larc05":
-                # Purely quadratic in stress-magnitude (each mode is sum of
-                # squared normalized stresses) so idx(c) = c^2 * idx_ref.
                 c_crit = 1.0 / np.sqrt(idx_ref)
             else:
-                # Tsai-Wu: idx(c) = a*c + b*c^2. Use linear algebra from 2 samples.
                 sigma_2 = 2.0 * sigma_ref
                 idx_2 = tsai_wu_index(material, sigma_2)
-                # System: a + b = idx_ref;  2*a + 4*b = idx_2
-                # -> b = (idx_2 - 2*idx_ref) / 2;  a = idx_ref - b
                 b = (idx_2 - 2.0 * idx_ref) / 2.0
                 a = idx_ref - b
                 if abs(b) < 1e-14:
@@ -269,7 +336,7 @@ def _solve_failure_strain_analytic(
                         continue
                     c_crit = 1.0 / a
                 else:
-                    disc = a * a + 4.0 * b  # 4*b*1 from ax+bx^2=1 -> bx^2+ax-1=0
+                    disc = a * a + 4.0 * b
                     if disc < 0:
                         continue
                     c_crit = (-a + np.sqrt(disc)) / (2.0 * b)
@@ -279,7 +346,7 @@ def _solve_failure_strain_analytic(
                 c_crit_min = c_crit
 
     if not np.isfinite(c_crit_min) or c_crit_min <= 0:
-        return strain_cap  # nothing failed up to strain_cap
+        return strain_cap
     return min(strain_cap, c_crit_min * strain_cap)
 
 

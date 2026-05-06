@@ -23,6 +23,27 @@ In-progress work toward v0.2.0. No tag yet.
   split on the roadmap so future work and historical claims do not
   drift back into confusion.
 
+### Changed
+
+- **`_solve_failure_strain_analytic` (fe3d FPF inner solve) is now
+  vectorised across Gauss points.** The per-element inner Python loop
+  over Gauss points was replaced with a single batched call to
+  ``larc05_index_batch`` / ``tsai_wu_index_batch`` (added in the previous
+  commit) plus ``np.where``-masked branch evaluation for the four
+  numerical edge cases (LaRC05 mask: ``idx_ref > 0``; Tsai-Wu masks:
+  ``|b| < tiny`` linear fallback, ``|b| >= tiny`` quadratic, ``disc < 0``
+  no-real-root, ``c <= 0`` non-physical-root). The previous scalar
+  implementation is preserved verbatim as
+  ``_solve_failure_strain_analytic_scalar_ref`` so the new
+  ``tests/analysis/test_fpf_strain_solve_equivalence.py`` can prove the
+  two paths return identical strain-at-failure values
+  (``rel=1e-10``) on three representative inputs (pristine LaRC05,
+  delaminated LaRC05, delaminated Tsai-Wu) and on the tension path
+  (``strain_sign=+1``). Speedup is modest at default mesh resolutions
+  (n_gp = 8 per element so the inner loop was small) but the change
+  removes the last per-Gauss-point Python loop in the fe3d hot path
+  and aligns the FPF solve with the rest of the failure-criterion API.
+
 ### Added
 
 - **fe3d tier now exercised in CI as a monitoring step.** The CI
