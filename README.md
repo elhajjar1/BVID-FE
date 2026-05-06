@@ -136,6 +136,38 @@ The damaged sublaminate above the largest delamination is treated as a plate wit
 
 A structured hexahedral mesh is built for the damaged laminate. Delaminated interfaces are approximated by reducing interlaminar shear stiffness (stiffness-reduction model; true cohesive surfaces deferred to v0.2.0). First-ply-failure is evaluated at all Gauss points using LaRC05 (CAI) and Tsai-Wu (TAI). The buckling-eigenvalue-based CAI prediction is deferred to v0.2.0; v0.1.0 uses first-ply-failure on the damaged mesh as a conservative estimate.
 
+### Knockdown definition and cross-tier comparability
+
+`AnalysisResults.knockdown` is computed in exactly one place — `BvidAnalysis.run()` (`src/bvidfe/analysis/bvid.py`):
+
+```python
+knockdown = residual_strength_MPa / pristine_strength_MPa
+```
+
+**The denominator is identical across all three tiers.** `_pristine_strength()` (`src/bvidfe/analysis/bvid.py`) is a thickness-weighted ply-average of the lamina-level strengths from the material card:
+
+- CAI: `Σ tᵢ (Xc·cos²θᵢ + Yc·sin²θᵢ) / Σ tᵢ`
+- TAI: `Σ tᵢ (Xt·cos²θᵢ + Yt·sin²θᵢ) / Σ tᵢ`
+
+**The numerator (residual strength) is what differs between tiers:**
+
+| Tier | CAI residual stress | TAI residual stress |
+|---|---|---|
+| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_panel)^m)` | Whitney-Nuismer point-stress on equivalent hole |
+| `semi_analytical` | `min(Soutis, σ_buckling_sublam)` — adds Rayleigh-Ritz sublaminate buckling floor | Delegates to Whitney-Nuismer (mathematically identical to `empirical`) |
+| `fe3d` | `min(λ_crit·σ_ref, FPF_LaRC05)`, capped at σ₀ | FPF Tsai-Wu on damaged mesh, capped at σ₀ |
+
+**What this means for users:**
+
+- All three tiers report knockdown on the **same scale** (ratio relative to the same pristine baseline), so values are *qualitatively comparable*.
+- They are **not** numerically interchangeable: each tier captures different failure mechanisms.
+  - For **TAI**, `empirical` and `semi_analytical` are mathematically identical; `fe3d` differs.
+  - For **CAI**, `semi_analytical ≤ empirical` always (the buckling floor only lowers the residual). `fe3d` is independent and dominated by stress concentration at the damage boundary rather than damage magnitude — see the flat-vs-energy caveat in [Limitations](#limitations).
+- For **energy-scaling studies**, prefer `empirical` (Soutis scales with DPA) or `semi_analytical` (Rayleigh-Ritz scales with ellipse size). `fe3d` is intended for stress-field context and through-thickness damage visualization, not energy-dependent knockdown curves.
+- A few silent fallbacks affect interpretation:
+  - `fe3d` buckling: if no positive eigenvalue is found (or the eigenvalue is < 5% of σ₀), the buckling result is discarded and FPF — or, in pure-buckling failure, σ₀ — is reported instead. A `knockdown` of 1.0 from `fe3d` may therefore mean "buckling solve unconverged" rather than "no damage effect".
+  - DPA is globally capped at 80% of panel area (`src/bvidfe/impact/mapping.py`); above this damage threshold all three tiers saturate.
+
 ### Damage severity heatmap
 
 The "Damage Severity" tab in the GUI is **not** a simple count of damaged interfaces, nor is it a continuous physical damage variable (e.g. a Kachanov-style scalar). It is a through-thickness accumulation of the per-element stiffness-reduction metric used by the `fe3d` mesh:

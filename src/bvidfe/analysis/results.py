@@ -25,6 +25,24 @@ class FieldResults:
 
 @dataclass
 class AnalysisResults:
+    """Outcome of a single ``BvidAnalysis.run()`` invocation.
+
+    The strength fields are defined identically across all three tiers:
+
+    - ``pristine_strength_MPa`` is a thickness-weighted ply-average of the
+      lamina-level strengths from the material card (see
+      ``bvidfe.analysis.bvid._pristine_strength``). Same denominator for
+      every tier.
+    - ``residual_strength_MPa`` is the tier-specific damaged strength.
+    - ``knockdown = residual_strength_MPa / pristine_strength_MPa``,
+      assigned in ``BvidAnalysis.run()``.
+
+    Knockdowns from different tiers are on the same scale (same baseline),
+    but capture different failure mechanisms — see the README "Knockdown
+    definition and cross-tier comparability" section before comparing
+    values across tiers.
+    """
+
     residual_strength_MPa: float
     pristine_strength_MPa: float
     knockdown: float
