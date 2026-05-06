@@ -8,6 +8,27 @@ In-progress work toward v0.2.0. No tag yet.
 
 ### Fixed
 
+- **CLI now validates inputs at parse time instead of deep in the pipeline.**
+  Several `bvidfe` CLI flags previously accepted invalid values that only
+  surfaced as opaque errors much later: `--material IM7/8553` (typo)
+  reached ``MATERIAL_LIBRARY[args.material]`` before producing a raw
+  ``KeyError``; `--energy 0` and negative numbers passed argparse and
+  produced cryptic Olsson-threshold warnings; `--cscan
+  /does/not/exist.json` raised a bare ``FileNotFoundError`` from inside
+  ``load_cscan_json``; `--thickness`, `--impactor-diameter`, and
+  `--mass` accepted any float including zero and negatives. The argparse
+  setup now uses ``choices=`` for ``--material`` (so typos surface as
+  ``invalid choice: 'IM7/8553' (choose from 'AS4/3501-6', 'IM7/8552',
+  'T700/2510', 'T800/epoxy')``), a custom ``_positive_float`` type for
+  the four numeric flags, and a custom ``_existing_path`` type for
+  ``--cscan`` that fails fast with ``file not found``. Panel dimensions
+  are also rejected when non-positive. A new ``--quick-json`` flag emits
+  a single-line JSON object ``{knockdown, residual_strength_MPa,
+  pristine_strength_MPa, tier_used}`` for scripted callers that need
+  more than the bare scalar from ``--quick``. Four new tests in
+  ``tests/test_cli.py`` cover the bad-material, zero-energy,
+  missing-cscan, and quick-json paths.
+
 - **GUI surfaces malformed input instead of silently dropping it.** Two
   separate paths previously absorbed user-input failures with no
   feedback: ``BvidMainWindow._load_config`` had a bare ``except
