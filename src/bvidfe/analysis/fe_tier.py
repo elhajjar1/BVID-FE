@@ -259,6 +259,16 @@ def fe3d_cai_buckling(
     (sigma_critical_MPa, lambda_crit)
         sigma_critical_MPa : min(lambda_crit * sigma_ref, sigma_pristine_MPa)
         lambda_crit        : smallest positive buckling load factor (0 if solve failed)
+
+    Notes
+    -----
+    If no positive eigenvalue is found or the eigensolver raises, this
+    function silently returns ``(sigma_pristine_MPa, 0.0)``. Downstream,
+    ``BvidAnalysis.run()`` therefore reports ``knockdown = 1.0`` in that
+    case — which can be misleading. The caller also imposes a
+    "buckling plausibility" gate (``sigma_buckling >= 0.05 * sigma_0``)
+    and silently falls back to first-ply-failure if it trips. Treat
+    ``fe3d`` knockdowns from this path as approximate.
     """
     _guard_problem_size(cfg)
     t0 = time.time()

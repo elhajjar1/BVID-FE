@@ -25,7 +25,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
 - **Four material presets**: AS4/3501-6, IM7/8552, T700/2510, T800/epoxy
 - **CLI** for single-run and batch use
-- **PyQt6 desktop GUI** with seven input panels and six result tabs — Summary (with inline fe3d caveat), Damage Map, Knockdown Curve (auto-populates via a background empirical sweep after every single run), Damage View (matplotlib orthographic top/side/front projections + text summary), Buckling Eigenvalues (bar chart), and Damage Severity (through-thickness heatmap). Threaded workers with heartbeat progress, mesh-size guards on the fe3d tier, and a File menu (Save/Load Config, Export Results JSON, Export Damage Map PNG)
+- **PyQt6 desktop GUI** with seven input panels and six result tabs — Summary (with inline fe3d caveat), Damage Map, Knockdown Curve (auto-populates via a background empirical sweep after every single run), Damage View (matplotlib orthographic top/side/front projections + text summary), Buckling Eigenvalues (bar chart), and Damage Severity (through-thickness sum of per-element `1 − damage_factor`; see [Physics Models](#damage-severity-heatmap)). Threaded workers with heartbeat progress, mesh-size guards on the fe3d tier, and a File menu (Save/Load Config, Export Results JSON, Export Damage Map PNG)
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output
 - **2D plots**: damage map, knockdown curves, tier comparison charts
 - **3D PyVista plots**: delamination surfaces, buckling mode shape, stress contour
@@ -135,6 +135,48 @@ The damaged sublaminate above the largest delamination is treated as a plate wit
 ### 3D FE tier
 
 A structured hexahedral mesh is built for the damaged laminate. Delaminated interfaces are approximated by reducing interlaminar shear stiffness (stiffness-reduction model; true cohesive surfaces deferred to v0.2.0). First-ply-failure is evaluated at all Gauss points using LaRC05 (CAI) and Tsai-Wu (TAI). The buckling-eigenvalue-based CAI prediction is deferred to v0.2.0; v0.1.0 uses first-ply-failure on the damaged mesh as a conservative estimate.
+
+### Knockdown definition and cross-tier comparability
+
+`AnalysisResults.knockdown` is computed in exactly one place — `BvidAnalysis.run()` (`src/bvidfe/analysis/bvid.py`):
+
+```python
+knockdown = residual_strength_MPa / pristine_strength_MPa
+```
+
+**The denominator is identical across all three tiers.** `_pristine_strength()` (`src/bvidfe/analysis/bvid.py`) is a thickness-weighted ply-average of the lamina-level strengths from the material card:
+
+- CAI: `Σ tᵢ (Xc·cos²θᵢ + Yc·sin²θᵢ) / Σ tᵢ`
+- TAI: `Σ tᵢ (Xt·cos²θᵢ + Yt·sin²θᵢ) / Σ tᵢ`
+
+**The numerator (residual strength) is what differs between tiers:**
+
+| Tier | CAI residual stress | TAI residual stress |
+|---|---|---|
+| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_panel)^m)` | Whitney-Nuismer point-stress on equivalent hole |
+| `semi_analytical` | `min(Soutis, σ_buckling_sublam)` — adds Rayleigh-Ritz sublaminate buckling floor | Delegates to Whitney-Nuismer (mathematically identical to `empirical`) |
+| `fe3d` | `min(λ_crit·σ_ref, FPF_LaRC05)`, capped at σ₀ | FPF Tsai-Wu on damaged mesh, capped at σ₀ |
+
+**What this means for users:**
+
+- All three tiers report knockdown on the **same scale** (ratio relative to the same pristine baseline), so values are *qualitatively comparable*.
+- They are **not** numerically interchangeable: each tier captures different failure mechanisms.
+  - For **TAI**, `empirical` and `semi_analytical` are mathematically identical; `fe3d` differs.
+  - For **CAI**, `semi_analytical ≤ empirical` always (the buckling floor only lowers the residual). `fe3d` is independent and dominated by stress concentration at the damage boundary rather than damage magnitude — see the flat-vs-energy caveat in [Limitations](#limitations).
+- For **energy-scaling studies**, prefer `empirical` (Soutis scales with DPA) or `semi_analytical` (Rayleigh-Ritz scales with ellipse size). `fe3d` is intended for stress-field context and through-thickness damage visualization, not energy-dependent knockdown curves.
+- A few silent fallbacks affect interpretation:
+  - `fe3d` buckling: if no positive eigenvalue is found (or the eigenvalue is < 5% of σ₀), the buckling result is discarded and FPF — or, in pure-buckling failure, σ₀ — is reported instead. A `knockdown` of 1.0 from `fe3d` may therefore mean "buckling solve unconverged" rather than "no damage effect".
+  - DPA is globally capped at 80% of panel area (`src/bvidfe/impact/mapping.py`); above this damage threshold all three tiers saturate.
+
+### Damage severity heatmap
+
+The "Damage Severity" tab in the GUI is **not** a simple count of damaged interfaces, nor is it a continuous physical damage variable (e.g. a Kachanov-style scalar). It is a through-thickness accumulation of the per-element stiffness-reduction metric used by the `fe3d` mesh:
+
+1. Each hex element in the damaged mesh carries a `damage_factor`: `1.0` if pristine, or `DAMAGE_STIFFNESS_FACTOR = 0.3` if it is intersected by a delamination interface inside an ellipse footprint, or sits inside the fiber-break core. The factor is **binary per element** (geometric overlap test in `bvidfe.analysis.fe_mesh.build_fe_mesh`), not a continuum damage variable.
+2. The per-element damage metric is `1 − damage_factor` (so `0.0` for pristine, `0.7` for damaged).
+3. For each in-plane column `(x, y)` the metric is **summed over the through-thickness elements** to produce the heatmap value (`bvidfe/gui/tabs/stress_field_tab.py`).
+
+The colorbar is therefore in units of "stacked damaged-element contributions": `0` means no delamination at any interface in that column, and the maximum (`≈ n_plies − 1` for a single fully-delaminated interface; higher if multiple interfaces are delaminated and `elements_per_ply > 1`) means every element through the thickness sits inside a damaged region. It is a visualization aid analogous to a C-scan operator's depth-projected damage map, not a quantitative continuum-damage field.
 
 ## Limitations
 

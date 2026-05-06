@@ -140,6 +140,11 @@ def semi_analytical_cai(
           (boundary-aware — clamped parent panels are ~1.9x stiffer, free
           ~0.5x, relative to simply-supported).
 
+    Because of (b), the returned residual stress is always less-than-or-equal
+    to the empirical-tier result on the same input — so the resulting
+    ``knockdown`` (as computed downstream by ``BvidAnalysis.run()``) is
+    guaranteed to be less-than-or-equal to the ``empirical`` tier's.
+
     Returns (sigma_CAI_MPa, critical_interface_index, critical_buckling_eigenvalue).
     If the damage state is empty, returns (sigma_pristine, None, None).
     """
