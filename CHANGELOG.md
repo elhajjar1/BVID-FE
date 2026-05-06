@@ -6,6 +6,36 @@ All notable changes to BVID-FE are documented in this file.
 
 In-progress work toward v0.2.0. No tag yet.
 
+### Added
+
+- **MeshParams input validation.** ``MeshParams.__post_init__`` now
+  rejects ``elements_per_ply <= 0`` (and non-int values),
+  ``in_plane_size_mm <= 0``, and ``cohesive_zone_factor <= 0``. The bad
+  input previously slipped into ``build_fe_mesh`` and either silently
+  produced a degenerate brick mesh or tripped a far-downstream error
+  inside the assembler. Three parametrised tests in
+  ``tests/analysis/test_mesh_params_validation.py`` lock the new
+  behaviour.
+
+- **CLI parser-helper unit tests.** ``_parse_panel``, ``_parse_layup``,
+  ``_positive_float`` and ``_existing_path`` (introduced for issue #7)
+  were exercised only end-to-end via ``subprocess`` — too slow for
+  edge-case coverage. ``tests/test_cli_helpers.py`` adds 12 direct
+  pytest tests covering malformed panel formats, non-positive
+  dimensions, non-numeric layup tokens, zero / negative / non-numeric
+  ``_positive_float`` inputs, and the missing-file / directory paths
+  for ``_existing_path``.
+
+- **Cross-tier consistency tests.** Per the new README "Knockdown
+  definition and cross-tier comparability" section there are several
+  documented relationships between tier outputs that no test enforced:
+  (a) ``pristine_strength_MPa`` identical across tiers, (b) TAI
+  ``empirical.knockdown == semi_analytical.knockdown`` exactly, (c)
+  CAI ``semi_analytical.knockdown <= empirical.knockdown``, (d)
+  pristine input → knockdown == 1.0, (e) every knockdown finite and
+  bounded in [0, 1+ε]. ``tests/test_cross_tier_consistency.py`` locks
+  all five.
+
 ### Fixed
 
 - **C-scan loader hardens type and finiteness checks.** ``_validate_dict``
