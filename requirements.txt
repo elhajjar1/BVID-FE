@@ -1,8 +1,19 @@
-numpy>=1.24
-scipy>=1.10
-matplotlib>=3.7
-shapely>=2.0
-pandas>=2.0
-PyQt6>=6.5
-pyvista>=0.42
-pyvistaqt>=0.11
+# Core runtime dependencies for the bvidfe library + CLI.
+#
+# The GUI (PyQt6, pyvista, pyvistaqt) is intentionally NOT listed here:
+# headless installs (CI runners, Docker images, library users) should not
+# pull in the ~100 MB Qt/VTK stack just to use the analysis API. To get
+# the GUI, install the package with the optional extras instead:
+#
+#     pip install -e ".[gui]"        # GUI only
+#     pip install -e ".[dev]"        # dev tools (pytest, ruff, black)
+#     pip install -e ".[all]"        # everything
+#
+# Upper version caps mirror the constraints in pyproject.toml so that
+# `pip install -r requirements.txt` and `pip install -e .` resolve to
+# the same dependency set.
+numpy>=1.24,<3
+scipy>=1.10,<2
+matplotlib>=3.7,<4
+shapely>=2.0,<3
+pandas>=2.0,<3

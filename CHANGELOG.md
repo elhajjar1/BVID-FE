@@ -8,6 +8,28 @@ In-progress work toward v0.2.0. No tag yet.
 
 ### Added
 
+- **Repo hygiene: dependency caps, headless requirements.txt, top-level
+  conftest, Dependabot.** Four small infrastructure changes that
+  collectively make the project safer to install and easier to keep up:
+  - ``pyproject.toml`` and ``requirements.txt`` now pin upper bounds
+    on every direct dependency (e.g. ``numpy>=1.24,<3``,
+    ``scipy>=1.10,<2``, ``PyQt6>=6.5,<7``, ``pytest>=7,<9``). The next
+    major release of any of these libraries can no longer auto-break a
+    BVID-FE install; users who want to live on the bleeding edge can
+    still override the cap explicitly.
+  - ``requirements.txt`` no longer pulls in the GUI stack (~100 MB of
+    Qt + VTK + pyvistaqt). Headless library / CI users now get only the
+    five core scientific deps; the GUI is opt-in via
+    ``pip install -e ".[gui]"`` (or ``[all]``).
+  - A new top-level ``conftest.py`` sets ``QT_QPA_PLATFORM=offscreen``
+    before any PyQt import, so the ``tests/gui/`` suite runs cleanly on
+    CI runners without a display server. Individual GUI test modules
+    keep their per-file ``setdefault`` as defence-in-depth.
+  - A new ``.github/dependabot.yml`` schedules weekly PRs for both pip
+    and GitHub Actions dependencies (capped at 5 open per ecosystem),
+    so security patches surface automatically and the test matrix
+    runs against the new pin before a maintainer merges.
+
 - **MeshParams input validation.** ``MeshParams.__post_init__`` now
   rejects ``elements_per_ply <= 0`` (and non-int values),
   ``in_plane_size_mm <= 0``, and ``cohesive_zone_factor <= 0``. The bad
