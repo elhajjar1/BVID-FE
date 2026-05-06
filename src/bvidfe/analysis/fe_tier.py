@@ -36,11 +36,50 @@ from bvidfe.solver.static import solve_linear_static
 # the GUI from a terminal (or running the CLI / Python API) will see
 # one log line per FE stage, making long runs observable.
 _log = logging.getLogger("bvidfe.fe3d")
+
+
+def _resolve_log_level(default: str = "INFO") -> int:
+    """Resolve BVIDFE_LOG_LEVEL → numeric level, falling back to ``default``
+    with a stderr warning when the value is not a recognised level name.
+
+    Without this guard a typo (``BVIDFE_LOG_LEVEL=DUBG``) raised ValueError
+    at module import time and prevented the package from being imported.
+    """
+    raw = os.environ.get("BVIDFE_LOG_LEVEL", default).upper()
+    level = logging.getLevelName(raw)
+    if isinstance(level, int):
+        return level
+    sys.stderr.write(
+        f"[bvidfe] BVIDFE_LOG_LEVEL={raw!r} is not a valid log level "
+        f"(use DEBUG/INFO/WARNING/ERROR/CRITICAL); defaulting to {default}.\n"
+    )
+    return logging.getLevelName(default)
+
+
+def _resolve_max_dof(default: int = 500000) -> int:
+    """Resolve BVIDFE_FE3D_MAX_DOF → positive int, falling back to ``default``
+    with a stderr warning when the value is not a positive integer."""
+    raw = os.environ.get("BVIDFE_FE3D_MAX_DOF")
+    if raw is None:
+        return default
+    try:
+        v = int(raw)
+        if v <= 0:
+            raise ValueError(f"must be > 0 (got {v})")
+        return v
+    except ValueError as exc:
+        sys.stderr.write(
+            f"[bvidfe] BVIDFE_FE3D_MAX_DOF={raw!r} is not a positive int "
+            f"({exc}); defaulting to {default}.\n"
+        )
+        return default
+
+
 if not _log.handlers:
     _h = logging.StreamHandler(sys.stderr)
     _h.setFormatter(logging.Formatter("[bvidfe.fe3d %(asctime)s] %(message)s", "%H:%M:%S"))
     _log.addHandler(_h)
-    _log.setLevel(os.environ.get("BVIDFE_LOG_LEVEL", "INFO").upper())
+    _log.setLevel(_resolve_log_level())
 
 
 def _t(msg: str, t0: float) -> None:
@@ -52,8 +91,10 @@ def _t(msg: str, t0: float) -> None:
 # + scipy sparse LU factorization start risking memory exhaustion and native-
 # code crashes (scipy calls into BLAS/SuiteSparse which cannot be caught by
 # Python exception handling — an OOM there is a SIGSEGV in the parent process).
-# Override via BVIDFE_FE3D_MAX_DOF env var at your own risk.
-FE3D_MAX_DOF: int = int(os.environ.get("BVIDFE_FE3D_MAX_DOF", "500000"))
+# Override via BVIDFE_FE3D_MAX_DOF env var at your own risk; an invalid
+# value falls back to the default with a stderr warning instead of raising
+# at import time.
+FE3D_MAX_DOF: int = _resolve_max_dof()
 
 
 class FE3DSizeError(RuntimeError):

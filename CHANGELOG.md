@@ -8,6 +8,20 @@ In-progress work toward v0.2.0. No tag yet.
 
 ### Fixed
 
+- **Invalid `BVIDFE_LOG_LEVEL` / `BVIDFE_FE3D_MAX_DOF` no longer crash
+  imports.** Both env vars were read at module import time:
+  ``logging.setLevel(os.environ.get(...).upper())`` raised on a typo
+  like ``BVIDFE_LOG_LEVEL=DUBG``, and ``int(os.environ.get("BVIDFE_FE3D_MAX_DOF",
+  "500000"))`` raised on a non-numeric value. Either error prevented
+  ``bvidfe`` from being imported at all. Fixed by routing both reads
+  through new ``_resolve_log_level`` / ``_resolve_max_dof`` helpers in
+  ``analysis/fe_tier.py`` that fall back to the documented default with
+  a single-line stderr warning when the value is unrecognised, zero,
+  or negative. ``gui/workers.py`` shares the log-level resolver. Seven
+  new tests in ``tests/analysis/test_env_resolution.py`` cover the
+  default, valid-name, typo, override, non-numeric, zero, and negative
+  paths.
+
 - **Parametric sweeps no longer lose partial results on per-iteration
   failure.** ``sweep_energies`` / ``sweep_layups`` / ``sweep_thicknesses``
   previously called ``_run_one`` unguarded — a single failed iteration

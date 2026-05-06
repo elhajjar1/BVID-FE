@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import threading
 import time
@@ -16,6 +15,7 @@ import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.analysis.fe_tier import _resolve_log_level
 
 # Logger used by the GUI workers + main window. Mirrors bvidfe.fe3d:
 # streams to stderr so launching the app from a terminal shows worker
@@ -25,7 +25,7 @@ if not _log.handlers:
     _h = logging.StreamHandler(sys.stderr)
     _h.setFormatter(logging.Formatter("[bvidfe.gui %(asctime)s] %(message)s", "%H:%M:%S"))
     _log.addHandler(_h)
-    _log.setLevel(os.environ.get("BVIDFE_LOG_LEVEL", "INFO").upper())
+    _log.setLevel(_resolve_log_level())
 
 
 class AnalysisWorker(QThread):
