@@ -10,6 +10,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       QT_QPA_PLATFORM: offscreen
+      # Force Python's stdout/stderr to UTF-8 across all platforms so that
+      # subprocess-captured output (tests/test_validation_smoke.py and the
+      # CLI tests) doesn't UnicodeEncodeError on Windows where the default
+      # child-process pipe encoding is cp1252.
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,24 +31,34 @@ jobs:
       # driver and a working DISPLAY socket, even when pyvista is set to
       # OFF_SCREEN — vtkRenderingOpenGL2 calls glXQueryVersion at module load
       # and aborts (SIGABRT, exit 134) if the X server isn't reachable.
-      # libgl1-mesa-dri + libglx-mesa0 provide the software renderer; xvfb
-      # provides the headless X server we wrap pytest in below.
+      # libgl1-mesa-dri + libglx-mesa0 provide the software renderer; we
+      # start Xvfb explicitly on display :99 below (the previous xvfb-run -a
+      # auto-display-allocation race occasionally let pytest start before
+      # the X socket was ready).
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libegl1 libgl1 libxkbcommon0 libdbus-1-3 libxcb-cursor0 \
             libxkbcommon-x11-0 libgl1-mesa-dri libglx-mesa0 xvfb
+      - if: runner.os == 'Linux'
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
+          # Wait until the X socket is actually listening before pytest can
+          # call into VTK (otherwise vtkRenderingOpenGL2 races the server
+          # startup and SIGABRTs).
+          for i in $(seq 1 30); do
+            if [ -e /tmp/.X11-unix/X99 ]; then break; fi
+            sleep 0.2
+          done
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
       # Install the gui extras alongside dev so pytest-qt has a Qt binding —
       # otherwise pytest aborts at startup with "pytest-qt requires either
       # PySide6, PyQt5 or PyQt6 installed."
       - run: pip install -e ".[all]"
       - run: ruff check src tests
       - run: black --check src tests
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a --server-args="-screen 0 1024x768x24" pytest -v
-      - if: runner.os != 'Linux'
-        run: pytest -v
+      - run: pytest -v
 
   validation:
     runs-on: ubuntu-latest
