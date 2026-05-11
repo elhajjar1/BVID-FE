@@ -7,12 +7,24 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e ".[dev]"
+      # PyQt6 needs a handful of native libs on Linux runners that aren't in
+      # the base image; without them ``import PyQt6.QtGui`` raises
+      # ``ImportError: libEGL.so.1`` and pytest-qt's plugin load fails before
+      # any test runs (exit code 4). macOS and Windows wheels bundle their own
+      # Qt6 frameworks.
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3 libxcb-cursor0
+      # Install the gui extras alongside dev so pytest-qt has a Qt binding —
+      # otherwise pytest aborts at startup with "pytest-qt requires either
+      # PySide6, PyQt5 or PyQt6 installed."
+      - run: pip install -e ".[all]"
       - run: ruff check src tests
       - run: black --check src tests
       - run: pytest -v
