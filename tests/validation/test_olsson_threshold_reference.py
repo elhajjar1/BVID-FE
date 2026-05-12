@@ -11,8 +11,14 @@ for a self-contained regression test.
 The shape relationships, in contrast, follow directly from the closed
 form and must hold for every BVID-FE material:
   * Pc scales as sqrt(G_IIc) when D_eff is held fixed.
-  * Pc scales as h^{3/2} when E_ij are held fixed (D_eff ~ E*h^3, sqrt
-    gives h^{3/2}; this is exact CLT).
+  * Pc scales as h^{3/2} when E_ij are held fixed AND the stack is thick
+    enough that the discrete-CLT z-integration approaches the homogenised
+    continuum (D_eff ~ E*h^3). For a short asymmetric stack like
+    [0,45,-45,90] the 4->8 ply repeat is not self-similar (the new ply
+    at z=+/-h/4 lands on a 0deg in the doubled stack, not the 90deg of
+    the original); D_eff there only scales as ~h^{2.81}. The asymptote
+    is recovered to within 0.1% by 32->64 plies of a quasi-iso
+    [0,45,-45,90]_s sub-laminate. See issue #44.
   * Pc is a property of the laminate + impactor and is INDEPENDENT of
     panel size, so the same Laminate+ImpactorGeometry should yield the
     same Pc on a 100x100 mm and 200x150 mm panel.
@@ -84,23 +90,40 @@ def test_threshold_load_invariant_to_panel_size():
     assert Pc_small == pytest.approx(Pc_large, rel=1e-12)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Empirical ratio is ~2.65 vs theoretical 2^{3/2}=2.83 (~6.5% off). "
-        "Either Pc has a sub-h^{3/2} contribution from the ply-by-ply "
-        "Q_bar→D_eff path, or the test's 1% tolerance is too tight for the "
-        "discrete-stack case. Needs maintainer review of model vs scaling law."
-    ),
-    strict=True,
-)
-def test_threshold_load_scales_with_thickness_to_the_three_halves():
-    """Doubling the layup count (same material, same angles) raises h
-    by the layup-count factor; D_eff scales as h^3, Pc as h^{3/2}."""
-    base_layup = [0, 45, -45, 90]
-    lam_thin = _laminate("IM7/8552", base_layup)  # 4 plies
-    lam_thick = _laminate("IM7/8552", base_layup * 2)  # 8 plies
+def test_threshold_load_scales_as_h_three_halves_for_homogenised_layup():
+    """Pc ~ h^{3/2} holds when the stack is repeated enough times that the
+    discrete ply z-distribution approaches a homogenised section.
+
+    Issue #44: doubling a 4-ply [0,45,-45,90] stack is NOT self-similar -
+    the new ply at z=+/-h/4 in the doubled stack is a 0deg, not the 90deg
+    of the original. D_eff there only scales as ~h^{2.81}, so the Pc
+    exponent comes out at ~1.40 (observed 2.647 vs theoretical 2.828).
+    For [0,45,-45,90]_s repeated 4x and 8x (32 vs 64 plies) the ply z
+    distribution IS self-similar under doubling and D_eff scales as h^3
+    to within 0.1%; the Pc ratio is 2.8262 (exponent 1.4989, within
+    rel=2e-3 of 2^{3/2}).
+    """
+    sub = [0, 45, -45, 90, 90, -45, 45, 0]  # quasi-iso symmetric sub-laminate
+    lam_thin = _laminate("IM7/8552", sub * 4)  # 32 plies, ~4.86 mm
+    lam_thick = _laminate("IM7/8552", sub * 8)  # 64 plies, ~9.73 mm
     pan, imp = _panel(), _impactor()
     Pc_thin = threshold_load(lam_thin, pan, imp)
     Pc_thick = threshold_load(lam_thick, pan, imp)
-    # h_thick / h_thin = 2 -> Pc_thick / Pc_thin = 2^{3/2} = 2.828...
-    assert Pc_thick / Pc_thin == pytest.approx(2**1.5, rel=1e-2)
+    assert Pc_thick / Pc_thin == pytest.approx(2**1.5, rel=2e-3)
+
+
+def test_threshold_load_matches_precomputed_reference_values():
+    """Numerical-drift sentinel for the full Pc pipeline.
+
+    Hard-codes Pc for two IM7/8552 quasi-iso laminates computed from the
+    current verified implementation. Any change to the CLT D-matrix
+    assembly, Q-bar transforms, G_IIc plumbing, or the Olsson formula
+    prefactor will trip these. The ratio-based test above can mask a
+    constant multiplicative bug (it cancels in Pc_thick / Pc_thin); this
+    one cannot.
+    """
+    pan, imp = _panel(), _impactor()
+    lam8 = _laminate("IM7/8552", [0, 45, -45, 90, 90, -45, 45, 0])
+    lam16 = _laminate("IM7/8552", [0, 45, -45, 90, 90, -45, 45, 0] * 2)
+    assert threshold_load(lam8, pan, imp) == pytest.approx(243.7361324522721, rel=1e-9)
+    assert threshold_load(lam16, pan, imp) == pytest.approx(756.5779536988468, rel=1e-9)
