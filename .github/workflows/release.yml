@@ -54,7 +54,7 @@ jobs:
           cd dist && 7z a "BVID-FE-${env:RELEASE_TAG}-Windows.zip" BVID-FE
 
       - name: Create release and upload artifact
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/BVID-FE-${{ github.event.inputs.release_tag || github.ref_name }}-macOS.zip
