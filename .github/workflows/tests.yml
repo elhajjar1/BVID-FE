@@ -58,7 +58,25 @@ jobs:
       - run: pip install -e ".[all]"
       - run: ruff check src tests
       - run: black --check src tests
-      - run: pytest -v
+      # Run pytest with detailed tracebacks and a short summary of every
+      # test outcome so failures are immediately visible in the step log
+      # without needing GitHub auth to view raw logs.
+      - if: runner.os != 'Windows'
+        run: pytest -v --tb=long -rfE
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pytest -v --tb=long -rfE 2>&1 | Tee-Object -FilePath pytest.log
+          $exit = $LASTEXITCODE
+          if (Test-Path pytest.log) {
+            "## pytest output (windows-${{ matrix.python-version }})" `
+              | Out-File -Append $env:GITHUB_STEP_SUMMARY
+            "``````" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+            Get-Content pytest.log -Tail 200 `
+              | Out-File -Append $env:GITHUB_STEP_SUMMARY
+            "``````" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          }
+          exit $exit
 
   validation:
     runs-on: ubuntu-latest
