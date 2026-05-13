@@ -66,7 +66,12 @@ jobs:
       - if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          pytest -v --tb=long -rfE 2>&1 | Tee-Object -FilePath pytest.log
+          # Stop at the 5th failure so the captured log is short and
+          # the actionable failures (rather than 100 cascading ones) are
+          # near the top. -rfE prints the short failure-summary block at
+          # the very end so it survives any tail-truncation.
+          pytest -v --tb=long --maxfail=5 -rfE 2>&1 `
+            | Tee-Object -FilePath pytest.log
           $exit = $LASTEXITCODE
           if (Test-Path pytest.log) {
             "## pytest output (windows-${{ matrix.python-version }})" `
@@ -77,6 +82,17 @@ jobs:
             "``````" | Out-File -Append $env:GITHUB_STEP_SUMMARY
           }
           exit $exit
+      # Upload pytest.log so the actual failure traceback is downloadable
+      # via the workflow run page (the only way to read it without a
+      # GitHub token, since the raw job-log endpoint requires auth and
+      # the step-summary markdown rendering does too).
+      - if: runner.os == 'Windows' && failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log-windows-${{ matrix.python-version }}
+          path: pytest.log
+          if-no-files-found: warn
+          retention-days: 7
 
   validation:
     runs-on: ubuntu-latest
