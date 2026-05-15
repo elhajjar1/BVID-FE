@@ -1,19 +1,18 @@
-# Pinned runtime dependencies for the bvidfe library + CLI.
+# Runtime dependencies for the bvidfe library, CLI, and Streamlit app.
 #
-# Only packages that src/bvidfe/ actually imports at runtime; PyQt6 and
-# pyvista (GUI), and pytest / ruff / black / pytest-qt (dev tools) live
-# in the optional-extras of pyproject.toml and are not duplicated here.
+# Tuned for Streamlit Community Cloud + local CLI/tests. Dev tools
+# (pytest, ruff, black) live in the optional-extras of pyproject.toml.
 #
-# Install GUI-bundled or dev-bundled environments via the extras instead:
-#   pip install -e ".[gui]"        # GUI only
-#   pip install -e ".[dev]"        # dev tools
-#   pip install -e ".[all]"        # everything
-#
-# Versions below are the late-2024 stable releases that fall inside
-# pyproject.toml's existing >= / < bounds. Re-pin from `pip freeze` in
-# the validated build environment if you ship a different combination.
-numpy==2.1.3
-scipy==1.14.1
-matplotlib==3.9.3
-shapely==2.0.6
-pandas==2.2.3
+# Streamlit Cloud installs these on top of Python 3.11. The ranges below
+# pick the latest stable series that supports Python 3.10-3.12.
+
+# --- Core (numerical + plotting) ---
+numpy>=2.1,<3
+scipy>=1.14,<2
+matplotlib>=3.9,<4
+shapely>=2.0,<3
+pandas>=2.0,<3
+
+# --- Web app ---
+streamlit>=1.32
+plotly>=5.18
