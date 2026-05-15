@@ -103,3 +103,35 @@ def test_assemble_summation_of_overlapping_dofs():
     Krr = Kd[np.ix_(free, free)]
     eigs = np.linalg.eigvalsh(Krr)
     assert eigs.min() > 0
+
+
+def test_assembly_sums_overlapping_dof_contributions():
+    """Shared-DOF summation invariant, pinned exactly.
+
+    Where two elements share a node, that node's global stiffness block
+    must equal the *sum* of each element's local block — not an overwrite
+    or a deduplicated (row, col) pair. A regression flipping the
+    assembler's accumulate to an assignment would silently corrupt every
+    multi-element solve; the symmetry / PD / rigid-body tests above would
+    not catch it.
+    """
+    elems, dofs, n_dof = _two_element_system()
+    Ke1 = elems[0].stiffness_matrix()
+    Ke2 = elems[1].stiffness_matrix()
+    K = assemble_global_stiffness(elems, dofs, n_dof).toarray()
+
+    # _two_element_system: e1 nodes [0,1,2,3,4,5,6,7], e2 nodes [1,8,9,2,5,10,11,6].
+    # Node 1 is shared: local index 1 in element 1, local index 0 in element 2.
+    e1_local, e2_local = 1, 0
+    g = [3 * 1 + k for k in range(3)]  # node 1's global DOFs
+    l1 = [3 * e1_local + k for k in range(3)]
+    l2 = [3 * e2_local + k for k in range(3)]
+    expected = Ke1[np.ix_(l1, l1)] + Ke2[np.ix_(l2, l2)]
+    np.testing.assert_allclose(K[np.ix_(g, g)], expected, atol=1e-9, rtol=0)
+
+    # Sanity: an unshared node (node 0, only in element 1) must equal
+    # exactly element 1's local block — no spurious doubling.
+    g0 = [0, 1, 2]
+    np.testing.assert_allclose(
+        K[np.ix_(g0, g0)], Ke1[np.ix_(g0, g0)], atol=1e-9, rtol=0
+    )

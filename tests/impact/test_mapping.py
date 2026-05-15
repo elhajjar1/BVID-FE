@@ -59,6 +59,29 @@ def test_dpa_conserved_after_distribution():
     assert abs(ds.projected_damage_area_mm2 - dpa_target) / dpa_target < 0.01
 
 
+def test_small_mass_emits_quasi_static_warning():
+    """A light impactor on a heavy plate (m_ratio < 1) must emit the Olsson
+    quasi-static-validity UserWarning.
+
+    This safety-rail has no other test: the existing DAF / SummaryTab tests
+    pin DAF == 1.0 at the 5.5 kg reference and a derived GUI note, neither of
+    which depends on this specific warning. Flipping the ``m_ratio < 1.0``
+    guard (or narrowing it) would slip through silently and hide the 30%+
+    underprediction documented in the docstring.
+    """
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    lam = Laminate(m, [0] * 16, 0.2)
+    pan = PanelGeometry(500, 500)
+    ev = ImpactEvent(energy_J=20.0, impactor=ImpactorGeometry(), mass_kg=0.5)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impact_to_damage(ev, lam, pan)
+    messages = [str(msg.message) for msg in w]
+    assert any(
+        "quasi-static" in msg and "mass" in msg for msg in messages
+    ), messages
+
+
 def test_impact_to_damage_clips_large_dpa():
     """DPA is clipped to 80% of panel area for high-energy impacts on small panels."""
     m = MATERIAL_LIBRARY["IM7/8552"]

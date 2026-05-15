@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from bvidfe.core.material import MATERIAL_LIBRARY
+from bvidfe.elements.gauss import gauss_points_hex
 from bvidfe.elements.hex8 import DegenerateElementError, Hex8Element
 
 
@@ -19,6 +20,23 @@ def _unit_cube_nodes():
         ],
         dtype=float,
     )
+
+
+def _affine_distorted_nodes():
+    """Unit cube under a positive-determinant affine map.
+
+    Stays a parallelepiped, so the trilinear hex still represents a linear
+    displacement field exactly — the patch test must hold to machine
+    precision while exercising a non-trivial Jacobian inverse.
+    """
+    A = np.array(
+        [
+            [1.0, 0.20, 0.10],
+            [0.0, 1.00, 0.15],
+            [0.05, 0.0, 1.00],
+        ]
+    )
+    return _unit_cube_nodes() @ A.T
 
 
 def test_shape_functions_partition_of_unity():
@@ -128,3 +146,38 @@ def test_degenerate_element_error_is_a_value_error():
     """Defensive code that catches generic ValueError must still see the new
     error class — we do not want to break existing exception handlers."""
     assert issubclass(DegenerateElementError, ValueError)
+
+
+@pytest.mark.parametrize(
+    "nodes", [_unit_cube_nodes(), _affine_distorted_nodes()], ids=["cube", "distorted"]
+)
+@pytest.mark.parametrize(
+    "field_fn, expected",
+    [
+        (lambda x, y, z: (1e-3 * x, 0.0, 0.0), [1e-3, 0, 0, 0, 0, 0]),
+        (lambda x, y, z: (0.0, 1e-3 * y, 0.0), [0, 1e-3, 0, 0, 0, 0]),
+        (lambda x, y, z: (0.0, 0.0, 1e-3 * z), [0, 0, 1e-3, 0, 0, 0]),
+        (lambda x, y, z: (1e-3 * y, 0.0, 0.0), [0, 0, 0, 0, 0, 1e-3]),
+    ],
+    ids=["exx", "eyy", "ezz", "gamma_xy"],
+)
+def test_hex8_B_matrix_passes_constant_strain_patch_test(nodes, field_fn, expected):
+    """Constant-strain patch test — the most fundamental FE correctness invariant.
+
+    Impose a linear displacement field ``u_i = eps . x_i`` on all 24 nodal
+    DOFs. ``B(xi, eta, zeta) @ u_elem`` must recover the imposed Voigt strain
+    ``[e_xx, e_yy, e_zz, 2 e_yz, 2 e_xz, 2 e_xy]`` *exactly* at every Gauss
+    point, for both an undistorted and an affine-distorted element. A
+    B-matrix wiring/row-mapping regression would silently corrupt all
+    downstream stress recovery (failure/tsai_wu, failure/larc05, the fe3d
+    tier) with no other test catching it.
+    """
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    elem = Hex8Element(np.asarray(nodes, dtype=float), m)
+    u = np.zeros(24)
+    for i, (x, y, z) in enumerate(nodes):
+        u[3 * i : 3 * i + 3] = field_fn(x, y, z)
+    gp, _ = gauss_points_hex(order=2)
+    for xi, eta, zeta in gp:
+        B, _ = elem.B_matrix(float(xi), float(eta), float(zeta))
+        np.testing.assert_allclose(B @ u, expected, atol=1e-11, rtol=0)
