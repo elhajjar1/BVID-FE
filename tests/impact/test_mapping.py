@@ -3,7 +3,11 @@ import warnings
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
-from bvidfe.impact.mapping import ImpactEvent, impact_to_damage
+from bvidfe.impact.mapping import (
+    ImpactEvent,
+    SmallMassQuasiStaticWarning,
+    impact_to_damage,
+)
 
 
 def test_below_threshold_returns_empty_damage():
@@ -88,6 +92,11 @@ def test_small_mass_emits_quasi_static_warning():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         impact_to_damage(ev, lam, pan)
-    assert any("quasi-static" in str(m.message) and "mass" in str(m.message) for m in w), [
-        str(m.message) for m in w
+    matching = [
+        m
+        for m in w
+        if issubclass(m.category, SmallMassQuasiStaticWarning)
+        and "quasi-static" in str(m.message)
+        and "mass" in str(m.message)
     ]
+    assert matching, [(m.category.__name__, str(m.message)) for m in w]

@@ -34,9 +34,17 @@ from typing import Callable, List, Optional, Sequence
 import pandas as pd
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.impact.mapping import DPACapClipWarning, SmallMassQuasiStaticWarning
 
 _ProgressCallback = Callable[[int, int], None]
 _ON_ERROR_VALUES = ("raise", "skip", "warn")
+
+
+def _configure_sweep_warnings() -> None:
+    """Collapse per-iteration impact-mapping warnings to one per process so a
+    long sweep is not flooded by the same small-mass / DPA-cap diagnostic."""
+    for category in (SmallMassQuasiStaticWarning, DPACapClipWarning):
+        warnings.filterwarnings("once", category=category)
 
 
 def _run_one(cfg: AnalysisConfig) -> dict:
@@ -111,6 +119,7 @@ def sweep_energies(
     """
     if base_cfg.impact is None:
         raise ValueError("sweep_energies requires base_cfg.impact to be set")
+    _configure_sweep_warnings()
     rows: List[dict] = []
     n = len(energies_J)
     for i, E in enumerate(energies_J):
@@ -134,6 +143,7 @@ def sweep_layups(
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
     """Sweep layup sequences."""
+    _configure_sweep_warnings()
     rows: List[dict] = []
     n = len(layups)
     for i, layup in enumerate(layups):
@@ -157,6 +167,7 @@ def sweep_thicknesses(
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
     """Sweep ply thickness values."""
+    _configure_sweep_warnings()
     rows: List[dict] = []
     n = len(ply_thicknesses_mm)
     for i, t in enumerate(ply_thicknesses_mm):
