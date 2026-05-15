@@ -16,11 +16,8 @@ MANIFEST
 *.dylib
 *.pyd
 
-# PyInstaller-generated (keep BvidFE.spec — that's source; ignore runtime output)
-/build/
-/dist/
-pyinstaller_warn.txt
-warn-*.txt
+# Streamlit local cache
+.streamlit/secrets.toml
 
 # ---- Virtual environments ----
 venv/

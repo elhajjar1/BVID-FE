@@ -1,15 +1,11 @@
-"""Top-level pytest config: ensure GUI tests run headlessly.
+"""Top-level pytest config.
 
-Setting ``QT_QPA_PLATFORM=offscreen`` before any PyQt import makes the
-GUI test suite (``tests/gui/``) work on CI runners that have no display
-server. Individual GUI test modules still set this defensively, but
-keeping it here means new GUI tests don't have to remember to.
-
-``setdefault`` is intentional: a developer running locally with a real
-display ``QT_QPA_PLATFORM=xcb pytest tests/gui/`` should still get a
-visible window for debugging.
+Forces a headless matplotlib backend so plot-rendering tests work on CI
+runners without a display server, and so importing modules that touch
+``matplotlib.pyplot`` (e.g. ``bvidfe.viz.plots_2d``) doesn't try to open
+a Tk window.
 """
 
-import os
+import matplotlib
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+matplotlib.use("Agg")
