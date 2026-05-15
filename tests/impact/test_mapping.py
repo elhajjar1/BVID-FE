@@ -75,3 +75,19 @@ def test_impact_to_damage_clips_large_dpa():
     assert ds.projected_damage_area_mm2 <= 0.8 * A_panel * 1.02  # 2% slack for union
     # And we should have emitted at least one UserWarning
     assert any("exceeds 80%" in str(msg.message) for msg in w)
+
+
+def test_small_mass_emits_quasi_static_warning():
+    """Issue #17: a sub-unity impactor/plate mass ratio must emit the
+    Olsson quasi-static-validity UserWarning. Regressing the m_ratio < 1.0
+    guard (or its message) would silently hide a documented 30%+ under-
+    prediction in drop-tower / light-impactor simulations."""
+    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0] * 16, 0.2)
+    pan = PanelGeometry(500, 500)
+    ev = ImpactEvent(energy_J=20.0, impactor=ImpactorGeometry(), mass_kg=0.5)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impact_to_damage(ev, lam, pan)
+    assert any("quasi-static" in str(m.message) and "mass" in str(m.message) for m in w), [
+        str(m.message) for m in w
+    ]
