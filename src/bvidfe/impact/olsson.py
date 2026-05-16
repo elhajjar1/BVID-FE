@@ -119,9 +119,7 @@ def _k_bending_ssss(
         + 2 * (D12 + 2 * D66) * kx2[:, None] * ky2[None, :]
         + D22 * ky2[None, :] ** 2
     )
-    w_over_P = (4.0 / (a * b)) * np.sum(
-        (sin2_m[:, None] * sin2_n[None, :]) / Dmn
-    )
+    w_over_P = (4.0 / (a * b)) * np.sum((sin2_m[:, None] * sin2_n[None, :]) / Dmn)
     return 1.0 / w_over_P
 
 
