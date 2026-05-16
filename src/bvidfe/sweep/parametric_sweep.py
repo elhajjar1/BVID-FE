@@ -113,6 +113,9 @@ def sweep_energies(
         raise ValueError("sweep_energies requires base_cfg.impact to be set")
     rows: List[dict] = []
     n = len(energies_J)
+    # Only the impact energy (→ damage) varies here; the mesh-defining inputs
+    # are constant, so build_fe_mesh reuses the cached mesh skeleton across
+    # iterations and only re-derives the per-element damage factors (#23).
     for i, E in enumerate(energies_J):
         new_impact = replace(base_cfg.impact, energy_J=float(E))
         cfg = replace(base_cfg, impact=new_impact)
