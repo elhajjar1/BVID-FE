@@ -1,8 +1,9 @@
 """Displacement-controlled boundary conditions applied via penalty method.
 
 Standard patterns:
-- compression_bcs: clamp x_min, prescribe u_x at x_max (+ symmetry on y_min, z_min).
-- tension_bcs:     same as compression but with positive strain.
+- uniaxial_x_bcs: clamp x_min, prescribe u_x at x_max (+ symmetry on y_min,
+  z_min). The sign of ``applied_strain`` selects compression (negative) or
+  tension (positive) — the BC topology is identical either way.
 - apply_dirichlet_penalty: multiply K[i,i] by penalty and F[i] = penalty * value.
 """
 
@@ -61,11 +62,16 @@ def _nodes_on_plane(
     return np.where(np.abs(node_coords[:, axis] - coord) < tol)[0]
 
 
-def compression_bcs(node_coords: np.ndarray, applied_strain: float) -> List[BoundaryCondition]:
-    """Build BCs for a uniaxial compression test along x.
+def uniaxial_x_bcs(node_coords: np.ndarray, applied_strain: float) -> List[BoundaryCondition]:
+    """Build BCs for a uniaxial test along x (compression or tension).
+
+    The sign of ``applied_strain`` is the only difference between the
+    compression and tension load cases — the constrained-DOF topology is
+    identical, so a single builder serves both:
 
     - x_min nodes: u_x = 0 (clamped)
-    - x_max nodes: u_x = applied_strain * Lx  (negative for compression)
+    - x_max nodes: u_x = applied_strain * Lx  (negative = compression,
+      positive = tension)
     - y_min nodes: u_y = 0 (symmetry)
     - z_min nodes: u_z = 0 (symmetry)
     """
@@ -85,8 +91,3 @@ def compression_bcs(node_coords: np.ndarray, applied_strain: float) -> List[Boun
     for n in zmin_nodes:
         bcs.append(BoundaryCondition(dof=3 * int(n) + 2, value=0.0))
     return bcs
-
-
-def tension_bcs(node_coords: np.ndarray, applied_strain: float) -> List[BoundaryCondition]:
-    """Build BCs for a uniaxial tension test along x. Same structure, positive strain."""
-    return compression_bcs(node_coords, applied_strain=applied_strain)

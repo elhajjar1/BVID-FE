@@ -90,8 +90,9 @@ def test_vectorised_matches_scalar_reference(criterion, damage):
 
 
 def test_vectorised_tension_path_also_matches_scalar_reference():
-    """The tension path uses tension_bcs and Tsai-Wu by default; verify the
-    vectorised form is still equivalent under the +strain_sign branch."""
+    """The tension path uses uniaxial_x_bcs (positive strain) and Tsai-Wu by
+    default; verify the vectorised form is still equivalent under the
+    +strain_sign branch."""
     damage = DamageState(
         delaminations=[DelaminationEllipse(1, (10, 5), 6, 3, 0)],
         dent_depth_mm=0.0,

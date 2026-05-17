@@ -4,8 +4,7 @@ import scipy.sparse as sp
 from bvidfe.solver.boundary import (
     BoundaryCondition,
     apply_dirichlet_penalty,
-    compression_bcs,
-    tension_bcs,
+    uniaxial_x_bcs,
 )
 
 
@@ -20,7 +19,7 @@ def test_apply_dirichlet_penalty_enforces_prescribed_value():
     assert abs(u[2] - (-0.5)) < 1e-6
 
 
-def test_compression_bcs_returns_xmin_and_xmax_bcs():
+def test_uniaxial_x_bcs_compression_returns_xmin_and_xmax_bcs():
     # 8 nodes of a unit cube
     node_coords = np.array(
         [
@@ -35,7 +34,7 @@ def test_compression_bcs_returns_xmin_and_xmax_bcs():
         ],
         dtype=float,
     )
-    bcs = compression_bcs(node_coords, applied_strain=-0.01)
+    bcs = uniaxial_x_bcs(node_coords, applied_strain=-0.01)
     # 4 nodes on x_min get u_x=0, 4 nodes on x_max get u_x=-0.01*Lx=-0.01
     xmin_bcs = [b for b in bcs if abs(b.value) < 1e-12]
     xmax_bcs = [b for b in bcs if abs(b.value - (-0.01)) < 1e-6]
@@ -43,7 +42,7 @@ def test_compression_bcs_returns_xmin_and_xmax_bcs():
     assert len(xmax_bcs) == 4
 
 
-def test_tension_bcs_positive_displacement():
+def test_uniaxial_x_bcs_tension_positive_displacement():
     node_coords = np.array(
         [
             [0, 0, 0],
@@ -57,6 +56,6 @@ def test_tension_bcs_positive_displacement():
         ],
         dtype=float,
     )
-    bcs = tension_bcs(node_coords, applied_strain=0.005)
+    bcs = uniaxial_x_bcs(node_coords, applied_strain=0.005)
     xmax = [b for b in bcs if abs(b.value - (0.005 * 2)) < 1e-6]
     assert len(xmax) == 4

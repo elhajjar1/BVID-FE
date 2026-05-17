@@ -4,7 +4,7 @@ import numpy as np
 
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.elements.hex8 import Hex8Element
-from bvidfe.solver.boundary import compression_bcs
+from bvidfe.solver.boundary import uniaxial_x_bcs
 from bvidfe.solver.static import solve_linear_static
 
 
@@ -34,7 +34,7 @@ def test_solve_compression_returns_prescribed_displacement_at_xmax():
     """Test that prescribed displacement is achieved at x_max."""
     node_coords, elems, dofs, m = _single_cube_model()
     n_dof = 3 * node_coords.shape[0]
-    bcs = compression_bcs(node_coords, applied_strain=-0.01)
+    bcs = uniaxial_x_bcs(node_coords, applied_strain=-0.01)
     u = solve_linear_static(elems, dofs, n_dof, bcs)
     assert u.shape == (n_dof,)
     # Node 1 is at x=1 (x_max); u_x should be ≈ -0.01
@@ -45,7 +45,7 @@ def test_solve_preserves_rigid_y_displacement_at_xmin():
     """Test that clamped boundary conditions are preserved at x_min."""
     node_coords, elems, dofs, m = _single_cube_model()
     n_dof = 3 * node_coords.shape[0]
-    bcs = compression_bcs(node_coords, applied_strain=-0.01)
+    bcs = uniaxial_x_bcs(node_coords, applied_strain=-0.01)
     u = solve_linear_static(elems, dofs, n_dof, bcs)
     # Node 0 at x=y=z=0: u_x=u_y=u_z=0
     for k in range(3):
@@ -57,7 +57,7 @@ def test_solve_axial_strain_matches_prescribed_for_single_cube():
     node_coords, elems, dofs, m = _single_cube_model()
     n_dof = 3 * node_coords.shape[0]
     applied_strain = -0.01
-    bcs = compression_bcs(node_coords, applied_strain=applied_strain)
+    bcs = uniaxial_x_bcs(node_coords, applied_strain=applied_strain)
     u = solve_linear_static(elems, dofs, n_dof, bcs)
     # Node 2 at x=1: u_x ≈ applied_strain * Lx
     assert abs(u[3 * 2 + 0] - applied_strain) < 1e-3
