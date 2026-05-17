@@ -26,8 +26,7 @@ from bvidfe.solver.assembler import assemble_global_stiffness
 from bvidfe.solver.boundary import (
     BoundaryCondition,
     apply_dirichlet_penalty,
-    compression_bcs,
-    tension_bcs,
+    uniaxial_x_bcs,
 )
 from bvidfe.solver.buckling import linear_buckling
 from bvidfe.solver.static import solve_linear_static
@@ -246,10 +245,7 @@ def _solve_failure_strain_analytic(
     material = _resolve_material(cfg)
 
     # One FE solve at reference strain = strain_sign * strain_cap
-    if criterion == "larc05":
-        bcs = compression_bcs(mesh.node_coords, strain_sign * strain_cap)
-    else:
-        bcs = tension_bcs(mesh.node_coords, strain_sign * strain_cap)
+    bcs = uniaxial_x_bcs(mesh.node_coords, strain_sign * strain_cap)
     u_ref = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
 
     c_crit_min = np.inf
@@ -322,10 +318,7 @@ def _solve_failure_strain_analytic_scalar_ref(
     """
     material = _resolve_material(cfg)
 
-    if criterion == "larc05":
-        bcs = compression_bcs(mesh.node_coords, strain_sign * strain_cap)
-    else:
-        bcs = tension_bcs(mesh.node_coords, strain_sign * strain_cap)
+    bcs = uniaxial_x_bcs(mesh.node_coords, strain_sign * strain_cap)
     u_ref = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
 
     c_crit_min = np.inf

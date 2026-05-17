@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from typing import List, Sequence
 
 import bvidfe
@@ -59,6 +60,31 @@ def _existing_path(spec: str):
     return p
 
 
+_VALID_TIERS = ("empirical", "semi_analytical", "fe3d")
+
+
+def _parse_tiers(spec: str) -> List[str]:
+    """Parse ``--tier`` as one tier or a comma-separated list to compare.
+
+    Validated against the known tiers, order-preserving, and de-duplicated
+    so ``--tier empirical,empirical`` doesn't run the same solve twice.
+    """
+    tiers: List[str] = []
+    for raw in spec.split(","):
+        t = raw.strip()
+        if not t:
+            continue
+        if t not in _VALID_TIERS:
+            raise argparse.ArgumentTypeError(
+                f"unknown tier {t!r}; choose from {', '.join(_VALID_TIERS)}"
+            )
+        if t not in tiers:
+            tiers.append(t)
+    if not tiers:
+        raise argparse.ArgumentTypeError("--tier must name at least one tier")
+    return tiers
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="bvidfe",
@@ -99,9 +125,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--tier",
-        default="empirical",
-        choices=["empirical", "semi_analytical", "fe3d"],
-        help="Analysis fidelity tier",
+        type=_parse_tiers,
+        default=["empirical"],
+        help="Analysis fidelity tier(s). A single tier (e.g. semi_analytical) "
+        "or a comma-separated list to compare in one invocation (e.g. "
+        "empirical,semi_analytical,fe3d). Choices: empirical, semi_analytical, "
+        "fe3d.",
     )
     p.add_argument(
         "--energy",
@@ -186,7 +215,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ply_thickness_mm=args.thickness,
             panel=args.panel,
             loading=args.loading,
-            tier=args.tier,
+            tier=args.tier[0],
             impact=ImpactEvent(
                 energy_J=args.energy,
                 impactor=ImpactorGeometry(diameter_mm=args.impactor_diameter),
@@ -204,27 +233,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             ply_thickness_mm=args.thickness,
             panel=args.panel,
             loading=args.loading,
-            tier=args.tier,
+            tier=args.tier[0],
             damage=damage,
         )
     if args.quick and args.quick_json:
         parser.error("--quick and --quick-json are mutually exclusive")
-    result = BvidAnalysis(cfg).run()
+
+    # One result per requested tier. Single-tier output is byte-identical to
+    # the pre-multi-tier behaviour; multiple tiers switch to a comparison
+    # shape (JSON array / NDJSON / TSV) keyed by tier_used.
+    results = [BvidAnalysis(replace(cfg, tier=t)).run() for t in args.tier]
+    multi = len(results) > 1
+
     if args.quick_json:
-        json.dump(
-            {
-                "knockdown": result.knockdown,
-                "residual_strength_MPa": result.residual_strength_MPa,
-                "pristine_strength_MPa": result.pristine_strength_MPa,
-                "tier_used": result.tier_used,
-            },
-            sys.stdout,
-        )
-        sys.stdout.write("\n")
+        for result in results:
+            json.dump(
+                {
+                    "knockdown": result.knockdown,
+                    "residual_strength_MPa": result.residual_strength_MPa,
+                    "pristine_strength_MPa": result.pristine_strength_MPa,
+                    "tier_used": result.tier_used,
+                },
+                sys.stdout,
+            )
+            sys.stdout.write("\n")
     elif args.quick:
-        print(f"{result.knockdown:.6f}")
+        for result in results:
+            if multi:
+                print(f"{result.tier_used}\t{result.knockdown:.6f}")
+            else:
+                print(f"{result.knockdown:.6f}")
     else:
-        json.dump(result.to_dict(), sys.stdout, indent=2, default=str)
+        if multi:
+            json.dump([r.to_dict() for r in results], sys.stdout, indent=2, default=str)
+        else:
+            json.dump(results[0].to_dict(), sys.stdout, indent=2, default=str)
         sys.stdout.write("\n")
     return 0
 

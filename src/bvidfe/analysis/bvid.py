@@ -127,8 +127,8 @@ class BvidAnalysis:
                 sigma = fe3d_tai(self.config, damage, lam, sigma_0)
                 buckling_eigs = None
                 fpf_governs = True
-            # The FPF / TAI BC builders (compression_bcs / tension_bcs) do
-            # not yet honour cfg.panel.boundary — only the buckling path
+            # The FPF / TAI BC builder (uniaxial_x_bcs) does not yet honour
+            # cfg.panel.boundary — only the buckling path
             # does. When the reported residual comes from FPF/TAI and a
             # non-default boundary was requested, surface that it had no
             # effect rather than letting it look silently applied (#32).
