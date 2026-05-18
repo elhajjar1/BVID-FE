@@ -18,6 +18,13 @@ jobs:
       # non-ASCII byte.
       PYTHONIOENCODING: utf-8
       PYTHONUTF8: "1"
+      # Force Mesa's pure-CPU llvmpipe rasteriser. Without this, Mesa first
+      # probes for a hardware/DRI driver; on the GPU-less GitHub runners
+      # that probe is non-deterministic and occasionally makes VTK's
+      # vtkRenderingOpenGL2 SIGABRT (exit 134) during import. llvmpipe is
+      # display-independent and deterministic, eliminating the race.
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,27 +39,40 @@ jobs:
       # VTK (via pyvista) additionally needs Mesa's software GL renderer and
       # a reachable X display even under OFF_SCREEN — vtkRenderingOpenGL2
       # probes GLX at import and SIGABRTs (exit 134) if X is unreachable.
+      # mesa-utils provides glxinfo, used below to confirm GLX (not just the
+      # X core protocol) is actually serving before pytest runs.
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libegl1 libgl1 libxkbcommon0 libdbus-1-3 libxcb-cursor0 \
-            libxkbcommon-x11-0 libgl1-mesa-dri libglx-mesa0 xvfb x11-xserver-utils
+            libxkbcommon-x11-0 libgl1-mesa-dri libglx-mesa0 xvfb \
+            x11-xserver-utils mesa-utils
       - if: runner.os == 'Linux'
         run: |
           Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-          # Poll the X server itself with xset -q (not just the socket
-          # file): the socket can exist before the server is actually
-          # answering requests, which let VTK race startup and SIGABRT.
-          for i in $(seq 1 50); do
-            if DISPLAY=:99 xset -q >/dev/null 2>&1; then
-              echo "Xvfb :99 ready after ${i} polls"
+          export DISPLAY=:99
+          # xset -q only proves the X11 *core* protocol answers. VTK needs
+          # the GLX extension plus a usable GL renderer, which can lag the
+          # core protocol by a beat — that gap is what let
+          # vtkRenderingOpenGL2 SIGABRT intermittently. Poll glxinfo (which
+          # exercises GLX + creates a context) until it reports the llvmpipe
+          # renderer, so the display is provably GL-ready before pytest.
+          ready=0
+          for i in $(seq 1 60); do
+            if xset -q >/dev/null 2>&1 \
+               && glxinfo -B 2>/dev/null | grep -qi 'renderer'; then
+              echo "Xvfb :99 GL-ready after ${i} polls"
+              ready=1
               break
             fi
-            sleep 0.2
+            sleep 0.25
           done
-          DISPLAY=:99 xset -q >/dev/null 2>&1 || {
-            echo "::error::Xvfb :99 never became ready"; exit 1; }
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Xvfb :99 never became GL-ready"
+            glxinfo -B 2>&1 | head -20 || true
+            exit 1
+          fi
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       # Install gui extras alongside dev so pytest-qt has a Qt binding.
       # Without a Qt binding pytest aborts at startup with "pytest-qt
