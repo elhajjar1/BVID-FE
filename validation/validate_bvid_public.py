@@ -174,7 +174,11 @@ def main(argv: list[str] | None = None) -> int:
         mae = float(df["error_pct"].mean())
         max_err = float(df["error_pct"].max())
         target = meta["target_mae_pct"]
-        print(f"\n=== {name} ({args.tier}) — {len(cases)} cases ===")
+        # Use ASCII '--' rather than em-dash here because this line is
+        # captured by tests/test_validation_smoke.py via subprocess on
+        # Windows runners, where Python's child-process stdout default
+        # encoding (cp1252) cannot encode U+2014 and the print() raises.
+        print(f"\n=== {name} ({args.tier}) -- {len(cases)} cases ===")
         print(df.to_string(index=False))
         print(
             f"MAE = {mae:.2f}%   max error = {max_err:.2f}%   "

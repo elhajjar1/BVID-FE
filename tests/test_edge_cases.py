@@ -153,7 +153,9 @@ def test_cli_runs_end_to_end():
 
     res = subprocess.run(
         [
-            sys.executable, "-m", "bvidfe.cli",
+            sys.executable,
+            "-m",
+            "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
@@ -171,6 +173,8 @@ def test_cli_runs_end_to_end():
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode == 0, res.stderr

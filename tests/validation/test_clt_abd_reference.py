@@ -74,9 +74,16 @@ def test_clt_B_zero_for_symmetric_layup():
 
 
 def test_clt_no_extension_shear_coupling_for_balanced():
-    """A_16 = A_26 = 0 for balanced layups (no off-axis plies)."""
+    """A_16 = A_26 = 0 for balanced layups (no off-axis plies).
+
+    A_16 / A_26 emerge from differences of Q-bar entries that are exactly
+    cancelling for 0/90 plies, but the cancellation is performed in
+    finite-precision floating point so the result is at the round-off
+    floor (~1e-13), not exactly 0. The neighbouring ``test_clt_B_zero...``
+    already uses ``np.allclose`` for the same reason.
+    """
     A, _, _ = _balanced_cross_ply().abd_matrices()
-    assert A[0, 2] == 0.0
-    assert A[1, 2] == 0.0
-    assert A[2, 0] == 0.0
-    assert A[2, 1] == 0.0
+    np.testing.assert_allclose(A[0, 2], 0.0, atol=1e-9)
+    np.testing.assert_allclose(A[1, 2], 0.0, atol=1e-9)
+    np.testing.assert_allclose(A[2, 0], 0.0, atol=1e-9)
+    np.testing.assert_allclose(A[2, 1], 0.0, atol=1e-9)

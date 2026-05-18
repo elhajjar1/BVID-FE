@@ -9,6 +9,8 @@ def test_cli_version_flag_prints_version():
         [sys.executable, "-m", "bvidfe.cli", "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode == 0
@@ -25,6 +27,8 @@ def test_cli_list_materials_prints_all_presets():
         [sys.executable, "-m", "bvidfe.cli", "--list-materials"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode == 0
@@ -36,7 +40,9 @@ def test_cli_cscan_flag_runs_inspection_driven():
     """--cscan runs the inspection-driven path from CLI (mutually exclusive with --energy)."""
     res = subprocess.run(
         [
-            sys.executable, "-m", "bvidfe.cli",
+            sys.executable,
+            "-m",
+            "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
@@ -55,6 +61,8 @@ def test_cli_cscan_flag_runs_inspection_driven():
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode == 0, res.stderr
@@ -66,7 +74,9 @@ def test_cli_rejects_energy_and_cscan_together():
     """--energy and --cscan are mutually exclusive."""
     res = subprocess.run(
         [
-            sys.executable, "-m", "bvidfe.cli",
+            sys.executable,
+            "-m",
+            "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
@@ -84,6 +94,8 @@ def test_cli_rejects_energy_and_cscan_together():
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode != 0
@@ -94,7 +106,9 @@ def test_cli_quick_flag_prints_only_knockdown():
     """--quick prints just the knockdown as a scalar, no JSON."""
     res = subprocess.run(
         [
-            sys.executable, "-m", "bvidfe.cli",
+            sys.executable,
+            "-m",
+            "bvidfe.cli",
             "--material",
             "IM7/8552",
             "--layup",
@@ -113,6 +127,8 @@ def test_cli_quick_flag_prints_only_knockdown():
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode == 0

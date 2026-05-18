@@ -3,16 +3,61 @@ on: [push, pull_request]
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ${{ matrix.os }}
+    env:
+      # Qt's offscreen platform plugin: keeps PyQt6 happy on display-less
+      # runners (the GUI test suite imports PyQt6 widgets).
+      QT_QPA_PLATFORM: offscreen
+      # Force Python stdout/stderr to UTF-8 on every platform. Several tests
+      # capture a child process's output via subprocess; on Windows the
+      # default child-pipe encoding is cp1252, which mangles/raises on any
+      # non-ASCII byte.
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e ".[dev]"
+      # PyQt6 needs native libs on Linux runners that aren't in the base
+      # image; without them ``import PyQt6.QtGui`` raises
+      # ``ImportError: libEGL.so.1`` and pytest-qt's plugin load aborts the
+      # whole session before collection (exit code 4). macOS and Windows
+      # wheels bundle their own Qt6 frameworks.
+      #
+      # VTK (via pyvista) additionally needs Mesa's software GL renderer and
+      # a reachable X display even under OFF_SCREEN — vtkRenderingOpenGL2
+      # probes GLX at import and SIGABRTs (exit 134) if X is unreachable.
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libxkbcommon0 libdbus-1-3 libxcb-cursor0 \
+            libxkbcommon-x11-0 libgl1-mesa-dri libglx-mesa0 xvfb x11-xserver-utils
+      - if: runner.os == 'Linux'
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
+          # Poll the X server itself with xset -q (not just the socket
+          # file): the socket can exist before the server is actually
+          # answering requests, which let VTK race startup and SIGABRT.
+          for i in $(seq 1 50); do
+            if DISPLAY=:99 xset -q >/dev/null 2>&1; then
+              echo "Xvfb :99 ready after ${i} polls"
+              break
+            fi
+            sleep 0.2
+          done
+          DISPLAY=:99 xset -q >/dev/null 2>&1 || {
+            echo "::error::Xvfb :99 never became ready"; exit 1; }
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+      # Install gui extras alongside dev so pytest-qt has a Qt binding.
+      # Without a Qt binding pytest aborts at startup with "pytest-qt
+      # requires either PySide6, PyQt5 or PyQt6 installed."
+      - run: pip install -e ".[all]"
       - run: ruff check src tests
       - run: black --check src tests
       - run: pytest -v

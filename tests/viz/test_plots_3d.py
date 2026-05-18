@@ -1,4 +1,8 @@
+import os
+import sys
+
 import pyvista as pv
+import pytest
 
 pv.OFF_SCREEN = True
 
@@ -43,6 +47,17 @@ def test_mesh_to_pyvista_has_damage_and_ply_arrays():
     assert (grid.cell_data["damage_factor"] < 1.0).sum() > 0
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32" and os.environ.get("CI") == "true",
+    reason=(
+        "GitHub's windows-latest runners have no GPU and no Mesa software "
+        "OpenGL; Microsoft's built-in opengl32.dll is the GDI generic "
+        "renderer capped at OpenGL 1.1, but VTK 9.x needs >=3.2 for "
+        "off-screen rendering, so p.screenshot() produces no usable image. "
+        "Linux (Mesa + Xvfb, see tests.yml) and macOS (OS software GL) "
+        "still exercise the full render pipeline."
+    ),
+)
 def test_plot_mesh_with_damage_returns_plotter(tmp_path):
     cfg = _small_cfg()
     ds = DamageState([DelaminationEllipse(1, (5, 2.5), 3, 1.5, 0)], dent_depth_mm=0.3)
