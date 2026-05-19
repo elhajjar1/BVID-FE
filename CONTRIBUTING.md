@@ -91,6 +91,15 @@ Create a new file in `src/bvidfe/failure/` subclassing `FailureCriterion` from `
 3. Add the dispatch branch in `BvidAnalysis.run()` (`analysis/bvid.py`)
 4. Add end-to-end tests in `tests/analysis/test_my_tier_path.py`
 
+## Claude Code on the web
+
+This repo ships a `SessionStart` hook at `.claude/hooks/session_start.sh` (wired
+up via `.claude/settings.json`) that runs `black --check src tests` and
+`ruff check src tests` at the start of every Claude Code session and reports
+any drift. It is informational only (always exits 0) and prevents agents from
+delegating commits while formatting is broken. If `black`/`ruff` are not
+installed yet, the hook prints a friendly note and exits cleanly.
+
 ## Code of Conduct
 
 Be respectful. Focus feedback on code and ideas, not people. Contributions at any experience level are welcome.

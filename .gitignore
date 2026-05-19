@@ -129,3 +129,11 @@ docs/superpowers/
 CLAUDE.md
 .claude/
 .anthropic/
+
+# Shared Claude Code config: track the SessionStart hook and its settings so
+# all sessions (web and local) pick up the same formatter-drift check.
+!.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/*
