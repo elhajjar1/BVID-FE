@@ -1,9 +1,12 @@
 """Semi-analytical tier: sublaminate Rayleigh-Ritz buckling + critical interface scoring.
 
 The ellipse is approximated as its enclosing simply-supported rectangle
-(2a x 2b in the panel frame). For orthotropic simply-supported rectangles
-under uniaxial compression, the sine basis is exact and the eigenvalue is
-closed-form — we minimize over integer modes (m, n) in [1..5] x [1..5].
+with full side lengths (2 * major_mm) x (2 * minor_mm) in the panel
+frame. For orthotropic simply-supported rectangles under uniaxial
+compression, the sine basis is exact and the eigenvalue is closed-form —
+we minimize over integer modes (m, n) in [1..5] x [1..5]. The closed-
+form formula uses the FULL side lengths (a, b) as in Timoshenko & Gere
+§9.2 / Reddy 4.4.4, NOT the ellipse semi-axes.
 
 Sublaminate selection: the plies above the delaminated interface form the
 thinner buckling sublaminate (closer to the impact face for interfaces in
@@ -82,22 +85,28 @@ def sublaminate_buckling_load(
     above the given delamination interface.
 
     The delaminated sublaminate is approximated as an orthotropic
-    simply-supported rectangle with semi-axes equal to the ellipse's major
-    and minor axes (the enclosing-rectangle simplification). Under uniaxial
-    compression along x, the closed-form Rayleigh-Ritz solution with a
-    sine-basis trial function (Timoshenko & Gere §9.2; Reddy *Theory and
-    Analysis of Elastic Plates*, Eq. 4.4.4) is
+    simply-supported rectangle whose full side lengths equal twice the
+    ellipse's semi-axes (the enclosing-rectangle simplification:
+    ``a = 2 * major_mm``, ``b = 2 * minor_mm``). Under uniaxial compression
+    along x, the closed-form Navier / Rayleigh-Ritz solution with a sine-
+    basis trial function ``sin(m*pi*x/a) * sin(n*pi*y/b)`` on the domain
+    ``0 <= x <= a``, ``0 <= y <= b`` (Timoshenko & Gere §9.2; Reddy *Theory
+    and Analysis of Elastic Plates*, Eq. 4.4.4) is
 
         N_cr(m, n) = (pi^2 / a^2)
                      * [D11 * m^4 + 2*(D12 + 2*D66)*(m*a/b)^2 * n^2
                         + D22 * (a*n/b)^4]
                      / m^2
 
-    where (a, b) are the rectangle semi-axes, (m, n) are the integer half-
-    wave numbers along x and y, and the D_ij are the sublaminate's CLT
-    bending stiffnesses. We minimise over (m, n) in [1..5] x [1..5]; the
-    range is bounded by the typical 1-3 mode of practical delaminations
-    plus a safety margin.
+    where (a, b) are the **full** rectangle side lengths (NOT semi-axes),
+    (m, n) are the integer half-wave numbers along x and y, and the D_ij
+    are the sublaminate's CLT bending stiffnesses. We minimise over (m, n)
+    in [1..5] x [1..5]; the range is bounded by the typical 1-3 mode of
+    practical delaminations plus a safety margin. (Note: the sine basis
+    above vanishes at x=0, x=a, y=0, y=b, so a/b here must be the full
+    plate dimensions for the SSSS boundary conditions to be satisfied —
+    same convention as the Navier impact-compliance solver in
+    ``impact/olsson.py`` which passes ``pan.Lx_mm``, ``pan.Ly_mm`` directly.)
 
     The selected sublaminate is the *thinner* of the "above" and "below"
     stacks at the interface (it buckles first), and a boundary-dependent
@@ -111,8 +120,11 @@ def sublaminate_buckling_load(
         Full panel laminate; supplies material, layup, and ply thickness.
     ellipse : DelaminationEllipse
         Delamination at which the sublaminate forms. Its
-        ``interface_index`` selects the sublaminate thickness; ``major_mm``
-        and ``minor_mm`` are the rectangle semi-axes.
+        ``interface_index`` selects the sublaminate thickness; the
+        enclosing rectangle has full side lengths
+        ``a = 2 * ellipse.major_mm`` and ``b = 2 * ellipse.minor_mm``
+        (``major_mm`` / ``minor_mm`` are the ellipse semi-axes, per
+        ``DelaminationEllipse.area_mm2 = pi * major * minor``).
     boundary : str
         One of ``"simply_supported"``, ``"clamped"``, ``"free"``.
 
@@ -150,9 +162,15 @@ def sublaminate_buckling_load(
     D = _sublaminate_D_matrix(lam.material, sub_layup, sub_thicknesses)
     D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
 
-    # Rectangle dimensions (panel frame). Ellipse semi-axes = a, b.
-    a = ellipse.major_mm
-    b = ellipse.minor_mm
+    # Rectangle dimensions (panel frame). The Navier sine basis
+    # sin(m*pi*x/a) * sin(n*pi*y/b) used in the closed-form eigenvalue
+    # vanishes at x=0,a and y=0,b, so (a, b) must be the FULL rectangle
+    # side lengths — i.e. twice the ellipse semi-axes — for the SSSS
+    # boundary conditions to be satisfied. (Issue #29: previously assigned
+    # a = ellipse.major_mm directly, which used semi-axes and overpredicted
+    # N_cr by ~4x because N_cr ∝ 1/a^2.)
+    a = 2.0 * ellipse.major_mm
+    b = 2.0 * ellipse.minor_mm
     if a <= 0 or b <= 0:
         return float("inf")
 
