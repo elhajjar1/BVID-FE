@@ -151,6 +151,121 @@ def test_per_ply_thickness_preserves_finite_knockdown():
     assert math.isfinite(r.residual_strength_MPa)
 
 
+def test_sublaminate_selection_uses_thickness_not_ply_count():
+    """Regression for issue #18.
+
+    The sublaminate-buckling selection must pick the geometrically thinner
+    stack (by sum of per-ply thicknesses), not the side with fewer plies.
+    Configuration: ``layup=[0, 90, 0, 90, 0, 90]``, ``ply_thickness_mm=
+    [0.5, 0.5, 0.1, 0.1, 0.1, 0.1]``, ``interface_index=1``.
+
+    At interface 1 the upper sublaminate is plies 0..1 (2 plies, 1.0 mm
+    total) and the lower is plies 2..5 (4 plies, 0.4 mm total). Ply count
+    says "upper is thinner"; through-thickness says "lower is thinner".
+    The geometrically thinner stack is what actually buckles first, so the
+    function must return the buckling load of the *lower* sublaminate.
+    """
+    from bvidfe.analysis.semi_analytical import (
+        _sublaminate_D_matrix,
+        semi_analytical_cai,
+        sublaminate_buckling_load,
+    )
+    from bvidfe.core.laminate import Laminate
+    from bvidfe.core.material import MATERIAL_LIBRARY
+
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    layup = [0, 90, 0, 90, 0, 90]
+    thicknesses = [0.5, 0.5, 0.1, 0.1, 0.1, 0.1]
+    lam = Laminate(material=m, layup_deg=layup, ply_thickness_mm=thicknesses)
+
+    upper_layup, upper_t = layup[:2], thicknesses[:2]
+    lower_layup, lower_t = layup[2:], thicknesses[2:]
+    assert sum(upper_t) > sum(lower_t)  # upper geometrically thicker
+    assert len(upper_layup) < len(lower_layup)  # but has fewer plies
+
+    # D matrices of each candidate sublaminate — the geometrically thinner
+    # stack (lower) has much smaller D11/D22 because D scales as t^3.
+    D_upper = _sublaminate_D_matrix(m, upper_layup, upper_t)
+    D_lower = _sublaminate_D_matrix(m, lower_layup, lower_t)
+    assert D_lower[0, 0] < D_upper[0, 0]
+    assert D_lower[1, 1] < D_upper[1, 1]
+
+    # Buckling load with the function under test. Use an ellipse large
+    # enough that the (a/b)^4 aspect-ratio clip never fires.
+    ell = DelaminationEllipse(1, (0.0, 0.0), major_mm=20.0, minor_mm=15.0, orientation_deg=0.0)
+    N = sublaminate_buckling_load(lam, ell)
+
+    # Reference loads from each candidate sublaminate's D matrix, evaluated
+    # with the same closed-form (m, n) in [1..5] x [1..5] minimisation that
+    # ``sublaminate_buckling_load`` uses internally.
+    def _ref_Ncr(D, a, b):
+        D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
+        pi2 = math.pi * math.pi
+        aspect = a / b
+        best = math.inf
+        for mm in range(1, 6):
+            for nn in range(1, 6):
+                num = (
+                    D11 * mm**4
+                    + 2.0 * (D12 + 2.0 * D66) * (mm * aspect) ** 2 * nn**2
+                    + D22 * (aspect * nn) ** 4
+                )
+                cand = (pi2 / a**2) * num / mm**2
+                if cand < best:
+                    best = cand
+        return best
+
+    # (a, b) are FULL plate side lengths (= 2 * ellipse semi-axes); see #29.
+    N_upper_ref = _ref_Ncr(D_upper, 2.0 * ell.major_mm, 2.0 * ell.minor_mm)
+    N_lower_ref = _ref_Ncr(D_lower, 2.0 * ell.major_mm, 2.0 * ell.minor_mm)
+    assert N_lower_ref < N_upper_ref  # thinner stack buckles at lower load
+
+    # The function must report the *lower* (geometrically thinner)
+    # sublaminate's buckling load — not the upper (fewer-plies) stack.
+    assert N == pytest.approx(N_lower_ref, rel=1e-12)
+    assert not math.isclose(N, N_upper_ref, rel_tol=1e-6)
+
+    # End-to-end: semi_analytical_cai must use the same geometrically
+    # thinner sublaminate for its h_sub normalisation. Drive the buckling
+    # tier with a large delamination at interface 1 so it controls the min.
+    ds = DamageState(
+        [DelaminationEllipse(1, (0.0, 0.0), 60.0, 40.0, 0.0)],
+        dent_depth_mm=0.5,
+    )
+    sigma_cai, crit_idx, N_cr = semi_analytical_cai(
+        lam, ds, sigma_pristine_MPa=500.0, A_panel_mm2=15000.0
+    )
+    assert crit_idx == 1
+    # h_sub must equal the lower (thinner) stack's total thickness (0.4 mm),
+    # so sigma_buckling = N_cr / 0.4. If the buggy logic picked the upper
+    # stack we'd divide by 1.0 mm instead and get a stress 2.5x smaller.
+    sigma_buckling_expected = N_cr / sum(lower_t)
+    assert sigma_cai == pytest.approx(min(sigma_buckling_expected, 500.0), rel=1e-9)
+
+
+def test_sublaminate_selection_matches_uniform_for_uniform_laminate():
+    """For uniform per-ply thicknesses the new thickness-based selection
+    must agree with the old ply-count-based selection: every test in
+    ``tests/analysis/test_semi_analytical.py`` uses a uniform layup, so
+    pin the equivalence explicitly here too."""
+    from bvidfe.analysis.semi_analytical import sublaminate_buckling_load
+    from bvidfe.core.laminate import Laminate
+    from bvidfe.core.material import MATERIAL_LIBRARY
+
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    # Asymmetric ply count around the interface so ply count and thickness
+    # would disagree if thicknesses were ever non-uniform; here they aren't,
+    # so both criteria must select the same (smaller-ply-count) side.
+    layup = [0, 45, -45, 90, 90, -45, 45, 0, 0, 45]  # 10 plies
+    lam_scalar = Laminate(m, layup, 0.152)
+    lam_list = Laminate(m, layup, [0.152] * len(layup))
+    ell = DelaminationEllipse(2, (0, 0), 20, 12, 0)
+    N_scalar = sublaminate_buckling_load(lam_scalar, ell)
+    N_list = sublaminate_buckling_load(lam_list, ell)
+    assert N_scalar == pytest.approx(N_list, rel=1e-12)
+    assert N_scalar > 0
+
+
 def test_fe3d_runs_with_per_ply_thickness():
     """fe3d builds a structured hex mesh whose z-grid follows per-ply
     boundaries; verify it doesn't crash and reports a finite residual on a

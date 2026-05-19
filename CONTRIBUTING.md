@@ -41,14 +41,32 @@ pytest tests/analysis/ -v
 ## Code Style
 
 - Format with **black** and lint with **ruff** (pre-commit hooks enforce both)
-- Install pre-commit hooks once after cloning:
-  ```bash
-  pip install pre-commit
-  pre-commit install
-  ```
 - Add docstrings to all public functions and classes
 - Include units in variable names and docstrings (MPa, mm, rad, J)
 - Use SI units throughout (millimetres, MPa, kg)
+
+## Pre-commit setup
+
+Install pre-commit hooks once after cloning so black, ruff, and basic file
+hygiene checks run automatically before each commit:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+### Before committing
+
+If you haven't installed pre-commit, run these three commands locally before
+pushing — CI runs `black --check` and **will fail** if any file is not
+already formatted, so you must auto-format with `black` (not just verify
+with `black --check`):
+
+```bash
+ruff check src tests
+black src tests        # auto-format in place; do NOT use --check here
+pytest -q
+```
 
 ## Pull Requests
 
@@ -72,6 +90,15 @@ Create a new file in `src/bvidfe/failure/` subclassing `FailureCriterion` from `
 2. Add the tier string to the `Literal` type in `AnalysisConfig` (`analysis/config.py`)
 3. Add the dispatch branch in `BvidAnalysis.run()` (`analysis/bvid.py`)
 4. Add end-to-end tests in `tests/analysis/test_my_tier_path.py`
+
+## Claude Code on the web
+
+This repo ships a `SessionStart` hook at `.claude/hooks/session_start.sh` (wired
+up via `.claude/settings.json`) that runs `black --check src tests` and
+`ruff check src tests` at the start of every Claude Code session and reports
+any drift. It is informational only (always exits 0) and prevents agents from
+delegating commits while formatting is broken. If `black`/`ruff` are not
+installed yet, the hook prints a friendly note and exits cleanly.
 
 ## Code of Conduct
 
