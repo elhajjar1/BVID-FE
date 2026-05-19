@@ -11,8 +11,14 @@ for a self-contained regression test.
 The shape relationships, in contrast, follow directly from the closed
 form and must hold for every BVID-FE material:
   * Pc scales as sqrt(G_IIc) when D_eff is held fixed.
-  * Pc scales as h^{3/2} when E_ij are held fixed (D_eff ~ E*h^3, sqrt
-    gives h^{3/2}; this is exact CLT).
+  * Pc scales as h^{3/2} under a SELF-SIMILAR thickness scaling, i.e.
+    holding the layup fixed and scaling ply thickness (so every ply's
+    relative z-position is preserved). Under CLT D_ij integrates
+    Q_bar_k * (z_{k+1}^3 - z_k^3)/3, so D_eff = sqrt(D11*D22) only
+    scales as h^3 when the ply positions scale uniformly with h.
+    Concatenating a layup (e.g. ``[0,45,-45,90]*2``) does NOT preserve
+    relative positions -- it rearranges plies in z and gives an effective
+    exponent below 1.5 (see issue #44).
   * Pc is a property of the laminate + impactor and is INDEPENDENT of
     panel size, so the same Laminate+ImpactorGeometry should yield the
     same Pc on a 100x100 mm and 200x150 mm panel.
@@ -84,23 +90,27 @@ def test_threshold_load_invariant_to_panel_size():
     assert Pc_small == pytest.approx(Pc_large, rel=1e-12)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Empirical ratio is ~2.65 vs theoretical 2^{3/2}=2.83 (~6.5% off). "
-        "Either Pc has a sub-h^{3/2} contribution from the ply-by-ply "
-        "Q_bar→D_eff path, or the test's 1% tolerance is too tight for the "
-        "discrete-stack case. Needs maintainer review of model vs scaling law."
-    ),
-    strict=True,
-)
 def test_threshold_load_scales_with_thickness_to_the_three_halves():
-    """Doubling the layup count (same material, same angles) raises h
-    by the layup-count factor; D_eff scales as h^3, Pc as h^{3/2}."""
+    """Pc scales as h^{3/2} under a self-similar thickness change.
+
+    The Olsson closed form gives Pc = pi * sqrt(8 * G_IIc * D_eff / 9),
+    where D_eff = sqrt(D11 * D22). The CLT D-matrix is
+    ``D_ij = (1/3) * sum_k Q_bar_ij,k * (z_{k+1}^3 - z_k^3)``, so D_eff
+    scales as h^3 -- and therefore Pc as h^{3/2} -- ONLY when each ply's
+    relative through-thickness position is preserved as h changes. That
+    means a self-similar scaling: keep the layup fixed and scale the ply
+    thickness. Doubling the layup count (e.g. ``[0,45,-45,90] * 2``)
+    does NOT preserve relative positions -- it rearranges where the 0/45
+    /-45/90 plies sit in z, which changes their D_ij weighting and gives
+    a numerical exponent <1.5 (originally tracked in issue #44).
+    """
     base_layup = [0, 45, -45, 90]
-    lam_thin = _laminate("IM7/8552", base_layup)  # 4 plies
-    lam_thick = _laminate("IM7/8552", base_layup * 2)  # 8 plies
+    t_thin = 0.152
+    t_thick = 2.0 * t_thin
+    lam_thin = _laminate("IM7/8552", base_layup, t_ply=t_thin)
+    lam_thick = _laminate("IM7/8552", base_layup, t_ply=t_thick)
     pan, imp = _panel(), _impactor()
     Pc_thin = threshold_load(lam_thin, pan, imp)
     Pc_thick = threshold_load(lam_thick, pan, imp)
     # h_thick / h_thin = 2 -> Pc_thick / Pc_thin = 2^{3/2} = 2.828...
-    assert Pc_thick / Pc_thin == pytest.approx(2**1.5, rel=1e-2)
+    assert Pc_thick / Pc_thin == pytest.approx(2**1.5, rel=1e-9)
