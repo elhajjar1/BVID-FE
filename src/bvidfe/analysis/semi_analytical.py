@@ -108,11 +108,11 @@ def sublaminate_buckling_load(
     same convention as the Navier impact-compliance solver in
     ``impact/olsson.py`` which passes ``pan.Lx_mm``, ``pan.Ly_mm`` directly.)
 
-    The selected sublaminate is the *thinner* of the "above" and "below"
-    stacks at the interface (it buckles first), and a boundary-dependent
-    multiplier is applied so the parent panel's edge condition transmits
-    appropriate lateral restraint to the sublaminate (clamped: 1.9x,
-    free: 0.5x, simply-supported: 1.0x).
+    The selected sublaminate is the *thinner* (by through-thickness, not
+    ply count) of the "above" and "below" stacks at the interface (it
+    buckles first), and a boundary-dependent multiplier is applied so the
+    parent panel's edge condition transmits appropriate lateral restraint
+    to the sublaminate (clamped: 1.9x, free: 0.5x, simply-supported: 1.0x).
 
     Parameters
     ----------
@@ -145,20 +145,28 @@ def sublaminate_buckling_load(
     """
     i = ellipse.interface_index
     full_layup = lam.layup_deg
+    full_thicknesses = lam.ply_thicknesses_mm
 
-    # Choose the thinner sublaminate between "above" (plies 0..i) and "below" (plies i+1..)
+    # Choose the geometrically thinner sublaminate between "above" (plies
+    # 0..i) and "below" (plies i+1..). Selection is by through-thickness
+    # (sum of per-ply thicknesses), not ply count — for non-uniform
+    # laminates the side with fewer plies may be the geometrically thicker
+    # one, and the *thinner* stack is what buckles first.
     upper_layup = full_layup[: i + 1]
     lower_layup = full_layup[i + 1 :]
-    sub_layup = upper_layup if len(upper_layup) <= len(lower_layup) else lower_layup
+    upper_thicknesses = full_thicknesses[: i + 1]
+    lower_thicknesses = full_thicknesses[i + 1 :]
+    upper_t_total = sum(upper_thicknesses)
+    lower_t_total = sum(lower_thicknesses)
+    if upper_t_total <= lower_t_total:
+        sub_layup = upper_layup
+        sub_thicknesses = upper_thicknesses
+    else:
+        sub_layup = lower_layup
+        sub_thicknesses = lower_thicknesses
     if len(sub_layup) == 0:
         return float("inf")
 
-    full_thicknesses = lam.ply_thicknesses_mm
-    upper_thicknesses = full_thicknesses[: i + 1]
-    lower_thicknesses = full_thicknesses[i + 1 :]
-    sub_thicknesses = (
-        upper_thicknesses if len(upper_layup) <= len(lower_layup) else lower_thicknesses
-    )
     D = _sublaminate_D_matrix(lam.material, sub_layup, sub_thicknesses)
     D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
 
@@ -289,10 +297,15 @@ def semi_analytical_cai(
 
     # Sublaminate thickness — sum the actual per-ply thicknesses of whichever
     # half ("above" or "below" the interface) is the buckling sublaminate.
+    # Selection is by through-thickness (not ply count) so that for
+    # non-uniform laminates the geometrically thinner stack is picked —
+    # this must match the selection in ``sublaminate_buckling_load``.
     thicknesses = lam.ply_thicknesses_mm
     upper_t = thicknesses[: crit_idx + 1]
     lower_t = thicknesses[crit_idx + 1 :]
-    sub_t = upper_t if len(upper_t) <= len(lower_t) else lower_t
+    upper_t_total = sum(upper_t)
+    lower_t_total = sum(lower_t)
+    sub_t = upper_t if upper_t_total <= lower_t_total else lower_t
     if len(sub_t) == 0:
         return sigma_soutis, crit_idx, None
     h_sub = float(sum(sub_t))
