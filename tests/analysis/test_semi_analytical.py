@@ -159,8 +159,11 @@ def test_buckling_load_matches_closed_form_ssss_square():
     # which makes m=n=1 the analytic minimizer for any D with D11 == D22.
     semi = 25.0  # mm
     ell = DelaminationEllipse(
-        interface_index=1, centroid_mm=(0.0, 0.0),
-        major_mm=semi, minor_mm=semi, orientation_deg=0.0,
+        interface_index=1,
+        centroid_mm=(0.0, 0.0),
+        major_mm=semi,
+        minor_mm=semi,
+        orientation_deg=0.0,
     )
 
     # The sublaminate selection picks the thinner stack. With interface=1
@@ -177,20 +180,28 @@ def test_buckling_load_matches_closed_form_ssss_square():
 
     # Hand-evaluate the closed form at m=n=1.
     pi2 = math.pi * math.pi
-    N_cr_11 = (pi2 / a**2) * (
-        D11 * 1**4
-        + 2.0 * (D12 + 2.0 * D66) * (1 * aspect) ** 2 * 1**2
-        + D22 * (aspect * 1) ** 4
-    ) / 1**2
+    N_cr_11 = (
+        (pi2 / a**2)
+        * (
+            D11 * 1**4
+            + 2.0 * (D12 + 2.0 * D66) * (1 * aspect) ** 2 * 1**2
+            + D22 * (aspect * 1) ** 4
+        )
+        / 1**2
+    )
 
     # Sanity: m=n=1 really is the minimizer here (a == b, D11 == D22 by ±45
     # symmetry). Spot-check (2,1) and (1,2) to be safe.
     def _N_mn(mm, nn):
-        return (pi2 / a**2) * (
-            D11 * mm**4
-            + 2.0 * (D12 + 2.0 * D66) * (mm * aspect) ** 2 * nn**2
-            + D22 * (aspect * nn) ** 4
-        ) / mm**2
+        return (
+            (pi2 / a**2)
+            * (
+                D11 * mm**4
+                + 2.0 * (D12 + 2.0 * D66) * (mm * aspect) ** 2 * nn**2
+                + D22 * (aspect * nn) ** 4
+            )
+            / mm**2
+        )
 
     assert _N_mn(2, 1) > N_cr_11
     assert _N_mn(1, 2) > N_cr_11
@@ -230,15 +241,11 @@ def test_buckling_load_uses_full_plate_dimensions_not_semi_axes():
     # Closed form with the CORRECT full dimensions (a = b = 2*semi).
     a_full = 2.0 * semi
     pi2 = math.pi * math.pi
-    N_correct = (pi2 / a_full**2) * (
-        D11 + 2.0 * (D12 + 2.0 * D66) + D22
-    )
+    N_correct = (pi2 / a_full**2) * (D11 + 2.0 * (D12 + 2.0 * D66) + D22)
 
     # Closed form with the BUGGY semi-axis-as-side-length (a = semi).
     a_bug = semi
-    N_buggy = (pi2 / a_bug**2) * (
-        D11 + 2.0 * (D12 + 2.0 * D66) + D22
-    )
+    N_buggy = (pi2 / a_bug**2) * (D11 + 2.0 * (D12 + 2.0 * D66) + D22)
 
     # The bug would inflate by exactly 4x.
     assert N_buggy == pytest.approx(4.0 * N_correct, rel=1e-12)
