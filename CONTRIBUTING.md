@@ -41,14 +41,19 @@ pytest tests/analysis/ -v
 ## Code Style
 
 - Format with **black** and lint with **ruff** (pre-commit hooks enforce both)
-- Install pre-commit hooks once after cloning:
-  ```bash
-  pip install pre-commit
-  pre-commit install
-  ```
 - Add docstrings to all public functions and classes
 - Include units in variable names and docstrings (MPa, mm, rad, J)
 - Use SI units throughout (millimetres, MPa, kg)
+
+## Pre-commit setup
+
+Install pre-commit hooks once after cloning so black, ruff, and basic file
+hygiene checks run automatically before each commit:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
 
 ## Pull Requests
 
