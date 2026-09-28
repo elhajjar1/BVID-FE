@@ -59,6 +59,11 @@ All notable changes to BVID-FE are documented in this file.
   `lekhnitskii_kt_infinity` raises a descriptive `ValueError` instead of a
   bare `math domain error` for constants that violate the orthotropic
   stability bound.
+- **CI lint step went red on every branch after ruff 0.16.** The dev extra
+  allows `ruff>=0.5,<1`, and ruff 0.16 widened its default rule selection,
+  flagging 164 pre-existing findings. `pyproject.toml` now pins
+  `[tool.ruff.lint] select` to the pre-0.16 defaults (`E4`, `E7`, `E9`,
+  `F`); adopting the wider rule set is left to its own PR.
 - **CHANGELOG `[0.2.0]` overstated validation.** It claimed "validated
   public datasets exercised in CI"; CI runs the validation harness against
   a synthetic self-check dataset only. The entry is corrected.

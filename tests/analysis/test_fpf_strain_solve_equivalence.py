@@ -34,14 +34,14 @@ from bvidfe.analysis.fe_tier import (
     _solve_failure_strain_analytic,
     _solve_failure_strain_analytic_scalar_ref,
 )
-from bvidfe.failure.puck import puck_index_batch
-from bvidfe.solver.boundary import uniaxial_x_bcs
-from bvidfe.solver.static import solve_linear_static
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.damage.state import DamageState, DelaminationEllipse
+from bvidfe.failure.puck import puck_index_batch
 from bvidfe.impact.mapping import ImpactEvent
+from bvidfe.solver.boundary import uniaxial_x_bcs
+from bvidfe.solver.static import solve_linear_static
 
 
 def _build_setup(damage: DamageState, layup_deg=(0.0, 90.0, 0.0, 90.0)):
