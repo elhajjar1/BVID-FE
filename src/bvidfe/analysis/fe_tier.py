@@ -17,13 +17,14 @@ from typing import List
 
 import numpy as np
 
-from bvidfe._types import CriterionName
+from bvidfe._types import _CRITERION_NAMES, CriterionName
 from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.fe_mesh import FeMesh, build_fe_mesh, estimate_fe_mesh_size
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
 from bvidfe.elements.hex8 import Hex8Element, build_geometry_table
 from bvidfe.failure.larc05 import larc05_index, larc05_index_batch
+from bvidfe.failure.puck import puck_index, puck_index_batch
 from bvidfe.failure.tsai_wu import tsai_wu_index, tsai_wu_index_batch
 from bvidfe.analysis.semi_analytical import (
     find_critical_interface,
@@ -211,6 +212,20 @@ def _fe3d_preflight(
     return mesh, elements, t0
 
 
+def _require_known_criterion(criterion: str) -> None:
+    """Raise ValueError for a criterion name the FPF solve cannot dispatch.
+
+    Without this guard any unrecognised string (a typo, or a criterion added
+    to ``CriterionName`` without an analytic-scaling branch here) fell through
+    to the Tsai-Wu ``else`` branch and silently returned Tsai-Wu results.
+    """
+    if criterion not in _CRITERION_NAMES:
+        raise ValueError(
+            f"unknown failure criterion {criterion!r}; "
+            f"valid options are {sorted(_CRITERION_NAMES)}"
+        )
+
+
 def _solve_failure_strain_analytic(
     cfg: AnalysisConfig,
     mesh: FeMesh,
@@ -233,6 +248,14 @@ def _solve_failure_strain_analytic(
     stress direction, so we evaluate all four mode branches at a reference
     strain and pick the binding one analytically.
 
+    Puck's exposure factor is positively homogeneous of degree 1 in stress
+    (the fiber term ``|s1|/X`` and every action-plane term
+    ``sqrt(quadratic) + linear * sigma_n`` scale linearly for c > 0, and
+    scaling by c > 0 never flips a sign-selected branch), so
+    idx(c) = c * idx(1) and c_crit = 1 / idx_ref exactly.
+
+    Raises ``ValueError`` for a criterion outside ``CriterionName``.
+
     This replaces the prior 10-12 iteration bisection (each iteration
     reassembled and re-solved the full FE system), giving a ~10x speedup
     for the FPF path with identical results on the quadratic branches.
@@ -244,6 +267,7 @@ def _solve_failure_strain_analytic(
     ``_solve_failure_strain_analytic_scalar_ref`` reference implementation
     kept in this module purely for the equivalence test.
     """
+    _require_known_criterion(criterion)
     material = _resolve_material(cfg)
 
     # One FE solve at reference strain = strain_sign * strain_cap
@@ -263,6 +287,14 @@ def _solve_failure_strain_analytic(
             # LaRC05 modes are sums of squared normalised stresses, so
             # idx(c) = c^2 * idx(1)  ->  c_crit = 1 / sqrt(idx_ref).
             c_crit = np.where(valid, 1.0 / np.sqrt(np.where(valid, idx_ref, 1.0)), np.inf)
+            c_crit_elem_min = float(c_crit.min())
+        elif criterion == "puck":
+            idx_ref = puck_index_batch(material, sigma_ref)  # (n_gp,)
+            valid = idx_ref > 0
+            if not bool(valid.any()):
+                continue
+            # Puck is degree-1 homogeneous: idx(c) = c * idx(1)  ->  c_crit = 1 / idx_ref.
+            c_crit = np.where(valid, 1.0 / np.where(valid, idx_ref, 1.0), np.inf)
             c_crit_elem_min = float(c_crit.min())
         else:
             # Tsai-Wu: idx(c) = a*c + b*c^2. Solve a, b from two samples
@@ -318,6 +350,7 @@ def _solve_failure_strain_analytic_scalar_ref(
     edit to the production routine immediately surfaces a numerical
     drift. NOT called from production code; do not use directly.
     """
+    _require_known_criterion(criterion)
     material = _resolve_material(cfg)
 
     bcs = uniaxial_x_bcs(mesh.node_coords, strain_sign * strain_cap, boundary=cfg.panel.boundary)
@@ -331,12 +364,16 @@ def _solve_failure_strain_analytic_scalar_ref(
             sigma_ref = sigma_field_ref[gp]
             if criterion == "larc05":
                 idx_ref = larc05_index(material, sigma_ref)
+            elif criterion == "puck":
+                idx_ref = puck_index(material, sigma_ref)
             else:
                 idx_ref = tsai_wu_index(material, sigma_ref)
             if idx_ref <= 0:
                 continue
             if criterion == "larc05":
                 c_crit = 1.0 / np.sqrt(idx_ref)
+            elif criterion == "puck":
+                c_crit = 1.0 / idx_ref
             else:
                 sigma_2 = 2.0 * sigma_ref
                 idx_2 = tsai_wu_index(material, sigma_2)
@@ -379,7 +416,8 @@ def _fe3d_cai_first_ply_failure(
     Original v0.1.0 implementation — bisects on applied strain until the selected
     failure criterion's index reaches 1 on the damaged mesh. Retained as
     fallback / comparison path. Default ``criterion="larc05"`` preserves the
-    historical behaviour; pass ``"tsai_wu"`` to use the polynomial criterion.
+    historical behaviour; pass ``"tsai_wu"`` or ``"puck"`` to use those
+    criteria instead. Unknown names raise ``ValueError``.
     """
     mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d FPF")
     strain_at_failure = _solve_failure_strain_analytic(

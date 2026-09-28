@@ -34,6 +34,34 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **fe3d first-ply failure silently evaluated Tsai-Wu when asked for Puck.**
+  `_solve_failure_strain_analytic` branched `if criterion == "larc05": ...
+  else: <Tsai-Wu>`, so `criterion="puck"` (and any typo such as
+  `"tsaiwu"`) returned Tsai-Wu results with no error. Puck now has its own
+  branch: its exposure factor is degree-1 homogeneous in stress, so the
+  critical load multiplier is exactly `1 / idx_ref` from the single
+  reference solve. Names outside `CriterionName` raise `ValueError`. The
+  default fe3d criteria (LaRC05 for CAI, Tsai-Wu for TAI) are unchanged, so
+  `BvidAnalysis.run()` results do not move.
+- **Version strings disagreed.** `pyproject.toml` said `0.2.0`,
+  `bvidfe.__version__` (and `bvidfe --version`) said `0.2.0.dev0`,
+  `CITATION.cff` said `0.1.0`, and the README BibTeX said `0.1.0-alpha`.
+  All four now read `0.2.0`, and `tests/test_package.py` fails CI if they
+  drift apart again. The `release` skill lists all four places to bump.
+- **`FailureEvaluator.evaluate` validated its input with `assert`**, which
+  `python -O` strips. A wrong-shaped stress field now raises `ValueError`.
+- **Whitney-Nuismer TAI could return a residual above pristine or diverge.**
+  The point-stress polynomial dips below a stress ratio of 1 for
+  `Kt_inf >~ 9.2` (knockdown > 1) and crosses zero at `Kt_inf >~ 20.3`.
+  The knockdown is now capped at 1.0 with a `UserWarning` in that regime.
+  The built-in material presets stay below `Kt_inf ~ 7.3`, so their results
+  are unchanged; only custom high-modulus cards were affected.
+  `lekhnitskii_kt_infinity` raises a descriptive `ValueError` instead of a
+  bare `math domain error` for constants that violate the orthotropic
+  stability bound.
+- **CHANGELOG `[0.2.0]` overstated validation.** It claimed "validated
+  public datasets exercised in CI"; CI runs the validation harness against
+  a synthetic self-check dataset only. The entry is corrected.
 - **FE3D buckling assembled `K_g` with a tensile unit reference (issue #98),**
   causing the eigensolver to lock onto spurious compliance modes that
   decayed monotonically with mesh refinement. The geometric stiffness is
@@ -47,12 +75,23 @@ All notable changes to BVID-FE are documented in this file.
   In-plane locking on coarse meshes remains a separate open concern
   (tracked on its own branch).
 
+### Removed
+
+- **Leftovers from the removed PyQt6 GUI.** `scripts/visual_matrix.py`
+  imported `PyQt6` and `bvidfe.gui`, neither of which exists, so it could not
+  run. `docs/BUILD.md` documented a PyInstaller build and workflows that no
+  longer exist. `docs/python_api.md` told users to import
+  `bvidfe.viz.plots_3d`, which does not exist; it now shows the real
+  `bvidfe.viz.plotly_3d.mesh_damage_figure` API.
+
 ## [0.2.0] - 2026-05-21
 
 First tagged release after `0.1.0`. Major themes: a fully wired 3-D
 hex-element FE tier (`fe3d`) with eigenvalue buckling and FPF coupons,
-per-ply thickness throughout the stack, a Streamlit GUI, validated
-public datasets exercised in CI, a `SemiAnalyticalResult` dataclass on
+per-ply thickness throughout the stack, a Streamlit GUI, a validation
+harness exercised in CI (against a synthetic self-check dataset only;
+the published Soutis / Caprino / Sanchez-Saez / NASA datasets are not
+yet digitized, see `validation/README.md`), a `SemiAnalyticalResult` dataclass on
 the semi-analytical path, vectorised LaRC05/Tsai-Wu failure-criterion
 batches, refreshed README/ARCHITECTURE docs, and the OIDC Trusted
 Publishing workflow that produced this release (issue #116). See the

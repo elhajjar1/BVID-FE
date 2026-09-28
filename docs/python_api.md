@@ -136,19 +136,22 @@ from bvidfe.viz.plots_2d import (
     plot_knockdown_curve,      # single tier
     plot_tier_comparison,      # overlaid multi-tier
 )
-from bvidfe.viz.plots_3d import (
-    mesh_to_pyvista,           # FeMesh -> pv.UnstructuredGrid
-    plot_mesh_with_damage,     # standalone pyvista viewer (needs display)
-)
 
 fig = plot_damage_map(result.damage, config.panel)
 fig.savefig("damage_map.png", dpi=300)
 ```
 
-Note: the 3D pyvista functions work in standalone scripts but are NOT
-embedded in the GUI (VTK/Qt embedding on macOS is flaky — see
-CHANGELOG). Call them from your own Python script to get a rotating
-3D mesh view.
+For an interactive 3D view of the damaged hex mesh (the same figure the
+Streamlit app's "3D Damage" tab shows), build the mesh and render it with
+Plotly:
+
+```python
+from bvidfe.analysis.fe_mesh import build_fe_mesh
+from bvidfe.viz.plotly_3d import mesh_damage_figure  # FeMesh -> plotly Figure
+
+mesh = build_fe_mesh(config, result.damage)
+mesh_damage_figure(mesh).write_html("damage_3d.html")
+```
 
 ## CLI
 

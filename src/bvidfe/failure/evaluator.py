@@ -73,7 +73,11 @@ class FailureEvaluator:
         Python loop. Numerical equivalence to the scalar form is locked by
         ``tests/failure/test_evaluator.py::test_evaluate_matches_scalar_loop``.
         """
-        assert stress_field.ndim == 3 and stress_field.shape[2] == 6
+        stress_field = np.asarray(stress_field, dtype=float)
+        if stress_field.ndim != 3 or stress_field.shape[2] != 6:
+            raise ValueError(
+                f"stress_field must have shape (n_elem, n_gp, 6) (got {stress_field.shape!r})"
+            )
         idx_grid = self._index_batch(stress_field)  # shape (n_elem, n_gp)
         flat_argmax = int(np.argmax(idx_grid))
         crit_e, crit_g = np.unravel_index(flat_argmax, idx_grid.shape)

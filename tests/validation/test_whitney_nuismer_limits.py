@@ -18,11 +18,13 @@ to machine precision once xi is sufficiently far from its boundaries.
 from __future__ import annotations
 
 import math
+import warnings
 
 import pytest
 
+from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
-from bvidfe.failure.soutis_openhole import whitney_nuismer_tai
+from bvidfe.failure.soutis_openhole import lekhnitskii_kt_infinity, whitney_nuismer_tai
 
 
 def test_wn_returns_pristine_at_zero_dpa():
@@ -85,3 +87,47 @@ def test_wn_knockdown_bounded_below_by_asymptote():
         # Allow a tiny slack for floating-point drift near the asymptote.
         assert sigma >= sigma_0 / 3.0 - 1e-9, f"undershoot at DPA={dpa}: {sigma}"
         assert math.isfinite(sigma)
+
+
+@pytest.mark.parametrize(
+    "Kt_inf", [1.2, 2.0, 3.0, 5.0, 7.3, 9.0, 9.5, 12.0, 20.0, 20.4, 30.0, 60.0]
+)
+def test_wn_knockdown_bounded_in_unit_interval(Kt_inf):
+    """0 < knockdown <= 1 for every Kt_inf and DPA, including past the
+    Kt_inf ~ 9.2 onset of kd > 1 and the Kt_inf ~ 20.3 denominator pole."""
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    sigma_0 = 600.0
+    for dpa in [10.0**e for e in range(-3, 9)] + [5.0, 20.0, 50.0, 200.0]:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            sigma = whitney_nuismer_tai(m, dpa_mm2=dpa, sigma_pristine_MPa=sigma_0, Kt_inf=Kt_inf)
+        assert math.isfinite(sigma)
+        assert 0.0 < sigma <= sigma_0, f"Kt_inf={Kt_inf}, DPA={dpa}: {sigma}"
+
+
+@pytest.mark.parametrize("Kt_inf", [12.0, 30.0])
+def test_wn_warns_and_clamps_outside_valid_range(Kt_inf):
+    """xi ~ 0.69 is where the stress-ratio polynomial dips lowest; at
+    Kt_inf=12 the raw knockdown there is ~1.3 and at Kt_inf=30 the
+    denominator is negative."""
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    d0 = m.wn_d0_mm
+    R = 0.69 / (1 - 0.69) * d0  # xi = R / (R + d0) = 0.69
+    dpa = math.pi * R**2
+    with pytest.warns(UserWarning, match="outside its valid range"):
+        sigma = whitney_nuismer_tai(m, dpa_mm2=dpa, sigma_pristine_MPa=600.0, Kt_inf=Kt_inf)
+    assert sigma == 600.0
+
+
+@pytest.mark.parametrize("name", sorted(MATERIAL_LIBRARY))
+@pytest.mark.parametrize(
+    "layup", [[0] * 8, [0, 90] * 4, [0, 45, -45, 90, 90, -45, 45, 0], [45, -45] * 4]
+)
+def test_wn_presets_never_hit_the_clamp(name, layup):
+    """The clamp is a guard for custom cards; preset laminates stay in range."""
+    m = MATERIAL_LIBRARY[name]
+    Kt_inf = lekhnitskii_kt_infinity(Laminate(m, layup, 0.15))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        for dpa in (1.0, 10.0, 100.0, 1000.0, 10_000.0):
+            whitney_nuismer_tai(m, dpa_mm2=dpa, sigma_pristine_MPa=600.0, Kt_inf=Kt_inf)

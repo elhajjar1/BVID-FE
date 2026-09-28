@@ -28,9 +28,20 @@ def lekhnitskii_kt_infinity(lam: Laminate) -> float:
 
     reduces to the isotropic value 3.0 for a quasi-isotropic laminate. The
     engineering constants are taken from ``lam.effective_engineering_constants``.
+
+    Raises ``ValueError`` when the constants make the radicand negative, which
+    only happens for a material card that violates the orthotropic stability
+    bound (nu_xy < sqrt(Ex/Ey)).
     """
     Ex, Ey, Gxy, nuxy = lam.effective_engineering_constants()
-    return 1.0 + math.sqrt(2.0 * (math.sqrt(Ex / Ey) - nuxy) + Ex / Gxy)
+    radicand = 2.0 * (math.sqrt(Ex / Ey) - nuxy) + Ex / Gxy
+    if radicand < 0.0:
+        raise ValueError(
+            "Lekhnitskii Kt_inf is undefined for these laminate constants "
+            f"(Ex={Ex:.4g}, Ey={Ey:.4g}, Gxy={Gxy:.4g}, nu_xy={nuxy:.4g}): "
+            "2*(sqrt(Ex/Ey) - nu_xy) + Ex/Gxy < 0. Check the material card."
+        )
+    return 1.0 + math.sqrt(radicand)
 
 
 def soutis_cai(
@@ -70,6 +81,15 @@ def whitney_nuismer_tai(
     Used by both the ``empirical`` and ``semi_analytical`` tiers for TAI
     (the semi-analytical TAI path delegates here unchanged), so those two
     tiers report mathematically identical knockdown values for tension.
+
+    ``denom / 2`` is the approximate net-section stress ratio at distance
+    d0 from the hole edge, which is physically never below 1. For
+    Kt_inf >~ 9.2 the polynomial dips below 1 (knockdown > 1, i.e. residual
+    above pristine) and for Kt_inf >~ 20.3 it crosses zero (a pole). The
+    material presets stay below Kt_inf ~ 7.3; custom high-modulus cards can
+    reach these values. The ratio is clamped to 1 (knockdown 1.0) with a
+    ``UserWarning`` so the result stays bounded instead of exceeding
+    pristine or diverging.
     """
     if Kt_inf is None:
         warnings.warn(
@@ -86,5 +106,15 @@ def whitney_nuismer_tai(
     d0 = m.wn_d0_mm
     xi = R / (R + d0)
     denom = 2.0 + xi**2 + 3 * xi**4 - (Kt_inf - 3.0) * (5 * xi**6 - 7 * xi**8)
+    if denom < 2.0:
+        raw = "undefined (denominator <= 0)" if denom <= 0 else f"{2.0 / denom:.3g}"
+        warnings.warn(
+            f"Whitney-Nuismer stress-ratio approximation is outside its valid "
+            f"range for Kt_inf={Kt_inf:.3g} at xi={xi:.3g} (raw knockdown "
+            f"{raw}); clamping the knockdown to 1.0.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return sigma_pristine_MPa
     kd = 2.0 / denom
     return kd * sigma_pristine_MPa
