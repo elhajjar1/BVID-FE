@@ -4,6 +4,14 @@ All notable changes to BVID-FE are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.2.1] - 2026-09-29
+
 ### Changed
 
 - **FE3D buckling channel retired the 3D K_g eigensolve in favour of the

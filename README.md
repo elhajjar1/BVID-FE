@@ -211,7 +211,7 @@ If you use BVID-FE in your research, please cite:
   title     = {{BVID-FE}: Barely Visible Impact Damage residual-strength analysis
                for composite laminates},
   year      = {2026},
-  version   = {0.2.0},
+  version   = {0.2.1},
   publisher = {GitHub},
   url       = {https://github.com/ranipdx-glitch/BVID-FE},
   note      = {University of Wisconsin-Milwaukee}
