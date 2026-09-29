@@ -31,8 +31,8 @@ through-thickness and transverse-shear stiffness, while in-plane stiffness is
 preserved (the plies themselves remain intact). Inside the fiber-break core
 under the impact site, in-plane stiffness is also reduced
 (`DAMAGE_FIBER_BREAK_INPLANE_FACTOR ≈ 0.30`) to represent fiber bundle
-fracture. First-ply-failure is evaluated at all Gauss points using LaRC05
-(CAI) and Tsai-Wu (TAI). For CAI, the buckling channel delegates to the
+fracture. First-ply-failure is evaluated at all Gauss points, on stress
+rotated into each ply's material frame, using LaRC05 (CAI) and Tsai-Wu (TAI). For CAI, the buckling channel delegates to the
 Rayleigh-Ritz closed form (issue #129) — the 3D K_g eigensolve previously
 used here was retired because 3D Hex on thin laminates locks too
 aggressively at affordable mesh sizes — and the lower of the buckling

@@ -193,7 +193,7 @@ def test_puck_index_reaches_one_at_returned_strain(strain_sign):
     u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
     material = MATERIAL_LIBRARY[cfg.material]
     max_idx = max(
-        float(puck_index_batch(material, elem.stress_at_gauss_points(u[dofs])).max())
+        float(puck_index_batch(material, elem.stress_at_gauss_points_material(u[dofs])).max())
         for elem, dofs in zip(elements, mesh.element_dof_maps)
     )
     assert max_idx == pytest.approx(1.0, rel=1e-8)
