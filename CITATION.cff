@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "BVID-FE: Barely Visible Impact Damage residual-strength analysis for composite laminates"
-version: 0.1.0
-date-released: 2026-04-17
+version: 0.2.0
+date-released: 2026-05-21
 url: "https://ranipdx-glitch.github.io/BVID-FE/"
 repository-code: "https://github.com/elhajjar1/BVID-FE"
 license: MIT

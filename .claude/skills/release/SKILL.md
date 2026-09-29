@@ -37,10 +37,19 @@ If we're on a non-`main` branch, stop and ask — release tags ship from
 
 ## Steps
 
-### 1. Bump the version in `pyproject.toml`
+### 1. Bump the version everywhere it appears
 
-Change exactly the `[project] version = "X.Y.Z"` line. Nothing else.
-Do not bump dependency pins or touch other metadata in the same commit.
+Set `X.Y.Z` in all four places. `tests/test_package.py` fails CI if they
+disagree:
+
+- `pyproject.toml`: the `[project] version = "X.Y.Z"` line
+- `src/bvidfe/__init__.py`: `__version__ = "X.Y.Z"` (a literal, because
+  the Streamlit Cloud app runs from source without installing the package)
+- `CITATION.cff`: `version: X.Y.Z` and `date-released: YYYY-MM-DD`
+- `README.md`: the `version = {X.Y.Z}` line in the BibTeX citation
+
+Nothing else. Do not bump dependency pins or touch other metadata in the
+same commit. Run `pytest tests/test_package.py` before committing.
 
 ### 2. Roll the changelog
 
@@ -59,7 +68,7 @@ notes are almost always a mistake.
 ### 3. Commit and push to main
 
 ```bash
-git add pyproject.toml CHANGELOG.md
+git add pyproject.toml src/bvidfe/__init__.py CITATION.cff README.md CHANGELOG.md
 git commit -m "Release vX.Y.Z"
 git push origin main
 ```

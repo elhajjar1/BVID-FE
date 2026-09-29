@@ -5,7 +5,7 @@ The most commonly used public types are re-exported here so callers can
 the internal module layout. The deep import paths keep working.
 """
 
-__version__ = "0.2.0.dev0"
+__version__ = "0.2.0"
 
 from bvidfe.analysis import (
     AnalysisConfig,

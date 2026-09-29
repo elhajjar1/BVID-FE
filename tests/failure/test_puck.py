@@ -120,6 +120,24 @@ def test_puck_index_batch_preserves_leading_axes():
     assert puck_index_batch(m, stresses).shape == (4, 8)
 
 
+@pytest.mark.parametrize("c", [0.1, 0.5, 2.0, 7.3])
+def test_puck_index_is_degree_one_homogeneous(c):
+    """puck(c * sigma) == c * puck(sigma) for c > 0.
+
+    The fe3d FPF solve relies on this to find the critical load multiplier
+    analytically (c_crit = 1 / idx_ref) from a single linear-static solve.
+    """
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    rng = np.random.default_rng(29)
+    stresses = rng.standard_normal((50, 6)) * 200.0
+    np.testing.assert_allclose(
+        puck_index_batch(m, c * stresses),
+        c * puck_index_batch(m, stresses),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
 def test_puck_zero_stress_gives_zero():
     m = MATERIAL_LIBRARY["IM7/8552"]
     assert puck_index(m, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]) == 0.0

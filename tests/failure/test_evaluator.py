@@ -40,6 +40,14 @@ def test_evaluator_unknown_criterion_raises():
         FailureEvaluator(m, criterion="bogus")
 
 
+@pytest.mark.parametrize("shape", [(4, 6), (2, 8, 5), (1, 2, 8, 6)])
+def test_evaluate_rejects_bad_stress_field_shape(shape):
+    """Shape check is a ValueError, not an ``assert`` stripped under ``python -O``."""
+    ev = FailureEvaluator(MATERIAL_LIBRARY["IM7/8552"], criterion="tsai_wu")
+    with pytest.raises(ValueError, match=r"\(n_elem, n_gp, 6\)"):
+        ev.evaluate(np.zeros(shape))
+
+
 def test_criterion_registry_contains_known_keys():
     """The registry is the single source of truth for available criteria;
     asserting its keys here pins the supported set so any future addition

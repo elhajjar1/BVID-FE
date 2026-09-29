@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.failure.soutis_openhole import (
@@ -62,3 +64,15 @@ def test_lekhnitskii_kt_quasi_iso_reduces_to_isotropic():
     m = MATERIAL_LIBRARY["IM7/8552"]
     lam = Laminate(m, [0, 45, -45, 90] * 2, 0.125)
     assert math.isclose(lekhnitskii_kt_infinity(lam), 3.0, rel_tol=1e-3)
+
+
+def test_lekhnitskii_kt_rejects_unstable_constants_with_clear_error():
+    """A card violating nu_xy < sqrt(Ex/Ey) used to surface as a bare
+    ``math domain error``; it now names the offending constants."""
+
+    class _UnstableLaminate:
+        def effective_engineering_constants(self):
+            return 10_000.0, 10_000.0, 100_000.0, 2.0  # Ex, Ey, Gxy, nu_xy
+
+    with pytest.raises(ValueError, match="Lekhnitskii Kt_inf is undefined"):
+        lekhnitskii_kt_infinity(_UnstableLaminate())
