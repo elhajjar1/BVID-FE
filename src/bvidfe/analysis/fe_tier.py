@@ -254,6 +254,10 @@ def _solve_failure_strain_analytic(
     scaling by c > 0 never flips a sign-selected branch), so
     idx(c) = c * idx(1) and c_crit = 1 / idx_ref exactly.
 
+    Stresses are rotated into each ply's material frame
+    (``Hex8Element.stress_at_gauss_points_material``) before the criterion
+    sees them; the rotation is linear, so the scaling arguments above hold.
+
     Raises ``ValueError`` for a criterion outside ``CriterionName``.
 
     This replaces the prior 10-12 iteration bisection (each iteration
@@ -277,7 +281,7 @@ def _solve_failure_strain_analytic(
     c_crit_min = np.inf
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
-        sigma_ref = elem.stress_at_gauss_points(u_ref[dof_map])  # (n_gp, 6)
+        sigma_ref = elem.stress_at_gauss_points_material(u_ref[dof_map])  # (n_gp, 6)
 
         if criterion == "larc05":
             idx_ref = larc05_index_batch(material, sigma_ref)  # (n_gp,)
@@ -359,7 +363,7 @@ def _solve_failure_strain_analytic_scalar_ref(
     c_crit_min = np.inf
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
-        sigma_field_ref = elem.stress_at_gauss_points(u_ref[dof_map])
+        sigma_field_ref = elem.stress_at_gauss_points_material(u_ref[dof_map])
         for gp in range(sigma_field_ref.shape[0]):
             sigma_ref = sigma_field_ref[gp]
             if criterion == "larc05":

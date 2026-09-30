@@ -95,12 +95,16 @@ _NODE_COORDS = np.array(
 def _T_sigma_z(theta_rad: float) -> np.ndarray:
     """Voigt stress transformation matrix for rotation about the z-axis.
 
+    Maps global (laminate-frame) stress to the material frame of a ply whose
+    fibers sit at ``+theta_rad`` from x: ``sigma_ply = T @ sigma_global``.
+    The inverse rotation is ``_T_sigma_z(-theta_rad)``.
+
     Cached on ``theta_rad`` because a typical mesh has 1e4-1e5 elements but
     only a handful of distinct ply angles (e.g. a [0/45/-45/90] layup has
     four), so the same 6x6 matrix is otherwise recomputed thousands of times.
     The returned array is marked read-only so that downstream callers cannot
     silently corrupt the cached entry via in-place mutation; ``_compute_
-    global_stiffness`` only reads ``T`` via ``T @ C @ T.T``, which is safe.
+    global_stiffness`` and ``stress_at_gauss_points_material`` only read it.
     """
     c, s = np.cos(theta_rad), np.sin(theta_rad)
     T = np.array(
@@ -146,8 +150,12 @@ class Hex8Element:
         theta = np.radians(self.ply_angle_deg)
         if abs(theta) < 1e-14:
             return C_mat
-        T = _T_sigma_z(theta)
-        return T @ C_mat @ T.T
+        # sigma_global = T^-1 sigma_ply and eps_ply = T^-T eps_global (engineering
+        # shear), so C_global = T^-1 C_ply T^-T with T^-1 = T(-theta). Using T
+        # itself here would give the stiffness of a -theta ply (the xx-xy
+        # coupling sign would disagree with CLT's Q-bar).
+        T_inv = _T_sigma_z(-theta)
+        return T_inv @ C_mat @ T_inv.T
 
     # --- Shape functions and derivatives ---
 
@@ -210,7 +218,8 @@ class Hex8Element:
         return K
 
     def stress_at_gauss_points(self, u_elem: np.ndarray) -> np.ndarray:
-        """Recover Voigt stress (n_gp, 6) at Gauss points from element DOF vector (24,)."""
+        """Recover global-frame Voigt stress (n_gp, 6) at Gauss points from
+        element DOF vector (24,)."""
         tbl = self.geometry_table()
         out = np.empty((tbl.B.shape[0], 6))
         C = self._C_global
@@ -218,6 +227,16 @@ class Hex8Element:
             eps = tbl.B[ig] @ u_elem
             out[ig] = C @ eps
         return out
+
+    def stress_at_gauss_points_material(self, u_elem: np.ndarray) -> np.ndarray:
+        """Recover Voigt stress (n_gp, 6) at Gauss points in the ply material
+        frame ``[s1, s2, s3, t23, t13, t12]`` (1 = fiber), which is what the
+        failure criteria expect."""
+        sigma = self.stress_at_gauss_points(u_elem)
+        theta = np.radians(self.ply_angle_deg)
+        if abs(theta) < 1e-14:
+            return sigma
+        return sigma @ _T_sigma_z(theta).T
 
     def strain_at_gauss_points(self, u_elem: np.ndarray) -> np.ndarray:
         """Recover Voigt strain (n_gp, 6) at Gauss points from element DOF vector (24,)."""

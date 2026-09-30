@@ -34,6 +34,31 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **fe3d first-ply failure checked off-axis plies against the wrong
+  strengths.** Two frame errors in the 3D element, fixed together:
+  - `Hex8Element` built a +theta ply's stiffness as `T C T^T`, where `T`
+    maps global stress into the +theta ply frame. That is the stiffness of
+    a **-theta** ply: the xx-xy coupling had the opposite sign to CLT's
+    Q-bar. It now uses `T^-1 C T^-T`.
+  - The failure solve handed **global-frame** stress to Tsai-Wu / LaRC05 /
+    Puck, which expect ply material-frame `[s1, s2, s3, t23, t13, t12]`. A
+    90 deg ply's transverse stress was compared with `Xc`/`Xt`, and its
+    fiber-direction stress with `Yt`/`Yc`. Stress is now rotated into each
+    ply's frame (`Hex8Element.stress_at_gauss_points_material`).
+
+  First-ply-failure strain on IM7/8552, 150x100 mm, 8 plies x 0.152 mm,
+  20 J impact (before -> after): QI `[0/45/-45/90]s` compression
+  0.139% -> 0.946% (now 0 deg fiber compression, ~`Xc/E11`; before, the
+  90 deg plies' fiber stress was checked against `Yt`), QI tension
+  0.191% -> 0.772%, cross-ply `[0/90]2s` tension 1.494% -> 0.862% (now
+  90 deg ply cracking at ~`Yt/E22`; before, that cracking went undetected,
+  which overstated strength), `[+30/-30/0]s` compression 0.311% -> 0.631%,
+  `[+-45]2s` within 1%. `[0]_4` and `[90]_4` compression coupons now fail
+  within 1% of `Xc/E11` and `Yc/E22` (Tsai-Wu on `[0]_4` sits 4.7% low from
+  boundary-induced through-thickness stress); `[90]_4` used to reach the 5%
+  strain cap without failing. fe3d **tension** residuals move accordingly.
+  Compression knockdowns on these panels are still governed by the
+  unchanged buckling channel, so they do not move.
 - **fe3d first-ply failure silently evaluated Tsai-Wu when asked for Puck.**
   `_solve_failure_strain_analytic` branched `if criterion == "larc05": ...
   else: <Tsai-Wu>`, so `criterion="puck"` (and any typo such as
