@@ -314,7 +314,7 @@ class Laminate:
     def effective_engineering_constants(self) -> tuple[float, float, float, float]:
         """Laminate effective engineering constants from the A-matrix compliance.
 
-        Derived from the extensional compliance a* = A^{-1} / h:
+        Derived from the average-stress extensional compliance a* = h * A^{-1}:
 
             Ex   = 1 / (a*_11)
             Ey   = 1 / (a*_22)
@@ -343,8 +343,9 @@ class Laminate:
                 f"check layup / ply_thickness_mm consistency."
             )
         a = np.linalg.solve(self._A, np.eye(3))  # 3x3 compliance (mm/N)
-        # Normalise by thickness to get extensional compliance per unit modulus
-        a_star = a / h  # 1/MPa
+        # A = h * Q_avg, so the average-stress compliance is h * A^-1 (1/MPa).
+        # Dividing by h instead scaled Ex, Ey and Gxy by h^2 (mm^2).
+        a_star = a * h  # 1/MPa
 
         Ex = 1.0 / a_star[0, 0]
         Ey = 1.0 / a_star[1, 1]
