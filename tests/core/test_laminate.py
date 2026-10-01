@@ -185,3 +185,40 @@ def test_thicker_outer_plies_increase_D11_vs_uniform():
     _, _, D_uni = uniform.abd_matrices()
     _, _, D_thk = thick_outer.abd_matrices()
     assert D_thk[0, 0] > D_uni[0, 0]
+
+
+# ---------------------------------------------------------------------------
+# Effective engineering constants must not depend on laminate thickness.
+# They were computed from a* = A^-1 / h instead of h * A^-1, which scales
+# Ex, Ey and Gxy by h^2 (mm^2). The UD test above uses 8 x 0.125 mm = 1.0 mm,
+# where h^2 = 1, so it could not see the error.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("n_plies,t_ply", [(4, 0.1), (8, 0.152), (16, 0.25), (24, 0.5)])
+def test_unidirectional_effective_constants_equal_ply_constants(n_plies, t_ply):
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    lam = Laminate(m, [0] * n_plies, t_ply)
+    Ex, Ey, Gxy, nuxy = lam.effective_engineering_constants()
+    assert Ex == pytest.approx(m.E11, rel=1e-9)
+    assert Ey == pytest.approx(m.E22, rel=1e-9)
+    assert Gxy == pytest.approx(m.G12, rel=1e-9)
+    assert nuxy == pytest.approx(m.nu12, rel=1e-9)
+
+
+@pytest.mark.parametrize("layup", [[0, 90, 90, 0], [0, 45, -45, 90, 90, -45, 45, 0]])
+def test_effective_constants_independent_of_ply_thickness(layup):
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    thin = Laminate(m, layup, 0.1).effective_engineering_constants()
+    thick = Laminate(m, layup, 0.4).effective_engineering_constants()
+    np.testing.assert_allclose(thick, thin, rtol=1e-9)
+
+
+def test_cross_ply_Ex_matches_closed_form():
+    """With A16 = A26 = 0, Ex = (A11 - A12^2 / A22) / h."""
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    lam = Laminate(m, [0, 90, 0, 90, 90, 0, 90, 0], 0.152)
+    A, _, _ = lam.abd_matrices()
+    expected = (A[0, 0] - A[0, 1] ** 2 / A[1, 1]) / lam.thickness_mm
+    Ex, _, _, _ = lam.effective_engineering_constants()
+    assert Ex == pytest.approx(expected, rel=1e-9)

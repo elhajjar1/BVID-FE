@@ -34,6 +34,22 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **`Laminate.effective_engineering_constants` was off by a factor of
+  h^2.** It formed the average-stress compliance as `A^-1 / h` instead of
+  `h * A^-1`, so `Ex`, `Ey` and `Gxy` were scaled by the laminate thickness
+  squared (in mm^2); `nu_xy` was unaffected. On IM7/8552 quasi-isotropic
+  laminates `Ex` was 92.3 GPa at 8 plies (1.22 mm) and 830.9 GPa at 24
+  plies (3.65 mm); it is now 62.4 GPa for both. The existing unidirectional
+  test used 8 x 0.125 mm = 1.0 mm, where h^2 = 1, so it could not see the
+  error. The Lekhnitskii `Kt_inf` uses only ratios of these constants and
+  does not change. fe3d converts its failure strain to stress with `Ex`,
+  so fe3d first-ply-failure and tension residuals drop by the same factor
+  unless they were capped at pristine strength. At 20 J on a 150x100 mm
+  panel the fe3d tension knockdown goes 0.541 -> 0.366 (QI, 8 plies),
+  0.844 -> 0.571 (cross-ply, 8 plies) and 1.000 -> 0.362 (QI, 24 plies,
+  where the inflated value had been capped at pristine and showed no
+  knockdown). fe3d compression knockdowns on these panels are
+  buckling-governed and do not change.
 - **fe3d first-ply failure checked off-axis plies against the wrong
   strengths.** Two frame errors in the 3D element, fixed together:
   - `Hex8Element` built a +theta ply's stiffness as `T C T^T`, where `T`
