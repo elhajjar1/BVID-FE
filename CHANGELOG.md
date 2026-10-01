@@ -6,6 +6,24 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **fe3d knockdown is now fe3d's damaged strength over its own undamaged
+  strength.** fe3d's failure stresses (first-ply failure on the 3D mesh,
+  panel and sublaminate buckling) are not the same quantity as the shared
+  `pristine_strength_MPa` (a thickness-weighted ply-strength average), so
+  dividing one by the other reported a knockdown for an **undamaged** panel:
+  0.366 in tension and 0.032 in compression on an 8-ply IM7/8552 QI
+  150x100 mm panel, where the empirical and semi-analytical tiers report
+  1.000. `BvidAnalysis` now runs fe3d twice (damaged and undamaged, both
+  uncapped), sets `knockdown = min(1, damaged / undamaged)`, and reports
+  `residual_strength_MPa = knockdown * pristine_strength_MPa`, so the shared
+  pristine baseline and `knockdown = residual / pristine` hold for every
+  tier. An undamaged panel now gives 1.000 in fe3d too. The raw damaged and
+  undamaged fe3d stresses are added to `AnalysisResults.notes`. fe3d runs
+  take about twice as long. On the 16-ply QI validation cases (5/10/15 J)
+  the fe3d compression knockdown moves 0.007/0.003/0.002 ->
+  0.043/0.020/0.013. A degenerate fe3d buckling result now drops the
+  buckling channel (first-ply failure alone sets the result) rather than
+  substituting pristine strength; its note wording says so.
 - **FE3D buckling channel retired the 3D K_g eigensolve in favour of the
   Rayleigh-Ritz closed form (issue #129, PR #130).** Investigation on the
   #98 thread established that even after the K_g sign fix (#128), the 3D

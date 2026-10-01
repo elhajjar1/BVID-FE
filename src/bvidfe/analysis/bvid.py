@@ -99,28 +99,9 @@ class BvidAnalysis:
             buckling_eigs = [N_cr] if N_cr is not None else None
             field_results = None
         elif self.config.tier == "fe3d":
-            if self.config.loading == "compression":
-                # Buckling delegates to the Rayleigh-Ritz closed form
-                # (#129); only a degenerate input (returned via the
-                # ``buckling_notes`` channel) triggers the pristine
-                # fallback. The implausibility guard previously here
-                # existed because the old 3D K_g eigensolve mis-predicted
-                # by ~100x and we needed to discard its result; with the
-                # closed-form delegation a sub-5%-of-pristine answer is
-                # the physically expected outcome for slender panels and
-                # must be kept.
-                sigma_buckling, lambda_crit, buckling_notes = fe3d_cai_buckling(
-                    self.config, damage, lam, sigma_0
-                )
-                notes.extend(buckling_notes)
-                if buckling_notes:
-                    warnings_tags.append("fe3d_buckling_fallback")
-                sigma_fpf = _fe3d_cai_first_ply_failure(self.config, damage, lam, sigma_0)
-                sigma = min(sigma_buckling, sigma_fpf)
-                buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
-            else:
-                sigma = fe3d_tai(self.config, damage, lam, sigma_0)
-                buckling_eigs = None
+            sigma, buckling_eigs, fe3d_notes, fe3d_tags = self._fe3d(lam, damage, sigma_0)
+            notes.extend(fe3d_notes)
+            warnings_tags.extend(fe3d_tags)
             critical_interface = None
             field_results = None
         else:
@@ -140,6 +121,60 @@ class BvidAnalysis:
             notes=notes,
             warnings=warnings_tags,
         )
+
+    def _fe3d_raw_strength(
+        self, lam: Laminate, damage: DamageState
+    ) -> tuple[float, float, list[str]]:
+        """Uncapped fe3d strength (MPa): min(buckling, first-ply failure) in
+        compression, first-ply failure in tension.
+
+        Returns ``(sigma, lambda_crit, buckling_notes)``. The channels are
+        called with an infinite pristine cap so that two results above
+        ``_pristine_strength`` still keep their true ratio.
+        """
+        if self.config.loading == "compression":
+            # Buckling delegates to the Rayleigh-Ritz closed form (#129); a
+            # degenerate result comes back through ``buckling_notes`` and
+            # drops the buckling channel. With the closed form, a buckling
+            # stress far below pristine is the expected answer for slender
+            # panels and must be kept.
+            sigma_buckling, lambda_crit, buckling_notes = fe3d_cai_buckling(
+                self.config, damage, lam, math.inf
+            )
+            sigma_fpf = _fe3d_cai_first_ply_failure(self.config, damage, lam, math.inf)
+            return min(sigma_buckling, sigma_fpf), lambda_crit, buckling_notes
+        return fe3d_tai(self.config, damage, lam, math.inf), 0.0, []
+
+    def _fe3d(
+        self, lam: Laminate, damage: DamageState, sigma_0: float
+    ) -> tuple[float, list[float] | None, list[str], list[str]]:
+        """fe3d residual strength on the shared pristine scale.
+
+        fe3d's own failure stresses (first-ply failure on the 3D mesh, panel
+        and sublaminate buckling) are not the same quantity as
+        ``_pristine_strength``, so dividing one by the other reported a
+        knockdown below 1 for an undamaged panel. The knockdown is instead
+        fe3d's damaged strength over its own undamaged strength, applied to
+        ``sigma_0`` so that ``pristine_strength_MPa`` stays the same for every
+        tier and ``knockdown = residual / pristine`` still holds. This costs
+        a second fe3d solve on the undamaged mesh.
+
+        Returns ``(residual_MPa, buckling_eigenvalues, notes, warning_tags)``.
+        """
+        sigma_damaged, lambda_crit, buckling_notes = self._fe3d_raw_strength(lam, damage)
+        sigma_undamaged, _, _ = self._fe3d_raw_strength(
+            lam, DamageState(delaminations=[], dent_depth_mm=0.0)
+        )
+        knockdown = min(1.0, sigma_damaged / sigma_undamaged)
+        notes = list(buckling_notes)
+        notes.append(
+            f"fe3d knockdown = damaged {sigma_damaged:.1f} MPa / undamaged "
+            f"{sigma_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
+            f"pristine_strength_MPa"
+        )
+        tags = ["fe3d_buckling_fallback"] if buckling_notes else []
+        buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
+        return sigma_0 * knockdown, buckling_eigs, notes, tags
 
     def _resolve_damage(self, lam: Laminate) -> DamageState:
         if self.config.damage is not None:
