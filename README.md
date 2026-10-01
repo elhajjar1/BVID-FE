@@ -170,7 +170,9 @@ knockdown = residual_strength_MPa / pristine_strength_MPa
 |---|---|---|
 | `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_panel)^m)` | Whitney-Nuismer point-stress on equivalent hole |
 | `semi_analytical` | `min(Soutis, σ_buckling_sublam)` — adds Rayleigh-Ritz sublaminate buckling floor | Delegates to Whitney-Nuismer (mathematically identical to `empirical`) |
-| `fe3d` | `min(λ_crit·σ_ref, FPF_LaRC05)`, capped at σ₀ | FPF Tsai-Wu on damaged mesh, capped at σ₀ |
+| `fe3d` | `σ₀ × min(σ_buckling, FPF_LaRC05)` damaged ÷ the same quantity undamaged | `σ₀ × FPF_Tsai-Wu` damaged ÷ undamaged |
+
+fe3d's own failure stresses (first-ply failure on the 3D mesh, panel and sublaminate buckling) are not the same kind of quantity as σ₀, so fe3d is normalised by an undamaged fe3d run of the same panel: an undamaged panel gives a knockdown of exactly 1.0 in every tier, and fe3d runs its solve twice. The raw damaged and undamaged fe3d stresses are recorded in `AnalysisResults.notes`.
 
 **What this means for users:**
 
@@ -180,7 +182,7 @@ knockdown = residual_strength_MPa / pristine_strength_MPa
   - For **CAI**, `semi_analytical ≤ empirical` always (the buckling floor only lowers the residual). `fe3d` is independent and dominated by stress concentration at the damage boundary rather than damage magnitude — see the flat-vs-energy caveat in [Limitations](#limitations).
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with DPA) or `semi_analytical` (Rayleigh-Ritz scales with ellipse size). `fe3d` is intended for stress-field context and through-thickness damage visualization, not energy-dependent knockdown curves.
 - A few silent fallbacks affect interpretation:
-  - `fe3d` buckling: the buckling channel delegates to the Rayleigh-Ritz closed form (issue #129); when the closed form returns a degenerate result (e.g. a zero-area sublaminate), the buckling stress is discarded and FPF — or, in pure-buckling failure, σ₀ — is reported instead. The reason is surfaced as a string in `AnalysisResults.notes` and tagged `fe3d_buckling_fallback` in `result.warnings`, so a `knockdown` of 1.0 from `fe3d` is distinguishable from a degenerate-input fallback by inspecting `result.notes`.
+  - `fe3d` buckling: the buckling channel delegates to the Rayleigh-Ritz closed form (issue #129); when the closed form returns a degenerate result (e.g. a zero-area sublaminate), the buckling channel is dropped and first-ply failure alone sets fe3d's damaged strength. The reason is surfaced as a string in `AnalysisResults.notes` and tagged `fe3d_buckling_fallback` in `result.warnings`; check that tag to tell this case apart from a normal fe3d result.
   - DPA is globally capped at 80% of panel area (`src/bvidfe/impact/mapping.py`); above this damage threshold all three tiers saturate.
 
 ### Damage severity heatmap

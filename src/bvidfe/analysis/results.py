@@ -73,7 +73,10 @@ class AnalysisResults:
       lamina-level strengths from the material card (see
       ``bvidfe.analysis.bvid._pristine_strength``). Same denominator for
       every tier.
-    - ``residual_strength_MPa`` is the tier-specific damaged strength.
+    - ``residual_strength_MPa`` is the tier-specific damaged strength. For
+      fe3d it is ``pristine_strength_MPa`` times fe3d's damaged strength
+      over fe3d's own undamaged strength, so an undamaged fe3d run gives
+      a knockdown of 1.0; the raw fe3d stresses are recorded in ``notes``.
     - ``knockdown = residual_strength_MPa / pristine_strength_MPa``,
       assigned in ``BvidAnalysis.run()``.
 
@@ -84,9 +87,11 @@ class AnalysisResults:
 
     ``notes`` carries free-form runtime diagnostics emitted by the analysis
     backends — primarily silent fallbacks that affect the interpretation of
-    ``knockdown`` (e.g. the fe3d buckling channel returning pristine because
-    the Rayleigh-Ritz closed form gave a degenerate result, #129). Empty
-    list when the run produced no diagnostic-worthy events.
+    ``knockdown`` (e.g. the fe3d buckling channel being dropped because the
+    Rayleigh-Ritz closed form gave a degenerate result, #129). fe3d runs
+    always add one line with the raw damaged and undamaged fe3d stresses
+    behind the knockdown. Otherwise empty when the run produced no
+    diagnostic-worthy events.
     """
 
     residual_strength_MPa: float
@@ -108,7 +113,7 @@ class AnalysisResults:
     #:
     #: - ``"fe3d_buckling_fallback"`` — the fe3d buckling channel
     #:   (Rayleigh-Ritz closed-form delegation, #129) returned a degenerate
-    #:   result and fell back to pristine strength.
+    #:   result and was dropped, so first-ply failure alone set the residual.
     #:
     #: The ``impactor_mass_ratio_below_unity`` / ``dpa_panel_area_cap_clipped``
     #: regimes currently surface only via Python ``UserWarning`` + ``notes``;
