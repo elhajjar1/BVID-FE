@@ -6,6 +6,42 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **Compression strength in the `semi_analytical` and `fe3d` tiers is now
+  the stress at which a buckled sublaminate grows its delamination, not the
+  stress at which it buckles.** A thin sublaminate over a BVID-sized
+  delamination buckles at a few MPa and keeps carrying load, so taking
+  buckling onset as the strength gave CAI knockdowns of 0.002-0.06
+  against 0.3-0.6 from the empirical tier.
+  The onset stress was also compared with the laminate stress directly,
+  although it is a stress in the sublaminate. The new
+  `sublaminate_growth_stress` sets the thin-film energy release rate
+  `G = h/(2E_f)·(σ−σ_c)(σ+3σ_c)` (Chai, Babcock & Knauss 1981; Hutchinson
+  & Suo 1992) equal to a Benzeggagh-Kenane mixed-mode toughness
+  (`mixed_mode_toughness`: `G_Ic`/`G_IIc` at a 52.1° phase angle, η = 2;
+  0.478 N/mm for IM7/8552), and converts the sublaminate stress at growth
+  to a laminate stress through the shared far-field strain.
+  `weakest_sublaminate_growth` takes the minimum over all delaminated
+  interfaces (largest ellipse at each); the area-times-depth heuristic in
+  `find_critical_interface` often picked a single 90° ply whose growth
+  never governs. `semi_analytical` CAI is `min(Soutis, growth)` and
+  `critical_sublaminate` is the growth interface. fe3d CAI is
+  `min(growth, first-ply failure)`, normalised by its undamaged run as
+  before, and now also reports `critical_sublaminate`. Whole-panel
+  buckling no longer enters the fe3d knockdown: CAI fixtures carry
+  anti-buckling guides, and with panel buckling in both the damaged and
+  undamaged strengths an 8-ply 200x150 mm panel reported a knockdown of
+  1.0 for any delamination that grew above the panel's 12.6 MPa buckling
+  stress. Its value is recorded in `AnalysisResults.notes`; buckling onset
+  stays in `buckling_eigenvalues` (unchanged meaning, no longer sets the
+  strength). The `fe3d_buckling_fallback` warning tag is retired, since
+  buckling no longer sets the fe3d residual. On a 16-ply IM7/8552 QI
+  150x100 mm panel at 15 J the `semi_analytical` CAI knockdown moves
+  0.002 -> 0.286 (empirical 0.387), and on the 16-ply 200x150 mm CLI
+  snapshot case at 10 J 0.055 -> 0.306. On an 8-ply QI 150x100 mm panel
+  the fe3d CAI knockdown is 0.45-0.48 from 3 to 20 J. The growth
+  stress changes little with delamination size once the sublaminate
+  buckles well below it (between 0.87x and 1x the steady-state value), so
+  these tiers are nearly flat with impact energy; see README "Limitations".
 - **fe3d knockdown is now fe3d's damaged strength over its own undamaged
   strength.** fe3d's failure stresses (first-ply failure on the 3D mesh,
   panel and sublaminate buckling) are not the same quantity as the shared

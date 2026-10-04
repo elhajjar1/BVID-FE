@@ -169,9 +169,11 @@ def test_sublaminate_selection_uses_thickness_not_ply_count():
         _sublaminate_D_matrix,
         semi_analytical_cai,
         sublaminate_buckling_load,
+        weakest_sublaminate_growth,
     )
     from bvidfe.core.laminate import Laminate
     from bvidfe.core.material import MATERIAL_LIBRARY
+    from bvidfe.failure.soutis_openhole import soutis_cai
 
     m = MATERIAL_LIBRARY["IM7/8552"]
     layup = [0, 90, 0, 90, 0, 90]
@@ -225,23 +227,27 @@ def test_sublaminate_selection_uses_thickness_not_ply_count():
     assert N == pytest.approx(N_lower_ref, rel=1e-12)
     assert not math.isclose(N, N_upper_ref, rel_tol=1e-6)
 
-    # End-to-end: semi_analytical_cai must use the same geometrically
-    # thinner sublaminate for its h_sub normalisation. Drive the buckling
-    # tier with a large delamination at interface 1 so it controls the min.
+    # End-to-end: the delamination growth behind semi_analytical_cai must
+    # use the same geometrically thinner sublaminate for its h_sub
+    # normalisation.
     ds = DamageState(
         [DelaminationEllipse(1, (0.0, 0.0), 60.0, 40.0, 0.0)],
         dent_depth_mm=0.5,
     )
     result = semi_analytical_cai(lam, ds, sigma_pristine_MPa=500.0, A_panel_mm2=15000.0)
-    sigma_cai = result.residual_strength_MPa
-    crit_idx = result.critical_interface_index
+    growth = weakest_sublaminate_growth(lam, ds)
     N_cr = result.critical_buckling_load_N
-    assert crit_idx == 1
+    assert result.critical_interface_index == 1
+    assert growth.buckling_load_N_per_mm == pytest.approx(N_cr, rel=1e-12)
     # h_sub must equal the lower (thinner) stack's total thickness (0.4 mm),
-    # so sigma_buckling = N_cr / 0.4. If the buggy logic picked the upper
-    # stack we'd divide by 1.0 mm instead and get a stress 2.5x smaller.
-    sigma_buckling_expected = N_cr / sum(lower_t)
-    assert sigma_cai == pytest.approx(min(sigma_buckling_expected, 500.0), rel=1e-9)
+    # so the film buckling stress is N_cr / 0.4. If the buggy logic picked
+    # the upper stack we'd divide by 1.0 mm instead and get a stress 2.5x
+    # smaller.
+    assert growth.film_buckling_stress_MPa == pytest.approx(N_cr / sum(lower_t), rel=1e-9)
+    soutis = soutis_cai(m, ds.projected_damage_area_mm2, 15000.0, 500.0)
+    assert result.residual_strength_MPa == pytest.approx(
+        min(soutis, growth.growth_stress_MPa), rel=1e-9
+    )
 
 
 def test_sublaminate_selection_matches_uniform_for_uniform_laminate():

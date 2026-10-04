@@ -94,12 +94,11 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             "10",
         ],
         {
-            # Recaptured after rebase onto main with the #29 (full-plate
-            # SSSS buckling dims) and #18 (sublaminate selection by
-            # through-thickness) fixes — semi_analytical knockdown
-            # tightened from 0.221 to 0.055.
-            "knockdown": 0.05512833900538707,
-            "residual_strength_MPa": 48.92640086728104,
+            # Recaptured when the sublaminate channel changed from buckling
+            # onset to buckling-driven delamination growth — knockdown
+            # rose from 0.055 to 0.306.
+            "knockdown": 0.30587457624830694,
+            "residual_strength_MPa": 271.4636864203725,
             "pristine_strength_MPa": 887.5000000000002,
             "dpa_mm2": 3659.9324669198636,
             "tier_used": "semi_analytical",

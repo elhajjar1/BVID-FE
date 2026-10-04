@@ -1,4 +1,4 @@
-"""Semi-analytical tier: sublaminate Rayleigh-Ritz buckling + critical interface scoring.
+"""Semi-analytical tier: sublaminate buckling and delamination growth.
 
 The ellipse is approximated as its enclosing simply-supported rectangle
 with full side lengths (2 * major_mm) x (2 * minor_mm) in the panel
@@ -12,6 +12,11 @@ Sublaminate selection: the plies above the delaminated interface form the
 thinner buckling sublaminate (closer to the impact face for interfaces in
 the upper half of the laminate). We always use the smaller of the two
 sublaminates because it buckles first.
+
+Buckling of the sublaminate does not fail the laminate; the compressive
+strength is the far-field stress at which the buckled sublaminate grows its
+delamination (:func:`sublaminate_growth_stress`), minimised over the
+delaminated interfaces (:func:`weakest_sublaminate_growth`).
 """
 
 from __future__ import annotations
@@ -41,13 +46,13 @@ class SemiAnalyticalResult:
     ----------
     residual_strength_MPa : float
         Compression-after-impact residual strength in MPa. The minimum of
-        the Soutis empirical knockdown and the sublaminate buckling stress
+        the Soutis empirical knockdown and the delamination growth stress
         when damage is present; equal to the pristine strength when the
         damage state is empty.
     critical_interface_index : int | None
-        Index of the interface that scored highest in
-        :func:`find_critical_interface`. ``None`` when the damage state
-        contains no delaminations.
+        Interface whose delamination grows at the lowest far-field stress
+        (:func:`weakest_sublaminate_growth`). ``None`` when the damage
+        state contains no delaminations.
     critical_buckling_load_N : float | None
         Sublaminate buckling force per unit width (N/mm) at the critical
         interface. ``None`` when there is no damage or when the buckling
@@ -87,6 +92,70 @@ _MAX_SUBLAMINATE_ASPECT: float = 50.0
 class DegenerateThinSublaminateWarning(UserWarning):
     """The buckling sublaminate is so slender that its aspect ratio was
     clipped to the trusted domain; the buckling channel may be inactive."""
+
+
+# Mode mix of the delamination toughness used for growth. 52.1 deg is the
+# Hutchinson & Suo (1992) phase angle omega for a thin film on a substrate of
+# the same material loaded by an edge force alone. At the edge of a buckled
+# strip the phase angle moves from about 38 deg at buckling onset towards
+# mode II as the film stress rises, so a fixed value is a representative
+# mix, not a tracked one. The Benzeggagh-Kenane (1996) exponent is the
+# typical value for carbon/epoxy.
+_GROWTH_PHASE_ANGLE_DEG: float = 52.1
+_BK_EXPONENT: float = 2.0
+
+
+@dataclass(frozen=True)
+class SublaminateGrowth:
+    """Buckling-driven growth of one delamination.
+
+    Attributes
+    ----------
+    interface_index : int
+        Delaminated interface.
+    buckling_load_N_per_mm : float
+        Buckling force per unit width of the thinner sublaminate (N/mm),
+        from :func:`sublaminate_buckling_load`.
+    film_buckling_stress_MPa : float
+        Sublaminate stress at buckling, ``buckling_load_N_per_mm / h``.
+    film_growth_stress_MPa : float
+        Sublaminate stress at which the delamination grows.
+    growth_stress_MPa : float
+        Far-field laminate stress at which the delamination grows. ``inf``
+        when the sublaminate is degenerate.
+    """
+
+    interface_index: int
+    buckling_load_N_per_mm: float
+    film_buckling_stress_MPa: float
+    film_growth_stress_MPa: float
+    growth_stress_MPa: float
+
+
+def mixed_mode_toughness(material: OrthotropicMaterial) -> float:
+    """Delamination toughness (N/mm) at the thin-film mode mix.
+
+    Benzeggagh-Kenane: ``G_c = G_Ic + (G_IIc - G_Ic) * (G_II / G)^eta``
+    with ``G_II / G = sin^2(psi)``, ``psi = 52.1 deg`` and ``eta = 2``.
+    0.478 N/mm for IM7/8552.
+    """
+    mode_ii_fraction = math.sin(math.radians(_GROWTH_PHASE_ANGLE_DEG)) ** 2
+    return material.G_Ic + (material.G_IIc - material.G_Ic) * mode_ii_fraction**_BK_EXPONENT
+
+
+def _thinner_sublaminate(lam: Laminate, interface_index: int) -> tuple[list[float], list[float]]:
+    """Layup and per-ply thicknesses of the thinner sublaminate at an interface.
+
+    Chooses between "above" (plies 0..i) and "below" (plies i+1..) by
+    through-thickness (sum of per-ply thicknesses), not ply count — for
+    non-uniform laminates the side with fewer plies may be the geometrically
+    thicker one, and the *thinner* stack is what buckles first.
+    """
+    i = interface_index
+    thicknesses = lam.ply_thicknesses_mm
+    if sum(thicknesses[: i + 1]) <= sum(thicknesses[i + 1 :]):
+        return list(lam.layup_deg[: i + 1]), thicknesses[: i + 1]
+    return list(lam.layup_deg[i + 1 :]), thicknesses[i + 1 :]
 
 
 def _sublaminate_D_matrix(
@@ -171,27 +240,7 @@ def sublaminate_buckling_load(
         already multiplied by the boundary factor. Returns ``inf`` when the
         sublaminate is degenerate (zero plies, zero ellipse area).
     """
-    i = ellipse.interface_index
-    full_layup = lam.layup_deg
-    full_thicknesses = lam.ply_thicknesses_mm
-
-    # Choose the geometrically thinner sublaminate between "above" (plies
-    # 0..i) and "below" (plies i+1..). Selection is by through-thickness
-    # (sum of per-ply thicknesses), not ply count — for non-uniform
-    # laminates the side with fewer plies may be the geometrically thicker
-    # one, and the *thinner* stack is what buckles first.
-    upper_layup = full_layup[: i + 1]
-    lower_layup = full_layup[i + 1 :]
-    upper_thicknesses = full_thicknesses[: i + 1]
-    lower_thicknesses = full_thicknesses[i + 1 :]
-    upper_t_total = sum(upper_thicknesses)
-    lower_t_total = sum(lower_thicknesses)
-    if upper_t_total <= lower_t_total:
-        sub_layup = upper_layup
-        sub_thicknesses = upper_thicknesses
-    else:
-        sub_layup = lower_layup
-        sub_thicknesses = lower_thicknesses
+    sub_layup, sub_thicknesses = _thinner_sublaminate(lam, ellipse.interface_index)
     if len(sub_layup) == 0:
         return float("inf")
 
@@ -327,6 +376,90 @@ def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]
     return best_idx
 
 
+def sublaminate_growth_stress(
+    lam: Laminate,
+    ellipse: DelaminationEllipse,
+    boundary: str = "simply_supported",
+) -> SublaminateGrowth:
+    """Far-field compressive stress at which a delamination grows (MPa).
+
+    The thinner sublaminate over the delamination buckles at the film
+    stress ``sigma_c = N_cr / h`` (:func:`sublaminate_buckling_load`), and
+    keeps carrying load after buckling. The delamination grows when the
+    energy release rate of the buckled film (Chai, Babcock & Knauss 1981;
+    Hutchinson & Suo 1992, straight-sided blister)
+
+        G = h / (2 E_f) * (sigma - sigma_c) * (sigma + 3 sigma_c)
+
+    reaches the mixed-mode toughness ``G_c`` (:func:`mixed_mode_toughness`),
+    i.e. at the film stress
+
+        sigma_g = -sigma_c + sqrt(4 sigma_c^2 + 2 E_f G_c / h)
+
+    which tends to ``sqrt(2 E_f G_c / h)`` for a film that buckles at a
+    negligible stress. Film and laminate share the far-field strain: under
+    a uniaxial laminate stress ``sigma_x`` (strains from the laminate's
+    extensional compliance) the film x-stress is ``k * sigma_x`` with
+    ``k = A_sub[0, :] . a*[:, 0] / h``, ``E_f = k * Ex`` is the film stress
+    per unit laminate strain, and the laminate stress at growth is
+    ``sigma_g / k``.
+
+    The thin-film energy release rate assumes the sublaminate is thin
+    compared with the rest of the laminate; it is least accurate for
+    sublaminates near the mid-plane.
+
+    Returns a :class:`SublaminateGrowth` with ``growth_stress_MPa = inf``
+    when the sublaminate is degenerate (no plies, zero-area ellipse).
+    """
+    i = ellipse.interface_index
+    sub_layup, sub_thicknesses = _thinner_sublaminate(lam, i)
+    N_cr = sublaminate_buckling_load(lam, ellipse, boundary=boundary)
+    h = float(sum(sub_thicknesses))
+    if len(sub_layup) == 0 or h <= 0 or not math.isfinite(N_cr) or N_cr <= 0:
+        return SublaminateGrowth(i, N_cr, math.inf, math.inf, math.inf)
+
+    A_lam, _, _ = lam.abd_matrices()
+    a_star = np.linalg.solve(A_lam, np.eye(3)) * lam.thickness_mm  # 1/MPa
+    A_sub, _, _ = Laminate(lam.material, sub_layup, sub_thicknesses).abd_matrices()
+    k = float(A_sub[0, :] @ a_star[:, 0]) / h
+    if not math.isfinite(k) or k <= 0:
+        return SublaminateGrowth(i, N_cr, N_cr / h, math.inf, math.inf)
+    E_f = k / float(a_star[0, 0])
+
+    sigma_c = N_cr / h
+    G_c = mixed_mode_toughness(lam.material)
+    sigma_g = -sigma_c + math.sqrt(4.0 * sigma_c**2 + 2.0 * E_f * G_c / h)
+    return SublaminateGrowth(
+        interface_index=i,
+        buckling_load_N_per_mm=N_cr,
+        film_buckling_stress_MPa=sigma_c,
+        film_growth_stress_MPa=sigma_g,
+        growth_stress_MPa=sigma_g / k,
+    )
+
+
+def weakest_sublaminate_growth(
+    lam: Laminate,
+    damage: DamageState,
+    boundary: str = "simply_supported",
+) -> Optional[SublaminateGrowth]:
+    """The delamination that grows at the lowest far-field stress.
+
+    Evaluates :func:`sublaminate_growth_stress` for the largest ellipse at
+    each delaminated interface and returns the minimum (lowest interface
+    index on a tie). ``None`` when there are no delaminations.
+    """
+    largest: dict[int, DelaminationEllipse] = {}
+    for e in damage.delaminations:
+        current = largest.get(e.interface_index)
+        if current is None or e.area_mm2 > current.area_mm2:
+            largest[e.interface_index] = e
+    if not largest:
+        return None
+    growths = [sublaminate_growth_stress(lam, largest[i], boundary) for i in sorted(largest)]
+    return min(growths, key=lambda g: g.growth_stress_MPa)
+
+
 def semi_analytical_cai(
     lam: Laminate,
     damage: DamageState,
@@ -338,9 +471,12 @@ def semi_analytical_cai(
 
     Takes the minimum of:
       (a) Soutis empirical knockdown at total DPA, and
-      (b) critical sublaminate buckling stress at the most critical interface
-          (boundary-aware — clamped parent panels are ~1.9x stiffer, free
-          ~0.5x, relative to simply-supported).
+      (b) the far-field stress at which the weakest delamination grows by
+          sublaminate buckling (:func:`weakest_sublaminate_growth`;
+          boundary-aware through the sublaminate buckling stress).
+
+    Sublaminate buckling onset alone is not used: a thin sublaminate over
+    a BVID-sized delamination buckles at a few MPa and keeps carrying load.
 
     Because of (b), the returned residual stress is always less-than-or-equal
     to the empirical-tier result on the same input — so the resulting
@@ -366,45 +502,14 @@ def semi_analytical_cai(
     dpa = damage.projected_damage_area_mm2
     sigma_soutis = soutis_cai(lam.material, dpa, A_panel_mm2, sigma_pristine_MPa)
 
-    # Sublaminate buckling bound
-    crit_idx = find_critical_interface(damage, lam)
-    if crit_idx is None:
-        return SemiAnalyticalResult(
-            residual_strength_MPa=sigma_soutis,
-            critical_interface_index=None,
-            critical_buckling_load_N=None,
-        )
-
-    # Largest ellipse at that interface drives buckling
-    ellipses_at_crit = [e for e in damage.delaminations if e.interface_index == crit_idx]
-    critical_ellipse = max(ellipses_at_crit, key=lambda e: e.area_mm2)
-    N_cr_per_mm = sublaminate_buckling_load(lam, critical_ellipse, boundary=boundary)  # N/mm
-
-    # Sublaminate thickness — sum the actual per-ply thicknesses of whichever
-    # half ("above" or "below" the interface) is the buckling sublaminate.
-    # Selection is by through-thickness (not ply count) so that for
-    # non-uniform laminates the geometrically thinner stack is picked —
-    # this must match the selection in ``sublaminate_buckling_load``.
-    thicknesses = lam.ply_thicknesses_mm
-    upper_t = thicknesses[: crit_idx + 1]
-    lower_t = thicknesses[crit_idx + 1 :]
-    upper_t_total = sum(upper_t)
-    lower_t_total = sum(lower_t)
-    sub_t = upper_t if upper_t_total <= lower_t_total else lower_t
-    if len(sub_t) == 0:
-        return SemiAnalyticalResult(
-            residual_strength_MPa=sigma_soutis,
-            critical_interface_index=crit_idx,
-            critical_buckling_load_N=None,
-        )
-    h_sub = float(sum(sub_t))
-    sigma_buckling = N_cr_per_mm / h_sub if h_sub > 0 else float("inf")
-
-    sigma_cai = min(sigma_soutis, sigma_buckling)
+    # Delamination growth bound (damage.delaminations is non-empty here)
+    weakest = weakest_sublaminate_growth(lam, damage, boundary=boundary)
+    assert weakest is not None
+    N_cr = weakest.buckling_load_N_per_mm
     return SemiAnalyticalResult(
-        residual_strength_MPa=sigma_cai,
-        critical_interface_index=crit_idx,
-        critical_buckling_load_N=N_cr_per_mm,
+        residual_strength_MPa=min(sigma_soutis, weakest.growth_stress_MPa),
+        critical_interface_index=weakest.interface_index,
+        critical_buckling_load_N=N_cr if math.isfinite(N_cr) else None,
     )
 
 

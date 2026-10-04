@@ -23,7 +23,8 @@ Confirm with the user:
 2. Whether it supports **both** loading modes (`compression` and
    `tension`) or just one. `empirical` and `semi_analytical` support
    both via separate functions; `fe3d` splits compression into a
-   buckling channel + first-ply-failure channel and a tension channel.
+   delamination-growth channel + first-ply-failure channel and a tension
+   channel.
 3. What `BvidAnalysis.run` should populate on the returned
    `AnalysisResults`:
    - `buckling_eigenvalues` (set when the tier produces them, else `None`)

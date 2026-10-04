@@ -128,14 +128,18 @@ def test_fe3d_cai_buckling_degenerate_closed_form_emits_note(small_cfg, monkeypa
     assert any("rayleigh-ritz" in n.lower() or "degenerate" in n.lower() for n in notes), notes
 
 
-def test_bvid_analysis_fe3d_surfaces_buckling_fallback_note(small_cfg, monkeypatch):
-    """End-to-end: a buckling fallback inside fe3d_cai_buckling should
-    surface in ``AnalysisResults.notes`` so callers (CLI / GUI) can see
-    that the reported knockdown is the pristine fallback rather than a
-    real result."""
+def test_bvid_analysis_fe3d_residual_ignores_buckling_onset(small_cfg, monkeypatch):
+    """Buckling onset is reported in ``buckling_eigenvalues`` but does not
+    set the fe3d residual: a buckled sublaminate keeps carrying load until
+    its delamination grows, and whole-panel buckling is suppressed by a CAI
+    fixture's anti-buckling guides. A degenerate closed form therefore
+    leaves the residual unchanged and raises no fallback tag."""
     from bvidfe.analysis import fe_tier as ft
 
+    baseline = BvidAnalysis(small_cfg).run()
     monkeypatch.setattr(ft, "panel_buckling_load", lambda *_a, **_kw: float("inf"))
     monkeypatch.setattr(ft, "sublaminate_buckling_load", lambda *_a, **_kw: float("inf"))
     r = BvidAnalysis(small_cfg).run()
-    assert any("rayleigh-ritz" in n.lower() or "degenerate" in n.lower() for n in r.notes), r.notes
+    assert r.residual_strength_MPa == baseline.residual_strength_MPa
+    assert r.buckling_eigenvalues is None
+    assert r.warnings == []
