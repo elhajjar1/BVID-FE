@@ -145,9 +145,13 @@ stresses are recorded in `AnalysisResults.notes`.
   mid-plane, which is common: the minimum over interfaces often lands on a
   3-5 ply sublaminate. Once a sublaminate buckles at less than about 0.3×
   its steady-state growth stress `√(2E_f·G_c/h)`, the growth stress stays
-  between 0.87× and 1× that value, so larger delaminations lower it little
-  and can raise it slightly; knockdowns from this channel are therefore
-  nearly flat with impact energy.
+  between 0.87× and 1× that value, so larger delaminations at the same
+  interface lower it little and can raise it slightly. Knockdowns from
+  this channel therefore follow impact energy mainly when a different
+  interface becomes the weakest: on 16-ply QI IM7/8552 (150×100 mm) the
+  fe3d knockdown falls from 0.53 at 5 J to 0.36 at 30 J, while on 8-ply QI
+  and cross-ply panels it is flat or rises slightly (0.46 → 0.48,
+  0.39 → 0.42).
 - `fe3d` CAI ignores whole-panel buckling (CAI fixtures carry anti-buckling
   guides). A slender panel without guides can buckle well below the
   reported residual.
