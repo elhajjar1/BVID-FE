@@ -30,6 +30,7 @@ from bvidfe.analysis.semi_analytical import (
     find_critical_interface,
     panel_buckling_load,
     sublaminate_buckling_load,
+    weakest_sublaminate_growth,
 )
 from bvidfe.solver.boundary import uniaxial_x_bcs
 from bvidfe.solver.static import solve_linear_static
@@ -465,9 +466,13 @@ def fe3d_cai_buckling(
     For damaged panels the sublaminate-over-delamination check from
     :func:`bvidfe.analysis.semi_analytical.sublaminate_buckling_load` also
     runs; the minimum of the full-panel and worst-sublaminate buckling
-    stress is returned. fe3d's distinctive value is still in the FPF
-    channel (3D stress states + per-element damage factors), which runs
-    independently.
+    stress is returned.
+
+    This is buckling *onset* and does not set the fe3d residual strength
+    (see :func:`fe3d_cai`): a buckled sublaminate keeps carrying load until
+    its delamination grows, and whole-panel buckling is suppressed by the
+    anti-buckling guides of a CAI fixture. ``BvidAnalysis`` reports the
+    value in ``AnalysisResults.buckling_eigenvalues``.
     """
     boundary = cfg.panel.boundary
     notes: List[str] = []
@@ -514,17 +519,20 @@ def fe3d_cai(
 ) -> float:
     """3D FE compression-after-impact residual strength (MPa).
 
-    The smaller of the buckling channel (``fe3d_cai_buckling``, delegated
-    to the Rayleigh-Ritz closed form per #129) and the first-ply-failure
-    channel on the damaged mesh (``_fe3d_cai_first_ply_failure``).
+    The smaller of the far-field stress at which the weakest delamination
+    grows by sublaminate buckling
+    (:func:`bvidfe.analysis.semi_analytical.weakest_sublaminate_growth`)
+    and first-ply failure on the damaged mesh
+    (``_fe3d_cai_first_ply_failure``, capped at ``sigma_pristine_MPa``).
 
-    Notes from the buckling channel are discarded by this convenience
-    wrapper; callers that need them should invoke ``fe3d_cai_buckling``
-    directly (as ``BvidAnalysis.run`` does).
+    Whole-panel buckling (:func:`fe3d_cai_buckling`) is left out: a CAI
+    fixture's anti-buckling guides suppress it, so it is a property of the
+    test setup rather than of the damage.
     """
-    sigma_buckling, _lambda_crit, _notes = fe3d_cai_buckling(cfg, damage, lam, sigma_pristine_MPa)
+    growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    sigma_growth = growth.growth_stress_MPa if growth is not None else float("inf")
     sigma_fpf = _fe3d_cai_first_ply_failure(cfg, damage, lam, sigma_pristine_MPa)
-    return min(sigma_buckling, sigma_fpf)
+    return min(sigma_growth, sigma_fpf)
 
 
 def fe3d_tai(

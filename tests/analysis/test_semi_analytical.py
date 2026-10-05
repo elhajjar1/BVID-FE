@@ -104,11 +104,11 @@ def test_semi_analytical_cai_returns_less_than_pristine():
     assert result.critical_buckling_load_N > 0
 
 
-def test_semi_analytical_cai_takes_min_over_soutis_and_buckling():
-    """For a large ellipse, buckling should dominate (smaller). For tiny ellipse, Soutis dominates."""
+def test_semi_analytical_cai_positive_for_large_delamination():
+    """A large delamination still leaves a positive residual (min of Soutis
+    and delamination growth; see test_sublaminate_growth.py)."""
     m = MATERIAL_LIBRARY["IM7/8552"]
     lam = Laminate(m, [0, 45, -45, 90] * 4, 0.152)
-    # Large ellipse => low buckling load
     ds_large = DamageState(
         [DelaminationEllipse(3, (0, 0), 60, 40, 0)],
         dent_depth_mm=0.5,

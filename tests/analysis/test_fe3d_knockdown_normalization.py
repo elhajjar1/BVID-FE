@@ -1,7 +1,7 @@
 """fe3d knockdown is fe3d's damaged strength over its own undamaged strength.
 
-fe3d's failure stresses (first-ply failure on the 3D mesh, panel and
-sublaminate buckling) are a different quantity from the shared
+fe3d's failure stresses (first-ply failure on the 3D mesh, delamination
+growth) are a different quantity from the shared
 ``pristine_strength_MPa`` (a thickness-weighted ply-strength average), so
 dividing one by the other reported a knockdown well below 1 for an
 undamaged panel (0.37 in tension, 0.03 in compression for an 8-ply QI
@@ -17,7 +17,8 @@ import math
 import pytest
 
 from bvidfe import AnalysisConfig, BvidAnalysis, DamageState, DelaminationEllipse, MeshParams
-from bvidfe.analysis.fe_tier import _fe3d_cai_first_ply_failure, fe3d_cai_buckling, fe3d_tai
+from bvidfe.analysis.fe_tier import _fe3d_cai_first_ply_failure, fe3d_tai
+from bvidfe.analysis.semi_analytical import weakest_sublaminate_growth
 from bvidfe.core.geometry import PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
@@ -47,8 +48,9 @@ def _raw_fe3d_strength(cfg: AnalysisConfig, damage: DamageState) -> float:
     """Uncapped fe3d strength in MPa, computed from the fe_tier channels."""
     lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], _LAYUP, 0.152)
     if cfg.loading == "compression":
-        buckling, _, _ = fe3d_cai_buckling(cfg, damage, lam, math.inf)
-        return min(buckling, _fe3d_cai_first_ply_failure(cfg, damage, lam, math.inf))
+        growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+        sigma_growth = growth.growth_stress_MPa if growth is not None else math.inf
+        return min(sigma_growth, _fe3d_cai_first_ply_failure(cfg, damage, lam, math.inf))
     return fe3d_tai(cfg, damage, lam, math.inf)
 
 

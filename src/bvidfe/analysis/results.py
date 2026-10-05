@@ -86,12 +86,18 @@ class AnalysisResults:
     values across tiers.
 
     ``notes`` carries free-form runtime diagnostics emitted by the analysis
-    backends — primarily silent fallbacks that affect the interpretation of
-    ``knockdown`` (e.g. the fe3d buckling channel being dropped because the
-    Rayleigh-Ritz closed form gave a degenerate result, #129). fe3d runs
+    backends that affect the interpretation of ``knockdown``. fe3d runs
     always add one line with the raw damaged and undamaged fe3d stresses
-    behind the knockdown. Otherwise empty when the run produced no
+    behind the knockdown; fe3d compression runs also record the governing
+    delamination growth stress and the whole-panel buckling stress that is
+    left out of the knockdown. Otherwise empty when the run produced no
     diagnostic-worthy events.
+
+    ``buckling_eigenvalues`` is buckling *onset*, not strength: the
+    sublaminate buckling load (N/mm) at ``critical_sublaminate`` for
+    semi_analytical, and the lower of whole-panel and sublaminate buckling
+    stress (MPa) for fe3d. ``critical_sublaminate`` is the interface whose
+    delamination grows at the lowest stress (CAI only).
     """
 
     residual_strength_MPa: float
@@ -106,14 +112,10 @@ class AnalysisResults:
     field_results: Optional[FieldResults] = None
     notes: List[str] = field(default_factory=list)
     #: Machine-readable diagnostic tags, distinct from the human-readable
-    #: ``notes``. Lets a script disambiguate an overloaded ``knockdown``
-    #: (e.g. ``knockdown == 1.0`` from "pristine-equivalent" vs "fe3d
-    #: buckling eigensolve failed") without string-scraping ``notes``.
-    #: Populated tags (default ``[]``):
-    #:
-    #: - ``"fe3d_buckling_fallback"`` — the fe3d buckling channel
-    #:   (Rayleigh-Ritz closed-form delegation, #129) returned a degenerate
-    #:   result and was dropped, so first-ply failure alone set the residual.
+    #: ``notes``, so a script can disambiguate an overloaded ``knockdown``
+    #: without string-scraping ``notes``. No backend emits a tag at present
+    #: (default ``[]``); ``"fe3d_buckling_fallback"`` was retired when
+    #: buckling onset stopped setting the fe3d residual.
     #:
     #: The ``impactor_mass_ratio_below_unity`` / ``dpa_panel_area_cap_clipped``
     #: regimes currently surface only via Python ``UserWarning`` + ``notes``;

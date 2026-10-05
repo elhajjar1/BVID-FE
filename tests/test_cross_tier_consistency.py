@@ -9,10 +9,10 @@ cross-tier comparability":
   * For TAI, ``empirical`` and ``semi_analytical`` delegate to the same
     Whitney-Nuismer point-stress formula, so their knockdowns must match
     exactly.
-  * For CAI, ``semi_analytical`` adds a sublaminate-buckling floor to the
-    empirical Soutis term, so its residual is always <= the empirical
-    residual on the same input — and therefore ``semi_analytical.knockdown
-    <= empirical.knockdown``.
+  * For CAI, ``semi_analytical`` takes the lower of the empirical Soutis
+    term and the delamination growth stress, so its residual is always <=
+    the empirical residual on the same input — and therefore
+    ``semi_analytical.knockdown <= empirical.knockdown``.
   * On a pristine input (no impact damage, zero DPA) all three tiers must
     return ``knockdown == 1.0`` exactly (empirical / semi_analytical) or
     very close to 1.0 (fe3d, capped at sigma_pristine_MPa).
@@ -60,7 +60,7 @@ def test_tai_empirical_equals_semi_analytical():
 
 
 def test_cai_semi_analytical_le_empirical():
-    """semi_analytical_cai = min(empirical_soutis, sublaminate_buckling)."""
+    """semi_analytical_cai = min(empirical_soutis, delamination_growth)."""
     e = _run("empirical", loading="compression")
     s = _run("semi_analytical", loading="compression")
     assert s.knockdown <= e.knockdown + 1e-9

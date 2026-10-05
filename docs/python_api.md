@@ -91,21 +91,22 @@ material strengths and is **identical for all three tiers** — only the
 residual-strength numerator differs:
 
 - `empirical`: Soutis (CAI) / Whitney-Nuismer (TAI) closed-form.
-- `semi_analytical`: `min(Soutis, sublaminate buckling)` for CAI; delegates
-  to Whitney-Nuismer for TAI (so its TAI knockdown is mathematically
-  identical to `empirical`).
-- `fe3d`: `min(panel_buckling, sublaminate_buckling, first-ply-failure)`,
-  capped at the pristine reference. The buckling channel delegates to the
-  Rayleigh-Ritz closed form (issue #129); when the closed form returns a
-  degenerate result the buckling branch falls back to pristine and a
-  `fe3d_buckling_fallback` tag is added to `result.warnings`, so an `fe3d`
-  knockdown of 1.0 is distinguishable from "no damage" by inspecting
-  `result.notes` / `result.warnings`.
+- `semi_analytical`: `min(Soutis, delamination growth)` for CAI, where
+  delamination growth is the far-field stress at which the weakest buckled
+  sublaminate grows its delamination; delegates to Whitney-Nuismer for TAI
+  (so its TAI knockdown is mathematically identical to `empirical`).
+- `fe3d`: `min(delamination growth, first-ply-failure)` for CAI and
+  first-ply failure for TAI, each divided by the same quantity on the
+  undamaged panel and applied to the pristine reference. Buckling onset
+  (Rayleigh-Ritz closed form, issue #129) is reported in
+  `result.buckling_eigenvalues` but does not set the strength; whole-panel
+  buckling is left out because CAI fixtures carry anti-buckling guides,
+  and its stress is recorded in `result.notes`.
 
 Cross-tier expectations:
 
 - For **CAI**, `semi_analytical.knockdown ≤ empirical.knockdown` always
-  (the buckling floor only lowers the residual). `fe3d` is independent
+  (the growth stress only lowers the residual). `fe3d` is independent
   and not energy-monotonic in v0.2.0.
 - For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly;
   `fe3d` differs.
