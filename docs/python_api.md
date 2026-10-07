@@ -80,8 +80,8 @@ result = BvidAnalysis(config).run()
 | tier | Runtime | Knockdown trustworthy? | Good for |
 |---|---|---|---|
 | `empirical` | < 1 s | Yes — closed-form Soutis (CAI) / Whitney-Nuismer (TAI) | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
-| `semi_analytical` | ~ 1 s | Yes for buckling-driven cases; identical to `empirical` for TAI | More conservative for large-delamination buckling. Rayleigh-Ritz scales with ellipse size. |
-| `fe3d` | ~ 10 s | **Qualitative only in v0.2.0** — see note below | Stress-field context, damage-through-thickness. **Not recommended for energy sweeps** — knockdown is approximately flat vs. energy on this release's simplified model. |
+| `semi_analytical` | ~ 1 s | Yes — lower of Soutis and delamination growth for CAI; identical to `empirical` for TAI | More conservative where delamination growth governs; flatter in energy than `empirical`. |
+| `fe3d` | ~ 10 s | **Qualitative** — the damage-zone stiffness (×0.30) is uncalibrated; see note below | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
 ## Knockdown semantics
 
@@ -97,7 +97,10 @@ residual-strength numerator differs:
   (so its TAI knockdown is mathematically identical to `empirical`).
 - `fe3d`: `min(delamination growth, first-ply-failure)` for CAI and
   first-ply failure for TAI, each divided by the same quantity on the
-  undamaged panel and applied to the pristine reference. Buckling onset
+  undamaged panel and applied to the pristine reference. First-ply failure
+  runs on a mesh whose damage zone (the delamination footprints, every ply)
+  is softened in-plane ×0.3 with strain-equivalent strengths, and its
+  stress is the reaction force at failure over the gross section. Buckling onset
   (Rayleigh-Ritz closed form, issue #129) is reported in
   `result.buckling_eigenvalues` but does not set the strength; whole-panel
   buckling is left out because CAI fixtures carry anti-buckling guides,
@@ -107,7 +110,7 @@ Cross-tier expectations:
 
 - For **CAI**, `semi_analytical.knockdown ≤ empirical.knockdown` always
   (the growth stress only lowers the residual). `fe3d` is independent
-  and not energy-monotonic in v0.2.0.
+  and can sit above or below `empirical`.
 - For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly;
   `fe3d` differs.
 - All three are on the same scale and qualitatively comparable, but

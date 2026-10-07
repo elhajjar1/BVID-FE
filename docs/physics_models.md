@@ -129,11 +129,11 @@ stresses are recorded in `AnalysisResults.notes`.
       growth stress its knockdown is higher than `semi_analytical`'s — see
       "Limitations" below.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
-  DPA). The delamination growth stress in `semi_analytical` and `fe3d`
-  changes little with delamination size once the sublaminate buckles well
-  below it, so those tiers are flatter in energy. `fe3d` is intended for
-  stress-field context and through-thickness damage visualization, not
-  energy-dependent knockdown curves.
+  DPA). `fe3d` also falls with damage area, through its softened damage
+  zone (16-ply QI tension: 0.46/0.33/0.20 at 5/15/30 J), but its
+  damage-zone stiffness is uncalibrated. The delamination growth stress in
+  `semi_analytical` changes little with delamination size once the
+  sublaminate buckles well below it, so that tier is flatter in energy.
 
 ## Limitations
 
@@ -152,13 +152,13 @@ stresses are recorded in `AnalysisResults.notes`.
   the zone reaches the loaded edges, and fe3d knockdowns fall below the
   empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.16 vs
   0.35).
-- **The `fe3d` tier's knockdown is partially insensitive to impact energy**
-  above the Olsson threshold. The delamination growth stress changes
-  little with delamination size (see below), and the FPF strain is
-  controlled by stress concentration at the healthy/damaged boundary
-  rather than damage magnitude. For energy-dependent knockdown curves
-  prefer `tier="empirical"`. Full energy-monotonicity (cohesive surfaces +
-  proper load-introduction BCs) is v0.3.0 scope.
+- **The `fe3d` first-ply failure has no characteristic length.** The
+  stress concentration at the edge of the soft damage zone depends on the
+  zone's shape and on the panel width, not on the zone's absolute size, so
+  fe3d lacks the notch-size effect of the empirical tier's Soutis and
+  Whitney-Nuismer models. It also depends on the mesh near the zone edge:
+  1-8% between 5 mm and 2.5 mm elements at 15 J on 8-ply panels. Cohesive
+  surfaces and proper load-introduction BCs are v0.3.0 scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
   enclosing rectangle, a fixed mixed-mode phase angle (52.1°; at a buckled
