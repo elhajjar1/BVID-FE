@@ -52,14 +52,32 @@ Whitney-Nuismer is retained for TAI. The governing interface is
 
 A structured hexahedral mesh is built for the damaged laminate. Delaminated
 interfaces are approximated by a **component-wise stiffness-reduction model**
-(true cohesive surfaces deferred to a future release): each damaged element
-carries an out-of-plane factor (`DAMAGE_OOP_FACTOR ≈ 0.05`) that scales the
-through-thickness and transverse-shear stiffness, while in-plane stiffness is
-preserved (the plies themselves remain intact). Inside the fiber-break core
-under the impact site, in-plane stiffness is also reduced
-(`DAMAGE_FIBER_BREAK_INPLANE_FACTOR ≈ 0.30`) to represent fiber bundle
-fracture. First-ply-failure is evaluated at all Gauss points, on stress
-rotated into each ply's material frame, using LaRC05 (CAI) and Tsai-Wu (TAI).
+(true cohesive surfaces deferred to a future release):
+
+- Elements at a delaminated interface carry an out-of-plane factor
+  (`DAMAGE_OOP_FACTOR ≈ 0.05`) that scales the through-thickness and
+  transverse-shear stiffness.
+- The damage zone as a whole (every ply under the projected delamination
+  footprint, where matrix cracks and fibre damage accompany the
+  delaminations) is a soft inclusion with in-plane stiffness
+  ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.30, a calibration value; Soutis & Curtis
+  1996). Without it, delaminations left the in-plane stress field unchanged
+  and first-ply failure could not see the impact.
+- The optional fiber-break core under the impact site (`fiber_break_eta`,
+  off in every preset) reduces in-plane stiffness the same way.
+
+First-ply-failure is evaluated at all Gauss points, on stress rotated into
+each ply's material frame, using LaRC05 (CAI) and Tsai-Wu (TAI).
+
+- Damage-zone elements fail at the strain intact material would (strain
+  equivalence; Lemaitre 1992). The criterion sees their effective stress:
+  the in-plane stress the pristine ply would carry at the same strain, with
+  the actual (damaged) out-of-plane tractions. Their strength therefore
+  drops with their stiffness; with full strengths, a zone spanning most of
+  the panel lost its stress concentration and made the panel look stronger.
+- The failure stress is the reaction force on the loaded edge at failure
+  over the gross section `Ly · h`, so a softened panel is not credited with
+  load it cannot carry.
 For CAI, the lower of first-ply failure and the semi-analytical delamination
 growth stress governs. Buckling onset (whole panel or sublaminate, from the
 Rayleigh-Ritz closed form, issue #129 — the 3D K_g eigensolve previously
@@ -111,11 +129,11 @@ stresses are recorded in `AnalysisResults.notes`.
       growth stress its knockdown is higher than `semi_analytical`'s — see
       "Limitations" below.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
-  DPA). The delamination growth stress in `semi_analytical` and `fe3d`
-  changes little with delamination size once the sublaminate buckles well
-  below it, so those tiers are flatter in energy. `fe3d` is intended for
-  stress-field context and through-thickness damage visualization, not
-  energy-dependent knockdown curves.
+  DPA). `fe3d` also falls with damage area, through its softened damage
+  zone (16-ply QI tension: 0.46/0.33/0.20 at 5/15/30 J), but its
+  damage-zone stiffness is uncalibrated. The delamination growth stress in
+  `semi_analytical` changes little with delamination size once the
+  sublaminate buckles well below it, so that tier is flatter in energy.
 
 ## Limitations
 
@@ -125,17 +143,22 @@ stresses are recorded in `AnalysisResults.notes`.
   before use in certification.
 - LaRC05 is implemented as a minimal Hashin-3D reduction. Full plane-search
   fiber-kinking is deferred to a future release.
-- The `fe3d` tier uses component-wise stiffness reduction at delaminated
-  interfaces (in-plane preserved, out-of-plane reduced) instead of true
-  cohesive surfaces with bilinear traction-separation laws. Cohesive surfaces
-  are deferred to a future release.
-- **The `fe3d` tier's knockdown is partially insensitive to impact energy**
-  above the Olsson threshold. The delamination growth stress changes
-  little with delamination size (see below), and the FPF strain is
-  controlled by stress concentration at the healthy/damaged boundary
-  rather than damage magnitude. For energy-dependent knockdown curves
-  prefer `tier="empirical"`. Full energy-monotonicity (cohesive surfaces +
-  proper load-introduction BCs) is v0.3.0 scope.
+- The `fe3d` tier uses component-wise stiffness reduction (out-of-plane at
+  delaminated interfaces, in-plane over the damage zone) instead of true
+  cohesive surfaces with bilinear traction-separation laws and a continuum
+  damage model. Cohesive surfaces are deferred to a future release. The
+  damage-zone in-plane factor (0.30) is uncalibrated against test data and
+  uniform over the footprint. Once the damage area hits its 80%-of-panel cap
+  the zone reaches the loaded edges, and fe3d knockdowns fall below the
+  empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.16 vs
+  0.35).
+- **The `fe3d` first-ply failure has no characteristic length.** The
+  stress concentration at the edge of the soft damage zone depends on the
+  zone's shape and on the panel width, not on the zone's absolute size, so
+  fe3d lacks the notch-size effect of the empirical tier's Soutis and
+  Whitney-Nuismer models. It also depends on the mesh near the zone edge:
+  1-8% between 5 mm and 2.5 mm elements at 15 J on 8-ply panels. Cohesive
+  surfaces and proper load-introduction BCs are v0.3.0 scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
   enclosing rectangle, a fixed mixed-mode phase angle (52.1°; at a buckled
@@ -176,6 +199,10 @@ stresses are recorded in `AnalysisResults.notes`.
   Journal of Solids and Structures*, 17(11), 1069-1083.
 - Hutchinson, J.W. & Suo, Z. (1992). Mixed mode cracking in layered
   materials. *Advances in Applied Mechanics*, 29, 63-191.
+- Lemaitre, J. (1992). *A Course on Damage Mechanics*. Springer.
+- Soutis, C. & Curtis, P.T. (1996). Prediction of the post-impact
+  compressive strength of CFRP laminated composites. *Composites Science
+  and Technology*, 56(6), 677-684.
 - Benzeggagh, M.L. & Kenane, M. (1996). Measurement of mixed-mode
   delamination fracture toughness of unidirectional glass/epoxy composites
   with mixed-mode bending apparatus. *Composites Science and Technology*,

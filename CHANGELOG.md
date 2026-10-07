@@ -6,6 +6,40 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **fe3d first-ply failure now sees impact damage.** It did not: the fe3d
+  tension knockdown was 0.998-1.000 at 5-30 J on 8- to 24-ply IM7/8552
+  150x100 mm panels (empirical 0.21-0.37), and in compression only the
+  closed-form delamination growth moved it. Three changes:
+  - Delaminations softened only the out-of-plane stiffness and the
+    fibre-break core is off in every material preset, so the in-plane
+    stress field was the same with and without damage. The damage zone
+    (every ply under the delamination footprints) is now a soft inclusion
+    with in-plane stiffness x`DAMAGE_ZONE_INPLANE_FACTOR` = 0.30 (Soutis &
+    Curtis 1996; a calibration value, not fitted to test data).
+  - Damage-zone elements fail at the strain intact material would (strain
+    equivalence; `fe_tier._failure_stress_material`): the criterion sees
+    the in-plane stress the pristine ply carries at the same strain. With
+    full strengths a zone spanning most of the panel lost its stress
+    concentration and looked stronger (cross-ply tension 0.41 -> 0.60 from
+    5 to 15 J). `Hex8Element.stress_at_gauss_points(_material)` take an
+    optional stiffness for this.
+  - The failure stress was the failure strain times the pristine CLT
+    modulus, which credits a softened panel with load it cannot carry (a
+    panel softened uniformly x0.3 reported 3.3x its intact strength). It
+    is now the reaction force on the loaded edge at failure over the gross
+    section, from the same FE solve; `_effective_modulus` is removed.
+
+  fe3d tension knockdowns at 5/15/30 J move 1.000/1.000/0.998 ->
+  0.458/0.328/0.200 on 16-ply QI (empirical 0.37/0.35/0.35) and
+  0.999/0.998/0.998 -> 0.253/0.248/0.248 on 8-ply cross-ply (empirical
+  0.24/0.22/0.21); compression moves 0.528/0.430/0.360 ->
+  0.464/0.327/0.197 on 16-ply QI. Every layup and loading now falls or
+  holds with energy. Once the damage area hits its 80%-of-panel cap the
+  knockdowns drop below the empirical tier's (0.16-0.20 at 30 J on 16-
+  and 24-ply). Runtime is unchanged. First-ply failure sat at a panel
+  corner (free-edge interlaminar shear) in both runs, 2-4% below the
+  interior; that cancels in the damaged / undamaged ratio and the boundary
+  conditions are unchanged.
 - **Compression strength in the `semi_analytical` and `fe3d` tiers is now
   the stress at which a buckled sublaminate grows its delamination, not the
   stress at which it buckles.** A thin sublaminate over a BVID-sized

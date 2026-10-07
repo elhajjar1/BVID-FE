@@ -61,9 +61,11 @@ def test_mesh_damage_factor_reduced_inside_ellipse():
     assert n_damaged > 0
 
 
-def test_mesh_delamination_only_preserves_in_plane_factor():
-    """Pure delamination (no fiber-break radius) reduces only the OOP factor."""
-    from bvidfe.analysis.fe_mesh import DAMAGE_OOP_FACTOR
+def test_mesh_delamination_only_softens_damage_zone_in_plane():
+    """Pure delamination (no fiber-break radius): OOP reduced at the
+    delaminated interface, in-plane reduced to the damage-zone value in the
+    footprint (see test_fe3d_inplane_damage.py), 1.0 elsewhere."""
+    from bvidfe.analysis.fe_mesh import DAMAGE_OOP_FACTOR, DAMAGE_ZONE_INPLANE_FACTOR
 
     cfg = _simple_config()
     ds = DamageState(
@@ -75,8 +77,10 @@ def test_mesh_delamination_only_preserves_in_plane_factor():
     damaged = mesh.damage_factors < 1.0
     assert damaged.any(), "expected at least one damaged element"
     assert np.allclose(mesh.damage_factors[damaged], DAMAGE_OOP_FACTOR)
-    # In-plane factor must stay at 1.0 in delamination-only zones
-    assert np.all(mesh.in_plane_damage_factors == 1.0)
+    softened = mesh.in_plane_damage_factors < 1.0
+    assert softened[damaged].all(), "delaminated elements lie in the damage zone"
+    assert np.all(mesh.in_plane_damage_factors[softened] == DAMAGE_ZONE_INPLANE_FACTOR)
+    assert not softened.all(), "elements outside the footprint keep full in-plane stiffness"
 
 
 def test_mesh_fiber_break_core_reduces_in_plane_factor():
@@ -93,7 +97,9 @@ def test_mesh_fiber_break_core_reduces_in_plane_factor():
         fiber_break_radius_mm=3.0,  # carve out a fiber-break core at the centroid
     )
     mesh = build_fe_mesh(cfg, ds)
-    fiber_break = mesh.in_plane_damage_factors < 1.0
+    # Identified by distance: the surrounding damage zone is softened too.
+    centroids = np.array([mesh.node_coords[c].mean(axis=0) for c in mesh.element_connectivity])
+    fiber_break = np.hypot(centroids[:, 0] - 10.0, centroids[:, 1] - 5.0) <= 3.0
     assert fiber_break.any(), "expected at least one fiber-break-core element"
     assert np.allclose(
         mesh.in_plane_damage_factors[fiber_break],

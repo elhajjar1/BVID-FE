@@ -31,6 +31,7 @@ from bvidfe.analysis import AnalysisConfig, MeshParams
 from bvidfe.analysis.fe_mesh import build_fe_mesh
 from bvidfe.analysis.fe_tier import (
     _build_elements,
+    _failure_stress_material,
     _solve_failure_strain_analytic,
     _solve_failure_strain_analytic_scalar_ref,
 )
@@ -184,7 +185,8 @@ def test_puck_is_not_evaluated_as_another_criterion(strain_sign):
 
 @pytest.mark.parametrize("strain_sign", [-1, +1])
 def test_puck_index_reaches_one_at_returned_strain(strain_sign):
-    """Re-solving at the returned strain puts the max Puck index at exactly 1."""
+    """Re-solving at the returned strain puts the max Puck index, on the
+    stress the criterion sees (effective in the damage zone), at exactly 1."""
     cfg, mesh, elements = _build_setup(_DELAM, layup_deg=_ANGLE_PLY)
     eps = _solve_failure_strain_analytic(
         cfg, mesh, elements, strain_sign=strain_sign, criterion="puck"
@@ -193,7 +195,7 @@ def test_puck_index_reaches_one_at_returned_strain(strain_sign):
     u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
     material = MATERIAL_LIBRARY[cfg.material]
     max_idx = max(
-        float(puck_index_batch(material, elem.stress_at_gauss_points_material(u[dofs])).max())
-        for elem, dofs in zip(elements, mesh.element_dof_maps)
+        float(puck_index_batch(material, _failure_stress_material(elem, u[dofs], f_ip)).max())
+        for elem, dofs, f_ip in zip(elements, mesh.element_dof_maps, mesh.in_plane_damage_factors)
     )
     assert max_idx == pytest.approx(1.0, rel=1e-8)
