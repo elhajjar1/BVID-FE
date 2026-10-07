@@ -127,6 +127,11 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **`docs/schemas/analysis_config.json` was missing `puck_p_nt_minus` and
+  `puck_p_nt_plus`**, the `OrthotropicMaterial` fields added with the Puck
+  fix, because nothing checked the generated schemas against the
+  dataclasses. Regenerated, and CI's `validation` job now runs
+  `scripts/generate_schemas.py --check`.
 - **`Laminate.effective_engineering_constants` was off by a factor of
   h^2.** It formed the average-stress compliance as `A^-1 / h` instead of
   `h * A^-1`, so `Ex`, `Ey` and `Gxy` were scaled by the laminate thickness

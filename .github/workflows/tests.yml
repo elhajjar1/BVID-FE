@@ -39,6 +39,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
+      - name: "JSON schemas match the dataclasses"
+        # docs/schemas/*.json are generated; regenerate them with
+        # `python scripts/generate_schemas.py` in the commit that changes a field.
+        run: python scripts/generate_schemas.py --check
       - name: "Validation: empirical tier (hard gate)"
         run: python validation/validate_bvid_public.py --gate
       - name: "Validation: fe3d tier (monitoring; first 3 cases)"
