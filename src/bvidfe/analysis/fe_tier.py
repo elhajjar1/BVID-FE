@@ -273,12 +273,36 @@ def _solve_failure_strain_analytic(
     kept in this module purely for the equivalence test.
     """
     _require_known_criterion(criterion)
-    material = _resolve_material(cfg)
+    u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
+    c_crit_min = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion)
+    if not np.isfinite(c_crit_min) or c_crit_min <= 0:
+        return strain_cap  # nothing failed up to strain_cap
+    return min(strain_cap, c_crit_min * strain_cap)
 
-    # One FE solve at reference strain = strain_sign * strain_cap
+
+def _reference_displacement(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    strain_sign: int,
+    strain_cap: float,
+) -> np.ndarray:
+    """Displacement field at the reference strain ``strain_sign * strain_cap``."""
     bcs = uniaxial_x_bcs(mesh.node_coords, strain_sign * strain_cap, boundary=cfg.panel.boundary)
-    u_ref = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
+    return solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
 
+
+def _critical_strain_multiplier(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    u_ref: np.ndarray,
+    criterion: CriterionName,
+) -> float:
+    """Smallest multiplier ``c`` on ``u_ref`` at which the failure index
+    reaches 1 anywhere (``inf`` when no Gauss point is loaded towards
+    failure). See ``_solve_failure_strain_analytic`` for the scaling."""
+    material = _resolve_material(cfg)
     c_crit_min = np.inf
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
@@ -333,10 +357,54 @@ def _solve_failure_strain_analytic(
 
         if c_crit_elem_min < c_crit_min:
             c_crit_min = c_crit_elem_min
+    return c_crit_min
 
-    if not np.isfinite(c_crit_min) or c_crit_min <= 0:
-        return strain_cap  # nothing failed up to strain_cap
-    return min(strain_cap, c_crit_min * strain_cap)
+
+def _loaded_edge_force(mesh: FeMesh, elements: List[Hex8Element], u: np.ndarray) -> float:
+    """Magnitude of the x reaction force (N) on the loaded x_max face.
+
+    The reaction at a constrained DOF is the internal force ``(K u)_i``,
+    summed here from the element internal forces ``K_e u_e`` of the elements
+    touching the face, so no global matrix is assembled.
+    """
+    x = mesh.node_coords[:, 0]
+    on_face = np.abs(x - x.max()) < 1e-9
+    force = 0.0
+    for eidx in np.flatnonzero(on_face[mesh.element_connectivity].any(axis=1)):
+        dof_map = mesh.element_dof_maps[eidx]
+        f_elem = elements[eidx].stiffness_matrix() @ u[dof_map]
+        local = np.flatnonzero(on_face[mesh.element_connectivity[eidx]])
+        force += float(f_elem[3 * local].sum())
+    return abs(force)
+
+
+def _first_ply_failure_stress(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    lam: Laminate,
+    strain_sign: int,
+    criterion: CriterionName,
+    strain_cap: float = 0.05,
+) -> float:
+    """Far-field stress (MPa) at first-ply failure: the reaction force on
+    the loaded edge at the failure strain over the gross section
+    ``Ly * h``.
+
+    Multiplying the failure strain by the pristine CLT modulus credited a
+    softened (damaged) panel with load it cannot carry: a panel softened
+    uniformly x0.3 fails at 3.3x the strain and so reported 3.3x its
+    intact strength. The failure multiplier and the reaction force come
+    from the same FE solve.
+    """
+    _require_known_criterion(criterion)
+    u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
+    c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion)
+    if not np.isfinite(c_crit) or c_crit <= 0:
+        c_crit = 1.0  # nothing failed up to strain_cap
+    c_crit = min(c_crit, 1.0)
+    area = cfg.panel.Ly_mm * lam.thickness_mm
+    return c_crit * _loaded_edge_force(mesh, elements, u_ref) / area
 
 
 def _solve_failure_strain_analytic_scalar_ref(
@@ -403,12 +471,6 @@ def _solve_failure_strain_analytic_scalar_ref(
     return min(strain_cap, c_crit_min * strain_cap)
 
 
-def _effective_modulus(lam: Laminate) -> float:
-    """Effective in-plane Young's modulus along x (Ex from CLT)."""
-    Ex, _, _, _ = lam.effective_engineering_constants()
-    return Ex
-
-
 def _fe3d_cai_first_ply_failure(
     cfg: AnalysisConfig,
     damage: DamageState,
@@ -425,16 +487,8 @@ def _fe3d_cai_first_ply_failure(
     criteria instead. Unknown names raise ``ValueError``.
     """
     mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d FPF")
-    strain_at_failure = _solve_failure_strain_analytic(
-        cfg,
-        mesh,
-        elements,
-        strain_sign=-1,
-        criterion=criterion,
-    )
+    sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=-1, criterion=criterion)
     _t("FPF analytic solve done", t0)
-    E = _effective_modulus(lam)
-    sigma = strain_at_failure * E
     _log.info(
         "fe3d FPF done: residual = %.1f MPa (total %.2fs)",
         min(sigma, sigma_pristine_MPa),
@@ -543,13 +597,5 @@ def fe3d_tai(
 ) -> float:
     """3D FE tension-after-impact residual strength (MPa)."""
     mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI")
-    strain_at_failure = _solve_failure_strain_analytic(
-        cfg,
-        mesh,
-        elements,
-        strain_sign=+1,
-        criterion="tsai_wu",
-    )
-    E = _effective_modulus(lam)
-    sigma = strain_at_failure * E
+    sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu")
     return min(sigma, sigma_pristine_MPa)
