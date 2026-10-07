@@ -211,6 +211,12 @@
         "olsson_alpha": {
           "type": "number"
         },
+        "puck_p_nt_minus": {
+          "type": "number"
+        },
+        "puck_p_nt_plus": {
+          "type": "number"
+        },
         "rho": {
           "type": "number"
         },
