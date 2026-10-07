@@ -4,7 +4,7 @@ A Python library for predicting residual strength and stiffness of fiber-reinfor
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/ranipdx-glitch/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/ranipdx-glitch/BVID-FE/actions/workflows/tests.yml)
+[![Tests](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml)
 
 ## Why this tool?
 
@@ -48,7 +48,7 @@ documentation conventions.
 ## Installation
 
 ```bash
-git clone https://github.com/ranipdx-glitch/BVID-FE.git
+git clone https://github.com/elhajjar1/BVID-FE.git
 cd BVID-FE
 pip install -e ".[dev]"
 pytest -v
@@ -76,11 +76,11 @@ The schemas are regenerated from the in-tree dataclasses by
 ## Citation
 
 If you use BVID-FE in your research, please cite the project (see the
-[CITATION.cff](https://github.com/ranipdx-glitch/BVID-FE/blob/main/CITATION.cff)
+[CITATION.cff](https://github.com/elhajjar1/BVID-FE/blob/main/CITATION.cff)
 at the repository root).
 
 ## License
 
 MIT License. See
-[LICENSE](https://github.com/ranipdx-glitch/BVID-FE/blob/main/LICENSE) for
+[LICENSE](https://github.com/elhajjar1/BVID-FE/blob/main/LICENSE) for
 details.

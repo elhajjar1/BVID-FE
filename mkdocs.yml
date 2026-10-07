@@ -1,8 +1,8 @@
 site_name: BVID-FE
 site_description: Barely Visible Impact Damage residual-strength analysis for composite laminates
-site_url: https://ranipdx-glitch.github.io/BVID-FE/
-repo_url: https://github.com/ranipdx-glitch/BVID-FE
-repo_name: ranipdx-glitch/BVID-FE
+site_url: https://elhajjar1.github.io/BVID-FE/
+repo_url: https://github.com/elhajjar1/BVID-FE
+repo_name: elhajjar1/BVID-FE
 edit_uri: edit/main/docs/
 
 docs_dir: docs

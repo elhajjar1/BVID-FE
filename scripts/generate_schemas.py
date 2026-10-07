@@ -49,7 +49,7 @@ from bvidfe.impact.mapping import ImpactEvent  # noqa: E402
 
 SCHEMA_DIR = REPO_ROOT / "docs" / "schemas"
 SCHEMA_URI = "https://json-schema.org/draft/2020-12/schema"
-SCHEMA_BASE = "https://ranipdx-glitch.github.io/BVID-FE/schemas/"
+SCHEMA_BASE = "https://elhajjar1.github.io/BVID-FE/schemas/"
 
 
 # ---------------------------------------------------------------------------

@@ -127,6 +127,12 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **Project links pointed at the repository's previous owner**
+  (`ranipdx-glitch`): the docs site URL, `repo_url`, the `pyproject.toml`
+  project URLs, README and docs badges and links, the schema `$id`s, and
+  the PyPI Trusted Publishing and Streamlit deployment instructions. They
+  now point at `elhajjar1/BVID-FE`; a Trusted Publisher registered under
+  the old owner would reject the release workflow.
 - **`docs/schemas/analysis_config.json` was missing `puck_p_nt_minus` and
   `puck_p_nt_plus`**, the `OrthotropicMaterial` fields added with the Puck
   fix, because nothing checked the generated schemas against the

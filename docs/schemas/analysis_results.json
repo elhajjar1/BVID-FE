@@ -110,7 +110,7 @@
       "type": "object"
     }
   },
-  "$id": "https://ranipdx-glitch.github.io/BVID-FE/schemas/analysis_results.json",
+  "$id": "https://elhajjar1.github.io/BVID-FE/schemas/analysis_results.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Outcome of a single ``BvidAnalysis.run()`` invocation.",

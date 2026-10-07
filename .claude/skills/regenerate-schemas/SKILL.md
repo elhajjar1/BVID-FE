@@ -12,7 +12,7 @@ public dataclasses. CI's `validation` job runs
 `python scripts/generate_schemas.py --check`, so a field change without a
 regenerated schema fails CI (`pre-commit` does not check them). Before
 that check existed, drift went silent and the schemas served at
-`https://ranipdx-glitch.github.io/BVID-FE/schemas/` fell out of sync with
+`https://elhajjar1.github.io/BVID-FE/schemas/` fell out of sync with
 the code.
 
 When this skill is relevant: any edit that adds, removes, or retypes

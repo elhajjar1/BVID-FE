@@ -2,15 +2,15 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/ranipdx-glitch/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/ranipdx-glitch/BVID-FE/actions/workflows/tests.yml)
-[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://ranipdx-glitch.github.io/BVID-FE/)
+[![Tests](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml)
+[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://elhajjar1.github.io/BVID-FE/)
 
 > **Documentation:** the full MkDocs site is published at
-> <https://ranipdx-glitch.github.io/BVID-FE/> and includes a Quickstart, the
+> <https://elhajjar1.github.io/BVID-FE/> and includes a Quickstart, the
 > Python API reference, the C-scan JSON schema, the physics models, and the
 > Streamlit deployment guide. Auto-generated JSON Schemas for `AnalysisConfig`
 > and `AnalysisResults` live at
-> [`/schemas/`](https://ranipdx-glitch.github.io/BVID-FE/schemas/analysis_config.json).
+> [`/schemas/`](https://elhajjar1.github.io/BVID-FE/schemas/analysis_config.json).
 
 A Python library for predicting residual strength and stiffness of fiber-reinforced composite laminates containing Barely Visible Impact Damage (BVID).
 
@@ -41,7 +41,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 ## Installation
 
 ```bash
-git clone https://github.com/ranipdx-glitch/bvid-fe.git
+git clone https://github.com/elhajjar1/BVID-FE.git
 cd bvid-fe
 pip install -e ".[dev]"
 pytest -v
@@ -216,7 +216,7 @@ If you use BVID-FE in your research, please cite:
   year      = {2026},
   version   = {0.2.0},
   publisher = {GitHub},
-  url       = {https://github.com/ranipdx-glitch/BVID-FE},
+  url       = {https://github.com/elhajjar1/BVID-FE},
   note      = {University of Wisconsin-Milwaukee}
 }
 ```
