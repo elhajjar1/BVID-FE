@@ -217,22 +217,26 @@ class Hex8Element:
             K += np.dot(B.T, np.dot(C, B)) * (tbl.detJ[ig] * wt[ig])
         return K
 
-    def stress_at_gauss_points(self, u_elem: np.ndarray) -> np.ndarray:
+    def stress_at_gauss_points(self, u_elem: np.ndarray, C: np.ndarray | None = None) -> np.ndarray:
         """Recover global-frame Voigt stress (n_gp, 6) at Gauss points from
-        element DOF vector (24,)."""
+        element DOF vector (24,). ``C`` (6x6, global frame) replaces the
+        element stiffness, e.g. to recover a damaged element's effective
+        stress."""
         tbl = self.geometry_table()
         out = np.empty((tbl.B.shape[0], 6))
-        C = self._C_global
+        C = self._C_global if C is None else C
         for ig in range(tbl.B.shape[0]):
             eps = tbl.B[ig] @ u_elem
             out[ig] = C @ eps
         return out
 
-    def stress_at_gauss_points_material(self, u_elem: np.ndarray) -> np.ndarray:
+    def stress_at_gauss_points_material(
+        self, u_elem: np.ndarray, C: np.ndarray | None = None
+    ) -> np.ndarray:
         """Recover Voigt stress (n_gp, 6) at Gauss points in the ply material
         frame ``[s1, s2, s3, t23, t13, t12]`` (1 = fiber), which is what the
-        failure criteria expect."""
-        sigma = self.stress_at_gauss_points(u_elem)
+        failure criteria expect. ``C`` as in ``stress_at_gauss_points``."""
+        sigma = self.stress_at_gauss_points(u_elem, C)
         theta = np.radians(self.ply_angle_deg)
         if abs(theta) < 1e-14:
             return sigma

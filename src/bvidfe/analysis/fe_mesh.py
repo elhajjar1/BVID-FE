@@ -72,11 +72,12 @@ DAMAGE_OOP_FACTOR = 0.05
 DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 
 # In-plane stiffness fraction of the damage zone (soft inclusion over the
-# projected damage area, every ply). A calibration value, equal to the
-# fiber-break factor and not fitted to test data. On a 16-ply IM7/8552 QI
-# 150x100 mm panel it gives fe3d tension knockdowns of 0.61/0.41 at 5/15 J
-# (empirical 0.37/0.35); on an 8-ply QI panel at 15 J the knockdown changes
-# by 1% between 5 mm and 2.5 mm meshes.
+# projected damage area, every ply). Its strengths drop with it (strain
+# equivalence, see fe_tier._failure_stress_material). A calibration value,
+# equal to the fiber-break factor and not fitted to test data. On a 16-ply
+# IM7/8552 QI 150x100 mm panel it gives fe3d tension knockdowns of
+# 0.46/0.33 at 5/15 J (empirical 0.37/0.35); at 15 J the knockdown changes
+# by <1% (8-ply QI) and 5% (8-ply cross-ply) between 5 mm and 2.5 mm meshes.
 DAMAGE_ZONE_INPLANE_FACTOR = 0.30
 
 

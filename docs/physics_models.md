@@ -67,10 +67,17 @@ interfaces are approximated by a **component-wise stiffness-reduction model**
   off in every preset) reduces in-plane stiffness the same way.
 
 First-ply-failure is evaluated at all Gauss points, on stress rotated into
-each ply's material frame, using LaRC05 (CAI) and Tsai-Wu (TAI). The failure
-stress is the reaction force on the loaded edge at failure over the gross
-section `Ly · h`, so a softened panel is not credited with load it cannot
-carry.
+each ply's material frame, using LaRC05 (CAI) and Tsai-Wu (TAI).
+
+- Damage-zone elements fail at the strain intact material would (strain
+  equivalence; Lemaitre 1992). The criterion sees their effective stress:
+  the in-plane stress the pristine ply would carry at the same strain, with
+  the actual (damaged) out-of-plane tractions. Their strength therefore
+  drops with their stiffness; with full strengths, a zone spanning most of
+  the panel lost its stress concentration and made the panel look stronger.
+- The failure stress is the reaction force on the loaded edge at failure
+  over the gross section `Ly · h`, so a softened panel is not credited with
+  load it cannot carry.
 For CAI, the lower of first-ply failure and the semi-analytical delamination
 growth stress governs. Buckling onset (whole panel or sublaminate, from the
 Rayleigh-Ritz closed form, issue #129 — the 3D K_g eigensolve previously
@@ -140,9 +147,11 @@ stresses are recorded in `AnalysisResults.notes`.
   delaminated interfaces, in-plane over the damage zone) instead of true
   cohesive surfaces with bilinear traction-separation laws and a continuum
   damage model. Cohesive surfaces are deferred to a future release. The
-  damage-zone in-plane factor (0.30) is uncalibrated against test data; it
-  is uniform over the footprint, and the zone's own (softened) elements are
-  checked with the undamaged ply strengths.
+  damage-zone in-plane factor (0.30) is uncalibrated against test data and
+  uniform over the footprint. Once the damage area hits its 80%-of-panel cap
+  the zone reaches the loaded edges, and fe3d knockdowns fall below the
+  empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.16 vs
+  0.35).
 - **The `fe3d` tier's knockdown is partially insensitive to impact energy**
   above the Olsson threshold. The delamination growth stress changes
   little with delamination size (see below), and the FPF strain is
@@ -190,6 +199,7 @@ stresses are recorded in `AnalysisResults.notes`.
   Journal of Solids and Structures*, 17(11), 1069-1083.
 - Hutchinson, J.W. & Suo, Z. (1992). Mixed mode cracking in layered
   materials. *Advances in Applied Mechanics*, 29, 63-191.
+- Lemaitre, J. (1992). *A Course on Damage Mechanics*. Springer.
 - Soutis, C. & Curtis, P.T. (1996). Prediction of the post-impact
   compressive strength of CFRP laminated composites. *Composites Science
   and Technology*, 56(6), 677-684.

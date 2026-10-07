@@ -257,7 +257,9 @@ def _solve_failure_strain_analytic(
 
     Stresses are rotated into each ply's material frame
     (``Hex8Element.stress_at_gauss_points_material``) before the criterion
-    sees them; the rotation is linear, so the scaling arguments above hold.
+    sees them, as effective stresses in the damage zone
+    (``_failure_stress_material``); both maps are linear, so the scaling
+    arguments above hold.
 
     Raises ``ValueError`` for a criterion outside ``CriterionName``.
 
@@ -292,6 +294,26 @@ def _reference_displacement(
     return solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
 
 
+def _failure_stress_material(
+    elem: Hex8Element, u_elem: np.ndarray, in_plane_factor: float
+) -> np.ndarray:
+    """Ply-frame stress (n_gp, 6) the failure criterion sees.
+
+    For an element in the damage zone (``in_plane_factor < 1``) this is the
+    effective stress of strain equivalence (Lemaitre): damaged material
+    fails at the strain intact material would, so its strength drops with
+    its stiffness. The in-plane rows come from the pristine stiffness at the
+    element's actual strain; the out-of-plane rows keep the actual (damaged)
+    tractions. Dividing the in-plane stress by the factor instead would also
+    scale the through-thickness Poisson term in those rows.
+    """
+    if in_plane_factor >= 1.0:
+        return elem.stress_at_gauss_points_material(u_elem)
+    C_eff = elem._C_global.copy()
+    C_eff[_INPLANE_VOIGT, :] = elem._compute_global_stiffness()[_INPLANE_VOIGT, :]
+    return elem.stress_at_gauss_points_material(u_elem, C=C_eff)
+
+
 def _critical_strain_multiplier(
     cfg: AnalysisConfig,
     mesh: FeMesh,
@@ -303,10 +325,11 @@ def _critical_strain_multiplier(
     reaches 1 anywhere (``inf`` when no Gauss point is loaded towards
     failure). See ``_solve_failure_strain_analytic`` for the scaling."""
     material = _resolve_material(cfg)
+    in_plane = mesh.in_plane_damage_factors
     c_crit_min = np.inf
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
-        sigma_ref = elem.stress_at_gauss_points_material(u_ref[dof_map])  # (n_gp, 6)
+        sigma_ref = _failure_stress_material(elem, u_ref[dof_map], in_plane[eidx])  # (n_gp, 6)
 
         if criterion == "larc05":
             idx_ref = larc05_index_batch(material, sigma_ref)  # (n_gp,)
@@ -432,7 +455,9 @@ def _solve_failure_strain_analytic_scalar_ref(
     c_crit_min = np.inf
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
-        sigma_field_ref = elem.stress_at_gauss_points_material(u_ref[dof_map])
+        sigma_field_ref = _failure_stress_material(
+            elem, u_ref[dof_map], mesh.in_plane_damage_factors[eidx]
+        )
         for gp in range(sigma_field_ref.shape[0]):
             sigma_ref = sigma_field_ref[gp]
             if criterion == "larc05":
