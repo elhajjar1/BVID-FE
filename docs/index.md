@@ -39,7 +39,7 @@ documentation conventions.
   Tension-After-Impact)
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with
   shapely-union projected damage area
-- **Four material presets**: AS4/3501-6, IM7/8552, T700/2510, T800/epoxy
+- **Five material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy
 - **CLI**, **Streamlit web app**, and **Python API**
 - **Parametric sweeps** over impact energy, layup, or ply thickness with
   CSV output

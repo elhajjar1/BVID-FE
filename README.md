@@ -31,7 +31,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
   - *3D FE*: First-ply-failure on a damaged hexahedral mesh; LaRC05 for CAI, Tsai-Wu for TAI (minutes)
 - **CAI and TAI loading modes** (Compression-After-Impact and Tension-After-Impact)
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
-- **Four material presets**: AS4/3501-6, IM7/8552, T700/2510, T800/epoxy
+- **Five material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy
 - **CLI** for single-run and batch use
 - **Streamlit web app** with sidebar-driven `AnalysisConfig` and result tabs — Summary, Damage Map, Knockdown Curve (live empirical sweep around the current energy), 3D Damage (Plotly hex mesh coloured by damage factor), Buckling (tier-specific buckling indicator: `N_cr` in N/mm for `semi_analytical`, `σ_crit` in MPa for `fe3d`), Damage Severity (through-thickness sum of per-element `1 − damage_factor`; see [Physics Models](#damage-severity-heatmap)), and Sweep (CSV-exportable parametric energy sweep). Cached runs, fe3d mesh-size guards, JSON/CSV downloads
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output

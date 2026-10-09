@@ -20,7 +20,7 @@ def test_cli_version_flag_prints_version():
 
 
 def test_cli_list_materials_prints_all_presets():
-    """--list-materials prints all 4 material presets and exits cleanly."""
+    """--list-materials prints all 5 material presets and exits cleanly."""
     res = subprocess.run(
         [sys.executable, "-m", "bvidfe.cli", "--list-materials"],
         capture_output=True,
@@ -28,7 +28,7 @@ def test_cli_list_materials_prints_all_presets():
         check=False,
     )
     assert res.returncode == 0
-    for name in ("AS4/3501-6", "IM7/8552", "T700/2510", "T800/epoxy"):
+    for name in ("AS4/3501-6", "AS4/8552", "IM7/8552", "T700/2510", "T800/epoxy"):
         assert name in res.stdout
 
 

@@ -4,6 +4,18 @@ All notable changes to BVID-FE are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`AS4/8552` material preset** (Hexcel 8552 AS4 tape). The cleanest open
+  ASTM D7136/D7137 CAI datasets (Girona: Gonzalez et al. 2011, Falco et al.
+  2014; NCAMP CAM-RP-2010-002) are on AS4/8552, which no preset covered.
+  Lamina moduli, strengths and density are the NCAMP RTD means. G23 comes
+  from nu23 = 0.45 (Gonzalez et al.), S23 is the LaRC03 estimate from Yc, and
+  G_Ic/G_IIc are the IM7/8552 values (same matrix). The impact-mapping
+  calibration fields keep their defaults. NCAMP's 30 J CAI on
+  [45/0/-45/90]3s is 176 MPa; the semi-analytical tier gives 196 MPa and the
+  empirical tier 312 MPa.
+
 ### Changed
 
 - **fe3d first-ply failure now sees impact damage.** It did not: the fe3d

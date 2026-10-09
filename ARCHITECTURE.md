@@ -19,7 +19,7 @@ inner layers directly.
 
 | Module | Submodule | Role |
 |--------|-----------|------|
-| `core/` | `material.py` | `OrthotropicMaterial` dataclass + `MaterialLibrary` with four built-in presets (AS4/3501-6, IM7/8552, T700/2510, T800/epoxy). Ported from WrinkleFE. |
+| `core/` | `material.py` | `OrthotropicMaterial` dataclass + `MaterialLibrary` with five built-in presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy). Ported from WrinkleFE. |
 | | `laminate.py` | `Laminate`, `Ply`, `LoadState`; Classical Lamination Theory ABD matrices and effective engineering constants. Ported from WrinkleFE. |
 | | `geometry.py` | `PanelGeometry`, `ImpactorGeometry`, `BoundaryKind` (clamped / simply-supported / free). |
 | `impact/` | `olsson.py` | Olsson quasi-static damage-threshold load `P_c` and onset energy `E_onset` from plate bending + fracture energy balance. |
