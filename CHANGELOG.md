@@ -138,6 +138,12 @@ All notable changes to BVID-FE are documented in this file.
   fix, because nothing checked the generated schemas against the
   dataclasses. Regenerated, and CI's `validation` job now runs
   `scripts/generate_schemas.py --check`.
+- **CI coverage stopped counting the CLI** after the pytest-cov 7 bump:
+  pytest-cov 7 no longer measures subprocesses, and the CLI tests run
+  `python -m bvidfe.cli` in one (cli.py 92% -> 55%, total 93.3% -> 91.3%).
+  `[tool.coverage.run] patch = ["subprocess"]` (coverage >= 7.10) restores
+  it. Dev dependencies now allow pytest 9 and black 26, and the workflows
+  use `actions/setup-python@v7` (supersedes Dependabot #79, #80, #141).
 - **`Laminate.effective_engineering_constants` was off by a factor of
   h^2.** It formed the average-stress compliance as `A^-1 / h` instead of
   `h * A^-1`, so `Ex`, `Ey` and `Gxy` were scaled by the laminate thickness
