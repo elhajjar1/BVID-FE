@@ -4,8 +4,8 @@ Issue #11: existing tests cover each tier in isolation but never assert the
 documented cross-tier relationships from README "Knockdown definition and
 cross-tier comparability":
 
-  * All three tiers share the same pristine baseline (thickness-weighted
-    ply-average), so ``pristine_strength_MPa`` must be identical.
+  * All three tiers share the same pristine baseline (the unnotched
+    laminate strength), so ``pristine_strength_MPa`` must be identical.
   * For TAI, ``empirical`` and ``semi_analytical`` delegate to the same
     Whitney-Nuismer point-stress formula, so their knockdowns must match
     exactly.

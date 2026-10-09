@@ -56,8 +56,9 @@ Create `src/bvidfe/analysis/<name>.py`. Reuse:
   before dispatch, passed in.
 - `bvidfe.damage.state.DamageState` — already resolved (either user-
   supplied or from `impact_to_damage`).
-- `_pristine_strength(lam, loading)` in `analysis/bvid.py` — already
-  computed and passed in as `sigma_0`.
+- `_pristine_strength(lam, loading)` in `analysis/bvid.py` (the unnotched
+  laminate strength, `failure/laminate_strength.py`) — already computed and
+  passed in as `sigma_0`.
 
 Mirror the closest existing tier:
 

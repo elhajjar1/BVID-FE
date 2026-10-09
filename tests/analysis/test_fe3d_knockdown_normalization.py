@@ -2,7 +2,7 @@
 
 fe3d's failure stresses (first-ply failure on the 3D mesh, delamination
 growth) are a different quantity from the shared
-``pristine_strength_MPa`` (a thickness-weighted ply-strength average), so
+``pristine_strength_MPa`` (then a thickness-weighted ply-strength average), so
 dividing one by the other reported a knockdown well below 1 for an
 undamaged panel (0.37 in tension, 0.03 in compression for an 8-ply QI
 150x100 mm panel). The knockdown is now normalised by an undamaged fe3d run,

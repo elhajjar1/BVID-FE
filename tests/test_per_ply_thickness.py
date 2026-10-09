@@ -111,11 +111,12 @@ def test_uniform_list_matches_scalar_tai():
 # ---------------------------------------------------------------------------
 
 
-def test_thickness_weighted_pristine_strength_matches_handwritten_sum():
+def test_pristine_strength_weights_plies_by_their_thickness():
     """``_pristine_strength`` must weight each ply by its actual thickness.
 
     A 2-ply [0, 90] laminate where the 0-ply is twice as thick as the 90-ply
-    should give pristine compression strength = (2*Xc + 1*Yc) / 3.
+    fails in tension when the 0-ply breaks, after the 90 has cracked: the
+    0-ply carries 2/3 of the section, so the strength is ~2/3 Xt.
     """
     from bvidfe.analysis.bvid import _pristine_strength
     from bvidfe.core.laminate import Laminate
@@ -123,16 +124,12 @@ def test_thickness_weighted_pristine_strength_matches_handwritten_sum():
 
     m = MATERIAL_LIBRARY["IM7/8552"]
     lam = Laminate(material=m, layup_deg=[0, 90], ply_thickness_mm=[0.20, 0.10])
-    expected = (0.20 * m.Xc + 0.10 * m.Yc) / (0.20 + 0.10)
-    assert _pristine_strength(lam, "compression") == pytest.approx(expected, rel=1e-12)
+    assert _pristine_strength(lam, "tension") == pytest.approx(m.Xt * 2 / 3, rel=0.01)
 
 
 def test_per_ply_thickness_changes_pristine_strength():
-    """Same total thickness, different distribution => still same pristine
-    (it's a thickness-weighted average; only the *shape* of the distribution
-    matters when fibre angles differ across plies). For a layup with mixed
-    angles the pristine should differ from the uniform-thickness baseline
-    if we weight more toward 0-deg plies."""
+    """For a layup with mixed angles the pristine should differ from the
+    uniform-thickness baseline if we weight more toward 0-deg plies."""
     cfg_uniform = _make_cfg(_T)
     cfg_thick0 = _make_cfg([0.30, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.30])
     r_uni = BvidAnalysis(cfg_uniform).run()

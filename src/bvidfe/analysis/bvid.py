@@ -21,6 +21,7 @@ from bvidfe.analysis.semi_analytical import (
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
 from bvidfe.damage.state import DamageState
+from bvidfe.failure.laminate_strength import unnotched_strength
 from bvidfe.failure.soutis_openhole import (
     lekhnitskii_kt_infinity,
     soutis_cai,
@@ -36,26 +37,10 @@ def _resolve_material(m: Union[str, OrthotropicMaterial]) -> OrthotropicMaterial
 
 
 def _pristine_strength(lam: Laminate, loading: LoadingMode) -> float:
-    """Thickness-weighted ply-average pristine strength in the loading direction.
-
-    For compression: sum_i t_i * (Xc*cos^2 + Yc*sin^2) / sum_i t_i
-    For tension:     sum_i t_i * (Xt*cos^2 + Yt*sin^2) / sum_i t_i
-
-    The per-ply thicknesses ``t_i`` are taken from ``lam.ply_thicknesses_mm``,
-    so non-uniform laminates weight each ply by its actual thickness.
-    """
-    m = lam.material
-    total_t = 0.0
-    num = 0.0
-    for theta, t_i in zip(lam.layup_deg, lam.ply_thicknesses_mm):
-        c2 = math.cos(math.radians(theta)) ** 2
-        s2 = math.sin(math.radians(theta)) ** 2
-        if loading == "compression":
-            num += t_i * (m.Xc * c2 + m.Yc * s2)
-        else:
-            num += t_i * (m.Xt * c2 + m.Yt * s2)
-        total_t += t_i
-    return num / total_t
+    """Unnotched laminate strength in the loading direction (MPa): ply-discount
+    last-ply failure on classical lamination theory, see
+    ``bvidfe.failure.laminate_strength``."""
+    return unnotched_strength(lam, loading)
 
 
 def _config_snapshot_dict(cfg: AnalysisConfig) -> dict:

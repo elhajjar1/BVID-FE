@@ -69,10 +69,10 @@ class AnalysisResults:
 
     The strength fields are defined identically across all three tiers:
 
-    - ``pristine_strength_MPa`` is a thickness-weighted ply-average of the
-      lamina-level strengths from the material card (see
-      ``bvidfe.analysis.bvid._pristine_strength``). Same denominator for
-      every tier.
+    - ``pristine_strength_MPa`` is the unnotched laminate strength:
+      ply-discount last-ply failure on classical lamination theory (see
+      ``bvidfe.failure.laminate_strength``). Same denominator for every
+      tier.
     - ``residual_strength_MPa`` is the tier-specific damaged strength. For
       fe3d it is ``pristine_strength_MPa`` times fe3d's damaged strength
       over fe3d's own undamaged strength, so an undamaged fe3d run gives
