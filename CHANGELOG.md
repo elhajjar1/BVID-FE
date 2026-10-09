@@ -4,6 +4,18 @@ All notable changes to BVID-FE are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`AS4/8552` material preset** (Hexcel 8552 AS4 tape). The cleanest open
+  ASTM D7136/D7137 CAI datasets (Girona: Gonzalez et al. 2011, Falco et al.
+  2014; NCAMP CAM-RP-2010-002) are on AS4/8552, which no preset covered.
+  Lamina moduli, strengths and density are the NCAMP RTD means. G23 comes
+  from nu23 = 0.45 (Gonzalez et al.), S23 is the LaRC03 estimate from Yc, and
+  G_Ic/G_IIc are the IM7/8552 values (same matrix). The impact-mapping
+  calibration fields keep their defaults. NCAMP's 30 J CAI on
+  [45/0/-45/90]3s is 176 MPa; the semi-analytical tier gives 196 MPa and the
+  empirical tier 312 MPa.
+
 ### Changed
 
 - **fe3d first-ply failure now sees impact damage.** It did not: the fe3d
@@ -127,11 +139,23 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **Project links pointed at the repository's previous owner**
+  (`ranipdx-glitch`): the docs site URL, `repo_url`, the `pyproject.toml`
+  project URLs, README and docs badges and links, the schema `$id`s, and
+  the PyPI Trusted Publishing and Streamlit deployment instructions. They
+  now point at `elhajjar1/BVID-FE`; a Trusted Publisher registered under
+  the old owner would reject the release workflow.
 - **`docs/schemas/analysis_config.json` was missing `puck_p_nt_minus` and
   `puck_p_nt_plus`**, the `OrthotropicMaterial` fields added with the Puck
   fix, because nothing checked the generated schemas against the
   dataclasses. Regenerated, and CI's `validation` job now runs
   `scripts/generate_schemas.py --check`.
+- **CI coverage stopped counting the CLI** after the pytest-cov 7 bump:
+  pytest-cov 7 no longer measures subprocesses, and the CLI tests run
+  `python -m bvidfe.cli` in one (cli.py 92% -> 55%, total 93.3% -> 91.3%).
+  `[tool.coverage.run] patch = ["subprocess"]` (coverage >= 7.10) restores
+  it. Dev dependencies now allow pytest 9 and black 26, and the workflows
+  use `actions/setup-python@v7` (supersedes Dependabot #79, #80, #141).
 - **`Laminate.effective_engineering_constants` was off by a factor of
   h^2.** It formed the average-stress compliance as `A^-1 / h` instead of
   `h * A^-1`, so `Ex`, `Ey` and `Gxy` were scaled by the laminate thickness

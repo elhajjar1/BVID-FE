@@ -166,6 +166,33 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_IIc=1.0,
         rho=1.58e-6,
     ),
+    # Hexcel 8552 AS4 unidirectional tape. E11, E22, nu12, G12, strengths and
+    # density: NCAMP CAM-RP-2010-002 Rev A (2011), Table 2-1, RTD means
+    # (fiber-dominated values normalized to CPT = 0.0074 in = 0.188 mm); S12 is
+    # F12s at 5% strain. G23 = E22 / (2 (1 + nu23)) with nu23 = 0.45 measured on
+    # AS4/8552 by Gonzalez et al. (Compos Sci Technol 71, 2011). S23 is the
+    # LaRC03 transverse shear strength from Yc at a 53 deg fracture plane
+    # (Davila, Camanho & Rose, J Compos Mater 39, 2005). G_Ic and G_IIc are the
+    # IM7/8552 values (same 8552 matrix), as Gonzalez et al. (Compos Struct 94,
+    # 2012) use for AS4/8552.
+    "AS4/8552": OrthotropicMaterial(
+        name="AS4/8552",
+        E11=127300,
+        E22=9240,
+        nu12=0.30,
+        G12=4830,
+        G13=4830,
+        G23=3186,
+        Xt=1996,
+        Xc=1398,
+        Yt=64,
+        Yc=268,
+        S12=92,
+        S23=101,
+        G_Ic=0.28,
+        G_IIc=0.79,
+        rho=1.59e-6,
+    ),
     "IM7/8552": OrthotropicMaterial(
         name="IM7/8552",
         E11=165000,

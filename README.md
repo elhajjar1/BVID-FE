@@ -2,15 +2,15 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/ranipdx-glitch/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/ranipdx-glitch/BVID-FE/actions/workflows/tests.yml)
-[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://ranipdx-glitch.github.io/BVID-FE/)
+[![Tests](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml)
+[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://elhajjar1.github.io/BVID-FE/)
 
 > **Documentation:** the full MkDocs site is published at
-> <https://ranipdx-glitch.github.io/BVID-FE/> and includes a Quickstart, the
+> <https://elhajjar1.github.io/BVID-FE/> and includes a Quickstart, the
 > Python API reference, the C-scan JSON schema, the physics models, and the
 > Streamlit deployment guide. Auto-generated JSON Schemas for `AnalysisConfig`
 > and `AnalysisResults` live at
-> [`/schemas/`](https://ranipdx-glitch.github.io/BVID-FE/schemas/analysis_config.json).
+> [`/schemas/`](https://elhajjar1.github.io/BVID-FE/schemas/analysis_config.json).
 
 A Python library for predicting residual strength and stiffness of fiber-reinforced composite laminates containing Barely Visible Impact Damage (BVID).
 
@@ -31,7 +31,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
   - *3D FE*: First-ply-failure on a damaged hexahedral mesh; LaRC05 for CAI, Tsai-Wu for TAI (minutes)
 - **CAI and TAI loading modes** (Compression-After-Impact and Tension-After-Impact)
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
-- **Four material presets**: AS4/3501-6, IM7/8552, T700/2510, T800/epoxy
+- **Five material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy
 - **CLI** for single-run and batch use
 - **Streamlit web app** with sidebar-driven `AnalysisConfig` and result tabs — Summary, Damage Map, Knockdown Curve (live empirical sweep around the current energy), 3D Damage (Plotly hex mesh coloured by damage factor), Buckling (tier-specific buckling indicator: `N_cr` in N/mm for `semi_analytical`, `σ_crit` in MPa for `fe3d`), Damage Severity (through-thickness sum of per-element `1 − damage_factor`; see [Physics Models](#damage-severity-heatmap)), and Sweep (CSV-exportable parametric energy sweep). Cached runs, fe3d mesh-size guards, JSON/CSV downloads
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output
@@ -41,7 +41,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 ## Installation
 
 ```bash
-git clone https://github.com/ranipdx-glitch/bvid-fe.git
+git clone https://github.com/elhajjar1/BVID-FE.git
 cd bvid-fe
 pip install -e ".[dev]"
 pytest -v
@@ -216,7 +216,7 @@ If you use BVID-FE in your research, please cite:
   year      = {2026},
   version   = {0.2.0},
   publisher = {GitHub},
-  url       = {https://github.com/ranipdx-glitch/BVID-FE},
+  url       = {https://github.com/elhajjar1/BVID-FE},
   note      = {University of Wisconsin-Milwaukee}
 }
 ```

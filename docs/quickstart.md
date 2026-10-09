@@ -5,7 +5,7 @@ The fastest path from a fresh clone to a residual-strength estimate.
 ## 1. Install
 
 ```bash
-git clone https://github.com/ranipdx-glitch/BVID-FE.git
+git clone https://github.com/elhajjar1/BVID-FE.git
 cd BVID-FE
 pip install -e ".[dev]"
 ```
@@ -20,7 +20,7 @@ mkdocs serve     # http://127.0.0.1:8000
 ## 2. Try it in Jupyter
 
 The fastest tour of the physics is
-[`examples/quickstart.ipynb`](https://github.com/ranipdx-glitch/BVID-FE/blob/main/examples/quickstart.ipynb)
+[`examples/quickstart.ipynb`](https://github.com/elhajjar1/BVID-FE/blob/main/examples/quickstart.ipynb)
 — a runnable notebook that walks through:
 
 - the Olsson quasi-static damage threshold,
@@ -92,7 +92,7 @@ Streamlit Community Cloud.
 
 ## More examples
 
-The repository's [`examples/`](https://github.com/ranipdx-glitch/BVID-FE/tree/main/examples)
+The repository's [`examples/`](https://github.com/elhajjar1/BVID-FE/tree/main/examples)
 folder contains five end-to-end scripts:
 
 - `01_empirical_quick.py` — minimal one-shot empirical analysis.

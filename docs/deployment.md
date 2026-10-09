@@ -3,7 +3,7 @@
 BVID-FE ships with a Streamlit web app (`app.py`) that wraps
 `bvidfe.analysis.BvidAnalysis`. This page summarises how to publish a public
 URL on Streamlit Community Cloud — the full guide lives in
-[`DEPLOYMENT_STREAMLIT.md`](https://github.com/ranipdx-glitch/BVID-FE/blob/main/DEPLOYMENT_STREAMLIT.md).
+[`DEPLOYMENT_STREAMLIT.md`](https://github.com/elhajjar1/BVID-FE/blob/main/DEPLOYMENT_STREAMLIT.md).
 
 ## Local smoke test
 
@@ -21,9 +21,9 @@ populate.
 
 1. Push your branch (typically `main`) to GitHub.
 2. Sign in at <https://share.streamlit.io> with the GitHub account that owns
-   the repo (`ranipdx-glitch`).
+   the repo (`elhajjar1`).
 3. **Create app** → **Deploy a public app from GitHub**:
-    - **Repository:** `ranipdx-glitch/BVID-FE`
+    - **Repository:** `elhajjar1/BVID-FE`
     - **Branch:** `main`
     - **Main file path:** `app.py`
     - **App URL:** pick a sub-domain (e.g. `bvidfe.streamlit.app`)

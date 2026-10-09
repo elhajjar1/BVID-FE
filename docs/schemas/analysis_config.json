@@ -278,7 +278,7 @@
       "type": "object"
     }
   },
-  "$id": "https://ranipdx-glitch.github.io/BVID-FE/schemas/analysis_config.json",
+  "$id": "https://elhajjar1.github.io/BVID-FE/schemas/analysis_config.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "BVID analysis configuration. Provide exactly ONE of `impact` or `damage`.",

@@ -120,7 +120,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     # Defer the MATERIAL_LIBRARY import + choices population to parser-build
     # time so --material rejects typos early with the standard argparse
-    # 'invalid choice' message listing the four presets, instead of failing
+    # 'invalid choice' message listing the presets, instead of failing
     # downstream with a raw KeyError.
     from bvidfe.core.material import MATERIAL_LIBRARY
 
