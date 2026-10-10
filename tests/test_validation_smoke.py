@@ -57,3 +57,83 @@ def test_validator_gate_passes_on_synthetic_dataset():
         check=False,
     )
     assert res.returncode == 0, res.stderr
+
+
+def _load_validator():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "validate_bvid_public",
+        Path(__file__).parent.parent / "validation" / "validate_bvid_public.py",
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["validate_bvid_public"] = mod
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop("validate_bvid_public", None)
+    return mod
+
+
+_CASE = {
+    "material": "AS4/8552",
+    "layup_deg": [45, 0, -45, 90, 90, -45, 0, 45],
+    "ply_thickness_mm": 0.188,
+    "panel_Lx_mm": 150.0,
+    "panel_Ly_mm": 100.0,
+    "impactor_diameter_mm": 16.0,
+    "impactor_mass_kg": 5.5,
+    "impact_energy_J": 10.0,
+    "measured_strength_MPa": 200.0,
+}
+
+
+def test_case_requires_impactor_diameter_and_mass():
+    import pytest
+
+    v = _load_validator()
+    for key in ("impactor_diameter_mm", "impactor_mass_kg"):
+        d = {k: val for k, val in _CASE.items() if k != key}
+        with pytest.raises(ValueError, match=key):
+            v.case_from_dict(d)
+
+
+def test_case_boundary_and_impactor_shape_reach_the_analysis(monkeypatch):
+    v = _load_validator()
+    seen = {}
+    real = v.BvidAnalysis
+
+    class Spy(real):
+        def __init__(self, config):
+            seen["config"] = config
+            super().__init__(config)
+
+    monkeypatch.setattr(v, "BvidAnalysis", Spy)
+    v.run_case(v.case_from_dict(_CASE), "empirical")
+    assert seen["config"].panel.boundary == "simply_supported"
+    assert seen["config"].impact.impactor.shape == "hemispherical"
+
+    case = v.case_from_dict({**_CASE, "boundary": "clamped", "impactor_shape": "flat"})
+    v.run_case(case, "empirical")
+    assert seen["config"].panel.boundary == "clamped"
+    assert seen["config"].impact.impactor.shape == "flat"
+
+
+def test_ncamp_as4_8552_cai_gate_passes_for_the_closed_form_tiers():
+    for tier in ("empirical", "semi_analytical"):
+        res = subprocess.run(
+            [
+                sys.executable,
+                "validation/validate_bvid_public.py",
+                "--dataset",
+                "ncamp_as4_8552_cai",
+                "--tier",
+                tier,
+                "--gate",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert res.returncode == 0, (tier, res.stdout, res.stderr)
+        assert "ncamp_as4_8552_cai" in res.stdout

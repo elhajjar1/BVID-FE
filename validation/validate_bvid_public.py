@@ -50,23 +50,32 @@ class DatasetCase:
     impact_energy_J: float
     loading: str  # "compression" or "tension"
     measured_strength_MPa: float
+    boundary: str = "simply_supported"  # PanelGeometry.boundary
+    impactor_shape: str = "hemispherical"  # ImpactorGeometry.shape
     measured_dent_mm: Optional[float] = None
     measured_dpa_mm2: Optional[float] = None
     note: str = ""
 
 
 def case_from_dict(d: dict) -> DatasetCase:
+    # Impactor diameter and mass are often missing from papers. A silent
+    # default (16 mm, 5.5 kg) would hide that, so a case must state them.
+    missing = [k for k in ("impactor_diameter_mm", "impactor_mass_kg") if k not in d]
+    if missing:
+        raise ValueError(f"dataset case is missing {', '.join(missing)}: {d.get('note', '')!r}")
     return DatasetCase(
         material=d["material"],
         layup_deg=list(d["layup_deg"]),
         ply_thickness_mm=float(d["ply_thickness_mm"]),
         panel_Lx_mm=float(d["panel_Lx_mm"]),
         panel_Ly_mm=float(d["panel_Ly_mm"]),
-        impactor_diameter_mm=float(d.get("impactor_diameter_mm", 16.0)),
-        impactor_mass_kg=float(d.get("impactor_mass_kg", 5.5)),
+        impactor_diameter_mm=float(d["impactor_diameter_mm"]),
+        impactor_mass_kg=float(d["impactor_mass_kg"]),
         impact_energy_J=float(d["impact_energy_J"]),
         loading=d.get("loading", "compression"),
         measured_strength_MPa=float(d["measured_strength_MPa"]),
+        boundary=d.get("boundary", "simply_supported"),
+        impactor_shape=d.get("impactor_shape", "hemispherical"),
         measured_dent_mm=d.get("measured_dent_mm"),
         measured_dpa_mm2=d.get("measured_dpa_mm2"),
         note=d.get("note", ""),
@@ -88,12 +97,14 @@ def run_case(case: DatasetCase, tier: str) -> dict:
         material=case.material,
         layup_deg=list(case.layup_deg),
         ply_thickness_mm=case.ply_thickness_mm,
-        panel=PanelGeometry(case.panel_Lx_mm, case.panel_Ly_mm),
+        panel=PanelGeometry(case.panel_Lx_mm, case.panel_Ly_mm, boundary=case.boundary),
         loading=case.loading,
         tier=tier,
         impact=ImpactEvent(
             energy_J=case.impact_energy_J,
-            impactor=ImpactorGeometry(diameter_mm=case.impactor_diameter_mm),
+            impactor=ImpactorGeometry(
+                diameter_mm=case.impactor_diameter_mm, shape=case.impactor_shape
+            ),
             mass_kg=case.impactor_mass_kg,
         ),
     )
