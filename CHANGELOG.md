@@ -23,6 +23,17 @@ All notable changes to BVID-FE are documented in this file.
   now also gates the semi-analytical tier on measured datasets. The fe3d
   monitoring step runs only the synthetic dataset, since a 24-ply coupon
   takes about 3.5 minutes.
+- **Second measured dataset, `lovejoy_scotti_im7_8552_cai`, as advisory.**
+  Eight IM7/8552 standard-ply CAI coupons from Lovejoy & Scotti (NASA LaRC
+  2019): quasi-isotropic at 54 J and hard laminate at 68 J, with measured
+  dent depth and C-scan area. The model misses it (MAE: empirical 39.9%,
+  semi-analytical 23.5%; quasi-isotropic coupons predicted 36-56% too
+  strong). The undamaged strength matches NCAMP, and rescaling the predicted
+  damage to the measured C-scan areas raises the predictions further, so the
+  damage-to-knockdown map is too lenient (`soutis_k_s` = 2.5 is an
+  uncalibrated default; these coupons imply about 4-5). Datasets can now set
+  `"gate": false` with a `gate_note`: their error is reported but cannot fail
+  `--gate`.
 - **Validation cases take `boundary` and `impactor_shape`**, passed to
   `PanelGeometry` and `ImpactorGeometry`. A case must now state the impactor
   diameter and mass; they used to default silently to 16 mm and 5.5 kg.

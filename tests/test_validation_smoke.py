@@ -137,3 +137,36 @@ def test_ncamp_as4_8552_cai_gate_passes_for_the_closed_form_tiers():
         )
         assert res.returncode == 0, (tier, res.stdout, res.stderr)
         assert "ncamp_as4_8552_cai" in res.stdout
+
+
+def test_ungated_dataset_reports_its_error_without_failing_the_gate(tmp_path, monkeypatch, capsys):
+    import json
+
+    v = _load_validator()
+    wrong = {**_CASE, "measured_strength_MPa": 1.0}  # any prediction is far off
+    for name, extra in (("gated", {}), ("advisory", {"gate": False, "gate_note": "known miss"})):
+        (tmp_path / f"{name}.json").write_text(
+            json.dumps({"name": name, "target_mae_pct": 10.0, "cases": [wrong], **extra})
+        )
+    monkeypatch.setattr(v, "DATASET_DIR", tmp_path)
+
+    assert v.main(["--dataset", "advisory", "--gate"]) == 0
+    assert "ADVISORY: advisory is not gated. known miss" in capsys.readouterr().out
+    assert v.main(["--dataset", "gated", "--gate"]) == 1
+
+
+def test_lovejoy_scotti_dataset_is_advisory():
+    res = subprocess.run(
+        [
+            sys.executable,
+            "validation/validate_bvid_public.py",
+            "--dataset",
+            "lovejoy_scotti_im7_8552_cai",
+            "--gate",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr
+    assert "ADVISORY: lovejoy_scotti_im7_8552_cai is not gated" in res.stdout

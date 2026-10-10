@@ -88,7 +88,13 @@ def load_dataset(path: Path) -> tuple[str, List[DatasetCase], dict]:
     name = obj.get("name", path.stem)
     target_mae = float(obj.get("target_mae_pct", 100.0))
     cases = [case_from_dict(c) for c in obj["cases"]]
-    return name, cases, {"target_mae_pct": target_mae}
+    # "gate": false marks a dataset the model is known to miss: its error is
+    # reported but does not fail --gate. "gate_note" says why.
+    return name, cases, {
+        "target_mae_pct": target_mae,
+        "gate": bool(obj.get("gate", True)),
+        "gate_note": obj.get("gate_note", ""),
+    }
 
 
 def run_case(case: DatasetCase, tier: str) -> dict:
@@ -191,7 +197,9 @@ def main(argv: list[str] | None = None) -> int:
             f"MAE = {mae:.2f}%   max error = {max_err:.2f}%   "
             f"target = {target:.1f}%   gate-multiplier = {multiplier:g}"
         )
-        if args.gate and mae > multiplier * target:
+        if not meta["gate"]:
+            print(f"ADVISORY: {name} is not gated. {meta['gate_note']}".rstrip())
+        elif args.gate and mae > multiplier * target:
             print(
                 f"FAIL: {name} ({args.tier}) MAE {mae:.2f}% exceeds "
                 f"{multiplier:g} * {target:.1f}% target",
