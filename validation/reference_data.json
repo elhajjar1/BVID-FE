@@ -2,15 +2,51 @@
   "schema_version": "1.1",
   "description": "Top-level index of BVID validation datasets. See validation/README.md.",
   "datasets": [
-    {"name": "ncamp_as4_8552_cai", "reference": "NCAMP CAM-RP-2010-002 Rev A (2011), sec. 4.31", "target_mae_pct": 15, "measured": true},
-    {"name": "synthetic_selfcheck", "reference": "generated from the empirical tier", "target_mae_pct": 1, "measured": false}
+    {
+      "name": "ncamp_as4_8552_cai",
+      "reference": "NCAMP CAM-RP-2010-002 Rev A (2011), sec. 4.31",
+      "target_mae_pct": 15,
+      "measured": true
+    },
+    {
+      "name": "lovejoy_scotti_im7_8552_cai",
+      "reference": "Lovejoy & Scotti 2019, NTRS 20200002432, Tables 1 and 4",
+      "target_mae_pct": 15,
+      "measured": true,
+      "gate": false
+    },
+    {
+      "name": "synthetic_selfcheck",
+      "reference": "generated from the empirical tier",
+      "target_mae_pct": 1,
+      "measured": false
+    }
   ],
   "datasets_to_digitize": [
-    {"name": "hasebe_t800s_3900-2b_cai", "reference": "Hasebe et al. 2025, Data in Brief; Mendeley Data 8scdmfdcfb v3 (CC BY 4.0)", "material": "T800S/3900-2B"},
-    {"name": "lovejoy_scotti_im7_8552_cai", "reference": "Lovejoy & Scotti 2019, NTRS 20200002432", "material": "IM7/8552"},
-    {"name": "sanchez-saez_as4_3501-6_cai", "reference": "Sanchez-Saez et al. 2008, UC3M open manuscript (re-tabulates the 2005 data)", "material": "AS4/3501-6"},
-    {"name": "nasa_tp3102_t800_3900-2_cai", "reference": "NASA TP-3102, drop-weight point", "material": "T800/3900-2"},
-    {"name": "korbelin_m21_t800s_tai", "reference": "Korbelin 2022, TU Hamburg thesis", "material": "M21/T800S"},
-    {"name": "girona_as4_8552_cai", "reference": "Gonzalez et al. 2011, Compos Sci Technol 71; Falco et al. 2014, Compos Struct", "material": "AS4/8552"}
+    {
+      "name": "hasebe_t800s_3900-2b_cai",
+      "reference": "Hasebe et al. 2025, Data in Brief; Mendeley Data 8scdmfdcfb v3 (CC BY 4.0)",
+      "material": "T800S/3900-2B"
+    },
+    {
+      "name": "sanchez-saez_as4_3501-6_cai",
+      "reference": "Sanchez-Saez et al. 2008, UC3M open manuscript (re-tabulates the 2005 data)",
+      "material": "AS4/3501-6"
+    },
+    {
+      "name": "nasa_tp3102_t800_3900-2_cai",
+      "reference": "NASA TP-3102, drop-weight point",
+      "material": "T800/3900-2"
+    },
+    {
+      "name": "korbelin_m21_t800s_tai",
+      "reference": "Korbelin 2022, TU Hamburg thesis",
+      "material": "M21/T800S"
+    },
+    {
+      "name": "girona_as4_8552_cai",
+      "reference": "Gonzalez et al. 2011, Compos Sci Technol 71; Falco et al. 2014, Compos Struct",
+      "material": "AS4/8552"
+    }
   ]
 }
