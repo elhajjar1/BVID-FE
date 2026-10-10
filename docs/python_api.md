@@ -86,8 +86,9 @@ result = BvidAnalysis(config).run()
 ## Knockdown semantics
 
 `AnalysisResults.knockdown == residual_strength_MPa / pristine_strength_MPa`.
-The pristine strength is a thickness-weighted ply-average of the lamina-level
-material strengths and is **identical for all three tiers** — only the
+The pristine strength is the unnotched laminate strength (ply-discount
+last-ply failure on classical lamination theory) and is **identical for all
+three tiers** — only the
 residual-strength numerator differs:
 
 - `empirical`: Soutis (CAI) / Whitney-Nuismer (TAI) closed-form.

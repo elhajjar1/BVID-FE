@@ -69,8 +69,8 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
         ],
         {
             "knockdown": 0.43923234565804536,
-            "residual_strength_MPa": 389.81870677151534,
-            "pristine_strength_MPa": 887.5000000000002,
+            "residual_strength_MPa": 264.1045562559775,
+            "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 7823.814020954099,
             "tier_used": "empirical",
         },
@@ -96,10 +96,13 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
         {
             # Recaptured when the sublaminate channel changed from buckling
             # onset to buckling-driven delamination growth — knockdown
-            # rose from 0.055 to 0.306.
-            "knockdown": 0.30587457624830694,
+            # rose from 0.055 to 0.306 — and again when the pristine
+            # strength became ply-discount last-ply failure (887.5 -> 601.3
+            # MPa): the growth stress is absolute, so the knockdown rose to
+            # 0.451.
+            "knockdown": 0.4514713198805202,
             "residual_strength_MPa": 271.4636864203725,
-            "pristine_strength_MPa": 887.5000000000002,
+            "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 3659.9324669198636,
             "tier_used": "semi_analytical",
         },
@@ -124,8 +127,8 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
         ],
         {
             "knockdown": 0.21852316445726744,
-            "residual_strength_MPa": 287.6857460079925,
-            "pristine_strength_MPa": 1316.4999999999998,
+            "residual_strength_MPa": 279.8512722335999,
+            "pristine_strength_MPa": 1280.6481373342062,
             "dpa_mm2": 8901.845339242213,
             "tier_used": "empirical",
         },

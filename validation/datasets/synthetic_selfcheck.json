@@ -30,7 +30,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 5.0,
       "loading": "compression",
-      "measured_strength_MPa": 472.9077777892749,
+      "measured_strength_MPa": 320.3980214551151,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -60,7 +60,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 10.0,
       "loading": "compression",
-      "measured_strength_MPa": 389.41056909210806,
+      "measured_strength_MPa": 263.82818265395844,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -90,7 +90,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 15.0,
       "loading": "compression",
-      "measured_strength_MPa": 343.6916346622285,
+      "measured_strength_MPa": 232.85318177630418,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -120,7 +120,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 20.0,
       "loading": "compression",
-      "measured_strength_MPa": 312.93841915522256,
+      "measured_strength_MPa": 212.01689021239403,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -150,7 +150,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 25.0,
       "loading": "compression",
-      "measured_strength_MPa": 290.15036844186693,
+      "measured_strength_MPa": 196.57859315599367,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -180,7 +180,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 30.0,
       "loading": "compression",
-      "measured_strength_MPa": 272.269434551271,
+      "measured_strength_MPa": 185.80847415456574,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -210,7 +210,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 5.0,
       "loading": "tension",
-      "measured_strength_MPa": 480.9802125396438,
+      "measured_strength_MPa": 312.6081244195897,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -240,7 +240,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 10.0,
       "loading": "tension",
-      "measured_strength_MPa": 467.7546292639877,
+      "measured_strength_MPa": 304.01229111568745,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -270,7 +270,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 15.0,
       "loading": "tension",
-      "measured_strength_MPa": 462.2223554272233,
+      "measured_strength_MPa": 300.4166288795385,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -300,7 +300,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 20.0,
       "loading": "tension",
-      "measured_strength_MPa": 458.9937876487374,
+      "measured_strength_MPa": 298.31817841096756,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -330,7 +330,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 25.0,
       "loading": "tension",
-      "measured_strength_MPa": 456.8149177897266,
+      "measured_strength_MPa": 296.9021160820956,
       "note": "synthetic self-check (empirical tier)"
     },
     {
@@ -360,7 +360,7 @@
       "impactor_mass_kg": 5.5,
       "impact_energy_J": 30.0,
       "loading": "tension",
-      "measured_strength_MPa": 455.2178126064803,
+      "measured_strength_MPa": 295.97630752750973,
       "note": "synthetic self-check (empirical tier)"
     }
   ]

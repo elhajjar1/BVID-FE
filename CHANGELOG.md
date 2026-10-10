@@ -14,9 +14,33 @@ All notable changes to BVID-FE are documented in this file.
   G_Ic/G_IIc are the IM7/8552 values (same matrix). The impact-mapping
   calibration fields keep their defaults. NCAMP's 30 J CAI on
   [45/0/-45/90]3s is 176 MPa; the semi-analytical tier gives 196 MPa and the
-  empirical tier 312 MPa.
+  empirical tier 204 MPa.
 
 ### Changed
+
+- **Pristine strength is now the unnotched laminate strength** (ply-discount
+  last-ply failure on classical lamination theory,
+  `bvidfe.failure.laminate_strength`). It was the thickness-weighted average
+  of the ply strengths along the load, `sum t_i (X cos^2 + Y sin^2) / sum t_i`,
+  which treats the plies as sharing stress; they share strain, so the
+  off-axis plies were credited with strength they never reach before the
+  0 deg fibres break. Against the NCAMP unnotched tension and compression
+  strengths of AS4/8552 and IM7/8552 (25/50/25, 10/80/10 and 50/40/10
+  layups) the old value was 1.17-2.85x the measurement (mean 1.75x); the
+  new one is 0.83-1.18x (mean 1.00x), pinned in
+  `tests/validation/test_unnotched_strength_ncamp.py`.
+  - `pristine_strength_MPa` and every absolute residual strength drop
+    accordingly: a 16-ply IM7/8552 quasi-isotropic laminate goes from
+    887.5 to 601.3 MPa in compression; cross-ply tension from 1316.5 to
+    1280.6 MPa.
+  - Empirical and fe3d knockdowns are unchanged (they are ratios applied to
+    the pristine strength). Semi-analytical CAI knockdowns rise where
+    delamination growth governs, because the growth stress is absolute:
+    0.306 -> 0.451 for the 16-ply quasi-isotropic laminate at 10 J.
+  - For the NCAMP AS4/8552 30 J CAI benchmark (176 MPa, knockdown 0.31) the
+    empirical tier now gives 204 MPa (was 313) and the semi-analytical
+    knockdown is 0.36 (was 0.24).
+  - The synthetic validation dataset and the CLI snapshots are recaptured.
 
 - **fe3d first-ply failure now sees impact damage.** It did not: the fe3d
   tension knockdown was 0.998-1.000 at 5-30 J on 8- to 24-ply IM7/8552

@@ -97,11 +97,32 @@ knockdown = residual_strength_MPa / pristine_strength_MPa
 ```
 
 **The denominator is identical across all three tiers.**
-`_pristine_strength()` is a thickness-weighted ply-average of the
-lamina-level strengths from the material card:
+`_pristine_strength()` is the unnotched laminate strength from classical
+lamination theory, by ply-discount last-ply failure
+(`bvidfe.failure.laminate_strength`):
 
-- CAI: `Σ tᵢ (Xc·cos²θᵢ + Yc·sin²θᵢ) / Σ tᵢ`
-- TAI: `Σ tᵢ (Xt·cos²θᵢ + Yt·sin²θᵢ) / Σ tᵢ`
+- The laminate is loaded by a uniaxial average stress σₓ.
+- A ply whose matrix fails (max stress: σ₂ against Yt/Yc, |τ₁₂| against
+  S12) keeps 1% of its E22 and G12, and the load it sheds is redistributed
+  at the same applied stress.
+- The laminate fails when any ply's fibres fail (σ₁ against Xt/Xc), or when
+  every ply has cracked (a [90]ₙ laminate fails at Yt/Yc).
+
+Plies share the laminate strain, so the 0° plies carry most of an axial
+load. The thickness-weighted average of the ply strengths used before,
+`Σ tᵢ (X·cos²θᵢ + Y·sin²θᵢ) / Σ tᵢ`, credited the off-axis plies with
+strength they never reach: it was 1.17–2.85× the NCAMP unnotched strengths
+of AS4/8552 and IM7/8552 laminates. Ply-discount matches them within
+0.83–1.18 (mean 1.00):
+
+| Material | Layup | Tension: NCAMP / model (MPa) | Compression: NCAMP / model (MPa) |
+| --- | --- | --- | --- |
+| AS4/8552 | 25/50/25 | 611 / 699 | 561 / 543 |
+| AS4/8552 | 10/80/10 | 439 / 392 | 430 / 357 |
+| AS4/8552 | 50/40/10 | 1050 / 1106 | 904 / 830 |
+| IM7/8552 | 25/50/25 | 722 / 856 | 600 / 601 |
+| IM7/8552 | 10/80/10 | 462 / 415 | 458 / 388 |
+| IM7/8552 | 50/40/10 | 1211 / 1415 | 833 / 933 |
 
 **The numerator (residual strength) is what differs between tiers:**
 
