@@ -45,10 +45,15 @@ jobs:
         run: python scripts/generate_schemas.py --check
       - name: "Validation: empirical tier (hard gate)"
         run: python validation/validate_bvid_public.py --gate
+      - name: "Validation: semi_analytical tier on measured data (hard gate)"
+        # Measured datasets only: synthetic_selfcheck is generated from the
+        # empirical tier, so other tiers cannot match it.
+        run: python validation/validate_bvid_public.py --gate --tier=semi_analytical --dataset=ncamp_as4_8552_cai
       - name: "Validation: fe3d tier (monitoring; first 3 cases)"
-        # fe3d takes ~10-12 s per case so we cap at the first 3 to keep
-        # CI under ~45 s. The gate multiplier is 2.0 (vs 1.25 for the
-        # empirical hard gate) to acknowledge fe3d's energy-flatness
-        # caveat — failures here are advisory, not blocking.
-        run: python validation/validate_bvid_public.py --gate --tier=fe3d --max-cases=3
+        # fe3d takes ~10-12 s per synthetic case (16 plies) but ~3.5 min per
+        # 24-ply NCAMP coupon, so this step runs the synthetic dataset only.
+        # The gate multiplier is 2.0 (vs 1.25 for the empirical hard gate)
+        # to acknowledge fe3d's energy-flatness caveat — failures here are
+        # advisory, not blocking.
+        run: python validation/validate_bvid_public.py --gate --tier=fe3d --dataset=synthetic_selfcheck --max-cases=3
         continue-on-error: true

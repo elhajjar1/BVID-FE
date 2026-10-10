@@ -3,30 +3,60 @@
 This directory anchors BVID-FE's validation credibility against published
 composite-after-impact test data.
 
-## Current state (v0.1.0)
+## Datasets
 
-The `datasets/synthetic_selfcheck.json` file contains a tautological
-self-check dataset: each case is produced by running the empirical tier
-at a known input. By construction the MAE is ~0%. This exists only to
-exercise the harness end-to-end and gate regressions in the core analysis
-pipeline.
+| Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical |
+|---|---|---|---|---|---|---|
+| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 15.9% | 11.6% |
+| `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | ~0% (by construction) | n/a |
 
-## Roadmap (v0.2.0)
+**`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
+(2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
+and 4.31. It has seven [45/0/-45/90]3s coupons (24 plies, 4.5 mm), tested
+to ASTM D7136/D7137 at RTD and impacted at 1500 in-lbf/in (about 30 J). The
+measured CAI is 171–182 MPa and every coupon failed through the impact damage
+(failure code LDM). Each case uses its own measured thickness and impact
+energy. The report does not give the impactor mass or tup, so the ASTM
+D7136 standard values (5.5 kg, 0.625 in hemispherical) are used. It reports
+no dent depth or damage area. The fe3d tier gives 169 MPa (5% low) on the
+first coupon, but at about 3.5 minutes per coupon it is not run in CI.
 
-The following published datasets must be digitized by hand (from PDFs)
-and added here, each with its own JSON file in `datasets/`. Target MAE%:
+**`synthetic_selfcheck`** is tautological: each case is produced by running
+the empirical tier at a known input, so its MAE is ~0% by construction. It
+exercises the harness end-to-end and gates regressions in the empirical
+pipeline. Regenerate it when the empirical tier changes on purpose.
 
-| Dataset | Loading | Target MAE | Reference |
+CI gates the empirical tier on every dataset and the semi-analytical tier on
+the measured ones, at 1.25x each dataset's target. The fe3d tier is run on the
+synthetic set as an advisory check.
+
+## Next datasets
+
+From the literature survey of open CAI/TAI data, in priority order. Each
+needs the inputs listed before it can be scored.
+
+| Dataset | Material | Loading | Needs |
 |---|---|---|---|
-| Soutis AS4/3501-6 | CAI | <12% | Soutis & Curtis (1996) |
-| Caprino AS4/epoxy | TAI + CAI | <15% | Caprino (1984) |
-| Sanchez-Saez IM7/8552 | CAI | <12% | Sanchez-Saez et al. (2005) |
-| NASA round-robin | CAI | <15% | NASA/TM-2007 |
+| Hasebe et al. 2025, *Data in Brief* (Mendeley, CC BY 4.0) | T800S/3900-2B | CAI | T800S/3900-2B preset; separate impact (60x60 mm window) and test (80x50 mm) geometry; cone angle; an assumed impactor mass |
+| Lovejoy & Scotti 2019, NASA (NTRS 20200002432) | IM7/8552 | CAI | No undamaged strength reported |
+| Sánchez-Sáez et al. 2008 (UC3M open manuscript) | AS4/3501-6 | CAI | Thin, stability-limited 78 mm coupons |
+| NASA TP-3102, drop-weight point | T800/3900-2 | CAI | Single point |
+| Körbelin 2022, TU Hamburg thesis | M21/T800S | TAI | M21/T800S preset; separate support frame and tension coupon |
+| González et al. 2011 and Falcó et al. 2014 (Girona) | AS4/8552 | CAI | Ready now that the AS4/8552 preset exists |
+
+The v0.2.0 roadmap this table replaces named four sources that cannot be
+used as listed:
+- Soutis & Curtis 1996 is paywalled and re-analyses earlier studies.
+- Caprino 1984 is paywalled and covers tension only.
+- Sánchez-Sáez et al. 2005 tested AS4/3501-6, not IM7/8552.
+- No "NASA/TM-2007" CAI round robin was found on NTRS.
 
 Each case record requires: material name, layup, ply thickness, panel
-dimensions, impact energy, measured CAI/TAI strength (MPa), and optionally
-the measured dent depth and DPA (for calibration of `olsson_alpha`,
-`soutis_k_s`, `dent_beta`).
+dimensions, impactor diameter and mass (no defaults: a dataset that omits
+them must say what it assumes), impact energy, and measured CAI/TAI
+strength (MPa). Optional: `boundary` (`simply_supported`, `clamped`,
+`free`), `impactor_shape` (`hemispherical`, `flat`, `conical`), measured
+dent depth and DPA.
 
 ## Running
 

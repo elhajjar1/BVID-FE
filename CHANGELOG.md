@@ -15,6 +15,21 @@ All notable changes to BVID-FE are documented in this file.
   calibration fields keep their defaults. NCAMP's 30 J CAI on
   [45/0/-45/90]3s is 176 MPa; the semi-analytical tier gives 196 MPa and the
   empirical tier 204 MPa.
+- **First measured validation dataset: `ncamp_as4_8552_cai`.** Seven
+  AS4/8552 [45/0/-45/90]3s CAI coupons from NCAMP CAM-RP-2010-002 Rev A
+  (ASTM D7136/D7137, about 30 J, 171-182 MPa), each with its own measured
+  thickness and impact energy. MAE: empirical 15.9%, semi-analytical 11.6%
+  (target 15%; fe3d gives 5% on the first coupon but is not run in CI). CI
+  now also gates the semi-analytical tier on measured datasets. The fe3d
+  monitoring step runs only the synthetic dataset, since a 24-ply coupon
+  takes about 3.5 minutes.
+- **Validation cases take `boundary` and `impactor_shape`**, passed to
+  `PanelGeometry` and `ImpactorGeometry`. A case must now state the impactor
+  diameter and mass; they used to default silently to 16 mm and 5.5 kg.
+- The validation roadmap (`validation/README.md`,
+  `validation/reference_data.json`) lists the open datasets found by the
+  literature survey. Three of the four v0.2.0 entries could not be used as
+  listed, and no source was found for the fourth.
 
 ### Changed
 
