@@ -158,8 +158,11 @@ stresses are recorded in `AnalysisResults.notes`.
 
 ## Limitations
 
-- Material calibration constants (`olsson_alpha`, `soutis_k_s`, `dent_beta`,
-  and related parameters) are reasonable defaults for typical CFRP systems.
+- `soutis_k_s` (3.5) is calibrated on two measured CAI datasets (AS4/8552 and
+  IM7/8552; see `validation/README.md`); expect 15–20% error on a new
+  material or layup. The other calibration constants (`olsson_alpha`,
+  `dent_beta`, and related parameters) are reasonable defaults for typical
+  CFRP systems.
   Precise values need calibration against material-specific coupon test data
   before use in certification.
 - LaRC05 is implemented as a minimal Hashin-3D reduction. Full plane-search

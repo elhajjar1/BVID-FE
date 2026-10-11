@@ -7,8 +7,8 @@ composite-after-impact test data.
 
 | Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical |
 |---|---|---|---|---|---|---|
-| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 15.9% | 11.6% |
-| `lovejoy_scotti_im7_8552_cai` (advisory) | IM7/8552 | CAI | 8 | 15% | 39.9% | 23.5% |
+| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 7.3% | 7.3% |
+| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 10.9% | 10.8% |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | ~0% (by construction) | n/a |
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
@@ -35,17 +35,43 @@ The impactor is not described, so the ASTM D7136 standard is assumed. The
 hybrid thin-ply coupons are omitted, because a case has a single ply
 thickness.
 
-This dataset is **advisory** (`"gate": false`): the model misses it.
-- The quasi-isotropic coupons are predicted 36–56% too strong.
-- The damage area is overpredicted: about 8,900 mm² against 5,200–7,500 mm²
-  measured.
-- Rescaling the predicted delaminations to the measured areas makes the
-  strengths higher still.
+### Calibration of `soutis_k_s`
+
+The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_panel)^m)`, and
+`soutis_k_s` was an uncalibrated 2.5. Lovejoy & Scotti showed it was too
+lenient:
+- The quasi-isotropic coupons were predicted 36–56% too strong.
 - The undamaged strength is right (601 MPa against 600 MPa measured by
   NCAMP).
+- Rescaling the predicted delaminations to the measured C-scan areas made the
+  strengths higher still. The damage area is overpredicted (about 8,900 mm²
+  against 5,200–7,500 mm²), so the error is in the damage-to-knockdown map,
+  not the damage prediction.
 
-So the damage-to-knockdown map is too lenient: `soutis_k_s` = 2.5 is an
-uncalibrated default, and these coupons imply about 4–5.
+`soutis_k_s` is now 3.5, fitted to both measured datasets (m = 0.5 kept).
+
+| `k_s` | NCAMP empirical | Lovejoy empirical | NCAMP semi-analytical | Lovejoy semi-analytical |
+|---|---|---|---|---|
+| 2.5 (old default) | 15.9% | 39.9% | 11.6% | 23.5% |
+| 3.5 (new default) | 7.3% | 10.9% | 7.3% | 10.8% |
+
+The pooled optimum is 3.7 for the empirical tier and 3.3 for the
+semi-analytical; 3.5 splits them.
+
+The in-sample numbers flatter the model. The fair measure is cross-dataset:
+- `k_s` fitted on NCAMP alone (3.1) predicts Lovejoy at 16–21% MAE.
+- `k_s` fitted on Lovejoy alone (4.0) predicts NCAMP at 15.7%.
+
+Expect errors of that order on a new material or layup. The Hasebe set
+(below) has enough coupons to calibrate damage size and knockdown separately
+and hold data out.
+
+An equivalent-open-hole model (Whitney-Nuismer point stress with a
+finite-width correction) was also tried. Its characteristic distance
+calibrates cleanly from the NCAMP open-hole compression data (d0 =
+0.7–1.8 mm). But the predicted damage spans 78–126 mm of a 100 mm wide
+coupon, so the equivalent hole fills the specimen. It needs a better
+damage-width prediction first.
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction. It
@@ -53,9 +79,9 @@ exercises the harness end-to-end and gates regressions in the empirical
 pipeline. Regenerate it when the empirical tier changes on purpose.
 
 CI gates the empirical tier on every dataset and the semi-analytical tier on
-`ncamp_as4_8552_cai`, at 1.25x each dataset's target. A dataset with
-`"gate": false` is still run and its error printed, with its `gate_note`, but
-it cannot fail the gate. The fe3d tier is run on the
+the measured ones, at 1.25x each dataset's target. A dataset may set
+`"gate": false` with a `gate_note` for a known miss: it is still run and its
+error printed, but it cannot fail the gate. None does today. The fe3d tier is run on the
 synthetic set as an advisory check.
 
 ## Next datasets

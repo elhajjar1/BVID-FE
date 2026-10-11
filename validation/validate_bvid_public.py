@@ -143,6 +143,14 @@ def _discover_datasets() -> List[Path]:
     return sorted(DATASET_DIR.glob("*.json"))
 
 
+def _select_datasets(names: Optional[List[str]]) -> List[Path]:
+    """Datasets by stem name; all of them when ``names`` is None."""
+    paths = _discover_datasets()
+    if names is None:
+        return paths
+    return [p for p in paths if p.stem in names]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run BVID-FE validation against digitized datasets."
@@ -154,8 +162,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--dataset",
+        nargs="+",
         default=None,
-        help="Dataset stem name (without .json). If omitted, run all.",
+        help="Dataset stem name(s) (without .json). If omitted, run all.",
     )
     parser.add_argument(
         "--gate",
@@ -174,9 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    paths = _discover_datasets()
-    if args.dataset is not None:
-        paths = [p for p in paths if p.stem == args.dataset]
+    paths = _select_datasets(args.dataset)
     if not paths:
         print("No datasets found.", file=sys.stderr)
         return 1

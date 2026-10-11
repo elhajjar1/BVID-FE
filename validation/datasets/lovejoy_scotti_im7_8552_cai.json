@@ -2,8 +2,6 @@
   "name": "lovejoy_scotti_im7_8552_cai",
   "reference": "Lovejoy & Scotti, 'Potential Weight Benefits of IM7/8552 Hybrid Thin-Ply Composites for Aircraft Structures', NASA LaRC 2019, NTRS 20200002432, Tables 1 and 4. Standard-ply (190 gsm) coupons only: quasi-isotropic [45/0/-45/90]4s at 40 ft-lb and hard [45/0/90/0/-45/0/45/0/-45/0]2s at 50 ft-lb; 4 x 6 in, impacted and tested at NIAR to ASTM D7136/D7137. Each specimen's measured thickness, dent depth and C-scan damage area are carried. The impactor is not described: the ASTM D7136 standard 5.5 kg, 0.625 in hemispherical tup is assumed. No undamaged strength is reported. The hybrid thin-ply coupons are omitted (mixed ply thicknesses).",
   "target_mae_pct": 15.0,
-  "gate": false,
-  "gate_note": "Known miss: the CAI knockdown is too optimistic (empirical MAE 40%, semi-analytical 23%). With the measured C-scan areas the predictions rise further, so the damage-to-knockdown map (soutis_k_s = 2.5, an uncalibrated default) is too lenient, not the damage prediction. Gate once the knockdown model is fixed.",
   "cases": [
     {
       "material": "IM7/8552",

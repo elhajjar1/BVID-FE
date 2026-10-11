@@ -12,8 +12,7 @@
       "name": "lovejoy_scotti_im7_8552_cai",
       "reference": "Lovejoy & Scotti 2019, NTRS 20200002432, Tables 1 and 4",
       "target_mae_pct": 15,
-      "measured": true,
-      "gate": false
+      "measured": true
     },
     {
       "name": "synthetic_selfcheck",

@@ -6,8 +6,8 @@ The Soutis & Curtis (1996) compression-after-impact model implemented in
     knockdown = 1 / (1 + k_s * (DPA / A_panel)^m)
     sigma_CAI = knockdown * sigma_pristine
 
-with material-specific constants ``k_s`` and ``m`` (defaults 2.5 and 0.5
-for typical CFRP, calibrated to T300/914 in the original paper).
+with material-specific constants ``k_s`` and ``m`` (defaults 3.5 and 0.5,
+calibrated on the measured CAI datasets in validation/datasets).
 
 These tests pin the formula's behaviour to itself — i.e. the
 implementation must remain in agreement with the closed-form expression
@@ -35,7 +35,7 @@ def test_soutis_cai_returns_pristine_at_zero_dpa():
 
 def test_soutis_cai_matches_closed_form_low_damage():
     """Implementation must match knockdown = 1 / (1 + k_s*(DPA/A)^m)."""
-    m = MATERIAL_LIBRARY["IM7/8552"]  # k_s=2.5, m=0.5
+    m = MATERIAL_LIBRARY["IM7/8552"]  # k_s=3.5, m=0.5
     dpa, A_panel, sigma_0 = 100.0, 15000.0, 500.0
     sigma = soutis_cai(m, dpa, A_panel, sigma_0)
     expected = sigma_0 / (1.0 + m.soutis_k_s * (dpa / A_panel) ** m.soutis_m)

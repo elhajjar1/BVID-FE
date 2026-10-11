@@ -185,7 +185,7 @@ my_mat = OrthotropicMaterial(
     G_Ic=0.27, G_IIc=0.85, rho=1.58e-6,  # rho in kg/mm^3 (1.58 g/cm^3)
     # Optional impact/calibration constants (defaults for CFRP):
     olsson_alpha=0.8,     # DPA scaling
-    soutis_k_s=2.5,       # Soutis CAI constant
+    soutis_k_s=3.5,       # Soutis CAI constant
     soutis_m=0.5,         # Soutis exponent
     wn_d0_mm=1.0,         # Whitney-Nuismer characteristic distance
     dent_beta=0.05,       # Dent-depth prefactor

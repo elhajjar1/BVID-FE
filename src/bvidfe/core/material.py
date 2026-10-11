@@ -48,7 +48,12 @@ class OrthotropicMaterial:
     dent_gamma: float = 0.5
     fiber_break_eta: float = 0.0
     fiber_break_E_threshold: float = 1e9  # disabled unless explicitly overridden
-    soutis_k_s: float = 2.5
+    # Calibrated on the measured CAI datasets in validation/datasets (NCAMP
+    # AS4/8552, Lovejoy & Scotti IM7/8552): 3.7 fits the empirical tier best,
+    # 3.3 the semi-analytical tier. Fitted on either dataset alone it predicts
+    # the other within 16-21%. Was 2.5, which overpredicted those CAI
+    # strengths by 16-40%.
+    soutis_k_s: float = 3.5
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
     # Through-thickness strengths and 1-3 shear (None = transverse-isotropy

@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def test_validator_module_imports():
     import importlib.util
@@ -119,14 +121,15 @@ def test_case_boundary_and_impactor_shape_reach_the_analysis(monkeypatch):
     assert seen["config"].impact.impactor.shape == "flat"
 
 
-def test_ncamp_as4_8552_cai_gate_passes_for_the_closed_form_tiers():
+@pytest.mark.parametrize("dataset", ["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
+def test_measured_cai_gates_pass_for_the_closed_form_tiers(dataset):
     for tier in ("empirical", "semi_analytical"):
         res = subprocess.run(
             [
                 sys.executable,
                 "validation/validate_bvid_public.py",
                 "--dataset",
-                "ncamp_as4_8552_cai",
+                dataset,
                 "--tier",
                 tier,
                 "--gate",
@@ -136,7 +139,8 @@ def test_ncamp_as4_8552_cai_gate_passes_for_the_closed_form_tiers():
             check=False,
         )
         assert res.returncode == 0, (tier, res.stdout, res.stderr)
-        assert "ncamp_as4_8552_cai" in res.stdout
+        assert dataset in res.stdout
+        assert "ADVISORY" not in res.stdout
 
 
 def test_ungated_dataset_reports_its_error_without_failing_the_gate(tmp_path, monkeypatch, capsys):
@@ -155,18 +159,7 @@ def test_ungated_dataset_reports_its_error_without_failing_the_gate(tmp_path, mo
     assert v.main(["--dataset", "gated", "--gate"]) == 1
 
 
-def test_lovejoy_scotti_dataset_is_advisory():
-    res = subprocess.run(
-        [
-            sys.executable,
-            "validation/validate_bvid_public.py",
-            "--dataset",
-            "lovejoy_scotti_im7_8552_cai",
-            "--gate",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert res.returncode == 0, res.stderr
-    assert "ADVISORY: lovejoy_scotti_im7_8552_cai is not gated" in res.stdout
+def test_validator_runs_several_named_datasets():
+    v = _load_validator()
+    paths = v._select_datasets(["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
+    assert [p.stem for p in paths] == ["lovejoy_scotti_im7_8552_cai", "ncamp_as4_8552_cai"]

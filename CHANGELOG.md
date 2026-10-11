@@ -18,22 +18,20 @@ All notable changes to BVID-FE are documented in this file.
 - **First measured validation dataset: `ncamp_as4_8552_cai`.** Seven
   AS4/8552 [45/0/-45/90]3s CAI coupons from NCAMP CAM-RP-2010-002 Rev A
   (ASTM D7136/D7137, about 30 J, 171-182 MPa), each with its own measured
-  thickness and impact energy. MAE: empirical 15.9%, semi-analytical 11.6%
-  (target 15%; fe3d gives 5% on the first coupon but is not run in CI). CI
+  thickness and impact energy. MAE: empirical 7.3%, semi-analytical 7.3%
+  with the recalibrated `soutis_k_s` (15.9% and 11.6% before; target 15%;
+  fe3d gives 5% on the first coupon but is not run in CI). CI
   now also gates the semi-analytical tier on measured datasets. The fe3d
   monitoring step runs only the synthetic dataset, since a 24-ply coupon
   takes about 3.5 minutes.
-- **Second measured dataset, `lovejoy_scotti_im7_8552_cai`, as advisory.**
-  Eight IM7/8552 standard-ply CAI coupons from Lovejoy & Scotti (NASA LaRC
-  2019): quasi-isotropic at 54 J and hard laminate at 68 J, with measured
-  dent depth and C-scan area. The model misses it (MAE: empirical 39.9%,
-  semi-analytical 23.5%; quasi-isotropic coupons predicted 36-56% too
-  strong). The undamaged strength matches NCAMP, and rescaling the predicted
-  damage to the measured C-scan areas raises the predictions further, so the
-  damage-to-knockdown map is too lenient (`soutis_k_s` = 2.5 is an
-  uncalibrated default; these coupons imply about 4-5). Datasets can now set
-  `"gate": false` with a `gate_note`: their error is reported but cannot fail
-  `--gate`.
+- **Second measured dataset, `lovejoy_scotti_im7_8552_cai`.** Eight IM7/8552
+  standard-ply CAI coupons from Lovejoy & Scotti (NASA LaRC 2019):
+  quasi-isotropic at 54 J and hard laminate at 68 J, with measured dent depth
+  and C-scan area. MAE with the recalibrated `soutis_k_s` (see *Changed*):
+  empirical 10.9%, semi-analytical 10.8%; both tiers are gated in CI.
+  Datasets can set `"gate": false` with a `gate_note` for a known miss (its
+  error is reported but cannot fail `--gate`), and `--dataset` takes several
+  names.
 - **Validation cases take `boundary` and `impactor_shape`**, passed to
   `PanelGeometry` and `ImpactorGeometry`. A case must now state the impactor
   diameter and mass; they used to default silently to 16 mm and 5.5 kg.
@@ -44,6 +42,19 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **`soutis_k_s` default 2.5 -> 3.5** (empirical CAI knockdown
+  `1/(1 + k_s (DPA/A_panel)^m)`). The uncalibrated 2.5 overpredicted the
+  measured CAI strengths: MAE 15.9% (NCAMP AS4/8552) and 39.9% (Lovejoy &
+  Scotti IM7/8552) for the empirical tier, 11.6% and 23.5% for the
+  semi-analytical. The undamaged strength matches NCAMP, and rescaling the
+  predicted damage to the measured C-scan areas made the error worse, so the
+  knockdown map itself was too lenient. 3.5 fits both datasets (3.7 is the
+  empirical-tier optimum, 3.3 the semi-analytical): MAE 7.3% and 10.9%
+  (empirical), 7.3% and 10.8% (semi-analytical). Fitted on either dataset
+  alone, `k_s` predicts the other within 16-21%, which is the honest
+  uncertainty for a new material. Empirical CAI strengths drop about 15-25%
+  (16-ply IM7/8552 quasi-isotropic at 20 J: knockdown 0.439 -> 0.359); TAI
+  is unaffected.
 - **Pristine strength is now the unnotched laminate strength** (ply-discount
   last-ply failure on classical lamination theory,
   `bvidfe.failure.laminate_strength`). It was the thickness-weighted average
