@@ -26,9 +26,14 @@ reference):
 - `bvidfe.damage.state.DamageState`, `DelaminationEllipse`
 - `bvidfe.impact.mapping.ImpactEvent`
 
-This also includes extending a `Literal` (e.g. `TierName`,
-`LoadingMode`, `CriterionName`) — the schema emits these as `enum`s
-and they must be refreshed when the union grows.
+This also includes extending a `Literal` used by one of those fields
+(`TierName`, `LoadingMode`, `BoundaryKind`, `ImpactorShape`) — the
+schema emits these as `enum`s and they must be refreshed when the union
+grows — and editing the **first line of a dataclass docstring**, which
+becomes that definition's `description`. `CriterionName` is not used by
+any schema dataclass, so adding a failure criterion does not change the
+schemas; neither does adding a material preset (`material` is a free
+string).
 
 ## Steps
 
@@ -61,8 +66,8 @@ git diff docs/schemas/
 Look for:
 
 - New / removed fields matching the source change (no stray rewrites).
-- `enum` arrays under `tier`, `loading`, `criterion` containing the
-  expected literals.
+- `enum` arrays under `tier`, `loading`, `boundary` and `shape`
+  containing the expected literals.
 - No accidental ordering churn (the script sorts `$defs` and uses
   `sort_keys=True`, so a clean regen should diff only on real changes).
 

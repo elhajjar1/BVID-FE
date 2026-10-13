@@ -49,7 +49,7 @@ cfg = AnalysisConfig(
     ply_thickness_mm=0.152,
     panel=PanelGeometry(Lx_mm=150, Ly_mm=100),
     impact=ImpactEvent(
-        energy_J=30,
+        energy_J=20,
         impactor=ImpactorGeometry(diameter_mm=16),
         mass_kg=5.5,
     ),
@@ -60,6 +60,25 @@ result = BvidAnalysis(cfg).run()
 print(result.summary())
 ```
 
+This prints:
+
+```text
+BVID Analysis Results
+  tier_used              : semi_analytical
+  pristine_strength_MPa  : 601.3
+  residual_strength_MPa  : 168.4
+  knockdown              : 0.280
+  dpa_mm2                : 8090.4
+  dent_depth_mm          : 1.216
+  n_delaminations        : 15
+```
+
+`knockdown` is `residual_strength_MPa / pristine_strength_MPa`, and
+`dpa_mm2` is the projected damage area. The pristine strength is the
+unnotched laminate strength from classical lamination theory. In this case
+the Soutis bound (168.4 MPa) is below the delamination growth stress, so
+the semi-analytical result equals the empirical one.
+
 ## 4. Run from the command line
 
 ```bash
@@ -68,13 +87,17 @@ bvidfe --material IM7/8552 \
        --thickness 0.152 \
        --panel 150x100 \
        --loading compression \
-       --energy 30
+       --energy 10
 ```
 
 All lengths are in **millimetres**. `--panel` is `<Lx>x<Ly>` (literal `x`
 separator, no spaces — e.g. `150x100` is `Lx = 150` mm, `Ly = 100` mm).
-`--thickness` is the per-ply thickness in mm; `--layup` is a comma-separated
-list of ply angles in degrees; `--energy` is the impact energy in joules.
+`--thickness` is the per-ply thickness in mm (one value, or one per ply);
+`--layup` is a comma-separated list of ply angles in degrees; `--energy` is
+the impact energy in joules. The command prints the full results JSON from
+the default `empirical` tier. Add `--tier empirical,semi_analytical` to
+compare tiers, `--quick-json` for a one-line result, or `--list-materials`
+to see the five presets. `bvidfe --help` lists every option.
 
 ## 5. Streamlit web app
 
@@ -84,11 +107,29 @@ streamlit run app.py
 
 Opens the BVID-FE web UI at <http://localhost:8501>. Configure the material,
 layup, panel, impact (or C-scan), pick a tier, click **Run analysis**. Results
-appear across the Summary / Damage Map / 3D Damage / Knockdown / Buckling /
-Damage Severity / Sweep tabs.
+appear across the Summary / Damage Map / Knockdown Curve / 3D Damage /
+Buckling / Damage Severity / Sweep / Export NCR tabs. Export NCR writes a
+nonconformance report (Markdown or JSON) with a *proposed* disposition; a
+Material Review Board must review and approve it.
 
 See [Deployment](deployment.md) for publishing this app to a public URL on
 Streamlit Community Cloud.
+
+## 6. Compare with measured data
+
+The validation harness runs a tier on every dataset in
+`validation/datasets/` (two measured CAI datasets and a synthetic
+self-check) and prints each prediction next to the test result:
+
+```bash
+python validation/validate_bvid_public.py --tier empirical
+```
+
+The empirical tier's mean absolute error is 7.3% on the NCAMP AS4/8552
+coupons and 10.9% on the Lovejoy & Scotti IM7/8552 coupons. Both datasets
+were used to fit `soutis_k_s`, so expect errors of 15.7–21% on a material or
+layup outside them. See
+[`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
 
 ## More examples
 

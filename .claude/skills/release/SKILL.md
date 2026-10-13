@@ -35,6 +35,13 @@ git pull origin main
 If we're on a non-`main` branch, stop and ask — release tags ship from
 `main` only.
 
+`publish.yml` does not run the tests; it only checks the tag against
+`pyproject.toml`, builds, and uploads. Confirm that the latest `tests`
+workflow run on `main` passed (both the `test` and `validation` jobs; the
+fe3d validation step is advisory and may fail) before tagging. The
+release commit itself triggers `tests` on push; wait for it to pass before
+step 4.
+
 ## Steps
 
 ### 1. Bump the version everywhere it appears

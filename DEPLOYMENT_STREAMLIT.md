@@ -46,17 +46,20 @@ that branch or merge to `main` first.
    - **Branch:** `main` (or your feature branch)
    - **Main file path:** `app.py`
    - **App URL:** pick a sub-domain like `bvidfe.streamlit.app`
-3. Click **Advanced settings** and set Python version to **3.11** to
-   match `pyproject.toml`'s `requires-python = ">=3.10"` and the test
-   matrix.
+3. Click **Advanced settings** and set Python version to **3.11**. It
+   satisfies `pyproject.toml`'s `requires-python = ">=3.10"`, is in the CI
+   test matrix (3.10–3.12), and is the version the CI validation job uses.
 4. Click **Deploy**.
 
 Streamlit Cloud will:
 - clone the repo
 - create a virtualenv
 - run `pip install -r requirements.txt`
-- run `pip install -e .` because a `pyproject.toml` is present
 - start `streamlit run app.py`
+
+Streamlit Cloud does not necessarily install the `bvidfe` package itself,
+so `app.py` adds the repository's `src/` directory to `sys.path` before
+importing it.
 
 The first build typically takes 2–4 minutes (numpy/scipy/shapely wheels).
 Subsequent redeploys reuse the cache and finish in ~30 s.
@@ -87,9 +90,13 @@ Streamlit Cloud (Community tier) gives every app:
 
 Implications for BVID-FE:
 - The **fe3d** tier solves a 3D FE problem and can easily blow past 1 GB
-  on dense meshes. The Streamlit app defaults to **empirical** and warns
-  before launching fe3d. If you want to allow fe3d in the cloud, keep
-  `elements_per_ply = 1` and `in_plane_size_mm >= 5`.
+  on dense meshes. It also solves twice per run (damaged and undamaged
+  panel, to normalise the knockdown), so a run takes from tens of seconds
+  to minutes. The Streamlit
+  app defaults to the **empirical** tier and refuses an fe3d run whose
+  estimated mesh exceeds `BVIDFE_FE3D_MAX_DOF` (500,000 degrees of freedom
+  by default). If you want to allow fe3d in the cloud, keep
+  `elements_per_ply = 1` and `in_plane_size_mm >= 5` (the app's defaults).
 - Don't write user-supplied data anywhere except `tempfile`-scoped paths;
   the filesystem resets on every reboot.
 
@@ -98,11 +105,11 @@ Implications for BVID-FE:
 | Symptom | Fix |
 |---|---|
 | Build fails on `PyQt6` / `pyvista` | They should no longer be in `requirements.txt`. Streamlit Cloud has no display server. |
-| App boots but `import bvidfe` fails | Confirm the package installs from source: `pip install -e .` works locally. The deployer runs the same step. |
+| App boots but `import bvidfe` fails | `app.py` adds `src/` to `sys.path`, so check that `src/bvidfe/` is on the deployed branch, and that `pip install -e .` works locally. |
 | Plots don't render | Make sure `matplotlib.use("Agg")` is called before any `pyplot` import. `app.py` already does this. |
 | Slow first run | Expected — numpy/scipy/shapely wheels are ~100 MB combined. Subsequent runs are cached. |
 | Out of memory on large fe3d run | Increase `in_plane_size_mm`, keep `elements_per_ply = 1`, or switch to the empirical / semi_analytical tier. |
-| `FE3DSizeError` | The mesh exceeds `BVIDFE_FE3D_MAX_DOF`. Coarsen the mesh — Streamlit Cloud doesn't have the headroom to raise this cap. |
+| `FE3DSizeError` or "exceeding the safe cap" | The mesh exceeds `BVIDFE_FE3D_MAX_DOF` (default 500,000). Coarsen the mesh — Streamlit Cloud doesn't have the headroom to raise this cap. |
 
 ## 9. Optional next steps
 
