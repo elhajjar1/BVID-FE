@@ -53,7 +53,8 @@ All notable changes to BVID-FE are documented in this file.
   (empirical), 7.3% and 10.8% (semi-analytical). Fitted on either dataset
   alone, `k_s` predicts the other within 16-21%, which is the honest
   uncertainty for a new material. Empirical CAI strengths drop about 15-25%
-  (16-ply IM7/8552 quasi-isotropic at 20 J: knockdown 0.439 -> 0.359); TAI
+  (16-ply IM7/8552 quasi-isotropic, 200x150 mm panel at 20 J: knockdown
+  0.439 -> 0.359); TAI
   is unaffected.
 - **Pristine strength is now the unnotched laminate strength** (ply-discount
   last-ply failure on classical lamination theory,

@@ -20,7 +20,7 @@ All three sweep entry points (`sweep_energies`, `sweep_layups`,
         ``inputs`` is a small ``dict`` describing the iteration's swept
         inputs (``energy_J``, ``layup``, or ``ply_thickness_mm``). Used by
         the Streamlit UI to render a live ``E=…J`` progress label
-        (#112) and by the GUI ``SweepWorker`` to drive its progress bar.
+        (#112).
 
     Callback exceptions are caught and logged at DEBUG so a misbehaving
     UI never aborts the sweep itself.

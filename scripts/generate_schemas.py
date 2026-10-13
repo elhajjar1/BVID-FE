@@ -17,8 +17,8 @@ Usage::
     python scripts/generate_schemas.py            # write schemas
     python scripts/generate_schemas.py --check    # fail if regen would diff
 
-The ``--check`` mode is intended for use in a future CI step; the issue
-explicitly asks us to expose the flag without wiring it into CI yet.
+CI's validation job runs ``--check``, so a commit that changes a schema
+field must include the regenerated files.
 """
 
 from __future__ import annotations

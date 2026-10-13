@@ -929,8 +929,8 @@ with st.sidebar:
         key="tier",
         help=(
             "**empirical** — Soutis closed-form CAI, milliseconds.\n\n"
-            "**semi_analytical** — Rayleigh-Ritz sublaminate buckling + "
-            "Soutis envelope, seconds.\n\n"
+            "**semi_analytical** — buckling-driven delamination growth, "
+            "capped by Soutis, seconds.\n\n"
             "**fe3d** — 3D hex FE with LaRC05/Tsai-Wu, minutes; capped at "
             f"{FE3D_MAX_DOF:,} DOF."
         ),

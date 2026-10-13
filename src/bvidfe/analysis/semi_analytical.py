@@ -520,9 +520,9 @@ def semi_analytical_tai(
 ) -> float:
     """Semi-analytical tension-after-impact residual strength.
 
-    v0.1.0: delegates to Whitney-Nuismer open-hole equivalent (same as empirical tier).
-    The full Soutis cohesive-zone notch model with in-situ ply strength is
-    deferred to v0.2.0.
+    Delegates to the Whitney-Nuismer open-hole equivalent (same as the
+    empirical tier). A cohesive-zone notch model with in-situ ply strength
+    is not implemented.
     """
     dpa = damage.projected_damage_area_mm2
     Kt_inf = lekhnitskii_kt_infinity(lam)

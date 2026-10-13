@@ -1,10 +1,13 @@
 """3D finite-element tier for BVID-FE.
 
 The CAI residual is the minimum of two channels:
-- a first-ply-failure analysis on the damaged 3D mesh (this module's
-  distinctive value: 3D stress states with per-element damage factors);
-- a buckling stress from the Rayleigh-Ritz closed form (delegated to
-  :mod:`bvidfe.analysis.semi_analytical`, #129).
+- first-ply failure on the damaged 3D mesh (this module's distinctive
+  value: 3D stress states with per-element damage factors);
+- the far-field stress at which the weakest buckled sublaminate grows its
+  delamination (delegated to :mod:`bvidfe.analysis.semi_analytical`).
+
+Buckling onset (whole panel and sublaminate, Rayleigh-Ritz closed form) is
+reported by :func:`fe3d_cai_buckling` but does not enter the residual.
 """
 
 from __future__ import annotations
@@ -36,7 +39,7 @@ from bvidfe.solver.boundary import uniaxial_x_bcs
 from bvidfe.solver.static import solve_linear_static
 
 # Configure a module-level logger that writes to stderr. Users launching
-# the GUI from a terminal (or running the CLI / Python API) will see
+# the Streamlit app from a terminal (or running the CLI / Python API) will see
 # one log line per FE stage, making long runs observable.
 _log = logging.getLogger("bvidfe.fe3d")
 
@@ -505,11 +508,12 @@ def _fe3d_cai_first_ply_failure(
 ) -> float:
     """3D FE compression-after-impact residual strength via first-ply-failure (MPa).
 
-    Original v0.1.0 implementation — bisects on applied strain until the selected
-    failure criterion's index reaches 1 on the damaged mesh. Retained as
-    fallback / comparison path. Default ``criterion="larc05"`` preserves the
-    historical behaviour; pass ``"tsai_wu"`` or ``"puck"`` to use those
-    criteria instead. Unknown names raise ``ValueError``.
+    Scales one elastic solve of the damaged mesh to the load at which the
+    selected failure criterion's index first reaches 1, and returns the
+    loaded-edge reaction force at that load over the gross area (see
+    ``_first_ply_failure_stress``). Default ``criterion="larc05"``; pass
+    ``"tsai_wu"`` or ``"puck"`` to use those criteria instead. Unknown names
+    raise ``ValueError``.
     """
     mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d FPF")
     sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=-1, criterion=criterion)
