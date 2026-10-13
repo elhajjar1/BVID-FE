@@ -13,8 +13,8 @@ All notable changes to BVID-FE are documented in this file.
   from nu23 = 0.45 (Gonzalez et al.), S23 is the LaRC03 estimate from Yc, and
   G_Ic/G_IIc are the IM7/8552 values (same matrix). The impact-mapping
   calibration fields keep their defaults. NCAMP's 30 J CAI on
-  [45/0/-45/90]3s is 176 MPa; the semi-analytical tier gives 196 MPa and the
-  empirical tier 204 MPa.
+  [45/0/-45/90]3s is 176 MPa; both closed-form tiers give 163 MPa with the
+  recalibrated `soutis_k_s` (the Soutis bound governs).
 - **First measured validation dataset: `ncamp_as4_8552_cai`.** Seven
   AS4/8552 [45/0/-45/90]3s CAI coupons from NCAMP CAM-RP-2010-002 Rev A
   (ASTM D7136/D7137, about 30 J, 171-182 MPa), each with its own measured
@@ -76,8 +76,9 @@ All notable changes to BVID-FE are documented in this file.
     delamination growth governs, because the growth stress is absolute:
     0.306 -> 0.451 for the 16-ply quasi-isotropic laminate at 10 J.
   - For the NCAMP AS4/8552 30 J CAI benchmark (176 MPa, knockdown 0.31) the
-    empirical tier now gives 204 MPa (was 313) and the semi-analytical
-    knockdown is 0.36 (was 0.24).
+    empirical tier went from 313 to 204 MPa and the semi-analytical
+    knockdown from 0.24 to 0.36, both with `soutis_k_s` = 2.5. With the
+    recalibrated 3.5 (above) both tiers give 163 MPa.
   - The synthetic validation dataset and the CLI snapshots are recaptured.
 
 - **fe3d first-ply failure now sees impact damage.** It did not: the fe3d

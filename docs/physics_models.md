@@ -325,15 +325,19 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   damage-zone in-plane factor (0.30) is uncalibrated against test data and
   uniform over the footprint. Once the damage area hits its 80%-of-panel cap
   the zone reaches the loaded edges, and fe3d knockdowns fall below the
-  empirical tier's (16- and 24-ply QI tension at 30 J: 0.16–0.20, against
-  0.35 from the empirical tier on the 16-ply panel).
+  empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.15,
+  against 0.35 from the empirical tier on the 16-ply panel).
 - **The `fe3d` first-ply failure has no characteristic length.** The
   stress concentration at the edge of the soft damage zone depends on the
   zone's shape and on the panel width, not on the zone's absolute size, so
   fe3d lacks the notch-size effect of the empirical tier's Soutis and
   Whitney-Nuismer models. It also depends on the mesh near the zone edge:
-  MESH_SENSITIVITY_PLACEHOLDER Cohesive surfaces and proper
-  load-introduction BCs are v0.3.0 scope.
+  going from 5 mm to 2.5 mm elements changes the 15 J knockdown on 8-ply
+  IM7/8552 150 × 100 mm panels by 0.9% (QI tension, 0.2975 to 0.2948),
+  5.6% (cross-ply tension, 0.2483 to 0.2345), 5.9% (cross-ply
+  compression, 0.2589 to 0.2437) and 7.8% (QI compression, 0.2896 to
+  0.3123). Cohesive surfaces and proper load-introduction BCs are v0.3.0
+  scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
   enclosing rectangle, a fixed mixed-mode phase angle (52.1°; at a buckled
