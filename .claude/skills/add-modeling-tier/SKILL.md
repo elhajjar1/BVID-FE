@@ -7,7 +7,8 @@ description: Add a new BVID-FE residual-strength modeling tier alongside empiric
 
 The three existing tiers (`empirical`, `semi_analytical`, `fe3d`) are
 wired together by **four** core sync points, plus three hard-coded tier
-lists in the user-facing tools, that must all change in one atomic edit. The dispatch in `BvidAnalysis.run` raises
+lists in the user-facing tools, that must all change in one atomic edit.
+The dispatch in `BvidAnalysis.run` raises
 `NotImplementedError` for unknown tiers, but the surrounding
 `AnalysisConfig` validation, the type alias, and the runtime-validation
 frozenset all catch the omission earlier and at different layers — get
