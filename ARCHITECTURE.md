@@ -173,4 +173,4 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
 - **3D buckling FE path** with proper load-introduction BCs and plate/shell elements (DKQ or MITC4), so buckling onset can capture damage-zone heterogeneity beyond the closed form (#129).
 - **More validated datasets**: the candidates and what each needs are listed in `validation/README.md` ("Next datasets").
 - **Calibrated material constants**: `olsson_alpha`, `dent_beta`, the fe3d `DAMAGE_ZONE_INPLANE_FACTOR` and related parameters against material test data (`soutis_k_s` is done), with held-out data to check them.
-- **fe3d on measured data in CI**: CI runs fe3d on the synthetic set only (advisory), because a 24-ply NCAMP coupon takes about 3.5 minutes.
+- **fe3d on measured data in CI**: CI runs fe3d on three synthetic cases as an ungated smoke run, because a 24-ply NCAMP coupon takes minutes.

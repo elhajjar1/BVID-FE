@@ -581,8 +581,7 @@ def fe3d_cai_buckling(
     if not np.isfinite(sigma_critical) or sigma_critical <= 0:
         note = (
             "fe3d buckling: closed-form Rayleigh-Ritz returned a degenerate "
-            "result; the buckling channel was dropped, so first-ply failure "
-            "alone sets the residual"
+            "result, so no buckling onset is reported"
         )
         return sigma_pristine_MPa, 0.0, [note]
 

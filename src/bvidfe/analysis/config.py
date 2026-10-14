@@ -116,5 +116,16 @@ class AnalysisConfig:
         else:
             if not (float(self.ply_thickness_mm) > 0):
                 raise ValueError(f"ply_thickness_mm must be > 0 (got {self.ply_thickness_mm}).")
+        if self.damage is not None:
+            # An n-ply laminate has interfaces 0 .. n-2. A larger index used
+            # to be silently ignored by the closed-form tiers and to raise
+            # IndexError when fe3d placed it on the mesh.
+            last = len(self.layup_deg) - 2
+            for d in self.damage.delaminations:
+                if d.interface_index > last:
+                    raise ValueError(
+                        f"delamination interface_index {d.interface_index} is outside "
+                        f"the {len(self.layup_deg)}-ply layup (interfaces 0-{last})."
+                    )
         if self.tier == "fe3d" and self.mesh is None:
             self.mesh = MeshParams()

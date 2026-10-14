@@ -202,6 +202,21 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **A delamination `interface_index` outside the layup is rejected.** An
+  n-ply laminate has interfaces 0 to n-2; `AnalysisConfig` now raises
+  `ValueError` for a larger index. The closed-form tiers used to ignore it
+  silently and fe3d raised `IndexError` while meshing.
+- **fe3d buckling notes reach `AnalysisResults.notes`.** `BvidAnalysis`
+  discarded the notes from `fe3d_cai_buckling`, so the degenerate-buckling
+  note never reached the user.
+- **`semi_analytical` CAI returns a Python `float`**, not `numpy.float64`,
+  when delamination growth governs.
+- **The validator rejects an unknown `--dataset` name** (exit 1) instead of
+  skipping it silently.
+- **The fe3d CI step is a smoke run, not a gate.** It compared fe3d against
+  `synthetic_selfcheck`, which is empirical-tier output, and so failed on
+  every run (5.3% against a 2% gate) without measuring fe3d's accuracy.
+
 - **Project links pointed at the repository's previous owner**
   (`ranipdx-glitch`): the docs site URL, `repo_url`, the `pyproject.toml`
   project URLs, README and docs badges and links, the schema `$id`s, and

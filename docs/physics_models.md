@@ -357,10 +357,6 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - `fe3d` CAI ignores whole-panel buckling (CAI fixtures carry anti-buckling
   guides). A slender panel without guides can buckle well below the
   reported residual.
-- `interface_index` is not checked against the layup. In the closed-form
-  tiers an index beyond the last interface (`n_plies − 2`) gives a
-  degenerate sublaminate with no growth bound; in `fe3d` it can raise an
-  `IndexError`.
 
 ## References
 

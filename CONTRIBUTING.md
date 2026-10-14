@@ -147,8 +147,8 @@ Validation datasets live in `validation/datasets/<name>.json`; the harness
     (`ncamp_as4_8552_cai`, `lovejoy_scotti_im7_8552_cai`), `--gate` (hard
     gate). `synthetic_selfcheck` is generated from the empirical tier, so
     other tiers cannot match it.
-  - fe3d tier on the first 3 cases of `synthetic_selfcheck` only
-    (`continue-on-error`, advisory).
+  - fe3d tier on the first 3 cases of `synthetic_selfcheck` only, as a
+    smoke run without `--gate` (`continue-on-error`).
 
 `--gate` fails when a dataset's MAE exceeds its `target_mae_pct` times
 1.25 (empirical, semi-analytical) or 2.0 (fe3d), unless the dataset sets

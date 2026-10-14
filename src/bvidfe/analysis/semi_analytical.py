@@ -507,7 +507,7 @@ def semi_analytical_cai(
     assert weakest is not None
     N_cr = weakest.buckling_load_N_per_mm
     return SemiAnalyticalResult(
-        residual_strength_MPa=min(sigma_soutis, weakest.growth_stress_MPa),
+        residual_strength_MPa=float(min(sigma_soutis, weakest.growth_stress_MPa)),
         critical_interface_index=weakest.interface_index,
         critical_buckling_load_N=N_cr if math.isfinite(N_cr) else None,
     )
