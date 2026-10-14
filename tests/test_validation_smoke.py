@@ -163,3 +163,9 @@ def test_validator_runs_several_named_datasets():
     v = _load_validator()
     paths = v._select_datasets(["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
     assert [p.stem for p in paths] == ["lovejoy_scotti_im7_8552_cai", "ncamp_as4_8552_cai"]
+
+
+def test_unknown_dataset_name_is_an_error(capsys):
+    v = _load_validator()
+    assert v.main(["--dataset", "ncamp_as4_8552_cai", "no_such_dataset"]) == 1
+    assert "no_such_dataset" in capsys.readouterr().err

@@ -61,10 +61,9 @@ silently dropped.
 - `dent_depth_mm` is stored and reported but does not enter any
   residual-strength calculation.
 
-The file does not carry the layup, so `interface_index` is not checked
-against it when loading. An index past the last interface gives a
-degenerate sublaminate (no growth bound) in the closed-form tiers and can
-make fe3d raise an `IndexError`.
+The file does not carry the layup, so `interface_index` is checked when
+the damage is given to `AnalysisConfig`: an index past the last interface
+(`n_plies − 2`) raises `ValueError`.
 
 ## Validation errors
 

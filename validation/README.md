@@ -85,9 +85,9 @@ CI gates the empirical tier on every dataset and the semi-analytical tier on
 the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
 error printed, but it cannot fail the gate. None does today. The fe3d tier
-is run on the first three synthetic cases as an advisory check
-(`continue-on-error`, 2.0x target): it reports 5.3% MAE there against a 2%
-gate, so that step fails without blocking.
+is run on the first three synthetic cases as a smoke run, not a gate: the
+synthetic set is empirical-tier output, so its error there (5.3%) measures
+the difference between the tiers, not fe3d's accuracy.
 
 ## Next datasets
 
@@ -132,9 +132,8 @@ python validation/validate_bvid_public.py --tier fe3d --dataset synthetic_selfch
 `--tier` is `empirical` (default), `semi_analytical` or `fe3d`. The gate
 multiplier is 1.25 for the closed-form tiers and 2.0 for fe3d.
 `--dataset` takes one or more file stems; a name that matches no file is
-skipped silently (the run exits 1 only if no name matches), so check that
-every dataset you asked for is printed. `--max-cases N` runs only the
-first N cases of each dataset.
+an error (exit 1). `--max-cases N` runs only the first N cases of each
+dataset.
 
 ## Adding a new dataset
 

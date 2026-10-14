@@ -184,6 +184,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     paths = _select_datasets(args.dataset)
+    unknown = sorted(set(args.dataset or []) - {p.stem for p in paths})
+    if unknown:
+        print(f"Unknown dataset(s): {', '.join(unknown)}", file=sys.stderr)
+        return 1
     if not paths:
         print("No datasets found.", file=sys.stderr)
         return 1

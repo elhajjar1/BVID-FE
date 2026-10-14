@@ -164,7 +164,8 @@ class BvidAnalysis:
                 f"fe3d whole-panel buckling at {sigma_panel:.1f} MPa is excluded from the "
                 f"knockdown (CAI fixtures carry anti-buckling guides)"
             )
-        _, lambda_crit, _ = fe3d_cai_buckling(self.config, damage, lam, math.inf)
+        _, lambda_crit, buckling_notes = fe3d_cai_buckling(self.config, damage, lam, math.inf)
+        notes.extend(buckling_notes)
         buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
         return sigma_0 * knockdown, buckling_eigs, critical_interface, notes
 
