@@ -9,7 +9,7 @@ composite-after-impact test data.
 |---|---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 7.3% | 7.3% |
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 10.9% | 10.8% |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 211 | 15% | 28.1% | 27.3% |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 25.3% | 25.6% |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | ~0% (by construction) | n/a |
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
@@ -80,9 +80,10 @@ so it is not gated: Hasebe, Higuchi, Yokozeki & Takeda, *Data in Brief* 60
 cross-ply c8/c16/c24 [0/90]ns, quasi-isotropic q8/q16/q24 [45/0/-45/90]ns,
 hard r0 and soft r45 (20 plies). Plates 80 × 80 mm were impacted clamped on
 a 60 × 60 mm window (`impact_panel_*`, `impact_boundary`), then trimmed to
-80 × 50 mm and tested to JIS K 7089. The 211 specimens struck by a
-hemispherical impactor (12.7, 25.4 and 31.8 mm; 2–21 J) are carried, each
-with its measured thickness, coupon size, C-scan area and dent. Notes:
+80 × 50 mm and tested to JIS K 7089. The 343 specimens struck by a
+hemispherical impactor (12.7, 25.4 and 31.8 mm), the 15.9 mm flat-ended
+impactor or the 60° cone (2–21 J) are carried, each with its measured
+thickness, coupon size, C-scan area and dent. Notes:
 - The impactor mass is not reported; 5.5 kg is assumed (DPA scales with
   `(5.5/m)^0.1`).
 - In the impact sheet the `[J/mm]` and `[J]` labels are swapped;
@@ -93,9 +94,16 @@ with its measured thickness, coupon size, C-scan area and dent. Notes:
   therefore carries `measured_pristine_MPa` (the layup's mean undamaged
   strength, the basis of the dataset's own reduction ratio) and is scored
   on predicted knockdown × that strength.
-- Flat and conical impactors are left out. Hasebe's data put flat-ended
-  damage at about 0.2× and conical at about 1.1–1.2× the hemispherical,
-  where the model's shape factors are 1.4 and 0.7.
+- The 120° cone is left out (the model's cone has a 30° half-angle). The
+  cones' shank diameter is not given; 12.7 mm is entered, which the model
+  does not use for a conical impactor.
+- The model's impactor factors are fitted to these data, the only open set
+  that varies the impactor on one material. Over same-layup, same-energy
+  groups, against the 12.7 mm hemisphere, the 25.4 and 31.8 mm hemispheres
+  left 0.88× and 0.87× the C-scan area (diameter exponent 0.2, was 0.3),
+  the 15.9 mm flat-ended impactor 0.20× and the 60° cone 1.20×. Relative
+  to a 16 mm hemisphere that is a shape factor of 0.2 (flat) and 1.3
+  (conical), where the unsourced previous values were 1.4 and 0.7.
 
 The `T800S/3900-2B` preset takes its elastic constants and toughness from
 Hasebe's Table 1 and its strengths from the Toray 3900 data sheet (Hasebe's
@@ -107,15 +115,14 @@ them about 7×); on the other specimens it predicts the area at a median
 with `(E − E_onset)/h`, so it is flat in thickness at constant J/mm; the
 measured area grows with thickness.
 
-Why the model misses: a constant knockdown (the set's mean, 0.75) scores
-28.9%, the same as both tiers. The DPA-based knockdown does not capture the
-layup: at similar delamination area, cross-ply c16 keeps 0.60 of its
-strength and quasi-isotropic q16 0.81. With the measured areas in place of
-the predicted ones the MAE is still 26% (22% with the most favourable
-panel-area normalisation). Normalising by the
-80 × 50 mm coupon area also biases the knockdown low (0.54 predicted,
-0.70 measured, on average). Replicate scatter alone accounts for about
-6–9%.
+Why the model misses: a constant knockdown (the set's mean, 0.70) scores
+30.3%, against 25.3% and 25.6% for the tiers. The DPA-based knockdown does
+not capture the layup: at similar delamination area, cross-ply c16 keeps
+0.60 of its strength and quasi-isotropic q16 0.81. Normalising by the
+80 × 50 mm coupon area biases the knockdown low (0.56 predicted, 0.70
+measured, on average): about 50 mm² of damage from the flat-ended impactor
+leaves the strength intact (0.99) where the model predicts 0.74. Replicate
+scatter alone accounts for about 6–9%.
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction. It

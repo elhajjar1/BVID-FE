@@ -37,13 +37,19 @@ the damage is then moved to the centre of the test panel.
 2. **Damage area.** The target projected damage area is
 
     ```text
-    DPA = α (E − E_onset) · 10³ / (G_IIc · h) × (5.5 / m)^0.1 × f_shape × (16 / D)^0.3
+    DPA = α (E − E_onset) · 10³ / (G_IIc · h) × (5.5 / m)^0.1 × f_shape × (16 / D)^0.2
     ```
 
     with `α = olsson_alpha` (default 0.8; 0.12 for T800S/3900-2B, fitted to
     Hasebe et al.'s C-scan areas), `h` the laminate thickness, `m`
-    the impactor mass (kg), `D` its diameter (mm) and `f_shape` = 1.0
-    (hemispherical), 1.4 (flat) or 0.7 (conical). At the ASTM D7136
+    the impactor mass (kg), `D` its diameter (mm; the diameter factor is 1
+    for a cone, whose contact is set by its angle) and `f_shape` = 1.0
+    (hemispherical), 0.2 (flat) or 1.3 (conical). `f_shape` and the
+    exponent 0.2 are fitted to Hasebe et al. (2025), the only open data that
+    vary the impactor on one material: over same-layup, same-energy groups a
+    15.9 mm flat-ended impactor left 0.20× and a 60° cone 1.20× the C-scan
+    area of a 12.7 mm hemisphere, and 25.4 and 31.8 mm hemispheres 0.88×
+    and 0.87×. At the ASTM D7136
     reference (5.5 kg, 16 mm, hemispherical) the three correction factors
     are 1. DPA is capped at 80% of the panel area (`DPACapClipWarning`). A
     `SmallMassQuasiStaticWarning` is raised when the impactor is lighter

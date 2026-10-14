@@ -209,7 +209,7 @@ def test_hasebe_dataset_is_advisory_and_runs():
     v = _load_validator()
     name, cases, meta = v.load_dataset(v.DATASET_DIR / "hasebe_t800s_3900_2b_cai.json")
     assert not meta["gate"] and meta["gate_note"]
-    assert len(cases) == 211
+    assert len(cases) == 343
     assert {c.material for c in cases} == {"T800S/3900-2B"}
     assert all(c.measured_pristine_MPa and c.impact_panel_Lx_mm == 60.0 for c in cases)
     df = v.run_dataset(cases[:5], "empirical")

@@ -235,7 +235,7 @@ details and sources are in [`validation/README.md`](validation/README.md).
 |---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` (NCAMP CAM-RP-2010-002) | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 171–182 | 7.3% (max 10.4%) | 7.3% (max 10.4%) |
 | `lovejoy_scotti_im7_8552_cai` (NASA LaRC 2019) | IM7/8552 [45/0/-45/90]4s at 54 J; hard [45/0/90/0/-45/0/45/0/-45/0]2s at 68 J | 8 | 133–147; 236–249 | 10.9% (max 23.7%) | 10.8% (max 23.7%) |
-| `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres at 2–21 J; 80×50 mm JIS K 7089 coupons | 211 | 137–592 | 28.1% (max 76.5%) | 27.3% (max 76.5%) |
+| `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres, a 15.9 mm flat-ended impactor and a 60° cone at 2–21 J; 80×50 mm JIS K 7089 coupons | 343 | 81–592 | 25.3% (max 101.5%) | 25.6% (max 101.5%) |
 
 Read these numbers with care:
 
@@ -251,7 +251,7 @@ Read these numbers with care:
   about 3.5 minutes per 24-ply coupon and is not run on the measured data
   in CI.
 - **The Hasebe set is a known miss.** A constant knockdown (the set's mean,
-  0.75) scores 28.9%, the same as the model: the DPA-based knockdown does
+  0.70) scores 30.3%, barely worse than the model: the DPA-based knockdown does
   not capture how much the knockdown depends on layup (cross-ply c16 keeps
   0.60 of its strength, quasi-isotropic q16 0.81, at similar damage area).
   It is reported, not gated. Its undamaged coupons fail at 0.4–0.6× the
@@ -275,7 +275,7 @@ python validation/validate_bvid_public.py --tier semi_analytical \
 
 ## Limitations
 
-- Only `soutis_k_s` is calibrated, on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J); see [Validation](#validation). The impact-mapping constants (`olsson_alpha`, `dent_beta`, `dent_gamma`, and related parameters) are uncalibrated defaults, except `olsson_alpha` for T800S/3900-2B (0.12, fitted to Hasebe et al.'s C-scan areas). On the Lovejoy & Scotti coupons the predicted damage area (about 8,900 mm²) is larger than the measured C-scan area (5,200–7,500 mm²). On Hasebe et al.'s the predicted area does not grow with thickness at constant energy per thickness, as the measured one does, and the impactor-shape factors run the wrong way (measured flat-ended about 0.2× and conical about 1.1–1.2× the hemispherical area; the model uses 1.4× and 0.7×). Calibrate against coupon data for the material before using results in certification.
+- Only `soutis_k_s` is calibrated, on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J); see [Validation](#validation). The impact-mapping constants (`olsson_alpha`, `dent_beta`, `dent_gamma`, and related parameters) are uncalibrated defaults, except `olsson_alpha` for T800S/3900-2B (0.12, fitted to Hasebe et al.'s C-scan areas). On the Lovejoy & Scotti coupons the predicted damage area (about 8,900 mm²) is larger than the measured C-scan area (5,200–7,500 mm²). On Hasebe et al.'s the predicted area does not grow with thickness at constant energy per thickness, as the measured one does. The impactor-shape and diameter factors are fitted to Hasebe et al.'s data, the only open set that varies the impactor. Calibrate against coupon data for the material before using results in certification.
 - LaRC05 is implemented as a minimal Hashin-3D reduction. Full plane-search fiber-kinking is deferred to a future release.
 - The `fe3d` tier uses component-wise stiffness reduction (out-of-plane at delaminated interfaces, in-plane over the damage zone) instead of true cohesive surfaces with bilinear traction-separation laws and a continuum damage model. Cohesive surfaces are deferred to a future release. The damage-zone in-plane factor (0.30) is uncalibrated against test data and uniform over the footprint. Once the damage area hits its 80%-of-panel cap the zone reaches the loaded edges, and fe3d knockdowns fall below the empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.15 vs 0.35).
 - **The `fe3d` first-ply failure has no characteristic length.** The stress concentration at the edge of the soft damage zone depends on the zone's shape and on the panel width, not on the zone's absolute size, so fe3d lacks the notch-size effect of the empirical tier's Soutis and Whitney-Nuismer models. It also depends on the mesh near the zone edge: going from 5 mm to 2.5 mm elements changes the 15 J tension knockdown on 8-ply IM7/8552 150×100 mm panels by 0.9% (QI, 0.2975 to 0.2948) and 5.6% (cross-ply, 0.2483 to 0.2345). Cohesive surfaces and proper load-introduction BCs are v0.3.0 scope.

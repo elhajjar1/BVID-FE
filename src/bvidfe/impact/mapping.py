@@ -35,31 +35,39 @@ class DPACapClipWarning(UserWarning):
     """The Olsson-predicted DPA exceeded the panel-area cap and was clipped."""
 
 
-# Impactor-shape footprint multiplier on target DPA. Empirical: flat-ended
-# impactors spread the contact force over a larger area and produce wider
-# delamination footprints; conical impactors concentrate penetration
-# rather than delamination. These values are first-order calibration
-# constants — override via custom OrthotropicMaterial if you have test data.
+# Impactor-shape multiplier on target DPA, relative to a 16 mm hemisphere.
+# Fitted to Hasebe et al. (Data in Brief 60, 2025), the only open dataset
+# that varies the impactor on one material (T800S/3900-2B): over same-layup,
+# same-energy groups, a 15.9 mm flat-ended impactor left 0.20x the C-scan
+# area of a 12.7 mm hemisphere (14 groups; 11 of 40 flat specimens had
+# none) and a 60 deg cone 1.20x (37 groups). Relative to a 16 mm hemisphere
+# that is 0.2 and 1.3. The previous, unsourced 1.4 (flat) and 0.7 (conical)
+# ran the other way.
 _SHAPE_DPA_FACTOR: dict[str, float] = {
     "hemispherical": 1.0,
-    "flat": 1.4,
-    "conical": 0.7,
+    "flat": 0.2,
+    "conical": 1.3,
 }
 
 # Reference impactor diameter (mm) for the footprint-spread correction.
-# Matches ASTM D7136 default.
+# Matches ASTM D7136 default. The exponent is fitted to the same data:
+# 25.4 and 31.8 mm hemispheres left 0.88x and 0.87x the C-scan area of the
+# 12.7 mm one (30 and 6 groups), against 0.81x and 0.76x at the previous
+# 0.3.
 _DIAMETER_REF_MM: float = 16.0
-_DIAMETER_DPA_EXPONENT: float = 0.3
+_DIAMETER_DPA_EXPONENT: float = 0.2
 
 
 def _shape_dpa_factor(shape: str) -> float:
     return _SHAPE_DPA_FACTOR.get(shape, 1.0)
 
 
-def _diameter_dpa_factor(diameter_mm: float) -> float:
+def _diameter_dpa_factor(diameter_mm: float, shape: str = "hemispherical") -> float:
     """Smaller impactors concentrate damage (larger factor); larger
-    impactors spread it (smaller factor). Mild (exponent 0.3)."""
-    if diameter_mm <= 0:
+    impactors spread it (smaller factor). Mild (exponent 0.2). A cone's
+    contact is set by its angle, not its shank diameter, so the factor is
+    1 for ``conical``."""
+    if diameter_mm <= 0 or shape == "conical":
         return 1.0
     return (_DIAMETER_REF_MM / diameter_mm) ** _DIAMETER_DPA_EXPONENT
 
@@ -150,10 +158,10 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
             SmallMassQuasiStaticWarning,
             stacklevel=2,
         )
-    # Impactor tip shape footprint (flat spreads damage; conical concentrates)
+    # Impactor tip shape (flat-ended: less delamination; conical: more)
     shape_factor = _shape_dpa_factor(event.impactor.shape)
     # Impactor diameter spread (smaller D -> more concentrated -> larger DPA factor)
-    diam_factor = _diameter_dpa_factor(event.impactor.diameter_mm)
+    diam_factor = _diameter_dpa_factor(event.impactor.diameter_mm, event.impactor.shape)
 
     dpa_target *= daf * shape_factor * diam_factor
 

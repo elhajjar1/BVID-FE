@@ -17,13 +17,13 @@ All notable changes to BVID-FE are documented in this file.
   so its onset energy, mass ratio and 80% area cap follow that panel, and
   is centred on `panel`. Defaults to `panel`; only valid with `impact`.
 - **Third measured CAI dataset, `hasebe_t800s_3900_2b_cai` (not gated).**
-  The 211 hemispherical-impact specimens of Hasebe et al. 2025 (Mendeley,
-  CC BY 4.0): T800S/3900-2B in 8 layups, 2-21 J, impacted on a clamped
-  60 x 60 mm window and tested as 80 x 50 mm JIS K 7089 coupons. MAE 28.1%
-  (empirical) and 27.3% (semi-analytical), no better than a constant
-  knockdown (28.9%): the DPA-based knockdown misses how strongly the
-  knockdown depends on layup. The impactor mass is not reported (5.5 kg
-  assumed).
+  343 specimens of Hasebe et al. 2025 (Mendeley, CC BY 4.0): T800S/3900-2B
+  in 8 layups, struck by three hemispheres, a flat-ended impactor or a 60
+  deg cone at 2-21 J on a clamped 60 x 60 mm window, and tested as
+  80 x 50 mm JIS K 7089 coupons. MAE 25.3% (empirical) and 25.6%
+  (semi-analytical), little better than a constant knockdown (30.3%): the
+  DPA-based knockdown misses how strongly the knockdown depends on layup.
+  The impactor mass is not reported (5.5 kg assumed).
 - **Validation cases take `measured_pristine_MPa`**, which scores a case on
   predicted knockdown x the measured undamaged strength (Hasebe's undamaged
   coupons fail at 0.4-0.6x the unnotched strength in the JIS fixture), and
@@ -64,6 +64,17 @@ All notable changes to BVID-FE are documented in this file.
   listed, and no source was found for the fourth.
 
 ### Changed
+
+- **Impactor shape and diameter factors on the damage area are fitted to
+  Hasebe et al. 2025**, the only open data that vary the impactor on one
+  material. Over same-layup, same-energy groups a 15.9 mm flat-ended
+  impactor left 0.20x and a 60 deg cone 1.20x the C-scan area of a 12.7 mm
+  hemisphere. `f_shape` is now 0.2 (flat) and 1.3 (conical), from the
+  unsourced 1.4 and 0.7, which ran the other way; the diameter exponent is
+  0.2 (was 0.3; 25.4 and 31.8 mm hemispheres left 0.88x and 0.87x) and no
+  longer applies to cones. Flat-ended impacts now predict about 7x less
+  damage and conical about 1.9x more; 16 mm hemispherical results are
+  unchanged.
 
 - **AS4/8552 and IM7/8552 Xt are NCAMP's cross-ply back-out values**
   (F1tu from the [0/90] tests with the back-out factor, RTD normalized):
