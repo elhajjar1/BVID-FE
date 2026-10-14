@@ -1,7 +1,8 @@
 """Empirical residual-strength models for CAI (Soutis) and TAI (Whitney-Nuismer).
 
-CAI knockdown (Soutis & Curtis 1996):
-    sigma_CAI / sigma_0 = 1 / (1 + k_s * (DPA / A_panel)^m)
+CAI knockdown (after Soutis & Curtis 1996):
+    sigma_CAI / sigma_0 = 1 / (1 + k_s * (DPA / A_ref)^m)
+with A_ref = SOUTIS_REFERENCE_AREA_MM2, the 150 x 100 mm ASTM D7137 coupon.
 
 TAI via equivalent open hole (Whitney & Nuismer 1974, point-stress criterion):
     sigma_N / sigma_0 = 2 / (2 + xi^2 + 3*xi^4 - (Kt_inf - 3)*(5*xi^6 - 7*xi^8))
@@ -44,23 +45,32 @@ def lekhnitskii_kt_infinity(lam: Laminate) -> float:
     return 1.0 + math.sqrt(radicand)
 
 
+#: Fixed area (mm^2) the damage area is scaled by in the CAI knockdown: the
+#: 150 x 100 mm ASTM D7137 coupon, on which ``soutis_k_s`` is calibrated.
+#: It used to be the analysed panel's area, which sent the knockdown to 1 as
+#: the panel grew although the damage is a local notch, and overpredicted
+#: the knockdown of Hasebe et al.'s 80 x 50 mm coupons.
+SOUTIS_REFERENCE_AREA_MM2 = 150.0 * 100.0
+
+
 def soutis_cai(
     m: OrthotropicMaterial,
     dpa_mm2: float,
-    A_panel_mm2: float,
+    A_ref_mm2: float,
     sigma_pristine_MPa: float,
 ) -> float:
     """Compression-after-impact residual strength via Soutis knockdown.
 
     Returns ``kd * sigma_pristine_MPa`` where
-    ``kd = 1 / (1 + k_s * (DPA/A_panel)^m)``. Reaches ``sigma_pristine_MPa``
-    exactly when ``dpa_mm2 == 0``. The returned value is the numerator
-    used by ``BvidAnalysis.run()`` to compute ``AnalysisResults.knockdown``;
-    the pristine reference is the same for all three tiers.
+    ``kd = 1 / (1 + k_s * (DPA/A_ref)^m)``; ``BvidAnalysis`` passes
+    ``SOUTIS_REFERENCE_AREA_MM2``. Reaches ``sigma_pristine_MPa`` exactly when
+    ``dpa_mm2 == 0``. The returned value is the numerator used by
+    ``BvidAnalysis.run()`` to compute ``AnalysisResults.knockdown``; the
+    pristine reference is the same for all three tiers.
     """
     if dpa_mm2 <= 0:
         return sigma_pristine_MPa
-    kd = 1.0 / (1.0 + m.soutis_k_s * (dpa_mm2 / A_panel_mm2) ** m.soutis_m)
+    kd = 1.0 / (1.0 + m.soutis_k_s * (dpa_mm2 / A_ref_mm2) ** m.soutis_m)
     return kd * sigma_pristine_MPa
 
 

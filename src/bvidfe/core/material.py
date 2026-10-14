@@ -42,18 +42,22 @@ class OrthotropicMaterial:
     G_Ic: float
     G_IIc: float
     rho: float
-    # Impact-mapping calibration (defaults chosen for typical CFRP; per-material override):
-    olsson_alpha: float = 0.8
+    # Impact-mapping calibration (defaults chosen for typical CFRP; per-material override).
+    # olsson_alpha: fraction of the impact energy above onset that goes into
+    # mode-II delamination, DPA = alpha (E - E_onset) / G_IIc. Fitted to the
+    # C-scan areas of Lovejoy & Scotti's eight IM7/8552 CAI coupons (median).
+    olsson_alpha: float = 0.078
     dent_beta: float = 0.05
     dent_gamma: float = 0.5
     fiber_break_eta: float = 0.0
     fiber_break_E_threshold: float = 1e9  # disabled unless explicitly overridden
     # Calibrated on the measured CAI datasets in validation/datasets (NCAMP
-    # AS4/8552, Lovejoy & Scotti IM7/8552): 3.7 fits the empirical tier best,
-    # 3.3 the semi-analytical tier. Fitted on either dataset alone it predicts
-    # the other within 16-21%. Was 2.5, which overpredicted those CAI
-    # strengths by 16-40%.
-    soutis_k_s: float = 3.5
+    # AS4/8552, Lovejoy & Scotti IM7/8552), with the damage area scaled by the
+    # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.7 is
+    # the pooled optimum of both tiers. Fitted on NCAMP alone (4.7) it
+    # predicts Lovejoy & Scotti at 9.0%; on Lovejoy & Scotti alone (5.2),
+    # NCAMP at 6.2%.
+    soutis_k_s: float = 4.7
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
     # Through-thickness strengths and 1-3 shear (None = transverse-isotropy
@@ -250,10 +254,10 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # test method; the data sheet value is used. G23 and S23 as for AS4/8552
     # (nu23 = 0.45; LaRC03 from Yc). olsson_alpha is fitted to the projected
     # delamination areas Hasebe et al. measured on their quasi-isotropic
-    # laminates struck by the 12.7 mm hemisphere (median of 38 specimens):
-    # the default 0.8 overpredicts them about 7x. On their other
-    # hemispherical-impact specimens it predicts the area at a median 0.71x,
-    # from about 2x on 8 plies to 0.5x on 24 plies.
+    # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
+    # the default 0.078 overpredicts them about 1.7x (interlayer-toughened).
+    # On their other specimens it predicts the area per layup at a median
+    # 0.82-1.24x.
     "T800S/3900-2B": OrthotropicMaterial(
         name="T800S/3900-2B",
         E11=153000,
@@ -271,7 +275,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_Ic=0.54,
         G_IIc=1.64,
         rho=1.54e-6,
-        olsson_alpha=0.12,
+        olsson_alpha=0.047,
     ),
     "T800/epoxy": OrthotropicMaterial(
         name="T800/epoxy",

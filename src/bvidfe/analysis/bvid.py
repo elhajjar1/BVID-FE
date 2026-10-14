@@ -23,6 +23,7 @@ from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
 from bvidfe.damage.state import DamageState
 from bvidfe.failure.laminate_strength import unnotched_strength
 from bvidfe.failure.soutis_openhole import (
+    SOUTIS_REFERENCE_AREA_MM2,
     lekhnitskii_kt_infinity,
     soutis_cai,
     whitney_nuismer_tai,
@@ -193,15 +194,8 @@ class BvidAnalysis:
     def _semi_analytical(
         self, lam: Laminate, damage: DamageState, sigma_0: float
     ) -> SemiAnalyticalResult:
-        A_panel = self.config.panel.Lx_mm * self.config.panel.Ly_mm
         if self.config.loading == "compression":
-            return semi_analytical_cai(
-                lam,
-                damage,
-                sigma_0,
-                A_panel,
-                boundary=self.config.panel.boundary,
-            )
+            return semi_analytical_cai(lam, damage, sigma_0, boundary=self.config.panel.boundary)
         # tension: no sublaminate buckling channel — wrap the scalar result
         # so callers consume a uniform ``SemiAnalyticalResult`` shape.
         sigma = semi_analytical_tai(lam, damage, sigma_0)
@@ -212,10 +206,9 @@ class BvidAnalysis:
         )
 
     def _empirical(self, lam: Laminate, damage: DamageState, sigma_0: float) -> float:
-        A_panel = self.config.panel.Lx_mm * self.config.panel.Ly_mm
         dpa = damage.projected_damage_area_mm2
         mat = lam.material
         if self.config.loading == "compression":
-            return soutis_cai(mat, dpa, A_panel, sigma_0)
+            return soutis_cai(mat, dpa, SOUTIS_REFERENCE_AREA_MM2, sigma_0)
         Kt_inf = lekhnitskii_kt_infinity(lam)
         return whitney_nuismer_tai(mat, dpa, sigma_0, Kt_inf)

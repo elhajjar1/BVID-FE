@@ -3,7 +3,7 @@
 Pipeline:
   1. compute Olsson onset energy (boundary- and shape-aware)
   2. if below threshold -> empty DamageState
-  3. compute target DPA = alpha * (E - Eonset) * 1e3 / (G_IIc * h), then apply
+  3. compute target DPA = alpha * (E - Eonset) * 1e3 / G_IIc, then apply
      multiplicative corrections for:
        - dynamic amplification (small impactor-to-plate mass ratios)
        - impactor-tip footprint (hemispherical / flat / conical)
@@ -138,9 +138,16 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
     if event.energy_J <= E_onset:
         return DamageState([], dent_depth_mm=0.0, fiber_break_radius_mm=0.0)
 
-    # Base Olsson DPA prediction (SI mm/N; energies J -> N*mm via *1e3).
+    # Energy balance: a fraction alpha of the impact energy above onset goes
+    # into mode-II delamination, DPA = alpha (E - E_onset) / G_IIc (mm^2;
+    # energies J -> N*mm via *1e3). It used to be divided by the laminate
+    # thickness as well, which left DPA in mm and flat in thickness at
+    # constant energy per thickness, where measured areas grow with it:
+    # Hasebe et al. (2025), 8 to 24 plies at fixed J/mm, and Lovejoy &
+    # Scotti (2019), whose 7.6 mm coupons at the same 8.9 J/mm as their
+    # 6.1 mm ones had 1.21x the C-scan area.
     h = lam.thickness_mm
-    dpa_target = material.olsson_alpha * (event.energy_J - E_onset) * 1e3 / (material.G_IIc * h)
+    dpa_target = material.olsson_alpha * (event.energy_J - E_onset) * 1e3 / material.G_IIc
 
     # ---- multiplicative physics-motivated corrections --------------------
     # Dynamic amplification (small impactor mass => more damage per Joule)

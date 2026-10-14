@@ -69,11 +69,13 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
         ],
         {
             # Recaptured when soutis_k_s went from 2.5 to 3.5: knockdown
-            # 0.439 -> 0.359.
-            "knockdown": 0.3587599573457171,
-            "residual_strength_MPa": 215.7175799934708,
+            # 0.439 -> 0.359; and when DPA became the energy balance
+            # (7824 -> 1855 mm^2) with soutis_k_s = 4.7 and the fixed
+            # reference area: 0.377.
+            "knockdown": 0.37694824091367507,
+            "residual_strength_MPa": 226.65395244858848,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 7823.814020954099,
+            "dpa_mm2": 1855.1556540923598,
             "tier_used": "empirical",
         },
     ),
@@ -102,11 +104,13 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # strength became ply-discount last-ply failure (887.5 -> 601.3
             # MPa): the growth stress is absolute, so the knockdown rose to
             # 0.451. With soutis_k_s = 3.5 the Soutis cap now binds:
-            # 0.450.
-            "knockdown": 0.4499466093097799,
-            "residual_strength_MPa": 270.54689827895345,
+            # 0.450. Energy-balance DPA (3660 -> 868 mm^2), soutis_k_s =
+            # 4.7 and the fixed reference area instead of the 200x150 panel:
+            # 0.469.
+            "knockdown": 0.46937944717790686,
+            "residual_strength_MPa": 282.2316046445477,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 3659.9324669198636,
+            "dpa_mm2": 867.7917967299119,
             "tier_used": "semi_analytical",
         },
     ),
@@ -130,11 +134,13 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
         ],
         {
             # Recaptured when IM7/8552 Xt became NCAMP's cross-ply back-out
-            # value (2560 -> 2238 MPa): pristine 1280.6 -> 1119.6 MPa.
-            "knockdown": 0.21852316445726744,
-            "residual_strength_MPa": 244.6512293979674,
+            # value (2560 -> 2238 MPa): pristine 1280.6 -> 1119.6 MPa. Then
+            # energy-balance DPA (8902 -> 1389 mm^2, below the 80% cap):
+            # knockdown 0.219 -> 0.260.
+            "knockdown": 0.2604463698325554,
+            "residual_strength_MPa": 291.58706035257694,
             "pristine_strength_MPa": 1119.566613810138,
-            "dpa_mm2": 8901.845339242213,
+            "dpa_mm2": 1388.6706616686029,
             "tier_used": "empirical",
         },
     ),
