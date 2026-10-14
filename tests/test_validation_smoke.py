@@ -169,3 +169,48 @@ def test_unknown_dataset_name_is_an_error(capsys):
     v = _load_validator()
     assert v.main(["--dataset", "ncamp_as4_8552_cai", "no_such_dataset"]) == 1
     assert "no_such_dataset" in capsys.readouterr().err
+
+
+def test_measured_pristine_scores_the_knockdown_on_the_measured_scale():
+    v = _load_validator()
+    plain = v.run_case(v.case_from_dict(_CASE), "empirical")
+    anchored = v.run_case(v.case_from_dict({**_CASE, "measured_pristine_MPa": 300.0}), "empirical")
+    assert anchored["predicted_knockdown"] == pytest.approx(plain["predicted_knockdown"])
+    assert anchored["predicted_MPa"] == pytest.approx(300.0 * plain["predicted_knockdown"])
+    assert anchored["error_pct"] == pytest.approx(
+        100 * abs(anchored["predicted_MPa"] - 200.0) / 200.0
+    )
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_case_impact_panel_reaches_the_analysis(monkeypatch):
+    v = _load_validator()
+    seen = {}
+    real = v.BvidAnalysis
+
+    class Spy(real):
+        def __init__(self, config):
+            seen["config"] = config
+            super().__init__(config)
+
+    monkeypatch.setattr(v, "BvidAnalysis", Spy)
+    v.run_case(v.case_from_dict(_CASE), "empirical")
+    assert seen["config"].impact_panel is None
+
+    case = {**_CASE, "impact_panel_Lx_mm": 60.0, "impact_panel_Ly_mm": 60.0}
+    v.run_case(v.case_from_dict({**case, "impact_boundary": "clamped"}), "empirical")
+    p = seen["config"].impact_panel
+    assert (p.Lx_mm, p.Ly_mm, p.boundary) == (60.0, 60.0, "clamped")
+    v.run_case(v.case_from_dict(case), "empirical")  # boundary defaults to the test panel's
+    assert seen["config"].impact_panel.boundary == "simply_supported"
+
+
+def test_hasebe_dataset_is_advisory_and_runs():
+    v = _load_validator()
+    name, cases, meta = v.load_dataset(v.DATASET_DIR / "hasebe_t800s_3900_2b_cai.json")
+    assert not meta["gate"] and meta["gate_note"]
+    assert len(cases) == 211
+    assert {c.material for c in cases} == {"T800S/3900-2B"}
+    assert all(c.measured_pristine_MPa and c.impact_panel_Lx_mm == 60.0 for c in cases)
+    df = v.run_dataset(cases[:5], "empirical")
+    assert df["error_pct"].notna().all()

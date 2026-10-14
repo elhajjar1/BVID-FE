@@ -234,6 +234,37 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_IIc=0.60,
         rho=1.55e-6,
     ),
+    # Toray T800S/3900-2B unidirectional tape (interlayer-toughened). E11, E22,
+    # nu12, G12, G_Ic and G_IIc: Hasebe et al., Data in Brief 60 (2025) 111509,
+    # Table 1. Strengths and density: Toray 3900 prepreg data sheet
+    # (Rev. 7.30.2020), P2362W-19L T800S-24K UD, RTA. Hasebe's Table 1 gives
+    # Xc = 719.4 MPa, under half the data sheet's ASTM D6641 1779 MPa, with no
+    # test method; the data sheet value is used. G23 and S23 as for AS4/8552
+    # (nu23 = 0.45; LaRC03 from Yc). olsson_alpha is fitted to the projected
+    # delamination areas Hasebe et al. measured on their quasi-isotropic
+    # laminates struck by the 12.7 mm hemisphere (median of 38 specimens):
+    # the default 0.8 overpredicts them about 7x. On their other
+    # hemispherical-impact specimens it predicts the area at a median 0.71x,
+    # from about 2x on 8 plies to 0.5x on 24 plies.
+    "T800S/3900-2B": OrthotropicMaterial(
+        name="T800S/3900-2B",
+        E11=153000,
+        E22=8000,
+        nu12=0.34,
+        G12=4030,
+        G13=4030,
+        G23=2759,
+        Xt=3006,
+        Xc=1779,
+        Yt=60.8,
+        Yc=216,
+        S12=68.9,
+        S23=81,
+        G_Ic=0.54,
+        G_IIc=1.64,
+        rho=1.54e-6,
+        olsson_alpha=0.12,
+    ),
     "T800/epoxy": OrthotropicMaterial(
         name="T800/epoxy",
         E11=155000,

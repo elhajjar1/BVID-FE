@@ -2,8 +2,8 @@ import pytest
 from bvidfe.core.material import OrthotropicMaterial, MATERIAL_LIBRARY
 
 
-def test_material_library_has_five_presets():
-    for name in ["AS4/3501-6", "AS4/8552", "IM7/8552", "T700/2510", "T800/epoxy"]:
+def test_material_library_has_six_presets():
+    for name in ["AS4/3501-6", "AS4/8552", "IM7/8552", "T700/2510", "T800S/3900-2B", "T800/epoxy"]:
         assert name in MATERIAL_LIBRARY
         m = MATERIAL_LIBRARY[name]
         assert isinstance(m, OrthotropicMaterial)

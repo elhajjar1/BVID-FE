@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Union
 
 from bvidfe._types import LoadingMode
@@ -173,7 +173,22 @@ class BvidAnalysis:
         if self.config.damage is not None:
             return self.config.damage
         assert self.config.impact is not None  # asserted in __post_init__
-        return impact_to_damage(self.config.impact, lam, self.config.panel)
+        panel = self.config.panel
+        impact_panel = self.config.impact_panel or panel
+        damage = impact_to_damage(self.config.impact, lam, impact_panel)
+        if impact_panel is panel:
+            return damage
+        # Move the damage from the impact panel's frame to the concentric
+        # test panel's.
+        dx = (panel.Lx_mm - impact_panel.Lx_mm) / 2
+        dy = (panel.Ly_mm - impact_panel.Ly_mm) / 2
+        return replace(
+            damage,
+            delaminations=[
+                replace(e, centroid_mm=(e.centroid_mm[0] + dx, e.centroid_mm[1] + dy))
+                for e in damage.delaminations
+            ],
+        )
 
     def _semi_analytical(
         self, lam: Laminate, damage: DamageState, sigma_0: float
