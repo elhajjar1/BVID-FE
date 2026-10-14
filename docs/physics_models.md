@@ -37,21 +37,37 @@ the damage is then moved to the centre of the test panel.
 2. **Damage area.** The target projected damage area is
 
     ```text
-    DPA = α (E − E_onset) · 10³ / (G_IIc · h) × (5.5 / m)^0.1 × f_shape × (16 / D)^0.2
+    DPA = α (E − E_onset) · 10³ / G_IIc × (5.5 / m)^0.1 × f_shape × (16 / D)^0.2
     ```
 
-    with `α = olsson_alpha` (default 0.8; 0.12 for T800S/3900-2B, fitted to
-    Hasebe et al.'s C-scan areas), `h` the laminate thickness, `m`
-    the impactor mass (kg), `D` its diameter (mm; the diameter factor is 1
-    for a cone, whose contact is set by its angle) and `f_shape` = 1.0
-    (hemispherical), 0.2 (flat) or 1.3 (conical). `f_shape` and the
-    exponent 0.2 are fitted to Hasebe et al. (2025), the only open data that
-    vary the impactor on one material: over same-layup, same-energy groups a
-    15.9 mm flat-ended impactor left 0.20× and a 60° cone 1.20× the C-scan
-    area of a 12.7 mm hemisphere, and 25.4 and 31.8 mm hemispheres 0.88×
-    and 0.87×. At the ASTM D7136
-    reference (5.5 kg, 16 mm, hemispherical) the three correction factors
-    are 1. DPA is capped at 80% of the panel area (`DPACapClipWarning`). A
+    in mm². It is an energy balance: a fraction `α = olsson_alpha` of the
+    impact energy above onset goes into mode-II delamination. The default
+    0.078 is fitted to the median of Lovejoy & Scotti's eight IM7/8552
+    C-scan areas. T800S/3900-2B (interlayer-toughened) has 0.047, fitted to
+    Hasebe et al.'s quasi-isotropic laminates struck by the 12.7 mm
+    hemisphere; over all 343 of their specimens the median predicted /
+    measured area is 1.03× (0.81–1.31× per layup).
+
+    The area used to be divided by the laminate thickness `h` as well. That
+    gave mm rather than mm² and left the area flat in thickness at constant
+    energy per thickness, where measured areas grow with thickness:
+    Hasebe et al.'s 8- to 24-ply laminates at fixed J/mm, and Lovejoy &
+    Scotti's 7.6 mm coupons, which had 1.21× the C-scan area of their
+    6.1 mm coupons at the same 8.9 J/mm. Thickness now enters only through
+    `E_onset`.
+
+    `m` is the impactor mass (kg), `D` its diameter (mm; the diameter
+    factor is 1 for a cone, whose contact is set by its angle) and
+    `f_shape` = 1.0 (hemispherical), 0.2 (flat) or 1.3 (conical). `f_shape`
+    and the exponent 0.2 are fitted to Hasebe et al. (2025), the only open
+    data that vary the impactor on one material: over same-layup,
+    same-energy groups a 15.9 mm flat-ended impactor left 0.20× and a 60°
+    cone 1.20× the C-scan area of a 12.7 mm hemisphere, and 25.4 and
+    31.8 mm hemispheres 0.88× and 0.87×. At the ASTM D7136 reference
+    (5.5 kg, 16 mm, hemispherical) the three correction factors are 1. DPA
+    is capped at 80% of the panel area (`DPACapClipWarning`); on a
+    150 × 100 mm IM7/8552 panel the area grows by about 99 mm² per joule,
+    so the cap is reached only above about 120 J. A
     `SmallMassQuasiStaticWarning` is raised when the impactor is lighter
     than the panel.
 
@@ -81,17 +97,23 @@ Both models are closed-form and run in milliseconds. They see the damage
 only through its projected area `DPA` (the union of all ellipse
 footprints).
 
-**CAI** (Soutis & Curtis 1996):
+**CAI** (after Soutis & Curtis 1996):
 
 ```text
-σ_CAI = σ₀ / (1 + k_s · (DPA / A_panel)^m)
+σ_CAI = σ₀ / (1 + k_s · (DPA / A_ref)^m)
 ```
 
 `σ₀` is the pristine strength (see
 [Knockdown definition](#knockdown-definition-and-cross-tier-comparability)),
-`A_panel = Lx · Ly`, `k_s = soutis_k_s` (default 3.5, calibrated on
-measured CAI data, see `validation/README.md`) and `m = soutis_m`
-(default 0.5).
+`A_ref` = 15,000 mm² is the area of the 150 × 100 mm ASTM D7137 coupon
+(`SOUTIS_REFERENCE_AREA_MM2` in `bvidfe.failure.soutis_openhole`), on which
+`k_s = soutis_k_s` (default 4.7, calibrated on measured CAI data, see
+`validation/README.md`) is calibrated, and `m = soutis_m` (default 0.5).
+`A_ref` does not change with the analysed panel. It used to be the panel
+area `Lx · Ly`, which sent the knockdown to 1 as the panel grew, although
+impact damage is a local notch, and over-penalised Hasebe et al.'s
+80 × 50 mm coupons. The panel size still enters the onset energy, the 80%
+area cap, the semi-analytical growth check and fe3d.
 
 **TAI**: Whitney-Nuismer point-stress criterion on an equivalent circular
 hole of radius `R = √(DPA / π)`:
@@ -165,12 +187,17 @@ With an empty damage state the tier returns `σ₀`.
 
 With the calibrated `soutis_k_s`, the Soutis bound governs on many
 configurations. On 150 × 100 mm IM7/8552 panels (8-ply QI, 16-ply QI and
-8-ply cross-ply, 0.152 mm plies, 5–30 J) the growth knockdown was
-0.35–0.52 and the Soutis knockdown 0.24–0.45, so Soutis governed
-throughout. On the measured validation cases (`validation/datasets/`)
-growth governs only on the 40-ply IM7/8552 hard laminate of Lovejoy &
-Scotti, and by under 1 MPa (255.0 against 255.5 MPa), so the two tiers
-give nearly the same CAI strengths there.
+8-ply cross-ply, 0.152 mm plies, 5–30 J) the growth knockdown is
+0.38–0.60 and the Soutis knockdown 0.33–0.57. Growth governs on the 8-ply
+QI panel at 5 J (0.500 against 0.556) and on the cross-ply panel at
+5–15 J (0.39–0.40 against 0.41–0.57); Soutis governs elsewhere. On the
+NCAMP and Lovejoy & Scotti validation cases (`validation/datasets/`)
+Soutis governs throughout (on the 40-ply hard laminate the growth stress
+is 273 MPa against a 227 MPa Soutis bound), so the two tiers give the
+same CAI strengths there. Growth governs on 225 of Hasebe et al.'s 343
+coupons (every cross-ply and hard-laminate coupon, and some
+quasi-isotropic ones), where the semi-analytical MAE is 23.3% against
+21.3% for the empirical tier.
 
 ## 3D FE tier
 
@@ -293,7 +320,7 @@ cannot move these in opposite directions.
 
 | Tier | CAI residual stress | TAI residual stress |
 | --- | --- | --- |
-| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_panel)^m)` | Whitney-Nuismer point-stress on equivalent hole |
+| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point-stress on equivalent hole |
 | `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to Whitney-Nuismer (identical to `empirical`) |
 | `fe3d` | `σ₀ × min(1, D/U)` with `D`, `U` = `min(σ_growth, FPF_LaRC05)` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged / undamaged |
 
@@ -325,14 +352,16 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 
 ## Limitations
 
-- `soutis_k_s` (3.5) is calibrated on two measured CAI datasets (AS4/8552 and
+- `soutis_k_s` (4.7) is calibrated on two measured CAI datasets (AS4/8552 and
   IM7/8552, both on the 8552 matrix; see `validation/README.md`). Fitted on
-  either dataset alone it predicts the other within 16–21%, so expect
-  errors of that order on a new material or layup. The other calibration
-  constants (`soutis_m`, `wn_d0_mm`, `olsson_alpha`, `dent_beta`,
-  `dent_gamma`, the impactor shape, diameter and mass factors, the boundary
-  factors, and the fe3d damage factors) are uncalibrated defaults chosen
-  for typical CFRP systems. Precise values need calibration against
+  either dataset alone it predicts the other within 6.2–9.0%, so expect
+  errors of that order on a new material or layup. The default
+  `olsson_alpha` (0.078) is fitted to Lovejoy & Scotti's C-scan areas, the
+  T800S/3900-2B value (0.047) and the impactor shape and diameter factors
+  to Hasebe et al.'s. The other calibration constants (`soutis_m`,
+  `wn_d0_mm`, `dent_beta`, `dent_gamma`, the impactor mass factor, the
+  boundary factors, and the fe3d damage factors) are uncalibrated defaults
+  chosen for typical CFRP systems. Precise values need calibration against
   material-specific coupon test data before use in certification.
 - Validation covers CAI only. TAI has no measured dataset, and fe3d is not
   run on the measured datasets in CI (it gives 169 MPa against the measured

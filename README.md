@@ -23,7 +23,7 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 ## Features
 
 - **Two workflow paths** converging on a shared `DamageState`:
-  - *Impact-driven*: Olsson quasi-static threshold + peanut-template DPA distribution + empirical dent model
+  - *Impact-driven*: Olsson quasi-static threshold + energy-balance damage area + peanut-template distribution over the interfaces + empirical dent model
   - *Inspection-driven*: C-scan JSON import per the documented schema (`docs/cscan_schema.md`)
 - **Three modeling tiers** for residual strength after BVID:
   - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (under a second)
@@ -89,8 +89,8 @@ comma-separated list), `--cscan scan.json` in place of `--energy`,
 bvidfe --material IM7/8552 --layup "0,45,-45,90,90,-45,45,0" \
        --thickness 0.152 --panel 150x100 --loading compression --energy 10 \
        --tier empirical,semi_analytical --quick-json
-# {"knockdown": 0.28338274107061107, "residual_strength_MPa": 170.39426464409, "pristine_strength_MPa": 601.2866697539371, "tier_used": "empirical"}
-# {"knockdown": 0.28338274107061107, "residual_strength_MPa": 170.39426464409, "pristine_strength_MPa": 601.2866697539371, "tier_used": "semi_analytical"}
+# {"knockdown": 0.4609895085216997, "residual_strength_MPa": 277.186846370517, "pristine_strength_MPa": 601.2866697539371, "tier_used": "empirical"}
+# {"knockdown": 0.4609895085216997, "residual_strength_MPa": 277.186846370517, "pristine_strength_MPa": 601.2866697539371, "tier_used": "semi_analytical"}
 ```
 
 ### Python API — impact-driven path
@@ -121,15 +121,15 @@ print(result.summary())
 BVID Analysis Results
   tier_used              : semi_analytical
   pristine_strength_MPa  : 601.3
-  residual_strength_MPa  : 168.4
-  knockdown              : 0.280
-  dpa_mm2                : 8090.4
+  residual_strength_MPa  : 224.3
+  knockdown              : 0.373
+  dpa_mm2                : 1918.4
   dent_depth_mm          : 1.216
   n_delaminations        : 15
 ```
 
-DPA is the projected damage area in mm². Here the Soutis bound (168.4 MPa)
-is below the delamination growth stress (227.1 MPa at interface 4), so the semi-analytical result
+DPA is the projected damage area in mm². Here the Soutis bound (224.3 MPa)
+is below the delamination growth stress (306.2 MPa at interface 11), so the semi-analytical result
 equals the empirical one. The per-interface ellipses are in
 `result.damage.delaminations`, the governing interface in
 `result.critical_sublaminate`, and the runtime notes in `result.notes`.
@@ -154,7 +154,7 @@ cfg = AnalysisConfig(
 )
 result = BvidAnalysis(cfg).run()
 print(f"Knockdown: {result.knockdown:.3f}")
-# Knockdown: 0.605
+# Knockdown: 0.447
 ```
 
 ### Parametric sweep
@@ -173,7 +173,7 @@ results_df = sweep_energies(
 
 ### Empirical tier
 
-For CAI, the Soutis knockdown (Soutis & Curtis 1996) scales the pristine strength by `1 / (1 + k_s·(DPA/A_panel)^m)`, where DPA is the projected damage area and `A_panel` the panel area. The material constants `soutis_k_s` and `soutis_m` default to 3.5 and 0.5 for every preset; `k_s` = 3.5 is fitted to the two measured CAI datasets (see [Validation](#validation)). For TAI, the damage is treated as an equivalent circular hole of the same area, and the Whitney-Nuismer point-stress criterion gives the notched strength, with the orthotropic stress concentration `Kt_inf` from Lekhnitskii and a material characteristic distance `wn_d0_mm`. Both models are closed-form.
+For CAI, the Soutis knockdown (after Soutis & Curtis 1996) scales the pristine strength by `1 / (1 + k_s·(DPA/A_ref)^m)`, where DPA is the projected damage area and `A_ref` = 15,000 mm² is the area of the 150 × 100 mm ASTM D7137 coupon (`SOUTIS_REFERENCE_AREA_MM2`). The reference area is fixed because impact damage is a local notch: it used to be the analysed panel's area, which sent the knockdown to 1 as the panel grew. The material constants `soutis_k_s` and `soutis_m` default to 4.7 and 0.5 for every preset; `k_s` = 4.7 is fitted to the two measured CAI datasets (see [Validation](#validation)). For TAI, the damage is treated as an equivalent circular hole of the same area, and the Whitney-Nuismer point-stress criterion gives the notched strength, with the orthotropic stress concentration `Kt_inf` from Lekhnitskii and a material characteristic distance `wn_d0_mm`. Both models are closed-form.
 
 ### Semi-analytical tier
 
@@ -197,7 +197,7 @@ knockdown = residual_strength_MPa / pristine_strength_MPa
 
 | Tier | CAI residual stress | TAI residual stress |
 |---|---|---|
-| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_panel)^m)` | Whitney-Nuismer point-stress on equivalent hole |
+| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point-stress on equivalent hole |
 | `semi_analytical` | `min(Soutis, σ_growth)` — adds the delamination growth stress of the weakest sublaminate | Delegates to Whitney-Nuismer (mathematically identical to `empirical`) |
 | `fe3d` | `σ₀ × min(1, S_damaged / S_undamaged)` with `S = min(σ_growth, σ_FPF,LaRC05)` | `σ₀ × min(1, S_damaged / S_undamaged)` with `S = σ_FPF,Tsai-Wu` |
 
@@ -233,28 +233,35 @@ details and sources are in [`validation/README.md`](validation/README.md).
 
 | Dataset | Material and layup | Coupons | Measured CAI (MPa) | Empirical MAE | Semi-analytical MAE |
 |---|---|---|---|---|---|
-| `ncamp_as4_8552_cai` (NCAMP CAM-RP-2010-002) | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 171–182 | 7.3% (max 10.4%) | 7.3% (max 10.4%) |
-| `lovejoy_scotti_im7_8552_cai` (NASA LaRC 2019) | IM7/8552 [45/0/-45/90]4s at 54 J; hard [45/0/90/0/-45/0/45/0/-45/0]2s at 68 J | 8 | 133–147; 236–249 | 10.9% (max 23.7%) | 10.8% (max 23.7%) |
-| `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres, a 15.9 mm flat-ended impactor and a 60° cone at 2–21 J; 80×50 mm JIS K 7089 coupons | 343 | 81–592 | 25.3% (max 101.5%) | 25.6% (max 101.5%) |
+| `ncamp_as4_8552_cai` (NCAMP CAM-RP-2010-002) | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 171–182 | 1.5% (max 3.0%) | 1.5% (max 3.0%) |
+| `lovejoy_scotti_im7_8552_cai` (NASA LaRC 2019) | IM7/8552 [45/0/-45/90]4s at 54 J; hard [45/0/90/0/-45/0/45/0/-45/0]2s at 68 J | 8 | 133–147; 236–249 | 9.0% (max 19.1%) | 9.0% (max 19.1%) |
+| `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres, a 15.9 mm flat-ended impactor and a 60° cone at 2–21 J; 80×50 mm JIS K 7089 coupons | 343 | 81–592 | 21.3% (max 107.8%) | 23.3% (max 107.7%) |
 
 Read these numbers with care:
 
-- They are in-sample. `soutis_k_s` = 3.5 was fitted to these same two
-  datasets. Fitted on one dataset alone, `k_s` predicts the other with an
-  MAE of 16–21% (NCAMP to Lovejoy & Scotti) and 15.7% (Lovejoy & Scotti to
-  NCAMP). Expect errors of that order on a new material or layup.
-- The Soutis bound sets the semi-analytical result on the NCAMP and
-  quasi-isotropic coupons. On the hard laminate the delamination growth
-  stress governs but is within 0.5% of the Soutis bound, so the two tiers
-  give nearly the same strengths.
+- They are in-sample. `soutis_k_s` = 4.7 was fitted to these same two
+  datasets, and the default `olsson_alpha` (0.078) to the median of Lovejoy
+  & Scotti's C-scan areas. NCAMP reports no damage area, so its damage area
+  is an independent prediction. Fitted on one dataset alone, `k_s` predicts
+  the other with an MAE of 9.0% (NCAMP to Lovejoy & Scotti) and 6.2%
+  (Lovejoy & Scotti to NCAMP). Expect errors of about 6–9% on a new
+  material or layup tested to ASTM D7136/D7137.
+- The Soutis bound sets the semi-analytical result on every NCAMP and
+  Lovejoy & Scotti coupon (on the hard laminate the delamination growth
+  stress is 273 MPa against a 227 MPa Soutis bound), so the two tiers give
+  the same strengths there.
 - The fe3d tier gives 169 MPa (5% low) on the first NCAMP coupon. It takes
   about 3.5 minutes per 24-ply coupon and is not run on the measured data
   in CI.
-- **The Hasebe set is a known miss.** A constant knockdown (the set's mean,
-  0.70) scores 30.3%, barely worse than the model: the DPA-based knockdown does
+- **The Hasebe set is a known miss.** The predicted damage area matches
+  the C-scans (mean 368 against 364 mm² for the 60° cone, 48 against 52 mm²
+  for the flat-ended impactor, 277 against 281 mm² for the 12.7 mm
+  hemisphere), but a constant knockdown (the set's mean, 0.73) scores
+  30.3%, against 21.3% for the empirical tier. The DPA-based knockdown does
   not capture how much the knockdown depends on layup (cross-ply c16 keeps
-  0.60 of its strength, quasi-isotropic q16 0.81, at similar damage area).
-  It is reported, not gated. Its undamaged coupons fail at 0.4–0.6× the
+  0.63 of its strength, quasi-isotropic q16 0.84, at similar damage area),
+  and it is too low on average (0.64 predicted, 0.73 measured). It is
+  reported, not gated. Its undamaged coupons fail at 0.4–0.6× the
   unnotched strength (thin coupons in the JIS fixture), so it is scored on
   knockdown times the measured undamaged strength
   (`measured_pristine_MPa`).

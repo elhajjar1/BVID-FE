@@ -66,9 +66,9 @@ This prints:
 BVID Analysis Results
   tier_used              : semi_analytical
   pristine_strength_MPa  : 601.3
-  residual_strength_MPa  : 168.4
-  knockdown              : 0.280
-  dpa_mm2                : 8090.4
+  residual_strength_MPa  : 224.3
+  knockdown              : 0.373
+  dpa_mm2                : 1918.4
   dent_depth_mm          : 1.216
   n_delaminations        : 15
 ```
@@ -76,7 +76,7 @@ BVID Analysis Results
 `knockdown` is `residual_strength_MPa / pristine_strength_MPa`, and
 `dpa_mm2` is the projected damage area. The pristine strength is the
 unnotched laminate strength from classical lamination theory. In this case
-the Soutis bound (168.4 MPa) is below the delamination growth stress, so
+the Soutis bound (224.3 MPa) is below the delamination growth stress, so
 the semi-analytical result equals the empirical one.
 
 ## 4. Run from the command line
@@ -118,17 +118,18 @@ Streamlit Community Cloud.
 ## 6. Compare with measured data
 
 The validation harness runs a tier on every dataset in
-`validation/datasets/` (two measured CAI datasets and a synthetic
+`validation/datasets/` (three measured CAI datasets and a synthetic
 self-check) and prints each prediction next to the test result:
 
 ```bash
 python validation/validate_bvid_public.py --tier empirical
 ```
 
-The empirical tier's mean absolute error is 7.3% on the NCAMP AS4/8552
-coupons and 10.9% on the Lovejoy & Scotti IM7/8552 coupons. Both datasets
-were used to fit `soutis_k_s`, so expect errors of 15.7–21% on a material or
-layup outside them. See
+The empirical tier's mean absolute error is 1.5% on the NCAMP AS4/8552
+coupons and 9.0% on the Lovejoy & Scotti IM7/8552 coupons. Both datasets
+were used to fit `soutis_k_s` (and Lovejoy & Scotti's C-scan areas to fit
+the default `olsson_alpha`), so expect errors of about 6–9% on a material
+or layup outside them. See
 [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
 
 ## More examples
