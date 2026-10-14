@@ -32,8 +32,8 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 - **CAI and TAI loading modes** (Compression-After-Impact and Tension-After-Impact)
 - **Pristine (unnotched) laminate strength** from classical lamination theory with ply-discount last-ply failure, checked against NCAMP unnotched test data
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
-- **Five material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy
-- **Validation harness** (`validation/`) that scores the tiers against two measured CAI datasets (NCAMP AS4/8552, Lovejoy & Scotti IM7/8552) and gates CI on the result; see [Validation](#validation)
+- **Six material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy
+- **Validation harness** (`validation/`) that scores the tiers against three measured CAI datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552, gated in CI; Hasebe et al. T800S/3900-2B, reported only); see [Validation](#validation)
 - **CLI** for single runs, several tiers in one call (`--tier empirical,semi_analytical`), and shell pipelines (`--quick`, `--quick-json`)
 - **Streamlit web app** with sidebar-driven `AnalysisConfig` and result tabs — Summary, Damage Map, Knockdown Curve (live empirical sweep around the current energy), 3D Damage (Plotly hex mesh coloured by damage factor), Buckling (tier-specific buckling indicator: `N_cr` in N/mm for `semi_analytical`, `σ_crit` in MPa for `fe3d`), Damage Severity (through-thickness sum of per-element `1 − damage_factor`; see [Physics Models](#damage-severity-heatmap)), Sweep (CSV-exportable parametric energy sweep), and Export NCR (a nonconformance report in Markdown or JSON with a *proposed* disposition that a Material Review Board must review). Cached runs, fe3d mesh-size guards, JSON/CSV downloads
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output
@@ -191,7 +191,7 @@ A structured hexahedral mesh is built for the damaged laminate. Delaminated inte
 knockdown = residual_strength_MPa / pristine_strength_MPa
 ```
 
-**The denominator is identical across all three tiers.** `_pristine_strength()` (`src/bvidfe/analysis/bvid.py`) is the unnotched laminate strength from classical lamination theory, by ply-discount last-ply failure (`src/bvidfe/failure/laminate_strength.py`): the laminate is loaded uniaxially; a ply whose matrix fails (σ₂ against Yt/Yc, |τ₁₂| against S12) loses its E22 and G12 and sheds its load; the laminate fails when any ply's fibres fail (σ₁ against Xt/Xc) or when every ply has cracked. It matches the NCAMP unnotched tension and compression strengths of AS4/8552 and IM7/8552 laminates (25/50/25, 10/80/10, 50/40/10) within 0.83–1.18 (`tests/validation/test_unnotched_strength_ncamp.py`).
+**The denominator is identical across all three tiers.** `_pristine_strength()` (`src/bvidfe/analysis/bvid.py`) is the unnotched laminate strength from classical lamination theory, by ply-discount last-ply failure (`src/bvidfe/failure/laminate_strength.py`): the laminate is loaded uniaxially; a ply whose matrix fails (σ₂ against Yt/Yc, |τ₁₂| against S12) loses its E22 and G12 and sheds its load; the laminate fails when any ply's fibres fail (σ₁ against Xt/Xc) or when every ply has cracked. It matches the NCAMP unnotched tension and compression strengths of AS4/8552 and IM7/8552 laminates (25/50/25, 10/80/10, 50/40/10) within 0.83–1.14 (`tests/validation/test_unnotched_strength_ncamp.py`).
 
 **The numerator (residual strength) is what differs between tiers** (`σ₀` is the pristine strength, `σ_growth` the delamination growth stress of the weakest sublaminate, `σ_FPF` the fe3d first-ply-failure stress):
 
@@ -228,14 +228,14 @@ The colorbar is therefore in units of "stacked OOP-stiffness loss contributions"
 
 `validation/validate_bvid_public.py` runs a tier on every case in
 `validation/datasets/` and reports the mean absolute error (MAE) between
-predicted and measured strength. Two datasets are measured CAI tests
-(ASTM D7136/D7137); details and sources are in
-[`validation/README.md`](validation/README.md).
+predicted and measured strength. Three datasets are measured CAI tests;
+details and sources are in [`validation/README.md`](validation/README.md).
 
 | Dataset | Material and layup | Coupons | Measured CAI (MPa) | Empirical MAE | Semi-analytical MAE |
 |---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` (NCAMP CAM-RP-2010-002) | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 171–182 | 7.3% (max 10.4%) | 7.3% (max 10.4%) |
 | `lovejoy_scotti_im7_8552_cai` (NASA LaRC 2019) | IM7/8552 [45/0/-45/90]4s at 54 J; hard [45/0/90/0/-45/0/45/0/-45/0]2s at 68 J | 8 | 133–147; 236–249 | 10.9% (max 23.7%) | 10.8% (max 23.7%) |
+| `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres at 2–21 J; 80×50 mm JIS K 7089 coupons | 211 | 137–592 | 28.1% (max 76.5%) | 27.3% (max 76.5%) |
 
 Read these numbers with care:
 
@@ -250,29 +250,37 @@ Read these numbers with care:
 - The fe3d tier gives 169 MPa (5% low) on the first NCAMP coupon. It takes
   about 3.5 minutes per 24-ply coupon and is not run on the measured data
   in CI.
-- A third dataset, `synthetic_selfcheck`, is generated by the empirical
+- **The Hasebe set is a known miss.** A constant knockdown (the set's mean,
+  0.75) scores 28.9%, the same as the model: the DPA-based knockdown does
+  not capture how much the knockdown depends on layup (cross-ply c16 keeps
+  0.60 of its strength, quasi-isotropic q16 0.81, at similar damage area).
+  It is reported, not gated. Its undamaged coupons fail at 0.4–0.6× the
+  unnotched strength (thin coupons in the JIS fixture), so it is scored on
+  knockdown times the measured undamaged strength
+  (`measured_pristine_MPa`).
+- A fourth dataset, `synthetic_selfcheck`, is generated by the empirical
   tier itself (MAE 0% by construction). It only checks that the harness and
   the empirical pipeline have not changed.
 
-CI fails if the empirical MAE on any dataset, or the semi-analytical MAE on
-a measured dataset, exceeds 1.25× the dataset's 15% target. The pristine
-strength is checked separately against NCAMP unnotched tension and
-compression strengths (within 0.83–1.18×, see above).
+CI fails if the empirical MAE on any gated dataset, or the semi-analytical
+MAE on a gated measured dataset, exceeds 1.25× the dataset's 15% target.
+The pristine strength is checked separately against NCAMP unnotched tension
+and compression strengths (within 0.83–1.14×, see above).
 
 ```bash
 python validation/validate_bvid_public.py --tier empirical
 python validation/validate_bvid_public.py --tier semi_analytical \
-    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai
+    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
 ```
 
 ## Limitations
 
-- Only `soutis_k_s` is calibrated, on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J); see [Validation](#validation). The impact-mapping constants (`olsson_alpha`, `dent_beta`, `dent_gamma`, and related parameters) are uncalibrated defaults; on the Lovejoy & Scotti coupons the predicted damage area (about 8,900 mm²) is larger than the measured C-scan area (5,200–7,500 mm²). Calibrate against coupon data for the material before using results in certification.
+- Only `soutis_k_s` is calibrated, on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J); see [Validation](#validation). The impact-mapping constants (`olsson_alpha`, `dent_beta`, `dent_gamma`, and related parameters) are uncalibrated defaults, except `olsson_alpha` for T800S/3900-2B (0.12, fitted to Hasebe et al.'s C-scan areas). On the Lovejoy & Scotti coupons the predicted damage area (about 8,900 mm²) is larger than the measured C-scan area (5,200–7,500 mm²). On Hasebe et al.'s the predicted area does not grow with thickness at constant energy per thickness, as the measured one does, and the impactor-shape factors run the wrong way (measured flat-ended about 0.2× and conical about 1.1–1.2× the hemispherical area; the model uses 1.4× and 0.7×). Calibrate against coupon data for the material before using results in certification.
 - LaRC05 is implemented as a minimal Hashin-3D reduction. Full plane-search fiber-kinking is deferred to a future release.
 - The `fe3d` tier uses component-wise stiffness reduction (out-of-plane at delaminated interfaces, in-plane over the damage zone) instead of true cohesive surfaces with bilinear traction-separation laws and a continuum damage model. Cohesive surfaces are deferred to a future release. The damage-zone in-plane factor (0.30) is uncalibrated against test data and uniform over the footprint. Once the damage area hits its 80%-of-panel cap the zone reaches the loaded edges, and fe3d knockdowns fall below the empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.15 vs 0.35).
 - **The `fe3d` first-ply failure has no characteristic length.** The stress concentration at the edge of the soft damage zone depends on the zone's shape and on the panel width, not on the zone's absolute size, so fe3d lacks the notch-size effect of the empirical tier's Soutis and Whitney-Nuismer models. It also depends on the mesh near the zone edge: going from 5 mm to 2.5 mm elements changes the 15 J tension knockdown on 8-ply IM7/8552 150×100 mm panels by 0.9% (QI, 0.2975 to 0.2948) and 5.6% (cross-ply, 0.2483 to 0.2345). Cohesive surfaces and proper load-introduction BCs are v0.3.0 scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses the straight-sided blister energy release rate over the delamination's enclosing rectangle, a fixed mixed-mode phase angle (52.1°), and treats the rest of the laminate as rigid. It is least accurate when the weakest sublaminate is near the mid-plane, which is common: the minimum over interfaces often lands on a 3-5 ply sublaminate. Once a sublaminate buckles at less than about 0.3× its steady-state growth stress `√(2E_f·G_c/h)`, the growth stress stays between 0.87× and 1× that value, so larger delaminations at the same interface lower it little and can raise it slightly. Knockdowns from this channel therefore follow impact energy mainly when a different interface becomes the weakest. In `fe3d` the first-ply failure of the softened damage zone falls with energy as well, so the fe3d CAI knockdown on IM7/8552 150×100 mm panels goes from 0.46 to 0.20 (16-ply QI) and from 0.46 to 0.29 (8-ply QI) between 5 and 30 J, but stays nearly flat on an 8-ply cross-ply panel (0.27 to 0.26).
-- Validation covers CAI only, on two carbon/8552 systems. No measured TAI data is included, and the AS4/3501-6, T700/2510 and T800/epoxy presets have no measured residual-strength comparison. Candidate datasets are listed in [`validation/README.md`](validation/README.md).
+- Validation covers CAI only: two carbon/8552 systems (gated) and T800S/3900-2B (reported, not gated). No measured TAI data is included, and the AS4/3501-6, T700/2510 and T800/epoxy presets have no measured residual-strength comparison. Candidate datasets are listed in [`validation/README.md`](validation/README.md).
 
 ## Citation
 

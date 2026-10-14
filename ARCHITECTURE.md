@@ -32,7 +32,7 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | Module | Submodule | Role |
 |--------|-----------|------|
 | `_types.py` | — | Shared `Literal` aliases `TierName`, `LoadingMode`, `CriterionName` and their runtime-validation frozensets (`_TIER_NAMES`, `_LOADING_MODES`, `_CRITERION_NAMES`). Each alias and its frozenset change together. |
-| `core/` | `material.py` | `OrthotropicMaterial` dataclass (moduli, strengths, toughnesses, density in kg/mm^3, impact-mapping and knockdown calibration constants such as `soutis_k_s` = 3.5) + the `MATERIAL_LIBRARY` dict with five presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy). Ported from WrinkleFE. |
+| `core/` | `material.py` | `OrthotropicMaterial` dataclass (moduli, strengths, toughnesses, density in kg/mm^3, impact-mapping and knockdown calibration constants such as `soutis_k_s` = 3.5) + the `MATERIAL_LIBRARY` dict with six presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy). Ported from WrinkleFE. |
 | | `laminate.py` | `Laminate`: Classical Lamination Theory ABD matrices, effective engineering constants, flexural rigidity; uniform or per-ply thicknesses. Ported from WrinkleFE. |
 | | `geometry.py` | `PanelGeometry`, `ImpactorGeometry`, `BoundaryKind` (`clamped` / `simply_supported` / `free`), `ImpactorShape` (`hemispherical` / `flat` / `conical`). |
 | `impact/` | `olsson.py` | Olsson quasi-static damage-threshold load (`threshold_load`) and onset energy (`onset_energy`) from plate bending + fracture energy balance; boundary- and impactor-shape-aware. |

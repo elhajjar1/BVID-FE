@@ -90,7 +90,7 @@ Runnable examples live in `examples/`. The script set (`01_empirical_quick.py` .
 
 ## Adding New Materials
 
-Add a new entry to `MATERIAL_LIBRARY` in `src/bvidfe/core/material.py` using the `OrthotropicMaterial` dataclass, with `name` equal to the dict key. Include all orthotropic stiffness constants (MPa), strength values (MPa), interlaminar fracture toughnesses (N/mm), and density (kg/mm^3, e.g. `1.58e-6`). Cite a literature source for every constant in a comment above the entry (see the `AS4/8552` entry). Leave the calibration constants (`soutis_k_s`, `olsson_alpha`, ...) at their defaults unless you have material-specific test data. Add tests in `tests/core/test_material.py` and add the name to the preset lists in `test_material_library_has_five_presets` and `tests/test_cli_version.py`. The step-by-step procedure is in `.claude/skills/add-material/SKILL.md`.
+Add a new entry to `MATERIAL_LIBRARY` in `src/bvidfe/core/material.py` using the `OrthotropicMaterial` dataclass, with `name` equal to the dict key. Include all orthotropic stiffness constants (MPa), strength values (MPa), interlaminar fracture toughnesses (N/mm), and density (kg/mm^3, e.g. `1.58e-6`). Cite a literature source for every constant in a comment above the entry (see the `AS4/8552` entry). Leave the calibration constants (`soutis_k_s`, `olsson_alpha`, ...) at their defaults unless you have material-specific test data. Add tests in `tests/core/test_material.py` and add the name to the preset lists in `test_material_library_has_six_presets` and `tests/test_cli_version.py`. The step-by-step procedure is in `.claude/skills/add-material/SKILL.md`.
 
 ## Adding New Failure Criteria
 
@@ -144,8 +144,9 @@ Validation datasets live in `validation/datasets/<name>.json`; the harness
     `python scripts/generate_schemas.py` in the commit that changes a field.
   - Empirical tier on every dataset, `--gate` (hard gate).
   - Semi-analytical tier on the measured datasets
-    (`ncamp_as4_8552_cai`, `lovejoy_scotti_im7_8552_cai`), `--gate` (hard
-    gate). `synthetic_selfcheck` is generated from the empirical tier, so
+    (`ncamp_as4_8552_cai`, `lovejoy_scotti_im7_8552_cai`,
+    `hasebe_t800s_3900_2b_cai`), `--gate` (hard gate; the Hasebe set is
+    reported only, `"gate": false`). `synthetic_selfcheck` is generated from the empirical tier, so
     other tiers cannot match it.
   - fe3d tier on the first 3 cases of `synthetic_selfcheck` only, as a
     smoke run without `--gate` (`continue-on-error`).

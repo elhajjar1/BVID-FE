@@ -104,6 +104,10 @@ print(cscan_result.critical_sublaminate)   # 4: the interface whose delamination
 `AnalysisConfig` raises `ValueError` unless exactly one of `impact` and
 `damage` is set, and for an unknown `tier` or `loading`.
 `ply_thickness_mm` may also be a list with one thickness per ply.
+`impact_panel` (a `PanelGeometry`, with `impact` only) is the panel the
+impact was applied on when it is not the one tested, e.g. a 60 × 60 mm
+clamped window and an 80 × 50 mm compression coupon: the damage is mapped
+on `impact_panel` and centred on `panel`.
 
 ## Results
 
@@ -129,7 +133,7 @@ JSON-serialisable dict.
 
 | tier | Runtime | Validation status | Good for |
 |---|---|---|---|
-| `empirical` | < 1 s | CAI calibrated (`soutis_k_s`) on two measured datasets: MAE 7.3% (NCAMP AS4/8552) and 10.9% (Lovejoy & Scotti IM7/8552); expect 16–21% on a new material. TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
+| `empirical` | < 1 s | CAI calibrated (`soutis_k_s`) on two measured datasets: MAE 7.3% (NCAMP AS4/8552) and 10.9% (Lovejoy & Scotti IM7/8552); expect 16–21% on a new material, and 28% on Hasebe et al.'s T800S/3900-2B coupons (not gated; no better than a constant knockdown). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | < 1 s | Same datasets: MAE 7.3% and 10.8%. Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
 | `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.30) is uncalibrated; not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
@@ -293,7 +297,7 @@ Without `--quick` / `--quick-json` the full result is printed as JSON.
 
 ## Adding a custom material
 
-Presets: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800/epoxy`
+Presets: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800S/3900-2B`, `T800/epoxy`
 (`MATERIAL_LIBRARY`, or `bvidfe --list-materials`).
 
 ```python
@@ -330,7 +334,8 @@ Other optional fields: `Zt`, `Zc`, `S13` (through-thickness strengths;
 default to `Yt`, `Yc`, `S12`), `puck_p_nt_plus` / `puck_p_nt_minus` (0.30 /
 0.25), and `fiber_break_eta` / `fiber_break_E_threshold` (fibre-break core,
 off by default). Only `soutis_k_s` has been calibrated against measured
-data, and only for the 8552-matrix presets; treat the others as defaults.
+data, and only for the 8552-matrix presets, plus `olsson_alpha` for
+T800S/3900-2B; treat the others as defaults.
 
 ## Logging
 

@@ -14,7 +14,10 @@ toughness).
 
 When an `AnalysisConfig` carries an `ImpactEvent` rather than a measured
 `DamageState`, `impact_to_damage()` (`src/bvidfe/impact/`) builds the damage
-state in five steps.
+state in five steps. It uses `AnalysisConfig.impact_panel` when the plate
+was impacted on a different panel or window than the one tested (for
+example a 60 × 60 mm clamped window and an 80 × 50 mm compression coupon);
+the damage is then moved to the centre of the test panel.
 
 1. **Onset energy** (Olsson 2001). The threshold load is
    `P_c = π √(8 G_IIc D_eff / 9)`, with `D_eff = √(D11 D22)` from the
@@ -37,7 +40,8 @@ state in five steps.
     DPA = α (E − E_onset) · 10³ / (G_IIc · h) × (5.5 / m)^0.1 × f_shape × (16 / D)^0.3
     ```
 
-    with `α = olsson_alpha` (default 0.8), `h` the laminate thickness, `m`
+    with `α = olsson_alpha` (default 0.8; 0.12 for T800S/3900-2B, fitted to
+    Hasebe et al.'s C-scan areas), `h` the laminate thickness, `m`
     the impactor mass (kg), `D` its diameter (mm) and `f_shape` = 1.0
     (hemispherical), 1.4 (flat) or 0.7 (conical). At the ASTM D7136
     reference (5.5 kg, 16 mm, hemispherical) the three correction factors
@@ -256,16 +260,28 @@ load. The thickness-weighted average of the ply strengths used before,
 `Σ tᵢ (X·cos²θᵢ + Y·sin²θᵢ) / Σ tᵢ`, credited the off-axis plies with
 strength they never reach: it was 1.17–2.85× the NCAMP unnotched strengths
 of AS4/8552 and IM7/8552 laminates. Ply-discount matches them within
-0.83–1.18 (mean 1.00; `tests/validation/test_unnotched_strength_ncamp.py`):
+0.83–1.14 (mean 0.97; `tests/validation/test_unnotched_strength_ncamp.py`):
 
 | Material | Layup | Tension: NCAMP / model (MPa) | Compression: NCAMP / model (MPa) |
 | --- | --- | --- | --- |
 | AS4/8552 | 25/50/25 | 611 / 699 | 561 / 543 |
 | AS4/8552 | 10/80/10 | 439 / 392 | 430 / 357 |
-| AS4/8552 | 50/40/10 | 1050 / 1106 | 904 / 830 |
-| IM7/8552 | 25/50/25 | 722 / 856 | 600 / 601 |
+| AS4/8552 | 50/40/10 | 1050 / 1037 | 904 / 830 |
+| IM7/8552 | 25/50/25 | 722 / 753 | 600 / 601 |
 | IM7/8552 | 10/80/10 | 462 / 415 | 458 / 388 |
-| IM7/8552 | 50/40/10 | 1211 / 1415 | 833 / 933 |
+| IM7/8552 | 50/40/10 | 1211 / 1237 | 833 / 933 |
+
+Xt for both presets is NCAMP's 0° tension strength derived from the
+[0/90] cross-ply tests with the back-out factor, the strength the 0° plies
+reach inside a laminate. The unidirectional-coupon value is 6% (AS4/8552)
+and 12% (IM7/8552, against the previous generic 2560 MPa) higher, and with
+it the 0° plies outlived the ±45 cracking and broke 5–19% above the
+measured tension strengths. In the 50/40/10 laminates the 0° plies now
+break at Xt after the ±45s crack (0.99–1.02). In the 25/50/25 and 10/80/10
+laminates they break as soon as the ±45 plies crack in shear, so S12 sets
+the strength: 25/50/25 is 4% (IM7/8552) and 14% (AS4/8552) high, 10/80/10
+10% low in tension and 15–17% low in compression. One shear strength
+cannot move these in opposite directions.
 
 **The numerator (residual strength) is what differs between tiers:**
 

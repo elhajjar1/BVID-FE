@@ -97,7 +97,7 @@ separator, no spaces — e.g. `150x100` is `Lx = 150` mm, `Ly = 100` mm).
 the impact energy in joules. The command prints the full results JSON from
 the default `empirical` tier. Add `--tier empirical,semi_analytical` to
 compare tiers, `--quick-json` for a one-line result, or `--list-materials`
-to see the five presets. `bvidfe --help` lists every option.
+to see the six presets. `bvidfe --help` lists every option.
 
 ## 5. Streamlit web app
 

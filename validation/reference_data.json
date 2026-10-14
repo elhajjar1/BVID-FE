@@ -15,6 +15,13 @@
       "measured": true
     },
     {
+      "name": "hasebe_t800s_3900_2b_cai",
+      "reference": "Hasebe et al. 2025, Data in Brief 60, 111509; Mendeley Data 10.17632/8scdmfdcfb.3 (CC BY 4.0)",
+      "target_mae_pct": 15,
+      "measured": true,
+      "gated": false
+    },
+    {
       "name": "synthetic_selfcheck",
       "reference": "generated from the empirical tier",
       "target_mae_pct": 1,
@@ -22,11 +29,6 @@
     }
   ],
   "datasets_to_digitize": [
-    {
-      "name": "hasebe_t800s_3900-2b_cai",
-      "reference": "Hasebe et al. 2025, Data in Brief; Mendeley Data 8scdmfdcfb v3 (CC BY 4.0)",
-      "material": "T800S/3900-2B"
-    },
     {
       "name": "sanchez-saez_as4_3501-6_cai",
       "reference": "Sanchez-Saez et al. 2008, UC3M open manuscript (re-tabulates the 2005 data)",

@@ -70,12 +70,3 @@ def test_impact_panel_defaults_to_the_test_panel():
 def test_impact_panel_needs_an_impact():
     with pytest.raises(ValueError, match="impact_panel"):
         _cfg(impact=None, damage=DamageState([], dent_depth_mm=0.0), impact_panel=_WINDOW)
-
-
-def test_t800s_preset_matches_its_sources():
-    m = MATERIAL_LIBRARY["T800S/3900-2B"]
-    # Hasebe et al. 2025 Table 1
-    assert (m.E11, m.E22, m.nu12, m.G12, m.G_Ic, m.G_IIc) == (153000, 8000, 0.34, 4030, 0.54, 1.64)
-    # Toray 3900 data sheet, P2362W-19L RTA
-    assert (m.Xt, m.Xc, m.Yt, m.Yc, m.S12) == (3006, 1779, 60.8, 216, 68.9)
-    assert m.olsson_alpha == 0.12

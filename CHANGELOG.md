@@ -6,6 +6,29 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- **`T800S/3900-2B` material preset** (Toray, interlayer-toughened). Elastic
+  constants and toughness from Hasebe et al. (Data in Brief 2025) Table 1,
+  strengths and density from the Toray 3900 data sheet (P2362W-19L, RTA).
+  `olsson_alpha` = 0.12 is fitted to Hasebe's C-scan areas (quasi-isotropic
+  laminates, 12.7 mm hemisphere); the default 0.8 overpredicts them about 7x.
+- **`AnalysisConfig.impact_panel`**: the panel the impact is applied on when
+  it is not the panel tested (e.g. a 60 x 60 mm clamped window, then an
+  80 x 50 mm compression coupon). The damage is mapped on `impact_panel`,
+  so its onset energy, mass ratio and 80% area cap follow that panel, and
+  is centred on `panel`. Defaults to `panel`; only valid with `impact`.
+- **Third measured CAI dataset, `hasebe_t800s_3900_2b_cai` (not gated).**
+  The 211 hemispherical-impact specimens of Hasebe et al. 2025 (Mendeley,
+  CC BY 4.0): T800S/3900-2B in 8 layups, 2-21 J, impacted on a clamped
+  60 x 60 mm window and tested as 80 x 50 mm JIS K 7089 coupons. MAE 28.1%
+  (empirical) and 27.3% (semi-analytical), no better than a constant
+  knockdown (28.9%): the DPA-based knockdown misses how strongly the
+  knockdown depends on layup. The impactor mass is not reported (5.5 kg
+  assumed).
+- **Validation cases take `measured_pristine_MPa`**, which scores a case on
+  predicted knockdown x the measured undamaged strength (Hasebe's undamaged
+  coupons fail at 0.4-0.6x the unnotched strength in the JIS fixture), and
+  `impact_panel_Lx_mm` / `impact_panel_Ly_mm` / `impact_boundary`.
+
 - **`AS4/8552` material preset** (Hexcel 8552 AS4 tape). The cleanest open
   ASTM D7136/D7137 CAI datasets (Girona: Gonzalez et al. 2011, Falco et al.
   2014; NCAMP CAM-RP-2010-002) are on AS4/8552, which no preset covered.
@@ -42,6 +65,20 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **AS4/8552 and IM7/8552 Xt are NCAMP's cross-ply back-out values**
+  (F1tu from the [0/90] tests with the back-out factor, RTD normalized):
+  AS4/8552 1996 -> 1872 MPa, IM7/8552 2560 -> 2238 MPa. This is the 0 deg
+  ply strength realised inside a laminate. With the unidirectional-coupon
+  value the 0 deg plies outlived the +-45 cracking and the fibre-governed
+  NCAMP unnotched tension strengths came out 5-19% high; now the 50/40/10
+  laminates are 0.99-1.02 and all twelve NCAMP cases 0.83-1.14 (mean 0.97,
+  mean |log| error 11.6% -> 8.8%). Remaining: where the +-45 plies cracking
+  in shear sets the strength, AS4/8552 25/50/25 tension is 14% high and
+  10/80/10 10-17% low. Tension pristine and TAI strengths drop by up to 6%
+  (AS4/8552) and 12.6% (IM7/8552), where the 0 deg fibres govern; CAI is
+  unaffected. Cross-ply IM7/8552 tension:
+  1280.6 -> 1119.6 MPa.
+
 - **`soutis_k_s` default 2.5 -> 3.5** (empirical CAI knockdown
   `1/(1 + k_s (DPA/A_panel)^m)`). The uncalibrated 2.5 overpredicted the
   measured CAI strengths: MAE 15.9% (NCAMP AS4/8552) and 39.9% (Lovejoy &
@@ -65,7 +102,7 @@ All notable changes to BVID-FE are documented in this file.
   0 deg fibres break. Against the NCAMP unnotched tension and compression
   strengths of AS4/8552 and IM7/8552 (25/50/25, 10/80/10 and 50/40/10
   layups) the old value was 1.17-2.85x the measurement (mean 1.75x); the
-  new one is 0.83-1.18x (mean 1.00x), pinned in
+  new one is 0.83-1.18x (mean 1.00x; 0.83-1.14x after the Xt change above), pinned in
   `tests/validation/test_unnotched_strength_ncamp.py`.
   - `pristine_strength_MPa` and every absolute residual strength drop
     accordingly: a 16-ply IM7/8552 quasi-isotropic laminate goes from

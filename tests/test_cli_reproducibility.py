@@ -129,9 +129,11 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             "15",
         ],
         {
+            # Recaptured when IM7/8552 Xt became NCAMP's cross-ply back-out
+            # value (2560 -> 2238 MPa): pristine 1280.6 -> 1119.6 MPa.
             "knockdown": 0.21852316445726744,
-            "residual_strength_MPa": 279.8512722335999,
-            "pristine_strength_MPa": 1280.6481373342062,
+            "residual_strength_MPa": 244.6512293979674,
+            "pristine_strength_MPa": 1119.566613810138,
             "dpa_mm2": 8901.845339242213,
             "tier_used": "empirical",
         },

@@ -174,7 +174,11 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # Hexcel 8552 AS4 unidirectional tape. E11, E22, nu12, G12, strengths and
     # density: NCAMP CAM-RP-2010-002 Rev A (2011), Table 2-1, RTD means
     # (fiber-dominated values normalized to CPT = 0.0074 in = 0.188 mm); S12 is
-    # F12s at 5% strain. G23 = E22 / (2 (1 + nu23)) with nu23 = 0.45 measured on
+    # F12s at 5% strain. Xt is NCAMP's F1tu derived from the [0/90] cross-ply
+    # tension tests with the back-out factor (271.47 ksi), the 0 deg ply
+    # strength as realised inside a laminate; the unidirectional-coupon value
+    # (289.47 ksi = 1996 MPa) overpredicted NCAMP's unnotched multidirectional
+    # tension strengths. G23 = E22 / (2 (1 + nu23)) with nu23 = 0.45 measured on
     # AS4/8552 by Gonzalez et al. (Compos Sci Technol 71, 2011). S23 is the
     # LaRC03 transverse shear strength from Yc at a 53 deg fracture plane
     # (Davila, Camanho & Rose, J Compos Mater 39, 2005). G_Ic and G_IIc are the
@@ -188,7 +192,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G12=4830,
         G13=4830,
         G23=3186,
-        Xt=1996,
+        Xt=1872,
         Xc=1398,
         Yt=64,
         Yc=268,
@@ -198,6 +202,10 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_IIc=0.79,
         rho=1.59e-6,
     ),
+    # Xt is NCAMP's F1tu derived from the [0/90] cross-ply tension tests with
+    # the back-out factor: CAM-RP-2009-015 Rev B (2019), Table 2-1, RTD,
+    # normalized (324.62 ksi), as for AS4/8552. The other constants are generic
+    # IM7/8552 values, not NCAMP's.
     "IM7/8552": OrthotropicMaterial(
         name="IM7/8552",
         E11=165000,
@@ -206,7 +214,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G12=5600,
         G13=5600,
         G23=2800,
-        Xt=2560,
+        Xt=2238,
         Xc=1590,
         Yt=73,
         Yc=185,

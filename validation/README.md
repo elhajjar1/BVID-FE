@@ -9,6 +9,7 @@ composite-after-impact test data.
 |---|---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 7.3% | 7.3% |
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 10.9% | 10.8% |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 211 | 15% | 28.1% | 27.3% |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | ~0% (by construction) | n/a |
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
@@ -63,9 +64,7 @@ The in-sample numbers flatter the model. The fair measure is cross-dataset:
 - `k_s` fitted on NCAMP alone (3.1) predicts Lovejoy at 16–21% MAE.
 - `k_s` fitted on Lovejoy alone (4.0) predicts NCAMP at 15.7%.
 
-Expect errors of that order on a new material or layup. The Hasebe set
-(below) has enough coupons to calibrate damage size and knockdown separately
-and hold data out.
+Expect errors of that order on a new material or layup.
 
 An equivalent-open-hole model (Whitney-Nuismer point stress with a
 finite-width correction) was also tried. Its characteristic distance
@@ -73,6 +72,50 @@ calibrates cleanly from the NCAMP open-hole compression data (d0 =
 0.7–1.8 mm). But the predicted damage spans 78–126 mm of a 100 mm wide
 coupon, so the equivalent hole fills the specimen. It needs a better
 damage-width prediction first.
+
+**`hasebe_t800s_3900_2b_cai`** is measured data the model is known to miss,
+so it is not gated: Hasebe, Higuchi, Yokozeki & Takeda, *Data in Brief* 60
+(2025) 111509, with the per-specimen spreadsheets on Mendeley Data
+(10.17632/8scdmfdcfb.3, CC BY 4.0). Toray T800S/3900-2B in 8 layups:
+cross-ply c8/c16/c24 [0/90]ns, quasi-isotropic q8/q16/q24 [45/0/-45/90]ns,
+hard r0 and soft r45 (20 plies). Plates 80 × 80 mm were impacted clamped on
+a 60 × 60 mm window (`impact_panel_*`, `impact_boundary`), then trimmed to
+80 × 50 mm and tested to JIS K 7089. The 211 specimens struck by a
+hemispherical impactor (12.7, 25.4 and 31.8 mm; 2–21 J) are carried, each
+with its measured thickness, coupon size, C-scan area and dent. Notes:
+- The impactor mass is not reported; 5.5 kg is assumed (DPA scales with
+  `(5.5/m)^0.1`).
+- In the impact sheet the `[J/mm]` and `[J]` labels are swapped;
+  `impact_energy_J` is the column equal to energy per mm × thickness.
+- The undamaged coupons fail at 0.4–0.6× the unnotched laminate strength,
+  and lower the thinner they are (261–277 MPa for 8 plies, 434–528 MPa for
+  24), so the JIS fixture, not the material, limits them. Each case
+  therefore carries `measured_pristine_MPa` (the layup's mean undamaged
+  strength, the basis of the dataset's own reduction ratio) and is scored
+  on predicted knockdown × that strength.
+- Flat and conical impactors are left out. Hasebe's data put flat-ended
+  damage at about 0.2× and conical at about 1.1–1.2× the hemispherical,
+  where the model's shape factors are 1.4 and 0.7.
+
+The `T800S/3900-2B` preset takes its elastic constants and toughness from
+Hasebe's Table 1 and its strengths from the Toray 3900 data sheet (Hasebe's
+Xc of 719 MPa is under half the data sheet's ASTM D6641 1779 MPa).
+`olsson_alpha` = 0.12 is fitted to the C-scan areas of the quasi-isotropic
+laminates struck by the 12.7 mm hemisphere (the default 0.8 overpredicts
+them about 7×); on the other specimens it predicts the area at a median
+0.71×, from about 2× on 8 plies to 0.5× on 24 plies. Olsson's area scales
+with `(E − E_onset)/h`, so it is flat in thickness at constant J/mm; the
+measured area grows with thickness.
+
+Why the model misses: a constant knockdown (the set's mean, 0.75) scores
+28.9%, the same as both tiers. The DPA-based knockdown does not capture the
+layup: at similar delamination area, cross-ply c16 keeps 0.60 of its
+strength and quasi-isotropic q16 0.81. With the measured areas in place of
+the predicted ones the MAE is still 26% (22% with the most favourable
+panel-area normalisation). Normalising by the
+80 × 50 mm coupon area also biases the knockdown low (0.54 predicted,
+0.70 measured, on average). Replicate scatter alone accounts for about
+6–9%.
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction. It
@@ -84,7 +127,7 @@ write the predicted residual strength into `measured_strength_MPa`.
 CI gates the empirical tier on every dataset and the semi-analytical tier on
 the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
-error printed, but it cannot fail the gate. None does today. The fe3d tier
+error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The fe3d tier
 is run on the first three synthetic cases as a smoke run, not a gate: the
 synthetic set is empirical-tier output, so its error there (5.3%) measures
 the difference between the tiers, not fe3d's accuracy.
@@ -96,7 +139,6 @@ needs the inputs listed before it can be scored.
 
 | Dataset | Material | Loading | Needs |
 |---|---|---|---|
-| Hasebe et al. 2025, *Data in Brief* (Mendeley, CC BY 4.0) | T800S/3900-2B | CAI | T800S/3900-2B preset; separate impact (60x60 mm window) and test (80x50 mm) geometry; cone angle; an assumed impactor mass |
 | Sánchez-Sáez et al. 2008 (UC3M open manuscript) | AS4/3501-6 | CAI | Thin, stability-limited 78 mm coupons |
 | NASA TP-3102, drop-weight point | T800/3900-2 | CAI | Single point |
 | Körbelin 2022, TU Hamburg thesis | M21/T800S | TAI | M21/T800S preset; separate support frame and tension coupon |
@@ -117,7 +159,11 @@ must say in its `reference` what it assumes), `impact_energy_J`, and
 or `tension`), `boundary` (`simply_supported`, the default, `clamped`,
 `free`), `impactor_shape` (`hemispherical`, the default, `flat`,
 `conical`), `measured_dent_mm` and `measured_dpa_mm2` (recorded, not
-scored), and `note`.
+scored), `measured_pristine_MPa` (scores the case on predicted knockdown ×
+this undamaged strength, for fixtures that cap the undamaged coupon),
+`impact_panel_Lx_mm`, `impact_panel_Ly_mm` and `impact_boundary` (the
+window the plate was impacted on, when it is not the test panel), and
+`note`.
 
 ## Running
 
@@ -125,7 +171,7 @@ scored), and `note`.
 python validation/validate_bvid_public.py              # empirical tier, all datasets, print table
 python validation/validate_bvid_public.py --gate       # exit non-zero if a gated MAE exceeds 1.25 * target
 python validation/validate_bvid_public.py --dataset synthetic_selfcheck
-python validation/validate_bvid_public.py --tier semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai
+python validation/validate_bvid_public.py --tier semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
 python validation/validate_bvid_public.py --tier fe3d --dataset synthetic_selfcheck --max-cases 3
 ```
 

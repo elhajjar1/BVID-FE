@@ -9,8 +9,8 @@ Materials live in `src/bvidfe/core/material.py`. The library is a dict
 named `MATERIAL_LIBRARY` (NOT `MATERIAL_PRESETS` — older docs use that
 name, but the actual symbol is `MATERIAL_LIBRARY`; `_resolve_material`
 in `analysis/bvid.py` and `analysis/fe_tier.py` looks up by string key).
-There are five presets today: AS4/3501-6, AS4/8552, IM7/8552, T700/2510,
-T800/epoxy.
+There are six presets today: AS4/3501-6, AS4/8552, IM7/8552, T700/2510,
+T800S/3900-2B, T800/epoxy.
 
 ## Pre-flight
 
@@ -75,7 +75,7 @@ alphabetical-ish but really just match the existing pattern). The
 module runs `__post_init__` validation. In addition:
 
 - Add the name to the preset list in
-  `test_material_library_has_five_presets` (`tests/core/test_material.py`)
+  `test_material_library_has_six_presets` (`tests/core/test_material.py`)
   and in `test_cli_list_materials_prints_all_presets`
   (`tests/test_cli_version.py`).
 - Add a test that pins the cited values, mirroring
@@ -112,7 +112,7 @@ If `AnalysisConfig` ever gains a typed `Literal` of material names (grep
 none; materials are looked up by string at runtime.
 
 Prose that counts or lists the presets needs a manual update: `README.md`
-("Five material presets"), `docs/index.md`, and the `core/material.py`
+("Six material presets"), `docs/index.md`, and the `core/material.py`
 row in `ARCHITECTURE.md`. Add an entry under `## [Unreleased]` in
 `CHANGELOG.md`.
 
