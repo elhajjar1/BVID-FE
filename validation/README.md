@@ -7,9 +7,9 @@ composite-after-impact test data.
 
 | Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical |
 |---|---|---|---|---|---|---|
-| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 7.3% | 7.3% |
-| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 10.9% | 10.8% |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 25.3% | 25.6% |
+| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% |
+| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 9.0% | 9.0% |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.3% | 23.3% |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | ~0% (by construction) | n/a |
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
@@ -20,8 +20,11 @@ measured CAI is 171–182 MPa and every coupon failed through the impact damage
 (failure code LDM). Each case uses its own measured thickness and impact
 energy. The report does not give the impactor mass or tup, so the ASTM
 D7136 standard values (5.5 kg, 0.625 in hemispherical) are used. It reports
-no dent depth or damage area. The fe3d tier gives 169 MPa (5% low) on the
-first coupon, but at about 3.5 minutes per coupon it is not run in CI.
+no dent depth or damage area. The fe3d tier gives 231 MPa on the first
+coupon (30% high; 169 MPa with the previous, thickness-divided damage
+area): the delamination growth stress (223 MPa) over fe3d's own undamaged
+first-ply failure (523 MPa) gives a knockdown of 0.43, against 0.33 from
+the empirical tier. At about 3 minutes per coupon it is not run in CI.
 
 **`lovejoy_scotti_im7_8552_cai`** is measured data: Lovejoy & Scotti, NASA
 LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
@@ -38,40 +41,77 @@ thickness.
 
 ### Calibration of `soutis_k_s`
 
-The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_panel)^m)`, and
-`soutis_k_s` was an uncalibrated 2.5. Lovejoy & Scotti showed it was too
-lenient:
-- The quasi-isotropic coupons were predicted 41–56% too strong (the hard
-  laminate 29–37%).
-- The undamaged strength is right (601 MPa against 600 MPa measured by
-  NCAMP).
-- Rescaling the predicted delaminations to the measured C-scan areas made the
-  strengths higher still. The damage area is overpredicted (about 8,900 mm²
-  against 5,200–7,500 mm²), so the error is in the damage-to-knockdown map,
-  not the damage prediction.
+The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_ref)^m)`, with
+`A_ref` = 15,000 mm², the 150 × 100 mm ASTM D7137 coupon. `m` = 0.5 has
+been kept; `soutis_k_s` has been calibrated twice.
 
-`soutis_k_s` is now 3.5, fitted to both measured datasets (m = 0.5 kept).
+**2.5 to 3.5.** `soutis_k_s` was an uncalibrated 2.5, which overpredicted
+the Lovejoy & Scotti strengths by 29–56% although the undamaged strength
+was right (601 MPa against 600 MPa measured by NCAMP). The damage area
+was then `α (E − E_onset) / (G_IIc h)` with α = 0.8, and the knockdown
+scaled it by the analysed panel's area. 3.5 fitted both datasets:
 
 | `k_s` | NCAMP empirical | Lovejoy empirical | NCAMP semi-analytical | Lovejoy semi-analytical |
 |---|---|---|---|---|
-| 2.5 (old default) | 15.9% | 39.9% | 11.6% | 23.5% |
-| 3.5 (new default) | 7.3% | 10.9% | 7.3% | 10.8% |
+| 2.5 | 15.9% | 39.9% | 11.6% | 23.5% |
+| 3.5 | 7.3% | 10.9% | 7.3% | 10.8% |
 
-The pooled optimum is 3.7 for the empirical tier and 3.3 for the
-semi-analytical; 3.5 splits them.
+Fitted on NCAMP alone (3.1) it predicted Lovejoy & Scotti at 16–21% MAE,
+and fitted on Lovejoy & Scotti alone (4.0) it predicted NCAMP at 15.7%.
+The Lovejoy & Scotti damage area was overpredicted (about 8,900 mm²
+against 5,190–7,530 mm²).
 
-The in-sample numbers flatter the model. The fair measure is cross-dataset:
-- `k_s` fitted on NCAMP alone (3.1) predicts Lovejoy at 16–21% MAE.
-- `k_s` fitted on Lovejoy alone (4.0) predicts NCAMP at 15.7%.
+**3.5 to 4.7.** Two changes to the model made the datasets agree:
+- The damage area is an energy balance, `α (E − E_onset) / G_IIc` in mm²,
+  with α = 0.078 fitted to the median of Lovejoy & Scotti's eight C-scan
+  areas. Dividing by the thickness as well left the area flat in
+  thickness at constant J/mm, where the measured area grows with it:
+  Lovejoy & Scotti's 7.6 mm coupons had 1.21× the C-scan area of their
+  6.1 mm coupons at the same 8.9 J/mm. The predicted areas are now
+  5,281 mm² (quasi-isotropic) and 6,589 mm² (hard), against 5,190–5,740
+  and 6,260–7,530 mm² measured. NCAMP reports no damage area, so its
+  predicted area (about 2,900 mm², was about 6,650 mm²) is an independent
+  prediction.
+- The knockdown scales the damage area by the fixed coupon area instead of
+  the analysed panel's. The panel area sent the knockdown to 1 as the
+  panel grew, although impact damage is a local notch, and over-penalised
+  Hasebe et al.'s 80 × 50 mm coupons.
 
-Expect errors of that order on a new material or layup.
+With both, the empirical MAE against `k_s` (the semi-analytical tier gives
+the same on these datasets, because the Soutis bound governs every
+coupon):
+
+| `k_s` | NCAMP | Lovejoy & Scotti |
+|---|---|---|
+| 4.0 | 11.8% | 15.8% |
+| 4.5 | 3.5% | 9.2% |
+| 4.7 (default) | 1.5% | 9.0% |
+| 5.0 | 3.6% | 8.6% |
+| 5.5 | 9.8% | 10.1% |
+
+4.7 is the pooled optimum of both tiers. Neither change was enough alone.
+With the thickness-divided area and the fixed reference area the two
+datasets wanted different `k_s` (NCAMP 7.3% and Lovejoy & Scotti 9.6% at
+3.5; 15.7% and 4.6% at 4.0). With the energy-balance area and the panel
+area, `k_s` ≈ 4.7 fitted both (3.5% and 9.7%) but put the Hasebe set at
+31–34%.
+
+The in-sample numbers flatter the model. The fair measure is
+cross-dataset:
+- `k_s` fitted on NCAMP alone (4.7) predicts Lovejoy & Scotti at 9.0% MAE.
+- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 6.2%.
+
+Expect errors of about 6–9% on a new material or layup tested to ASTM
+D7136/D7137. `olsson_alpha` was fitted on Lovejoy & Scotti's areas, so
+only the NCAMP damage area is out of sample.
 
 An equivalent-open-hole model (Whitney-Nuismer point stress with a
-finite-width correction) was also tried. Its characteristic distance
-calibrates cleanly from the NCAMP open-hole compression data (d0 =
-0.7–1.8 mm). But the predicted damage spans 78–126 mm of a 100 mm wide
-coupon, so the equivalent hole fills the specimen. It needs a better
-damage-width prediction first.
+finite-width correction) was also tried, with the thickness-divided damage
+area. Its characteristic distance calibrates cleanly from the NCAMP
+open-hole compression data (d0 = 0.7–1.8 mm). But the predicted damage
+spanned 78–126 mm of a 100 mm wide coupon, so the equivalent hole filled
+the specimen. It has not been retried with the energy-balance area (about
+2,900 mm² on the NCAMP coupons, against about 6,650 mm² then).
 
 **`hasebe_t800s_3900_2b_cai`** is measured data the model is known to miss,
 so it is not gated: Hasebe, Higuchi, Yokozeki & Takeda, *Data in Brief* 60
@@ -108,21 +148,34 @@ thickness, coupon size, C-scan area and dent. Notes:
 The `T800S/3900-2B` preset takes its elastic constants and toughness from
 Hasebe's Table 1 and its strengths from the Toray 3900 data sheet (Hasebe's
 Xc of 719 MPa is under half the data sheet's ASTM D6641 1779 MPa).
-`olsson_alpha` = 0.12 is fitted to the C-scan areas of the quasi-isotropic
-laminates struck by the 12.7 mm hemisphere (the default 0.8 overpredicts
-them about 7×); on the other specimens it predicts the area at a median
-0.71×, from about 2× on 8 plies to 0.5× on 24 plies. Olsson's area scales
-with `(E − E_onset)/h`, so it is flat in thickness at constant J/mm; the
-measured area grows with thickness.
+`olsson_alpha` = 0.047 is fitted to the C-scan areas of the
+quasi-isotropic laminates struck by the 12.7 mm hemisphere (median of 38
+specimens; the default 0.078 overpredicts them about 1.7×, as the
+material is interlayer-toughened). With the energy-balance area it
+predicts the area of all 343 specimens at a median 1.03× (0.81–1.31× per
+layup), and the mean area per impactor within 8%, except the 31.8 mm
+hemisphere (19% low): 368 against 364 mm² for the 60° cone, 48 against
+52 mm² for the flat-ended impactor, and 277 against 281, 266 against 277
+and 204 against 251 mm² for the 12.7, 25.4 and 31.8 mm hemispheres.
 
-Why the model misses: a constant knockdown (the set's mean, 0.70) scores
-30.3%, against 25.3% and 25.6% for the tiers. The DPA-based knockdown does
-not capture the layup: at similar delamination area, cross-ply c16 keeps
-0.60 of its strength and quasi-isotropic q16 0.81. Normalising by the
-80 × 50 mm coupon area biases the knockdown low (0.56 predicted, 0.70
-measured, on average): about 50 mm² of damage from the flat-ended impactor
-leaves the strength intact (0.99) where the model predicts 0.74. Replicate
-scatter alone accounts for about 6–9%.
+Why the model misses: the damage area is right, but the knockdown map is
+not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
+21.3% (empirical) and 23.3% (semi-analytical). The empirical MAE per
+layup is 13% (c8), 33% (c16), 19% (c24), 19% (q8), 23% (q16), 36% (q24),
+14% (r0) and 5% (r45). The predicted knockdown averages 0.64 against 0.73
+measured. Two things remain:
+- Layup. At similar delamination area, cross-ply c16 keeps 0.64 of its
+  strength and quasi-isotropic q16 0.84; the DPA-based knockdown gives
+  both about 0.64.
+- Thin, fixture-limited coupons. The undamaged reference is itself
+  limited by the JIS fixture (see above), and a `k_s` fitted per layup
+  rises steeply with thickness within each family (q8 0.8, q16 1.2,
+  q24 2.5). That looks like the fixture, not the material.
+
+A layup factor from Lekhnitskii's `Kt_inf` was tried and helps little
+(about 1.6 points with the measured areas) and points the wrong way for
+the soft r45 laminate, so no layup term was added. Replicate scatter alone
+accounts for about 6–9%.
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction. It
@@ -136,7 +189,7 @@ the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
 error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The fe3d tier
 is run on the first three synthetic cases as a smoke run, not a gate: the
-synthetic set is empirical-tier output, so its error there (5.3%) measures
+synthetic set is empirical-tier output, so its error there (3.9%) measures
 the difference between the tiers, not fe3d's accuracy.
 
 ## Next datasets

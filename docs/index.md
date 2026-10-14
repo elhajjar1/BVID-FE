@@ -26,8 +26,9 @@ documentation conventions.
 ## Features
 
 - **Two workflow paths** converging on a shared `DamageState`:
-    - *Impact-driven*: Olsson quasi-static threshold + peanut-template DPA
-      distribution + empirical dent model
+    - *Impact-driven*: Olsson quasi-static threshold + energy-balance damage
+      area + peanut-template distribution over the interfaces + empirical
+      dent model
     - *Inspection-driven*: C-scan JSON import per the documented schema
       (see [C-Scan Schema](cscan_schema.md))
 - **Three modeling tiers** for residual strength after BVID:

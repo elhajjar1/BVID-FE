@@ -9,8 +9,10 @@ All notable changes to BVID-FE are documented in this file.
 - **`T800S/3900-2B` material preset** (Toray, interlayer-toughened). Elastic
   constants and toughness from Hasebe et al. (Data in Brief 2025) Table 1,
   strengths and density from the Toray 3900 data sheet (P2362W-19L, RTA).
-  `olsson_alpha` = 0.12 is fitted to Hasebe's C-scan areas (quasi-isotropic
-  laminates, 12.7 mm hemisphere); the default 0.8 overpredicts them about 7x.
+  `olsson_alpha` = 0.047 is fitted to Hasebe's C-scan areas (quasi-isotropic
+  laminates, 12.7 mm hemisphere) with the energy-balance damage area (see
+  *Changed*); the default 0.078 overpredicts them about 1.7x. (It was 0.12
+  with the thickness-divided area, against a default of 0.8.)
 - **`AnalysisConfig.impact_panel`**: the panel the impact is applied on when
   it is not the panel tested (e.g. a 60 x 60 mm clamped window, then an
   80 x 50 mm compression coupon). The damage is mapped on `impact_panel`,
@@ -20,9 +22,11 @@ All notable changes to BVID-FE are documented in this file.
   343 specimens of Hasebe et al. 2025 (Mendeley, CC BY 4.0): T800S/3900-2B
   in 8 layups, struck by three hemispheres, a flat-ended impactor or a 60
   deg cone at 2-21 J on a clamped 60 x 60 mm window, and tested as
-  80 x 50 mm JIS K 7089 coupons. MAE 25.3% (empirical) and 25.6%
-  (semi-analytical), little better than a constant knockdown (30.3%): the
-  DPA-based knockdown misses how strongly the knockdown depends on layup.
+  80 x 50 mm JIS K 7089 coupons. MAE 21.3% (empirical) and 23.3%
+  (semi-analytical; 25.3% and 25.6% before the energy-balance change in
+  *Changed*), against 30.3% for a constant knockdown: the predicted damage
+  area matches the C-scans, but the DPA-based knockdown misses how strongly
+  the knockdown depends on layup.
   The impactor mass is not reported (5.5 kg assumed).
 - **Validation cases take `measured_pristine_MPa`**, which scores a case on
   predicted knockdown x the measured undamaged strength (Hasebe's undamaged
@@ -36,22 +40,26 @@ All notable changes to BVID-FE are documented in this file.
   from nu23 = 0.45 (Gonzalez et al.), S23 is the LaRC03 estimate from Yc, and
   G_Ic/G_IIc are the IM7/8552 values (same matrix). The impact-mapping
   calibration fields keep their defaults. NCAMP's 30 J CAI on
-  [45/0/-45/90]3s is 176 MPa; both closed-form tiers give 163 MPa with the
-  recalibrated `soutis_k_s` (the Soutis bound governs).
+  [45/0/-45/90]3s is 176 MPa; both closed-form tiers gave 163 MPa with
+  `soutis_k_s` = 3.5 and give 177 MPa since the energy-balance change in
+  *Changed* (the Soutis bound governs).
 - **First measured validation dataset: `ncamp_as4_8552_cai`.** Seven
   AS4/8552 [45/0/-45/90]3s CAI coupons from NCAMP CAM-RP-2010-002 Rev A
   (ASTM D7136/D7137, about 30 J, 171-182 MPa), each with its own measured
   thickness and impact energy. MAE: empirical 7.3%, semi-analytical 7.3%
-  with the recalibrated `soutis_k_s` (15.9% and 11.6% before; target 15%;
-  fe3d gives 5% on the first coupon but is not run in CI). CI
+  with `soutis_k_s` = 3.5 (15.9% and 11.6% before; 1.5% for both since the
+  energy-balance change in *Changed*; target 15%;
+  fe3d gave 5% on the first coupon, 30% since the energy-balance change,
+  but is not run in CI). CI
   now also gates the semi-analytical tier on measured datasets. The fe3d
   monitoring step runs only the synthetic dataset, since a 24-ply coupon
   takes about 3.5 minutes.
 - **Second measured dataset, `lovejoy_scotti_im7_8552_cai`.** Eight IM7/8552
   standard-ply CAI coupons from Lovejoy & Scotti (NASA LaRC 2019):
   quasi-isotropic at 54 J and hard laminate at 68 J, with measured dent depth
-  and C-scan area. MAE with the recalibrated `soutis_k_s` (see *Changed*):
-  empirical 10.9%, semi-analytical 10.8%; both tiers are gated in CI.
+  and C-scan area. MAE with `soutis_k_s` = 3.5 (see *Changed*): empirical
+  10.9%, semi-analytical 10.8% (9.0% for both since the energy-balance
+  change); both tiers are gated in CI.
   Datasets can set `"gate": false` with a `gate_note` for a known miss (its
   error is reported but cannot fail `--gate`), and `--dataset` takes several
   names.
@@ -64,6 +72,73 @@ All notable changes to BVID-FE are documented in this file.
   listed, and no source was found for the fourth.
 
 ### Changed
+
+- **The damage area is an energy balance, and the CAI knockdown scales it
+  by a fixed reference area.** Three changes, fitted together:
+  - `impact_to_damage` predicts `DPA = olsson_alpha (E - E_onset) / G_IIc`
+    (mm^2), times the impactor mass, shape and diameter factors and capped
+    at 80% of the panel as before. It was also divided by the laminate
+    thickness, which gave mm and left the area flat in thickness at
+    constant J/mm, where measured areas grow with it: Hasebe et al.'s 8- to
+    24-ply laminates at fixed J/mm, and Lovejoy & Scotti's 7.6 mm coupons,
+    which had 1.21x the C-scan area of their 6.1 mm coupons at the same
+    8.9 J/mm. The `olsson_alpha` default goes 0.8 -> 0.078, fitted to the
+    median of Lovejoy & Scotti's eight IM7/8552 C-scan areas, and
+    T800S/3900-2B 0.12 -> 0.047, fitted to Hasebe's quasi-isotropic
+    laminates struck by the 12.7 mm hemisphere (median predicted / measured
+    area over all 343 specimens 1.03x).
+  - The Soutis knockdown is `1/(1 + k_s (DPA/A_ref)^m)` with
+    `A_ref = SOUTIS_REFERENCE_AREA_MM2` = 15000 mm^2, the 150 x 100 mm
+    ASTM D7137 coupon (`bvidfe.failure.soutis_openhole`), instead of the
+    analysed panel's `Lx * Ly`. The panel area sent the knockdown to 1 as
+    the panel grew, although impact damage is a local notch, and
+    over-penalised Hasebe's 80 x 50 mm coupons. The panel size still enters
+    the onset energy, the area cap, the semi-analytical growth check and
+    fe3d. API: `soutis_cai(m, dpa_mm2, A_ref_mm2, sigma_pristine_MPa)`
+    (argument renamed from `A_panel_mm2`), and
+    `semi_analytical_cai(lam, damage, sigma_pristine_MPa,
+    A_ref_mm2=SOUTIS_REFERENCE_AREA_MM2, boundary=...)`, where
+    `A_panel_mm2` was a required argument.
+  - `soutis_k_s` 3.5 -> 4.7, the pooled optimum of both tiers on NCAMP and
+    Lovejoy & Scotti.
+
+  MAE (empirical / semi-analytical): NCAMP 7.3% / 7.3% -> 1.5% / 1.5%;
+  Lovejoy & Scotti 10.9% / 10.8% -> 9.0% / 9.0%; Hasebe (not gated)
+  25.3% / 25.6% -> 21.3% / 23.3% (a constant knockdown scores 30.3%). The
+  fair measure is cross-dataset: `k_s` fitted on NCAMP alone (4.7) predicts
+  Lovejoy & Scotti at 9.0% (was 16-21%), and fitted on Lovejoy & Scotti
+  alone (5.2) predicts NCAMP at 6.2% (was 15.7%). Neither change works
+  alone: with the thickness-divided area and the fixed reference area the
+  two datasets want different `k_s` (NCAMP 7.3% and Lovejoy & Scotti 9.6%
+  at 3.5, 15.7% and 4.6% at 4.0); with the energy-balance area and the
+  panel area `k_s` = 4.7 fits both (3.5% and 9.7%) but puts Hasebe at
+  31-34%. The fe3d smoke run on the first three synthetic cases moves
+  5.3% -> 3.9%.
+
+  Effect for users:
+  - Predicted damage areas fall several-fold on thin laminates: NCAMP
+    AS4/8552 4.5 mm coupons at 30 J about 6650 -> 2900 mm^2; a 16-ply
+    IM7/8552 quasi-isotropic laminate ([0/45/-45/90/90/-45/45/0] twice,
+    0.152 mm plies, 2.4 mm) on a 150 x 100 mm panel at 20 J 8081 ->
+    1916 mm^2, so its empirical CAI knockdown rises 0.280 -> 0.373. The
+    80% area cap on a 150 x 100 mm IM7/8552 panel is now reached only
+    above about 120 J; an 8-ply panel reached it from about 15 J before.
+  - Knockdowns on large panels now fall where they used to tend to 1: the
+    same laminate on a 500 x 500 mm panel at 20 J goes 0.691 -> 0.455
+    (DPA 4096 -> 971 mm^2).
+  - fe3d knockdowns rise with the smaller damage zone. On IM7/8552
+    150 x 100 mm panels, 16-ply QI tension at 5/15/30 J goes
+    0.459/0.328/0.200 -> 0.525/0.435/0.423 (empirical 0.399/0.370/0.359)
+    and 24-ply QI tension at 30 J 0.15 -> 0.349 (empirical 0.359): at 30 J
+    the damage area (about 2900 mm^2) no longer reaches the 80% cap. The
+    fe3d CAI knockdown between 5 and 30 J is 0.530 -> 0.427 on 16-ply QI
+    (was 0.46 -> 0.20), 0.505 -> 0.381 on 8-ply QI (0.46 -> 0.29) and
+    0.341 -> 0.307 on 8-ply cross-ply (0.27 -> 0.26). The first NCAMP
+    coupon goes 169 -> 231 MPa (measured 178 MPa). The 5 mm -> 2.5 mm mesh
+    change at 15 J on 8-ply panels is now 3.6% (QI tension), 13.0%
+    (cross-ply tension), 12.3% (cross-ply compression) and 17.4% (QI
+    compression).
+  - The synthetic validation dataset and the CLI snapshots are recaptured.
 
 - **Impactor shape and diameter factors on the damage area are fitted to
   Hasebe et al. 2025**, the only open data that vary the impactor on one
@@ -91,9 +166,10 @@ All notable changes to BVID-FE are documented in this file.
   1280.6 -> 1119.6 MPa.
 
 - **`soutis_k_s` default 2.5 -> 3.5** (empirical CAI knockdown
-  `1/(1 + k_s (DPA/A_panel)^m)`). The uncalibrated 2.5 overpredicted the
-  measured CAI strengths: MAE 15.9% (NCAMP AS4/8552) and 39.9% (Lovejoy &
-  Scotti IM7/8552) for the empirical tier, 11.6% and 23.5% for the
+  `1/(1 + k_s (DPA/A_panel)^m)`; superseded: 4.7, with a fixed reference
+  area, since the energy-balance change above). The uncalibrated 2.5
+  overpredicted the measured CAI strengths: MAE 15.9% (NCAMP AS4/8552)
+  and 39.9% (Lovejoy & Scotti IM7/8552) for the empirical tier, 11.6% and 23.5% for the
   semi-analytical. The undamaged strength matches NCAMP, and rescaling the
   predicted damage to the measured C-scan areas made the error worse, so the
   knockdown map itself was too lenient. 3.5 fits both datasets (3.7 is the
@@ -126,7 +202,8 @@ All notable changes to BVID-FE are documented in this file.
   - For the NCAMP AS4/8552 30 J CAI benchmark (176 MPa, knockdown 0.31) the
     empirical tier went from 313 to 204 MPa and the semi-analytical
     knockdown from 0.24 to 0.36, both with `soutis_k_s` = 2.5. With the
-    recalibrated 3.5 (above) both tiers give 163 MPa.
+    recalibrated 3.5 (above) both tiers gave 163 MPa (177 MPa since the
+    energy-balance change above).
   - The synthetic validation dataset and the CLI snapshots are recaptured.
 
 - **fe3d first-ply failure now sees impact damage.** It did not: the fe3d

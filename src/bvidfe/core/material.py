@@ -256,8 +256,8 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # delamination areas Hasebe et al. measured on their quasi-isotropic
     # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
     # the default 0.078 overpredicts them about 1.7x (interlayer-toughened).
-    # On their other specimens it predicts the area per layup at a median
-    # 0.82-1.24x.
+    # Over all 343 specimens in validation/datasets it predicts the area at a
+    # median 1.03x (0.81-1.31x per layup).
     "T800S/3900-2B": OrthotropicMaterial(
         name="T800S/3900-2B",
         E11=153000,

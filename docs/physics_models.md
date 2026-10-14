@@ -344,8 +344,8 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension: 0.46/0.33/0.20 at 5/15/30 J), but its
-  damage-zone stiffness is uncalibrated. Where the delamination growth
+  zone (16-ply QI tension: 0.52/0.44/0.42 at 5/15/30 J, against empirical
+  0.40/0.37/0.36), but its damage-zone stiffness is uncalibrated. Where the delamination growth
   stress governs `semi_analytical`, that tier is flatter in energy: the
   growth stress changes little with delamination size once the sublaminate
   buckles well below it.
@@ -364,8 +364,8 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   chosen for typical CFRP systems. Precise values need calibration against
   material-specific coupon test data before use in certification.
 - Validation covers CAI only. TAI has no measured dataset, and fe3d is not
-  run on the measured datasets in CI (it gives 169 MPa against the measured
-  171–182 MPa on the first NCAMP coupon, `validation/README.md`).
+  run on the measured datasets in CI (it gives 231 MPa against the measured
+  178 MPa on the first NCAMP coupon, 30% high, `validation/README.md`).
 - LaRC05 is implemented as a minimal Hashin-3D reduction: σ₃ and τ₁₃ do
   not enter the index. Full plane-search fiber-kinking is deferred to a
   future release.
@@ -374,20 +374,23 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   cohesive surfaces with bilinear traction-separation laws and a continuum
   damage model. Cohesive surfaces are deferred to a future release. The
   damage-zone in-plane factor (0.30) is uncalibrated against test data and
-  uniform over the footprint. Once the damage area hits its 80%-of-panel cap
-  the zone reaches the loaded edges, and fe3d knockdowns fall below the
-  empirical tier's (16- and 24-ply QI tension at 30 J: 0.20 and 0.15,
-  against 0.35 from the empirical tier on the 16-ply panel).
+  uniform over the footprint. On 150 × 100 mm IM7/8552 panels in tension
+  at 30 J the fe3d knockdown is at or above the empirical tier's (16-ply
+  QI 0.42 against 0.36, 24-ply QI 0.35 against 0.36); the damage area
+  there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
+  at the cap would put the soft zone across the loaded edges.
 - **The `fe3d` first-ply failure has no characteristic length.** The
   stress concentration at the edge of the soft damage zone depends on the
   zone's shape and on the panel width, not on the zone's absolute size, so
   fe3d lacks the notch-size effect of the empirical tier's Soutis and
   Whitney-Nuismer models. It also depends on the mesh near the zone edge:
   going from 5 mm to 2.5 mm elements changes the 15 J knockdown on 8-ply
-  IM7/8552 150 × 100 mm panels by 0.9% (QI tension, 0.2975 to 0.2948),
-  5.6% (cross-ply tension, 0.2483 to 0.2345), 5.9% (cross-ply
-  compression, 0.2589 to 0.2437) and 7.8% (QI compression, 0.2896 to
-  0.3123). Cohesive surfaces and proper load-introduction BCs are v0.3.0
+  IM7/8552 150 × 100 mm panels by 3.6% (QI tension, 0.5317 to 0.5128),
+  13.0% (cross-ply tension, 0.2770 to 0.3131), 12.3% (cross-ply
+  compression, 0.2988 to 0.3356) and 17.4% (QI compression, 0.4646 to
+  0.5455). In QI compression the delamination growth stress (276.3 MPa)
+  sets the damaged strength at both mesh sizes; the change comes from the
+  undamaged first-ply failure (594.8 to 506.6 MPa). Cohesive surfaces and proper load-introduction BCs are v0.3.0
   scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
@@ -402,9 +405,9 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   interface lower it little and can raise it slightly. The growth
   knockdown therefore follows impact energy mainly when a different
   interface becomes the weakest. On 150 × 100 mm IM7/8552 panels from 5 to
-  30 J it falls from 0.52 to 0.35 on 16-ply QI (the weakest interface moves
-  from 11 to 4), but rises slightly on 8-ply QI (0.45 → 0.48) and 8-ply
-  cross-ply (0.38 → 0.42).
+  30 J it goes from 0.57 to 0.46 on 16-ply QI (0.60 at 10 J; the weakest
+  interface moves from 0 to 11), from 0.50 to 0.46 on 8-ply QI and from
+  0.40 to 0.38 on 8-ply cross-ply.
 - `fe3d` CAI ignores whole-panel buckling (CAI fixtures carry anti-buckling
   guides). A slender panel without guides can buckle well below the
   reported residual.
