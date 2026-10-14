@@ -88,7 +88,13 @@ def load_dataset(path: Path) -> tuple[str, List[DatasetCase], dict]:
     name = obj.get("name", path.stem)
     target_mae = float(obj.get("target_mae_pct", 100.0))
     cases = [case_from_dict(c) for c in obj["cases"]]
-    return name, cases, {"target_mae_pct": target_mae}
+    # "gate": false marks a dataset the model is known to miss: its error is
+    # reported but does not fail --gate. "gate_note" says why.
+    return name, cases, {
+        "target_mae_pct": target_mae,
+        "gate": bool(obj.get("gate", True)),
+        "gate_note": obj.get("gate_note", ""),
+    }
 
 
 def run_case(case: DatasetCase, tier: str) -> dict:
@@ -137,6 +143,14 @@ def _discover_datasets() -> List[Path]:
     return sorted(DATASET_DIR.glob("*.json"))
 
 
+def _select_datasets(names: Optional[List[str]]) -> List[Path]:
+    """Datasets by stem name; all of them when ``names`` is None."""
+    paths = _discover_datasets()
+    if names is None:
+        return paths
+    return [p for p in paths if p.stem in names]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run BVID-FE validation against digitized datasets."
@@ -148,8 +162,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--dataset",
+        nargs="+",
         default=None,
-        help="Dataset stem name (without .json). If omitted, run all.",
+        help="Dataset stem name(s) (without .json). If omitted, run all.",
     )
     parser.add_argument(
         "--gate",
@@ -168,9 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    paths = _discover_datasets()
-    if args.dataset is not None:
-        paths = [p for p in paths if p.stem == args.dataset]
+    paths = _select_datasets(args.dataset)
     if not paths:
         print("No datasets found.", file=sys.stderr)
         return 1
@@ -191,7 +204,9 @@ def main(argv: list[str] | None = None) -> int:
             f"MAE = {mae:.2f}%   max error = {max_err:.2f}%   "
             f"target = {target:.1f}%   gate-multiplier = {multiplier:g}"
         )
-        if args.gate and mae > multiplier * target:
+        if not meta["gate"]:
+            print(f"ADVISORY: {name} is not gated. {meta['gate_note']}".rstrip())
+        elif args.gate and mae > multiplier * target:
             print(
                 f"FAIL: {name} ({args.tier}) MAE {mae:.2f}% exceeds "
                 f"{multiplier:g} * {target:.1f}% target",

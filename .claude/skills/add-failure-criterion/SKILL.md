@@ -18,6 +18,19 @@ must move in lockstep:
 Forgetting any one of these causes a confusing runtime error far
 from the actual omission. Treat it as one atomic change.
 
+The fe3d tier does **not** go through `FailureEvaluator`: its
+first-ply-failure solve in `src/bvidfe/analysis/fe_tier.py` imports the
+criterion functions directly and has one load-scaling branch per
+criterion (`_critical_strain_multiplier`, plus the scalar reference
+`_solve_failure_strain_analytic_scalar_ref`). Its guard only checks the
+name against `_CRITERION_NAMES`, so a new name with no branch there
+**silently falls through to the Tsai-Wu `else` branch**. Either add the
+branch (step 4) or tell the user the criterion is not available in fe3d.
+`BvidAnalysis` does not expose a criterion choice: fe3d uses LaRC05 for
+CAI and Tsai-Wu for TAI, so a new criterion is reached through
+`FailureEvaluator` or the `criterion=` argument of
+`_fe3d_cai_first_ply_failure`.
+
 ## Pre-flight
 
 Confirm with the user:
@@ -39,17 +52,26 @@ def <name>_index(material: OrthotropicMaterial, stress: np.ndarray) -> float:
     """Per-point failure index. stress shape: (6,) in Voigt order."""
 
 def <name>_index_batch(material: OrthotropicMaterial, stresses: np.ndarray) -> np.ndarray:
-    """Vectorised. stresses shape: (n_elem, n_gp, 6). Returns (n_elem, n_gp)."""
+    """Vectorised. stresses shape: (..., 6). Returns (...): leading axes kept."""
 ```
 
-The batch form is **not optional** — `FailureEvaluator.evaluate` calls
-it directly and the scalar-loop equivalent is what
-`tests/failure/test_evaluator.py::test_evaluate_matches_scalar_loop`
-checks. The two functions must agree numerically; the test will fail
-otherwise.
+`FailureEvaluator` passes `(n_elem, n_gp, 6)`; the fe3d solve passes
+`(n_gp, 6)` per element. `tests/failure/test_evaluator.py::
+test_index_batch_preserves_leading_axes` checks the shape contract for the
+existing criteria.
 
-Voigt stress order in this codebase: `[σ11, σ22, σ33, σ23, σ13, σ12]`.
-Confirm against any other criterion file before assuming.
+The batch form is **not optional** — `FailureEvaluator.evaluate` calls
+it directly. The two functions must agree numerically.
+`tests/failure/test_evaluator.py::test_evaluate_matches_scalar_loop`
+checks this, but only for the criteria listed in its loop (Tsai-Wu and
+LaRC05 today), so add the new criterion to that loop (step 5).
+
+Voigt stress order in this codebase: `[σ11, σ22, σ33, σ23, σ13, σ12]`,
+in the **ply material frame** (fe3d rotates each ply's stress into it with
+`Hex8Element.stress_at_gauss_points_material` before calling a
+criterion). Use the `*_resolved` properties for `Zt`, `Zc`, `S13`, which
+fall back to `Yt`, `Yc`, `S12`. Confirm against any other criterion file
+before assuming.
 
 ## Steps
 
@@ -100,7 +122,26 @@ _CRITERION_NAMES: frozenset[str] = frozenset({"tsai_wu", "larc05", "puck", "<nam
 The module comment explicitly calls out that the Literal and the
 frozenset must move together — keep them in lockstep.
 
-### 4. Tests in `tests/failure/`
+### 4. fe3d load-scaling branch (if fe3d should support it)
+
+The fe3d first-ply-failure solve runs one static solve at a reference
+strain and scales it analytically: stress is linear in the load
+multiplier `c`, so the critical `c` follows from how the index scales.
+Add an `elif criterion == "<name>":` branch, above the Tsai-Wu `else`, in
+both `_critical_strain_multiplier` (vectorised) and
+`_solve_failure_strain_analytic_scalar_ref` (scalar) in
+`src/bvidfe/analysis/fe_tier.py`, using the existing ones as models:
+
+- degree-2 homogeneous (LaRC05): `c = 1 / sqrt(idx_ref)`
+- degree-1 homogeneous (Puck): `c = 1 / idx_ref`
+- linear + quadratic terms (Tsai-Wu): solve `a c + b c^2 = 1` from two
+  samples
+
+Document in a comment why the scaling holds (no sign-selected branch may
+flip as `c` grows). Then add the name to the `criterion` parametrize
+lists in `tests/analysis/test_fpf_strain_solve_equivalence.py`.
+
+### 5. Tests in `tests/failure/`
 
 Create `tests/failure/test_<name>.py`. At minimum:
 
@@ -110,16 +151,19 @@ Create `tests/failure/test_<name>.py`. At minimum:
 - A check that `FailureEvaluator(material, criterion="<name>")`
   constructs and `.evaluate(...)` runs
 
-Then add a parametrize entry to `tests/failure/test_evaluator.py` if
-it parametrizes over all criteria — grep for the existing names to
-confirm.
+Then update `tests/failure/test_evaluator.py`:
+`test_criterion_registry_contains_known_keys` pins the exact registry key
+set and fails until the new name is added there; add the new
+`("<name>", <name>_index)` pair to the loop in
+`test_evaluate_matches_scalar_loop`. Grep `tests/` for `"puck"` to find
+any other list of all criteria.
 
-### 5. Validate
+### 6. Validate
 
 ```bash
 ruff check src tests
 black src tests
-pytest tests/failure -v
+pytest tests/failure tests/analysis/test_fpf_strain_solve_equivalence.py -v
 ```
 
 The full failure suite must stay green; the scalar-vs-batch test in
@@ -133,3 +177,6 @@ The full failure suite must stay green; the scalar-vs-batch test in
   file in this repo (it is `[σ11, σ22, σ33, σ23, σ13, σ12]`).
 - Never skip the scalar-vs-batch test — it is what catches the most
   common implementation bug.
+- Never leave a new name to fall through to the Tsai-Wu branch in
+  `fe_tier.py` silently: add its scaling branch or say it is not
+  supported in fe3d.

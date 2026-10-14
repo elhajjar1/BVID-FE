@@ -11,11 +11,12 @@ A Python library for predicting residual strength and stiffness of fiber-reinfor
 Low-velocity impacts on composite structures can create internal delaminations
 that are invisible to the naked eye yet significantly degrade compression and
 tension strength. Engineers certifying composite airframes and pressure vessels
-need fast, reliable estimates of how much strength is lost and how the
-knockdown depends on layup, panel size, and impact energy. BVID-FE provides
-three modeling tiers — from a 30-millisecond empirical lookup to a full 3D
-finite-element solution — so the right level of fidelity can be chosen for
-each stage of the design process.
+need quick estimates of how much strength is lost and how the knockdown
+(residual strength divided by undamaged strength) depends on layup, panel
+size, and impact energy. BVID-FE provides three modeling tiers — from a
+closed-form empirical estimate that runs in tens of milliseconds to a 3D
+finite-element solution that takes minutes — so the level of fidelity can be
+chosen for each stage of the design process.
 
 BVID-FE is the third in a family of defect-specific composite tools, joining
 **PorosityFE** (porosity defects) and **WrinkleFE** (fiber waviness). The three
@@ -30,16 +31,25 @@ documentation conventions.
     - *Inspection-driven*: C-scan JSON import per the documented schema
       (see [C-Scan Schema](cscan_schema.md))
 - **Three modeling tiers** for residual strength after BVID:
-    - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (seconds)
-    - *Semi-analytical*: Rayleigh-Ritz sublaminate buckling + Soutis
-      post-buckling envelope; Whitney-Nuismer for TAI (seconds)
-    - *3D FE*: First-ply-failure on a damaged hexahedral mesh; LaRC05 for
-      CAI, Tsai-Wu for TAI (minutes)
+    - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (under a
+      second)
+    - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz
+      sublaminate buckling + thin-film energy release rate +
+      Benzeggagh-Kenane mixed-mode toughness, weakest interface governs),
+      capped by Soutis; Whitney-Nuismer for TAI (under a second)
+    - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
+      modelled as a soft inclusion, normalised by an undamaged fe3d run;
+      LaRC05 for CAI, Tsai-Wu for TAI (minutes)
 - **CAI and TAI loading modes** (Compression-After-Impact and
   Tension-After-Impact)
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with
   shapely-union projected damage area
+- **Pristine (unnotched) laminate strength** from classical lamination
+  theory with ply-discount last-ply failure, within 0.83–1.18× of NCAMP
+  unnotched tension and compression strengths
 - **Five material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800/epoxy
+- **Validation harness** scored against two measured CAI datasets (see
+  [Validation](#validation) below)
 - **CLI**, **Streamlit web app**, and **Python API**
 - **Parametric sweeps** over impact energy, layup, or ply thickness with
   CSV output
@@ -53,6 +63,24 @@ cd BVID-FE
 pip install -e ".[dev]"
 pytest -v
 ```
+
+## Validation
+
+Two measured CAI datasets (ASTM D7136/D7137) are in the repository's
+validation harness:
+
+| Dataset | Material | Coupons | Empirical MAE | Semi-analytical MAE |
+| --- | --- | --- | --- | --- |
+| NCAMP CAM-RP-2010-002 | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 7.3% | 7.3% |
+| Lovejoy & Scotti (NASA LaRC 2019) | IM7/8552 quasi-isotropic at 54 J and hard laminate at 68 J | 8 | 10.9% | 10.8% |
+
+MAE is the mean absolute error between predicted and measured CAI strength.
+These errors are in-sample: the Soutis constant `soutis_k_s` = 3.5 was
+fitted to these two datasets. Fitted on one dataset alone, it predicts the
+other with an MAE of 15.7–21%, which is the error to expect on a new
+material or layup. There is no measured TAI validation yet. See
+[`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md)
+for the data sources and the calibration.
 
 ## Where to next
 

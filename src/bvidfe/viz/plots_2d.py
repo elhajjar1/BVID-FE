@@ -3,12 +3,9 @@
 All plot functions accept an optional ``fig`` argument. When ``fig`` is ``None``
 (default) they create a fresh ``Figure`` via ``plt.subplots`` — convenient for
 standalone scripts and tests that want to call ``fig.savefig(...)``. When
-``fig`` is an existing ``Figure`` (typically ``canvas.figure`` from an embedded
-``FigureCanvasQTAgg``) the function clears it in place and draws into it. This
-second mode is what the Qt GUI tabs need: assigning ``canvas.figure = new_fig``
-causes rendering-state leaks on Qt6/macOS because the new figure's ``canvas``
-attribute still points to the pyplot-managed Agg canvas, not the Qt one. Drawing
-into the canvas's own figure avoids that problem entirely.
+``fig`` is an existing ``Figure`` (for example one owned by an embedding UI
+canvas) the function clears it in place and draws into it, so the caller keeps
+its own figure and canvas instead of swapping in a pyplot-managed one.
 """
 
 from __future__ import annotations
@@ -26,7 +23,7 @@ from bvidfe.viz.style import COLORS, ELLIPSE_CMAP, FIGSIZE_LANDSCAPE, FIGSIZE_SQ
 
 def _prepare_axes(fig: Optional[Figure], figsize):
     """Return ``(fig, ax)``: if ``fig`` is None make a fresh one, else clear and
-    add a single axes. Used by all plot_* functions so the Qt-embedded path
+    add a single axes. Used by all plot_* functions so the embedded-figure path
     never relies on ``plt.subplots``."""
     if fig is None:
         fig, ax = plt.subplots(figsize=figsize)
@@ -45,7 +42,7 @@ def plot_damage_map(
     """Top-down plan view of ellipse delamination footprints + panel outline.
 
     Ellipses are color-coded by interface index. Returns the matplotlib Figure.
-    If ``fig`` is provided it is cleared and reused (safe for embedded Qt
+    If ``fig`` is provided it is cleared and reused (safe for embedded UI
     canvases); otherwise a new Figure is created via ``plt.subplots``.
     """
     fig, ax = _prepare_axes(fig, FIGSIZE_SQUARE)

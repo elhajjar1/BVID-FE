@@ -1,18 +1,17 @@
-"""Tier-comparison knockdown sweep (the Python-API equivalent of the
-File menu -> Compare Tiers GUI action).
+"""Tier-comparison knockdown sweep.
 
 Runs the empirical and semi_analytical tiers on the same impact event
 across a sweep of energies, overlays their knockdown curves on one
 figure, and also produces a CSV with both series.
 
 empirical: Soutis knockdown scales explicitly with DPA (Olsson-predicted).
-semi_analytical: Rayleigh-Ritz sublaminate buckling + Soutis envelope;
-scales with the largest delamination ellipse.
+semi_analytical: the lower of Soutis and the stress at which the weakest
+buckled sublaminate grows its delamination (thin-film energy release rate
+against a mixed-mode toughness).
 
-fe3d is intentionally excluded — per the v0.2.0-dev release notes, its
-knockdown is approximately flat vs. energy above the Olsson threshold
-and a full fe3d sweep is multi-minute scale. Users who want fe3d spot
-checks should run them on individual energies.
+fe3d is excluded because each energy point takes minutes (it solves the
+damaged and the undamaged panel). Run fe3d spot checks at individual
+energies instead.
 """
 
 from __future__ import annotations

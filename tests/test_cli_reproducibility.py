@@ -68,8 +68,10 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             "20",
         ],
         {
-            "knockdown": 0.43923234565804536,
-            "residual_strength_MPa": 264.1045562559775,
+            # Recaptured when soutis_k_s went from 2.5 to 3.5: knockdown
+            # 0.439 -> 0.359.
+            "knockdown": 0.3587599573457171,
+            "residual_strength_MPa": 215.7175799934708,
             "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 7823.814020954099,
             "tier_used": "empirical",
@@ -99,9 +101,10 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # rose from 0.055 to 0.306 — and again when the pristine
             # strength became ply-discount last-ply failure (887.5 -> 601.3
             # MPa): the growth stress is absolute, so the knockdown rose to
-            # 0.451.
-            "knockdown": 0.4514713198805202,
-            "residual_strength_MPa": 271.4636864203725,
+            # 0.451. With soutis_k_s = 3.5 the Soutis cap now binds:
+            # 0.450.
+            "knockdown": 0.4499466093097799,
+            "residual_strength_MPa": 270.54689827895345,
             "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 3659.9324669198636,
             "tier_used": "semi_analytical",

@@ -3,8 +3,8 @@
 Generates a regular brick mesh of the full panel with per-element ply
 assignment and damage-aware stiffness reduction. The stiffness-reduction
 approach (per-element factors inside delamination footprints) is a
-simplification of zero-thickness cohesive surfaces and is adequate for
-linear buckling in v0.2.0. True cohesive surfaces are deferred.
+simplification of zero-thickness cohesive surfaces, used for the
+first-ply-failure solve. True cohesive surfaces are not implemented.
 
 Damage is represented by TWO per-element factors applied component-wise
 to the 6x6 elasticity matrix in the global Voigt frame

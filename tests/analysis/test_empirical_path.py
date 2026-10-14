@@ -33,7 +33,9 @@ def test_config_requires_exactly_one_of_impact_or_damage():
 def test_empirical_cai_impact_path():
     cfg = _base_cfg(impact=ImpactEvent(30.0, ImpactorGeometry(), mass_kg=5.5))
     r = BvidAnalysis(cfg).run()
-    assert 0.3 < r.knockdown < 1.0
+    # Measured CAI knockdowns in validation/datasets run 0.22-0.33; this
+    # panel's damage reaches the 80%-of-panel DPA cap.
+    assert 0.2 < r.knockdown < 1.0
     assert r.residual_strength_MPa < r.pristine_strength_MPa
     assert r.damage.projected_damage_area_mm2 > 0
     assert r.tier_used == "empirical"

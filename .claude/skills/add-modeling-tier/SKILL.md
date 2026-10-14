@@ -6,8 +6,9 @@ description: Add a new BVID-FE residual-strength modeling tier alongside empiric
 # Add a new modeling tier
 
 The three existing tiers (`empirical`, `semi_analytical`, `fe3d`) are
-wired together by **four** sync points that must all change in one
-atomic edit. The dispatch in `BvidAnalysis.run` raises
+wired together by **four** core sync points, plus three hard-coded tier
+lists in the user-facing tools, that must all change in one atomic edit.
+The dispatch in `BvidAnalysis.run` raises
 `NotImplementedError` for unknown tiers, but the surrounding
 `AnalysisConfig` validation, the type alias, and the runtime-validation
 frozenset all catch the omission earlier and at different layers — get
@@ -32,6 +33,13 @@ Confirm with the user:
    - `field_results` (set when the tier produces an element/Gauss-point
      stress field)
    - `notes` / `warnings` (free-form provenance and warning tags)
+4. How the tier's strength relates to the shared pristine strength.
+   `run()` sets `pristine_strength_MPa` from `_pristine_strength` (the
+   unnotched laminate strength, `failure/laminate_strength.py`) for every
+   tier and `knockdown = residual / pristine`, so the residual must be on
+   that scale. If the tier's own failure stresses are a different
+   quantity (as fe3d's are), normalize by the tier's own undamaged run
+   and multiply by `sigma_0`, as `BvidAnalysis._fe3d` does.
 
 ## The four sync points
 
@@ -41,6 +49,18 @@ Confirm with the user:
 | `src/bvidfe/_types.py` | Add the name to `TierName` Literal **and** `_TIER_NAMES` frozenset |
 | `src/bvidfe/analysis/bvid.py` | New `elif self.config.tier == "<name>":` branch in `BvidAnalysis.run` |
 | `tests/analysis/test_<tier>_path.py` | End-to-end test that exercises `BvidAnalysis(config).run()` with `tier="<name>"` |
+
+The user-facing tools keep their own tier lists, which do not import
+`TierName`:
+
+| File | What changes |
+|---|---|
+| `src/bvidfe/cli.py` | `_VALID_TIERS` (validates `--tier`) |
+| `app.py` | `TIERS` (Streamlit tier picker) |
+| `validation/validate_bvid_public.py` | `--tier` `choices` and `_TIER_GATE_MULTIPLIER` (gate slack on `target_mae_pct`; unknown tiers fall back to 1.25) |
+
+`scripts/validate_inputs.py` also has a `TIERS` list for its sensitivity
+sweep; extend it if the new tier should be swept.
 
 `AnalysisConfig` itself does not currently hold a `Literal` for tier —
 it stores `tier: TierName` via the alias in `_types.py`. So extending
@@ -57,16 +77,18 @@ Create `src/bvidfe/analysis/<name>.py`. Reuse:
 - `bvidfe.damage.state.DamageState` — already resolved (either user-
   supplied or from `impact_to_damage`).
 - `_pristine_strength(lam, loading)` in `analysis/bvid.py` (the unnotched
-  laminate strength, `failure/laminate_strength.py`) — already computed and
-  passed in as `sigma_0`.
+  laminate strength, `failure/laminate_strength.unnotched_strength`) —
+  already computed and passed in as `sigma_0`.
 
 Mirror the closest existing tier:
 
 - `analysis/semi_analytical.py` (returns a `SemiAnalyticalResult`
   dataclass with `residual_strength_MPa`, `critical_interface_index`,
   `critical_buckling_load_N`)
-- `analysis/fe_tier.py` (free functions: `fe3d_cai_buckling`,
-  `_fe3d_cai_first_ply_failure`, `fe3d_tai`)
+- `analysis/fe_tier.py` (free functions: `fe3d_cai`,
+  `_fe3d_cai_first_ply_failure`, `fe3d_tai`, and `fe3d_cai_buckling` for
+  buckling onset), wrapped by `BvidAnalysis._fe3d`, which runs them on the
+  damaged and the undamaged mesh
 
 ### 2. Extend the type alias
 
@@ -120,9 +142,12 @@ Mirror the structure of `test_semi_analytical_path.py` or
 rather than calling the tier functions directly, which is what locks
 the dispatch wiring.
 
-Also add a parametrize entry to any test in `tests/analysis/` that
-loops over **all** tiers (grep for `"empirical"` and `"semi_analytical"`
-in the same parametrize to find them).
+Also check the tests that loop over tiers (grep `tests/` for
+`"semi_analytical"`): `test_per_ply_thickness.py`,
+`test_cross_tier_consistency.py`, `test_edge_cases.py` and
+`test_validation_smoke.py` loop over the closed-form tiers
+(`empirical`, `semi_analytical`). Add the new tier where it is cheap
+enough and the asserted property should hold for it.
 
 ### 5. JSON Schema and docs
 
@@ -131,7 +156,8 @@ The `AnalysisConfig` JSON Schema picks up the new tier through the
 skill so `docs/schemas/analysis_config.json` stays in sync.
 
 If the tier deserves narrative coverage, add a section to
-`docs/physics_models.md` mirroring the existing tier sections.
+`docs/physics_models.md` mirroring the existing tier sections, and a row
+to the `analysis/` part of the module table in `ARCHITECTURE.md`.
 
 ### 6. Validate
 
@@ -140,7 +166,15 @@ ruff check src tests
 black src tests
 pytest tests/analysis -v
 python scripts/generate_schemas.py     # regenerate (or use the skill)
+python validation/validate_bvid_public.py --tier <name> \
+    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai
 ```
+
+The last command scores the tier against the measured CAI datasets.
+`synthetic_selfcheck` is generated from the empirical tier, so only the
+measured datasets are a fair check of a new tier. CI does not run the new
+tier until a step is added to `.github/workflows/tests.yml`; ask the user
+before adding one.
 
 ## Things this skill must never do
 
@@ -150,8 +184,10 @@ python scripts/generate_schemas.py     # regenerate (or use the skill)
   goes through `BvidAnalysis(config).run()` — calling the tier
   function directly does not exercise the wiring.
 - Never raise `NotImplementedError` for partial loading-mode support
-  silently; populate `notes`/`warnings` and return a sane fallback,
-  matching the `fe3d_buckling_fallback` precedent.
+  silently; populate `notes`/`warnings` and return a sane fallback, the
+  way fe3d records in `notes` the raw stresses and the excluded panel
+  buckling stress behind its knockdown. (The old `fe3d_buckling_fallback`
+  warning tag is retired; no backend emits a `warnings` tag today.)
 - Never widen `AnalysisResults` to add a new field for this tier
   without first checking whether an existing field
   (`notes`, `warnings`, `field_results`) already covers the need.
