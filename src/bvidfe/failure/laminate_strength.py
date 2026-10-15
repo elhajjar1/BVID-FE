@@ -16,7 +16,7 @@ Plies share the laminate strain, not its stress, so the 0 deg plies carry
 most of an axial load and break first. The thickness-weighted average of the
 ply strengths this replaces credited the off-axis plies with strength they
 never reach: it was 1.17-2.85x the NCAMP unnotched strengths of AS4/8552 and
-IM7/8552 laminates, which this model matches within 0.83-1.18.
+IM7/8552 laminates, which this model matches within 0.83-1.14.
 
 Membrane response only: bending-extension coupling of unsymmetric layups is
 neglected, as elsewhere in the closed-form tiers.

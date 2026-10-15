@@ -42,18 +42,22 @@ class OrthotropicMaterial:
     G_Ic: float
     G_IIc: float
     rho: float
-    # Impact-mapping calibration (defaults chosen for typical CFRP; per-material override):
-    olsson_alpha: float = 0.8
+    # Impact-mapping calibration (defaults chosen for typical CFRP; per-material override).
+    # olsson_alpha: fraction of the impact energy above onset that goes into
+    # mode-II delamination, DPA = alpha (E - E_onset) / G_IIc. Fitted to the
+    # C-scan areas of Lovejoy & Scotti's eight IM7/8552 CAI coupons (median).
+    olsson_alpha: float = 0.078
     dent_beta: float = 0.05
     dent_gamma: float = 0.5
     fiber_break_eta: float = 0.0
     fiber_break_E_threshold: float = 1e9  # disabled unless explicitly overridden
     # Calibrated on the measured CAI datasets in validation/datasets (NCAMP
-    # AS4/8552, Lovejoy & Scotti IM7/8552): 3.7 fits the empirical tier best,
-    # 3.3 the semi-analytical tier. Fitted on either dataset alone it predicts
-    # the other within 16-21%. Was 2.5, which overpredicted those CAI
-    # strengths by 16-40%.
-    soutis_k_s: float = 3.5
+    # AS4/8552, Lovejoy & Scotti IM7/8552), with the damage area scaled by the
+    # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.7 is
+    # the pooled optimum of both tiers. Fitted on NCAMP alone (4.7) it
+    # predicts Lovejoy & Scotti at 9.0%; on Lovejoy & Scotti alone (5.2),
+    # NCAMP at 6.2%.
+    soutis_k_s: float = 4.7
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
     # Through-thickness strengths and 1-3 shear (None = transverse-isotropy
@@ -174,7 +178,11 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # Hexcel 8552 AS4 unidirectional tape. E11, E22, nu12, G12, strengths and
     # density: NCAMP CAM-RP-2010-002 Rev A (2011), Table 2-1, RTD means
     # (fiber-dominated values normalized to CPT = 0.0074 in = 0.188 mm); S12 is
-    # F12s at 5% strain. G23 = E22 / (2 (1 + nu23)) with nu23 = 0.45 measured on
+    # F12s at 5% strain. Xt is NCAMP's F1tu derived from the [0/90] cross-ply
+    # tension tests with the back-out factor (271.47 ksi), the 0 deg ply
+    # strength as realised inside a laminate; the unidirectional-coupon value
+    # (289.47 ksi = 1996 MPa) overpredicted NCAMP's unnotched multidirectional
+    # tension strengths. G23 = E22 / (2 (1 + nu23)) with nu23 = 0.45 measured on
     # AS4/8552 by Gonzalez et al. (Compos Sci Technol 71, 2011). S23 is the
     # LaRC03 transverse shear strength from Yc at a 53 deg fracture plane
     # (Davila, Camanho & Rose, J Compos Mater 39, 2005). G_Ic and G_IIc are the
@@ -188,7 +196,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G12=4830,
         G13=4830,
         G23=3186,
-        Xt=1996,
+        Xt=1872,
         Xc=1398,
         Yt=64,
         Yc=268,
@@ -198,6 +206,10 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_IIc=0.79,
         rho=1.59e-6,
     ),
+    # Xt is NCAMP's F1tu derived from the [0/90] cross-ply tension tests with
+    # the back-out factor: CAM-RP-2009-015 Rev B (2019), Table 2-1, RTD,
+    # normalized (324.62 ksi), as for AS4/8552. The other constants are generic
+    # IM7/8552 values, not NCAMP's.
     "IM7/8552": OrthotropicMaterial(
         name="IM7/8552",
         E11=165000,
@@ -206,7 +218,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G12=5600,
         G13=5600,
         G23=2800,
-        Xt=2560,
+        Xt=2238,
         Xc=1590,
         Yt=73,
         Yc=185,
@@ -233,6 +245,37 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_Ic=0.22,
         G_IIc=0.60,
         rho=1.55e-6,
+    ),
+    # Toray T800S/3900-2B unidirectional tape (interlayer-toughened). E11, E22,
+    # nu12, G12, G_Ic and G_IIc: Hasebe et al., Data in Brief 60 (2025) 111509,
+    # Table 1. Strengths and density: Toray 3900 prepreg data sheet
+    # (Rev. 7.30.2020), P2362W-19L T800S-24K UD, RTA. Hasebe's Table 1 gives
+    # Xc = 719.4 MPa, under half the data sheet's ASTM D6641 1779 MPa, with no
+    # test method; the data sheet value is used. G23 and S23 as for AS4/8552
+    # (nu23 = 0.45; LaRC03 from Yc). olsson_alpha is fitted to the projected
+    # delamination areas Hasebe et al. measured on their quasi-isotropic
+    # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
+    # the default 0.078 overpredicts them about 1.7x (interlayer-toughened).
+    # Over all 343 specimens in validation/datasets it predicts the area at a
+    # median 1.03x (0.81-1.31x per layup).
+    "T800S/3900-2B": OrthotropicMaterial(
+        name="T800S/3900-2B",
+        E11=153000,
+        E22=8000,
+        nu12=0.34,
+        G12=4030,
+        G13=4030,
+        G23=2759,
+        Xt=3006,
+        Xc=1779,
+        Yt=60.8,
+        Yc=216,
+        S12=68.9,
+        S23=81,
+        G_Ic=0.54,
+        G_IIc=1.64,
+        rho=1.54e-6,
+        olsson_alpha=0.047,
     ),
     "T800/epoxy": OrthotropicMaterial(
         name="T800/epoxy",

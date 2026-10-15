@@ -54,6 +54,16 @@ class DatasetCase:
     impactor_shape: str = "hemispherical"  # ImpactorGeometry.shape
     measured_dent_mm: Optional[float] = None
     measured_dpa_mm2: Optional[float] = None
+    # Undamaged strength measured on the same coupon geometry. When given,
+    # the case is scored on predicted knockdown x this strength, which
+    # leaves out the pristine-strength model: use it where the fixture caps
+    # the undamaged coupon well below the laminate's unnotched strength.
+    measured_pristine_MPa: Optional[float] = None
+    # Impact panel when the coupon was impacted on a different window than
+    # it is tested on (AnalysisConfig.impact_panel); None = the test panel.
+    impact_panel_Lx_mm: Optional[float] = None
+    impact_panel_Ly_mm: Optional[float] = None
+    impact_boundary: Optional[str] = None
     note: str = ""
 
 
@@ -78,6 +88,10 @@ def case_from_dict(d: dict) -> DatasetCase:
         impactor_shape=d.get("impactor_shape", "hemispherical"),
         measured_dent_mm=d.get("measured_dent_mm"),
         measured_dpa_mm2=d.get("measured_dpa_mm2"),
+        measured_pristine_MPa=d.get("measured_pristine_MPa"),
+        impact_panel_Lx_mm=d.get("impact_panel_Lx_mm"),
+        impact_panel_Ly_mm=d.get("impact_panel_Ly_mm"),
+        impact_boundary=d.get("impact_boundary"),
         note=d.get("note", ""),
     )
 
@@ -99,6 +113,13 @@ def load_dataset(path: Path) -> tuple[str, List[DatasetCase], dict]:
 
 def run_case(case: DatasetCase, tier: str) -> dict:
     """Run a single case at the given tier. Returns a row dict."""
+    impact_panel = None
+    if case.impact_panel_Lx_mm is not None:
+        impact_panel = PanelGeometry(
+            case.impact_panel_Lx_mm,
+            case.impact_panel_Ly_mm,
+            boundary=case.impact_boundary or case.boundary,
+        )
     cfg = AnalysisConfig(
         material=case.material,
         layup_deg=list(case.layup_deg),
@@ -113,18 +134,18 @@ def run_case(case: DatasetCase, tier: str) -> dict:
             ),
             mass_kg=case.impactor_mass_kg,
         ),
+        impact_panel=impact_panel,
     )
     result = BvidAnalysis(cfg).run()
-    err_pct = (
-        100.0
-        * abs(result.residual_strength_MPa - case.measured_strength_MPa)
-        / case.measured_strength_MPa
-    )
+    predicted = result.residual_strength_MPa
+    if case.measured_pristine_MPa is not None:
+        predicted = result.knockdown * case.measured_pristine_MPa
+    err_pct = 100.0 * abs(predicted - case.measured_strength_MPa) / case.measured_strength_MPa
     return {
         "material": case.material,
         "energy_J": case.impact_energy_J,
         "loading": case.loading,
-        "predicted_MPa": result.residual_strength_MPa,
+        "predicted_MPa": predicted,
         "measured_MPa": case.measured_strength_MPa,
         "error_pct": err_pct,
         "predicted_knockdown": result.knockdown,
