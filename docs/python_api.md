@@ -136,7 +136,7 @@ JSON-serialisable dict.
 |---|---|---|---|
 | `empirical` | < 1 s | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 9.0% (Lovejoy & Scotti IM7/8552); expect about 6–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | < 1 s | Same datasets: MAE 1.5% and 9.0% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.30) is uncalibrated; not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
+| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.20) is fitted to two quasi-isotropic CAI coupons (within 5%) but puts a hard laminate 47% low; not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
 ## Knockdown semantics
 
@@ -154,7 +154,7 @@ three tiers** — only the residual-strength numerator differs:
   first-ply failure for TAI, each divided by the same quantity on the
   undamaged panel (capped at 1) and applied to the pristine reference.
   First-ply failure runs on a mesh whose damage zone (the delamination
-  footprints, every ply) is softened in-plane ×0.3 with strain-equivalent
+  footprints, every ply) is softened in-plane ×0.2 with strain-equivalent
   strengths, and its stress is the reaction force at failure over the gross
   section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
   reported in `result.buckling_eigenvalues` but does not set the strength;

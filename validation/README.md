@@ -20,11 +20,9 @@ measured CAI is 171–182 MPa and every coupon failed through the impact damage
 (failure code LDM). Each case uses its own measured thickness and impact
 energy. The report does not give the impactor mass or tup, so the ASTM
 D7136 standard values (5.5 kg, 0.625 in hemispherical) are used. It reports
-no dent depth or damage area. The fe3d tier gives 231 MPa on the first
-coupon (30% high; 169 MPa with the previous, thickness-divided damage
-area): the delamination growth stress (223 MPa) over fe3d's own undamaged
-first-ply failure (523 MPa) gives a knockdown of 0.43, against 0.33 from
-the empirical tier. At about 3 minutes per coupon it is not run in CI.
+no dent depth or damage area. The fe3d tier gives 186 MPa on the first
+coupon (4.8% high; its damage-zone factor is fitted to this coupon, see
+below). At about 3 minutes per coupon it is not run in CI.
 
 **`lovejoy_scotti_im7_8552_cai`** is measured data: Lovejoy & Scotti, NASA
 LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
@@ -38,6 +36,29 @@ Each case carries the measured thickness, dent depth and C-scan damage area.
 The impactor is not described, so the ASTM D7136 standard is assumed. The
 hybrid thin-ply coupons are omitted, because a case has a single ply
 thickness.
+
+### fe3d damage-zone factor
+
+fe3d softens the in-plane stiffness of every ply under the damage
+footprint by `DAMAGE_ZONE_INPLANE_FACTOR`. It was an unfitted 0.30. With
+the energy-balance damage area the zone shrank, and 0.30 put the
+quasi-isotropic coupons 30–36% high. A sweep on three coupons (error of
+the fe3d strength against the measured CAI):
+
+| Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 |
+|---|---|---|---|
+| 0.30 (old) | +30.2% | +35.5% | −14.1% |
+| 0.25 | +18.3% | +16.7% | −31.1% |
+| 0.20 (new) | +4.8% | −2.0% | −47.1% |
+| 0.15 | −8.9% | −20.4% | −62.1% |
+
+At 0.20 the three coupons give 186.1 MPa (177.7 measured), 143.9 MPa
+(146.8) and 124.7 MPa (235.7). 0.20 has the lowest mean error, 18.0%
+against 26.6% at 0.30, and errs conservative on the hard laminate, which
+wants more than 0.30. One factor cannot fit both families: fe3d has no
+characteristic length, and the stress concentration at the zone edge
+depends on the laminate's orthotropy. The two quasi-isotropic coupons are
+in-sample.
 
 ### Calibration of `soutis_k_s`
 
@@ -189,7 +210,7 @@ the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
 error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The fe3d tier
 is run on the first three synthetic cases as a smoke run, not a gate: the
-synthetic set is empirical-tier output, so its error there (3.9%) measures
+synthetic set is empirical-tier output, so its error there (17.9%) measures
 the difference between the tiers, not fe3d's accuracy.
 
 ## Next datasets

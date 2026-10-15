@@ -216,8 +216,9 @@ release):
 - The damage zone as a whole (every ply under the union of the
   delamination footprints, where matrix cracks and fibre damage accompany
   the delaminations) is a soft inclusion with in-plane stiffness
-  ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.30, a calibration value; Soutis & Curtis
-  1996). Without it, delaminations left the in-plane stress field unchanged
+  ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.20, fitted to two quasi-isotropic CAI
+  coupons, see [Limitations](#limitations); Soutis & Curtis 1996). Without
+  it, delaminations left the in-plane stress field unchanged
   and first-ply failure could not see the impact.
 - The optional fibre-break core (elements within `fiber_break_radius_mm`
   of any delamination centroid; off in every preset) gets both factors:
@@ -344,10 +345,11 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension: 0.52/0.44/0.42 at 5/15/30 J, against empirical
-  0.40/0.37/0.36), but its damage-zone stiffness is uncalibrated. Where the delamination growth
-  stress governs `semi_analytical`, that tier is flatter in energy: the
-  growth stress changes little with delamination size once the sublaminate
+  zone (16-ply QI tension: 0.43/0.34/0.33 at 5/15/30 J, against empirical
+  0.40/0.37/0.36), but its damage-zone stiffness is fitted to only two
+  quasi-isotropic CAI coupons. Where the delamination growth stress
+  governs `semi_analytical`, that tier is flatter in energy: the growth
+  stress changes little with delamination size once the sublaminate
   buckles well below it.
 
 ## Limitations
@@ -360,12 +362,14 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   T800S/3900-2B value (0.047) and the impactor shape and diameter factors
   to Hasebe et al.'s. The other calibration constants (`soutis_m`,
   `wn_d0_mm`, `dent_beta`, `dent_gamma`, the impactor mass factor, the
-  boundary factors, and the fe3d damage factors) are uncalibrated defaults
+  boundary factors, and the fe3d out-of-plane and fibre-break factors)
+  are uncalibrated defaults
   chosen for typical CFRP systems. Precise values need calibration against
   material-specific coupon test data before use in certification.
 - Validation covers CAI only. TAI has no measured dataset, and fe3d is not
-  run on the measured datasets in CI (it gives 231 MPa against the measured
-  178 MPa on the first NCAMP coupon, 30% high, `validation/README.md`).
+  run on the measured datasets in CI (it gives 186 MPa against the measured
+  178 MPa on the first NCAMP coupon, to which its damage-zone factor is
+  fitted, `validation/README.md`).
 - LaRC05 is implemented as a minimal Hashin-3D reduction: σ₃ and τ₁₃ do
   not enter the index. Full plane-search fiber-kinking is deferred to a
   future release.
@@ -373,10 +377,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   delaminated interfaces, in-plane over the damage zone) instead of true
   cohesive surfaces with bilinear traction-separation laws and a continuum
   damage model. Cohesive surfaces are deferred to a future release. The
-  damage-zone in-plane factor (0.30) is uncalibrated against test data and
-  uniform over the footprint. On 150 × 100 mm IM7/8552 panels in tension
-  at 30 J the fe3d knockdown is at or above the empirical tier's (16-ply
-  QI 0.42 against 0.36, 24-ply QI 0.35 against 0.36); the damage area
+  damage-zone in-plane factor is uniform over the footprint. Its value,
+  0.20, is fitted to the first NCAMP AS4/8552 and the first Lovejoy &
+  Scotti IM7/8552 quasi-isotropic CAI coupons (4.8% high and 2.0% low;
+  0.30, the previous unfitted value, put them 30% and 36% high). It puts
+  the first Lovejoy & Scotti 40-ply hard-laminate coupon 47% low; that
+  laminate wants more than 0.30. One factor cannot fit both families:
+  fe3d has no characteristic length (below), and the stress concentration
+  at the zone edge depends on the laminate's orthotropy. On
+  150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
+  below the empirical tier's (16-ply QI 0.33 against 0.36, 24-ply QI 0.25
+  against 0.36); the damage area
   there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
 - **The `fe3d` first-ply failure has no characteristic length.** The
@@ -385,13 +396,13 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   fe3d lacks the notch-size effect of the empirical tier's Soutis and
   Whitney-Nuismer models. It also depends on the mesh near the zone edge:
   going from 5 mm to 2.5 mm elements changes the 15 J knockdown on 8-ply
-  IM7/8552 150 × 100 mm panels by 3.6% (QI tension, 0.5317 to 0.5128),
-  13.0% (cross-ply tension, 0.2770 to 0.3131), 12.3% (cross-ply
-  compression, 0.2988 to 0.3356) and 17.4% (QI compression, 0.4646 to
-  0.5455). In QI compression the delamination growth stress (276.3 MPa)
-  sets the damaged strength at both mesh sizes; the change comes from the
-  undamaged first-ply failure (594.8 to 506.6 MPa). Cohesive surfaces and proper load-introduction BCs are v0.3.0
-  scope.
+  IM7/8552 150 × 100 mm panels by 5.0% (QI tension, 0.4424 to 0.4201),
+  20.7% (cross-ply tension, 0.1849 to 0.2232), 22.6% (cross-ply
+  compression, 0.2027 to 0.2485) and 3.6% (QI compression, 0.4408 to
+  0.4565). In QI compression the damaged and undamaged first-ply failure
+  stresses both fall with the finer mesh (262.2 to 231.3 MPa and 594.8 to
+  506.6 MPa), and the ratio changes little. Cohesive surfaces and proper
+  load-introduction BCs are v0.3.0 scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
   enclosing rectangle, a fixed mixed-mode phase angle (52.1°; at a buckled

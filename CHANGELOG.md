@@ -49,8 +49,8 @@ All notable changes to BVID-FE are documented in this file.
   thickness and impact energy. MAE: empirical 7.3%, semi-analytical 7.3%
   with `soutis_k_s` = 3.5 (15.9% and 11.6% before; 1.5% for both since the
   energy-balance change in *Changed*; target 15%;
-  fe3d gave 5% on the first coupon, 30% since the energy-balance change,
-  but is not run in CI). CI
+  fe3d gave 5% on the first coupon, 30% after the energy-balance change and
+  4.8% after the damage-zone factor fit, but is not run in CI). CI
   now also gates the semi-analytical tier on measured datasets. The fe3d
   monitoring step runs only the synthetic dataset, since a 24-ply coupon
   takes about 3.5 minutes.
@@ -72,6 +72,43 @@ All notable changes to BVID-FE are documented in this file.
   listed, and no source was found for the fourth.
 
 ### Changed
+
+- **fe3d damage-zone in-plane factor 0.30 -> 0.20, fitted to measured CAI
+  coupons** (`DAMAGE_ZONE_INPLANE_FACTOR`, `bvidfe.analysis.fe_mesh`). The
+  unfitted 0.30 put the quasi-isotropic coupons 30-36% high once the
+  energy-balance damage area (below) shrank the softened zone. A sweep on
+  the first NCAMP AS4/8552 coupon and the first Lovejoy & Scotti IM7/8552
+  quasi-isotropic and hard coupons (fe3d strength against measured CAI):
+
+  | Factor | NCAMP #0 | Lovejoy QI #0 | Lovejoy hard #4 |
+  |---|---|---|---|
+  | 0.30 | +30.2% | +35.5% | -14.1% |
+  | 0.25 | +18.3% | +16.7% | -31.1% |
+  | 0.20 | +4.8% | -2.0% | -47.1% |
+  | 0.15 | -8.9% | -20.4% | -62.1% |
+
+  0.20 gives the lowest mean error (18.0%, against 26.6% at 0.30): the
+  three coupons go 231 -> 186 MPa (177.7 measured), 199.0 -> 143.9 MPa
+  (146.8) and 202.4 -> 124.7 MPa (235.7). It errs conservative on the
+  40-ply hard laminate, which wants more than 0.30. One factor cannot fit
+  both families: fe3d has no characteristic length, and the stress
+  concentration at the zone edge depends on the laminate's orthotropy.
+  Effect on fe3d knockdowns (IM7/8552, 150 x 100 mm, 5 mm mesh):
+  - 16-ply QI tension at 5/15/30 J 0.525/0.435/0.423 -> 0.432/0.342/0.334
+    (empirical 0.399/0.370/0.359); 24-ply QI tension at 30 J 0.349 -> 0.253
+    (empirical 0.359). fe3d now sits below the empirical tier in tension
+    from 15 J.
+  - CAI between 5 and 30 J: 16-ply QI 0.530 -> 0.427 becomes
+    0.444 -> 0.339; 8-ply QI 0.505 -> 0.381 becomes 0.416 -> 0.285; 8-ply
+    cross-ply 0.341 -> 0.307 becomes 0.249 -> 0.215.
+  - The 5 mm -> 2.5 mm mesh change at 15 J on 8-ply panels: QI tension
+    0.4424 -> 0.4201 (5.0%; was 3.6%), cross-ply tension 0.1849 -> 0.2232
+    (20.7%; was 13.0%), cross-ply compression 0.2027 -> 0.2485 (22.6%; was
+    12.3%), QI compression 0.4408 -> 0.4565 (3.6%; was 17.4%).
+  - The fe3d smoke run on the first three synthetic cases goes 3.9% ->
+    17.9% (the synthetic set is empirical-tier output, so this is the gap
+    between the tiers, not an error). Undamaged fe3d strengths are
+    unchanged (no damage zone).
 
 - **The damage area is an energy balance, and the CAI knockdown scales it
   by a fixed reference area.** Three changes, fitted together:
@@ -113,7 +150,7 @@ All notable changes to BVID-FE are documented in this file.
   at 3.5, 15.7% and 4.6% at 4.0); with the energy-balance area and the
   panel area `k_s` = 4.7 fits both (3.5% and 9.7%) but puts Hasebe at
   31-34%. The fe3d smoke run on the first three synthetic cases moves
-  5.3% -> 3.9%.
+  5.3% -> 3.9% (17.9% after the damage-zone factor fit above).
 
   Effect for users:
   - Predicted damage areas fall several-fold on thin laminates: NCAMP
@@ -126,7 +163,9 @@ All notable changes to BVID-FE are documented in this file.
   - Knockdowns on large panels now fall where they used to tend to 1: the
     same laminate on a 500 x 500 mm panel at 20 J goes 0.691 -> 0.455
     (DPA 4096 -> 971 mm^2).
-  - fe3d knockdowns rise with the smaller damage zone. On IM7/8552
+  - fe3d knockdowns rise with the smaller damage zone (at the 0.30
+    damage-zone factor; the 0.20 fit above supersedes these numbers). On
+    IM7/8552
     150 x 100 mm panels, 16-ply QI tension at 5/15/30 J goes
     0.459/0.328/0.200 -> 0.525/0.435/0.423 (empirical 0.399/0.370/0.359)
     and 24-ply QI tension at 30 J 0.15 -> 0.349 (empirical 0.359): at 30 J
@@ -215,7 +254,8 @@ All notable changes to BVID-FE are documented in this file.
     stress field was the same with and without damage. The damage zone
     (every ply under the delamination footprints) is now a soft inclusion
     with in-plane stiffness x`DAMAGE_ZONE_INPLANE_FACTOR` = 0.30 (Soutis &
-    Curtis 1996; a calibration value, not fitted to test data).
+    Curtis 1996; a calibration value, not fitted to test data; fitted to
+    0.20 since, see the factor entry at the top of *Changed*).
   - Damage-zone elements fail at the strain intact material would (strain
     equivalence; `fe_tier._failure_stress_material`): the criterion sees
     the in-plane stress the pristine ply carries at the same strain. With
