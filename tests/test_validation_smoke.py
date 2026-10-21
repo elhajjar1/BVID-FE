@@ -214,3 +214,12 @@ def test_hasebe_dataset_is_advisory_and_runs():
     assert all(c.measured_pristine_MPa and c.impact_panel_Lx_mm == 60.0 for c in cases)
     df = v.run_dataset(cases[:5], "empirical")
     assert df["error_pct"].notna().all()
+
+
+@pytest.mark.parametrize("dataset", ["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
+def test_astm_datasets_impact_on_the_d7136_window(dataset):
+    v = _load_validator()
+    _, cases, _ = v.load_dataset(v.DATASET_DIR / f"{dataset}.json")
+    for c in cases:
+        assert (c.impact_panel_Lx_mm, c.impact_panel_Ly_mm) == (125.0, 75.0)
+        assert c.impact_boundary == "simply_supported"

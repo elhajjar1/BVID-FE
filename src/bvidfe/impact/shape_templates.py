@@ -8,6 +8,15 @@ Each interface's ellipse is parametrised by:
 Total DPA is enforced by a Brent root-find on a single scalar multiplier so the
 polygon-union footprint equals the target DPA within 1%.
 
+With ``max_half_extent_mm`` each ellipse is shrunk (aspect ratio kept) until
+its bounding box fits inside the given half-extents about the centroid: the
+delaminations stay inside the window the plate was supported on when it was
+impacted. The union of differently oriented ellipses spreads well beyond the
+circle of the same area (on the 40-ply hard Lovejoy & Scotti coupon, 108 mm
+across a 102 mm coupon, which left fe3d a damage band through the whole
+section). If the window cannot hold the target area, the saturated footprint
+is returned and a ``DPACapClipWarning``-style ``UserWarning`` is raised.
+
 Performance notes (issue #87):
 - Per-interface template coefficients (``ar``, ``rel``, ``orient``) are
   precomputed once as NumPy arrays at ``distribute_damage`` entry.
@@ -20,7 +29,8 @@ Performance notes (issue #87):
 
 from __future__ import annotations
 
-from typing import List, Tuple
+import warnings
+from typing import List, Optional, Tuple
 
 import numpy as np
 from scipy.optimize import brentq
@@ -64,6 +74,7 @@ def distribute_damage(
     dent_depth_mm: float,
     fiber_break_radius_mm: float,
     centroid_mm: Tuple[float, float] = (0.0, 0.0),
+    max_half_extent_mm: Optional[Tuple[float, float]] = None,
 ) -> List[DelaminationEllipse]:
     n_plies = len(layup_deg)
     n_interfaces = n_plies - 1
@@ -76,13 +87,23 @@ def distribute_damage(
     minor_factor = rel_arr
     # Native-Python orientation list (the dataclass stores it as a float).
     orient_list = orient_arr.tolist()
+    theta = np.radians(orient_arr)
+    cos_t, sin_t = np.abs(np.cos(theta)), np.abs(np.sin(theta))
 
     def _build(scalar: float) -> List[DelaminationEllipse]:
         # Vectorized ellipse-parameter computation. All semi-axes for a
         # given scalar come out in one NumPy multiplication; we then
         # zip into per-interface dataclasses.
-        majors = (scalar * major_factor).tolist()
-        minors = (scalar * minor_factor).tolist()
+        majors = scalar * major_factor
+        minors = scalar * minor_factor
+        if max_half_extent_mm is not None:
+            # Half-widths of each rotated ellipse's bounding box.
+            ex = np.hypot(majors * cos_t, minors * sin_t)
+            ey = np.hypot(majors * sin_t, minors * cos_t)
+            hx, hy = max_half_extent_mm
+            k = np.minimum(1.0, np.minimum(hx / ex, hy / ey))
+            majors, minors = majors * k, minors * k
+        majors, minors = majors.tolist(), minors.tolist()
         return [
             DelaminationEllipse(
                 interface_index=i,
@@ -100,8 +121,21 @@ def distribute_damage(
         ).projected_damage_area_mm2
 
     lo, hi = 0.1, 50.0
-    while _union_area(hi) < target_dpa_mm2:
+    area_hi = _union_area(hi)
+    while area_hi < target_dpa_mm2:
         hi *= 2
+        area_prev, area_hi = area_hi, _union_area(hi)
+        if max_half_extent_mm is not None and area_hi <= area_prev * (1.0 + 1e-9):
+            # Every ellipse is pinned to the window: the area cannot grow.
+            warnings.warn(
+                f"Target DPA ({target_dpa_mm2:.0f} mm^2) does not fit inside the "
+                f"impact window (half-extents {max_half_extent_mm[0]:.1f} x "
+                f"{max_half_extent_mm[1]:.1f} mm); using the largest footprint that "
+                f"does ({area_hi:.0f} mm^2).",
+                UserWarning,
+                stacklevel=2,
+            )
+            return _build(hi)
         if hi > 1e6:
             raise RuntimeError("shape_templates: cannot bracket target DPA")
 

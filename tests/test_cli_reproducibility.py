@@ -72,10 +72,10 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # 0.439 -> 0.359; and when DPA became the energy balance
             # (7824 -> 1855 mm^2) with soutis_k_s = 4.7 and the fixed
             # reference area: 0.377.
-            "knockdown": 0.37694824091367507,
-            "residual_strength_MPa": 226.65395244858848,
+            "knockdown": 0.376947092365602,
+            "residual_strength_MPa": 226.65326184194257,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 1855.1556540923598,
+            "dpa_mm2": 1855.1737990544545,
             "tier_used": "empirical",
         },
     ),
@@ -107,10 +107,10 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # 0.450. Energy-balance DPA (3660 -> 868 mm^2), soutis_k_s =
             # 4.7 and the fixed reference area instead of the 200x150 panel:
             # 0.469.
-            "knockdown": 0.46937944717790686,
-            "residual_strength_MPa": 282.2316046445477,
+            "knockdown": 0.46937209584178946,
+            "residual_strength_MPa": 282.2271843841354,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 867.7917967299119,
+            "dpa_mm2": 867.8430258492908,
             "tier_used": "semi_analytical",
         },
     ),
@@ -137,10 +137,10 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # value (2560 -> 2238 MPa): pristine 1280.6 -> 1119.6 MPa. Then
             # energy-balance DPA (8902 -> 1389 mm^2, below the 80% cap):
             # knockdown 0.219 -> 0.260.
-            "knockdown": 0.2604463698325554,
-            "residual_strength_MPa": 291.58706035257694,
+            "knockdown": 0.26044588747306874,
+            "residual_strength_MPa": 291.5865203189998,
             "pristine_strength_MPa": 1119.566613810138,
-            "dpa_mm2": 1388.6706616686029,
+            "dpa_mm2": 1388.6893652021163,
             "tier_used": "empirical",
         },
     ),
