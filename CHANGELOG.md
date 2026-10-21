@@ -50,7 +50,8 @@ All notable changes to BVID-FE are documented in this file.
   with `soutis_k_s` = 3.5 (15.9% and 11.6% before; 1.5% for both since the
   energy-balance change in *Changed*; target 15%;
   fe3d gave 5% on the first coupon, 30% after the energy-balance change and
-  4.8% after the damage-zone factor fit, but is not run in CI). CI
+  4.8% after the damage-zone factor fit and -3.5% at the refitted 0.17
+  with the confined footprint, but is not run in CI). CI
   now also gates the semi-analytical tier on measured datasets. The fe3d
   monitoring step runs only the synthetic dataset, since a 24-ply coupon
   takes about 3.5 minutes.
@@ -73,8 +74,41 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **fe3d damage-zone in-plane factor 0.20 -> 0.17, refitted with the
+  delaminations confined to the impact window** (see *Fixed*). With the
+  confinement the three coupons sweep as (fe3d strength against measured
+  CAI):
+
+  | Factor | NCAMP #0 | Lovejoy QI #0 | Lovejoy hard #4 |
+  |---|---|---|---|
+  | 0.20 | +4.7% | +6.6% | +12.4% |
+  | 0.17 | -3.5% | -4.4% | +1.9% |
+  | 0.15 | -9.0% | -11.7% | not run |
+
+  At 0.17 they give 171.4 MPa (177.7 measured), 140.4 MPa (146.8) and
+  240.2 MPa (235.7): both laminate families fit within 5% (mean error
+  3.3%, against 18.0% at 0.20 before the confinement, when the hard
+  laminate was 47% low). Effect on fe3d knockdowns (IM7/8552, 150 x 100 mm,
+  5 mm mesh; the confinement does not bind on these panels, so the change
+  is the factor's):
+  - 16-ply QI tension at 5/15/30 J 0.432/0.342/0.334 -> 0.403/0.313/0.307
+    (empirical 0.399/0.370/0.359); 24-ply QI tension at 30 J 0.253 ->
+    0.224 (empirical 0.359).
+  - CAI between 5 and 30 J: 16-ply QI 0.444 -> 0.339 becomes
+    0.416 -> 0.313; 8-ply QI 0.416 -> 0.285 becomes 0.387 -> 0.256; 8-ply
+    cross-ply 0.249 -> 0.215 becomes 0.222 -> 0.188.
+  - The 5 mm -> 2.5 mm mesh change at 15 J on 8-ply panels: QI tension
+    0.4138 -> 0.3920 (5.3%; was 5.0%), cross-ply tension 0.1590 -> 0.1975
+    (24.2%; was 20.7%), cross-ply compression 0.1748 -> 0.2231 (27.6%; was
+    22.6%), QI compression 0.4143 -> 0.4280 (3.3%; was 3.6%).
+  - The fe3d smoke run on the first three synthetic cases goes 17.9% ->
+    23.8% (the gap between the tiers, not an error).
+
 - **fe3d damage-zone in-plane factor 0.30 -> 0.20, fitted to measured CAI
-  coupons** (`DAMAGE_ZONE_INPLANE_FACTOR`, `bvidfe.analysis.fe_mesh`). The
+  coupons** (`DAMAGE_ZONE_INPLANE_FACTOR`, `bvidfe.analysis.fe_mesh`;
+  superseded: 0.17 since the delaminations are confined to the impact
+  window, see the entry above and *Fixed*. The numbers in this entry are
+  at 0.20 with unconfined delaminations.) The
   unfitted 0.30 put the quasi-isotropic coupons 30-36% high once the
   energy-balance damage area (below) shrank the softened zone. A sweep on
   the first NCAMP AS4/8552 coupon and the first Lovejoy & Scotti IM7/8552
@@ -150,7 +184,8 @@ All notable changes to BVID-FE are documented in this file.
   at 3.5, 15.7% and 4.6% at 4.0); with the energy-balance area and the
   panel area `k_s` = 4.7 fits both (3.5% and 9.7%) but puts Hasebe at
   31-34%. The fe3d smoke run on the first three synthetic cases moves
-  5.3% -> 3.9% (17.9% after the damage-zone factor fit above).
+  5.3% -> 3.9% (17.9% at the damage-zone factor 0.20 and 23.8% at 0.17,
+  see above).
 
   Effect for users:
   - Predicted damage areas fall several-fold on thin laminates: NCAMP
@@ -255,7 +290,8 @@ All notable changes to BVID-FE are documented in this file.
     (every ply under the delamination footprints) is now a soft inclusion
     with in-plane stiffness x`DAMAGE_ZONE_INPLANE_FACTOR` = 0.30 (Soutis &
     Curtis 1996; a calibration value, not fitted to test data; fitted to
-    0.20 since, see the factor entry at the top of *Changed*).
+    0.20 and then 0.17 since, see the factor entries at the top of
+    *Changed*).
   - Damage-zone elements fail at the strain intact material would (strain
     equivalence; `fe_tier._failure_stress_material`): the criterion sees
     the in-plane stress the pristine ply carries at the same strain. With
@@ -367,6 +403,27 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **Predicted delaminations stay inside the impacted panel.** The union of
+  the template's differently oriented ellipses spreads well beyond the
+  circle of the same area: 99 x 52 mm on the NCAMP quasi-isotropic coupon
+  (same-area circle 61 mm), 134 x 70 mm on Lovejoy & Scotti's
+  quasi-isotropic coupon (82 mm) and 108 x 108 mm on their 40-ply hard
+  laminate (92 mm), wider than its 102 mm coupon. fe3d's soft zone then
+  spanned the whole section and the 0 deg fibres failed at the coupon's
+  side edge (y = 2.4 mm), 47% below the measured CAI.
+  `distribute_damage(..., max_half_extent_mm=(hx, hy))` shrinks each
+  ellipse, aspect ratio kept, until its bounding box fits, re-solves for
+  the same union area, and warns and returns the saturated footprint if
+  the window cannot hold the target. `impact_to_damage` passes the
+  impacted panel's half-extents about the impact point (`impact_panel`,
+  else `panel`). The NCAMP and Lovejoy & Scotti cases now carry the
+  ASTM D7136 125 x 75 mm support window as `impact_panel`. fe3d on the hard
+  laminate goes -47.1% -> +12.4% at factor 0.20 (+1.9% at the refitted
+  0.17, see *Changed*). The closed-form tiers barely move: MAE NCAMP
+  1.54% -> 1.50%, Lovejoy & Scotti 8.97% -> 8.95% (both tiers; Hasebe
+  unchanged); the CLI snapshots move by less than 6e-5 relative. On a
+  150 x 100 mm IM7/8552 panel the footprint now saturates at about
+  11,200 mm^2 from about 114 J, before the 80% area cap.
 - **A delamination `interface_index` outside the layup is rejected.** An
   n-ply laminate has interfaces 0 to n-2; `AnalysisConfig` now raises
   `ValueError` for a larger index. The closed-form tiers used to ignore it
