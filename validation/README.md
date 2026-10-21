@@ -19,8 +19,10 @@ to ASTM D7136/D7137 at RTD and impacted at 1500 in-lbf/in (about 30 J). The
 measured CAI is 171–182 MPa and every coupon failed through the impact damage
 (failure code LDM). Each case uses its own measured thickness and impact
 energy. The report does not give the impactor mass or tup, so the ASTM
-D7136 standard values (5.5 kg, 0.625 in hemispherical) are used. It reports
-no dent depth or damage area. The fe3d tier gives 186 MPa on the first
+D7136 standard values (5.5 kg, 0.625 in hemispherical) are used, and the
+plate is impacted on the standard's 125 × 75 mm support window
+(`impact_panel_*`), which also confines the predicted delaminations. It
+reports no dent depth or damage area. The fe3d tier gives 186 MPa on the first
 coupon (4.8% high; its damage-zone factor is fitted to this coupon, see
 below). At about 3 minutes per coupon it is not run in CI.
 
@@ -33,7 +35,10 @@ LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
   50 ft-lb (68 J), 236–249 MPa.
 
 Each case carries the measured thickness, dent depth and C-scan damage area.
-The impactor is not described, so the ASTM D7136 standard is assumed. The
+The impactor is not described, so the ASTM D7136 standard is assumed.
+Like the NCAMP cases, each is impacted on the ASTM D7136 125 × 75 mm
+support window (`impact_panel_*`), which also confines the predicted
+delaminations. The
 hybrid thin-ply coupons are omitted, because a case has a single ply
 thickness.
 
@@ -89,7 +94,7 @@ against 5,190–7,530 mm²).
   thickness at constant J/mm, where the measured area grows with it:
   Lovejoy & Scotti's 7.6 mm coupons had 1.21× the C-scan area of their
   6.1 mm coupons at the same 8.9 J/mm. The predicted areas are now
-  5,281 mm² (quasi-isotropic) and 6,589 mm² (hard), against 5,190–5,740
+  5,304 mm² (quasi-isotropic) and 6,616 mm² (hard), against 5,190–5,740
   and 6,260–7,530 mm² measured. NCAMP reports no damage area, so its
   predicted area (about 2,900 mm², was about 6,650 mm²) is an independent
   prediction.

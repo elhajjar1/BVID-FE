@@ -66,9 +66,11 @@ Internally `BvidAnalysis.run()` dispatches `impact_to_damage()` (Olsson
 threshold + energy-balance damage area + peanut-template distribution +
 dent model) to build a `DamageState`, then runs the selected tier's
 residual-strength engine. The predicted damage area is capped at 80% of
-the panel area, with a `DPACapClipWarning`. On this panel the area grows by
-about 99 mm² per joule above onset, so the 12,000 mm² cap is not reached
-below about 120 J.
+the panel area, with a `DPACapClipWarning`, and the delaminations are kept
+inside the impacted panel. On this panel the area grows by about 99 mm²
+per joule above onset; from about 114 J the footprint fills what the
+panel can hold (about 11,200 mm², with a `UserWarning`), before the
+12,000 mm² cap.
 
 `ImpactorGeometry` defaults to the ASTM D7136 impactor (`diameter_mm=16.0`,
 `shape="hemispherical"`; also `"flat"` and `"conical"`), and `ImpactEvent`
@@ -108,7 +110,11 @@ print(cscan_result.critical_sublaminate)   # 4: the interface whose delamination
 `impact_panel` (a `PanelGeometry`, with `impact` only) is the panel the
 impact was applied on when it is not the one tested, e.g. a 60 × 60 mm
 clamped window and an 80 × 50 mm compression coupon: the damage is mapped
-on `impact_panel` and centred on `panel`.
+on `impact_panel` and centred on `panel`. For an ASTM D7136 coupon it is
+the 125 × 75 mm support window (`PanelGeometry(125, 75)`). It also bounds
+the damage footprint: every delamination ellipse is kept inside it,
+measured from the impact point. Without `impact_panel` the tested panel
+bounds it.
 
 ## Results
 

@@ -16,8 +16,10 @@ When an `AnalysisConfig` carries an `ImpactEvent` rather than a measured
 `DamageState`, `impact_to_damage()` (`src/bvidfe/impact/`) builds the damage
 state in five steps. It uses `AnalysisConfig.impact_panel` when the plate
 was impacted on a different panel or window than the one tested (for
-example a 60 × 60 mm clamped window and an 80 × 50 mm compression coupon);
-the damage is then moved to the centre of the test panel.
+example the 125 × 75 mm ASTM D7136 support window and a 150 × 100 mm CAI
+coupon, or a 60 × 60 mm clamped window and an 80 × 50 mm coupon); the
+damage is then moved to the centre of the test panel. The impacted panel
+also bounds the delamination footprint (step 5).
 
 1. **Onset energy** (Olsson 2001). The threshold load is
    `P_c = π √(8 G_IIc D_eff / 9)`, with `D_eff = √(D11 D22)` from the
@@ -65,9 +67,10 @@ the damage is then moved to the centre of the test panel.
     cone 1.20× the C-scan area of a 12.7 mm hemisphere, and 25.4 and
     31.8 mm hemispheres 0.88× and 0.87×. At the ASTM D7136 reference
     (5.5 kg, 16 mm, hemispherical) the three correction factors are 1. DPA
-    is capped at 80% of the panel area (`DPACapClipWarning`); on a
-    150 × 100 mm IM7/8552 panel the area grows by about 99 mm² per joule,
-    so the cap is reached only above about 120 J. A
+    is capped at 80% of the panel area (`DPACapClipWarning`). On a
+    150 × 100 mm IM7/8552 panel the area grows by about 99 mm² per joule;
+    the footprint confinement of step 5 then holds it at about 11,200 mm²
+    from about 114 J, before the 12,000 mm² cap. A
     `SmallMassQuasiStaticWarning` is raised when the impactor is lighter
     than the panel.
 
@@ -87,6 +90,20 @@ the damage is then moved to the centre of the test panel.
    `0.3 + 0.7 (i + 1) / n_interfaces` grows from the impact face to the
    back face. One scale factor is solved so the union of the footprints
    equals the target DPA within 1%.
+
+   Every ellipse is kept inside the impacted panel (`impact_panel`, else
+   `panel`): an ellipse whose bounding box would reach past the panel edge
+   nearest the impact point is shrunk, keeping its aspect ratio, and the
+   scale factor is re-solved for the same union area. If the panel cannot
+   hold the target area, the largest footprint that fits is used with a
+   `UserWarning`. The union of differently oriented ellipses spreads well
+   beyond the circle of the same area: unconfined, the template footprint
+   was 99 × 52 mm on the NCAMP quasi-isotropic coupon (same-area circle
+   61 mm), 134 × 70 mm on Lovejoy & Scotti's quasi-isotropic coupon
+   (circle 82 mm) and 108 × 108 mm on their hard laminate (circle 92 mm),
+   wider than the 102 mm coupon. For an ASTM D7136 coupon the impacted
+   panel is the 125 × 75 mm support window, which is where the damage
+   stays.
 
 The dent depth is carried in `DamageState` and reported, but no tier uses
 it in the residual-strength calculation.
@@ -193,7 +210,7 @@ QI panel at 5 J (0.500 against 0.556) and on the cross-ply panel at
 5–15 J (0.39–0.40 against 0.41–0.57); Soutis governs elsewhere. On the
 NCAMP and Lovejoy & Scotti validation cases (`validation/datasets/`)
 Soutis governs throughout (on the 40-ply hard laminate the growth stress
-is 273 MPa against a 227 MPa Soutis bound), so the two tiers give the
+is 252 MPa against a 226 MPa Soutis bound), so the two tiers give the
 same CAI strengths there. Growth governs on 225 of Hasebe et al.'s 343
 coupons (every cross-ply and hard-laminate coupon, and some
 quasi-isotropic ones), where the semi-analytical MAE is 23.3% against
@@ -215,7 +232,8 @@ release):
   out-of-plane Poisson coupling.
 - The damage zone as a whole (every ply under the union of the
   delamination footprints, where matrix cracks and fibre damage accompany
-  the delaminations) is a soft inclusion with in-plane stiffness
+  the delaminations; confined to the impacted panel, see
+  [step 5](#impact-to-damage-mapping)) is a soft inclusion with in-plane stiffness
   ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.20, fitted to two quasi-isotropic CAI
   coupons, see [Limitations](#limitations); Soutis & Curtis 1996). Without
   it, delaminations left the in-plane stress field unchanged

@@ -123,7 +123,7 @@ BVID Analysis Results
   pristine_strength_MPa  : 601.3
   residual_strength_MPa  : 224.3
   knockdown              : 0.373
-  dpa_mm2                : 1918.4
+  dpa_mm2                : 1918.5
   dent_depth_mm          : 1.216
   n_delaminations        : 15
 ```
@@ -234,7 +234,7 @@ details and sources are in [`validation/README.md`](validation/README.md).
 | Dataset | Material and layup | Coupons | Measured CAI (MPa) | Empirical MAE | Semi-analytical MAE |
 |---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` (NCAMP CAM-RP-2010-002) | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 171–182 | 1.5% (max 3.0%) | 1.5% (max 3.0%) |
-| `lovejoy_scotti_im7_8552_cai` (NASA LaRC 2019) | IM7/8552 [45/0/-45/90]4s at 54 J; hard [45/0/90/0/-45/0/45/0/-45/0]2s at 68 J | 8 | 133–147; 236–249 | 9.0% (max 19.1%) | 9.0% (max 19.1%) |
+| `lovejoy_scotti_im7_8552_cai` (NASA LaRC 2019) | IM7/8552 [45/0/-45/90]4s at 54 J; hard [45/0/90/0/-45/0/45/0/-45/0]2s at 68 J | 8 | 133–147; 236–249 | 9.0% (max 18.9%) | 9.0% (max 18.9%) |
 | `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres, a 15.9 mm flat-ended impactor and a 60° cone at 2–21 J; 80×50 mm JIS K 7089 coupons | 343 | 81–592 | 21.3% (max 107.8%) | 23.3% (max 107.7%) |
 
 Read these numbers with care:
@@ -248,7 +248,7 @@ Read these numbers with care:
   material or layup tested to ASTM D7136/D7137.
 - The Soutis bound sets the semi-analytical result on every NCAMP and
   Lovejoy & Scotti coupon (on the hard laminate the delamination growth
-  stress is 273 MPa against a 227 MPa Soutis bound), so the two tiers give
+  stress is 252 MPa against a 226 MPa Soutis bound), so the two tiers give
   the same strengths there.
 - The fe3d tier gives 186 MPa on the first NCAMP coupon (measured 178 MPa,
   4.8% high), 143.9 MPa on the first Lovejoy & Scotti quasi-isotropic
