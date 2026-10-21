@@ -48,7 +48,7 @@ jobs:
       - name: "Validation: semi_analytical tier on measured data (hard gate)"
         # Measured datasets only: synthetic_selfcheck is generated from the
         # empirical tier, so other tiers cannot match it.
-        run: python validation/validate_bvid_public.py --gate --tier=semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai
+        run: python validation/validate_bvid_public.py --gate --tier=semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
       - name: "Validation: fe3d tier (smoke run; first 3 cases)"
         # Exercises the fe3d path end to end and prints its errors. Not a
         # gate: synthetic_selfcheck is empirical-tier output, so comparing

@@ -72,7 +72,9 @@ def test_damage_zone_softens_in_plane_stiffness_through_the_thickness():
 
 
 def test_damage_zone_factor_is_the_soft_inclusion_value():
-    assert DAMAGE_ZONE_INPLANE_FACTOR == pytest.approx(0.3)
+    """Fitted to the NCAMP and Lovejoy & Scotti quasi-isotropic CAI coupons
+    (see the comment in fe_mesh.py)."""
+    assert DAMAGE_ZONE_INPLANE_FACTOR == pytest.approx(0.2)
 
 
 @pytest.mark.parametrize("loading", ["tension", "compression"])

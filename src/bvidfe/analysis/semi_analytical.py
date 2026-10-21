@@ -32,6 +32,7 @@ from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 from bvidfe.failure.soutis_openhole import (
+    SOUTIS_REFERENCE_AREA_MM2,
     lekhnitskii_kt_infinity,
     soutis_cai,
     whitney_nuismer_tai,
@@ -464,7 +465,7 @@ def semi_analytical_cai(
     lam: Laminate,
     damage: DamageState,
     sigma_pristine_MPa: float,
-    A_panel_mm2: float,
+    A_ref_mm2: float = SOUTIS_REFERENCE_AREA_MM2,
     boundary: str = "simply_supported",
 ) -> SemiAnalyticalResult:
     """Semi-analytical compression-after-impact residual strength (MPa).
@@ -500,7 +501,7 @@ def semi_analytical_cai(
 
     # Soutis bound
     dpa = damage.projected_damage_area_mm2
-    sigma_soutis = soutis_cai(lam.material, dpa, A_panel_mm2, sigma_pristine_MPa)
+    sigma_soutis = soutis_cai(lam.material, dpa, A_ref_mm2, sigma_pristine_MPa)
 
     # Delamination growth bound (damage.delaminations is non-empty here)
     weakest = weakest_sublaminate_growth(lam, damage, boundary=boundary)

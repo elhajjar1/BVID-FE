@@ -100,8 +100,8 @@ def test_boundary_changes_semi_analytical_knockdown():
 
 
 def test_shape_changes_dpa_and_knockdown():
-    """Flat-ended impactors produce larger delamination footprints than
-    hemispherical (more spread); conical less (concentrated penetration)."""
+    """Hasebe et al. (2025): at the same energy a flat-ended impactor leaves
+    much less delamination than a hemisphere, and a cone more."""
 
     def make(shape):
         return _cfg(impact=ImpactEvent(20.0, ImpactorGeometry(16.0, shape=shape), mass_kg=5.5))
@@ -110,9 +110,9 @@ def test_shape_changes_dpa_and_knockdown():
     kd_flat = _run_kd(make("flat"))
     kd_cone = _run_kd(make("conical"))
 
-    # Flat impactor spreads damage -> larger DPA -> lower KD; conical the opposite.
-    assert kd_flat < kd_hemi, (kd_hemi, kd_flat)
-    assert kd_cone > kd_hemi, (kd_hemi, kd_cone)
+    # Flat-ended -> smaller DPA -> higher KD; conical the opposite.
+    assert kd_flat > kd_hemi, (kd_hemi, kd_flat)
+    assert kd_cone < kd_hemi, (kd_hemi, kd_cone)
 
 
 # ---------- impactor.mass_kg ----------

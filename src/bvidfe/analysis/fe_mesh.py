@@ -73,12 +73,15 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 
 # In-plane stiffness fraction of the damage zone (soft inclusion over the
 # projected damage area, every ply). Its strengths drop with it (strain
-# equivalence, see fe_tier._failure_stress_material). A calibration value,
-# equal to the fiber-break factor and not fitted to test data. On a 16-ply
-# IM7/8552 QI 150x100 mm panel it gives fe3d tension knockdowns of
-# 0.46/0.33 at 5/15 J (empirical 0.37/0.35); at 15 J the knockdown changes
-# by <1% (8-ply QI) and 5% (8-ply cross-ply) between 5 mm and 2.5 mm meshes.
-DAMAGE_ZONE_INPLANE_FACTOR = 0.30
+# equivalence, see fe_tier._failure_stress_material). Fitted to the measured
+# CAI coupons on the energy-balance damage area: 0.20 puts the first NCAMP
+# AS4/8552 [45/0/-45/90]3s coupon at +4.8% and the first Lovejoy & Scotti
+# IM7/8552 [45/0/-45/90]4s coupon at -2.0%, but the 40-ply hard laminate at
+# -47% (it wants more than 0.30). One factor cannot fit both families: fe3d
+# has no characteristic length, and the stress concentration at the zone edge
+# depends on the laminate's orthotropy. 0.30 (the previous, unfitted value)
+# put the two quasi-isotropic coupons 30-36% high.
+DAMAGE_ZONE_INPLANE_FACTOR = 0.20
 
 
 def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:

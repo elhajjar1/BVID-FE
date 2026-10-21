@@ -82,6 +82,13 @@ class AnalysisConfig:
     laminate) or a list/tuple of positive floats with one entry per ply
     (matching ``len(layup_deg)``). Per-ply thicknesses let users model
     laminates that mix plies of different fabric weights or prepreg gauges.
+
+    ``impact_panel`` is the panel the impact is applied on, when it is not
+    the panel being tested: e.g. a plate impacted on a 60 x 60 mm clamped
+    window and then trimmed to an 80 x 50 mm compression coupon. The impact
+    is mapped to damage on ``impact_panel`` and the damage is placed on
+    ``panel``, the two panels taken as concentric. Only valid with
+    ``impact``; defaults to ``panel``.
     """
 
     material: Union[str, OrthotropicMaterial]
@@ -93,6 +100,7 @@ class AnalysisConfig:
     impact: Optional[ImpactEvent] = None
     damage: Optional[DamageState] = None
     mesh: Optional[MeshParams] = None
+    impact_panel: Optional[PanelGeometry] = None
 
     def __post_init__(self) -> None:
         _validate_choice(self.tier, _TIER_NAMES, "tier")
@@ -100,6 +108,11 @@ class AnalysisConfig:
         if (self.impact is None) == (self.damage is None):
             raise ValueError(
                 "Provide exactly one of AnalysisConfig.impact or AnalysisConfig.damage"
+            )
+        if self.impact_panel is not None and self.impact is None:
+            raise ValueError(
+                "AnalysisConfig.impact_panel only applies to an impact; it cannot be "
+                "combined with a given damage state"
             )
         # Validate ply_thickness_mm shape against layup_deg here so callers
         # get an early, descriptive error before Laminate construction.

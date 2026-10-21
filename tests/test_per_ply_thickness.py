@@ -231,7 +231,7 @@ def test_sublaminate_selection_uses_thickness_not_ply_count():
         [DelaminationEllipse(1, (0.0, 0.0), 60.0, 40.0, 0.0)],
         dent_depth_mm=0.5,
     )
-    result = semi_analytical_cai(lam, ds, sigma_pristine_MPa=500.0, A_panel_mm2=15000.0)
+    result = semi_analytical_cai(lam, ds, sigma_pristine_MPa=500.0, A_ref_mm2=15000.0)
     growth = weakest_sublaminate_growth(lam, ds)
     N_cr = result.critical_buckling_load_N
     assert result.critical_interface_index == 1

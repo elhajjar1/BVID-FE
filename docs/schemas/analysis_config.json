@@ -303,6 +303,16 @@
         }
       ]
     },
+    "impact_panel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PanelGeometry"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "layup_deg": {
       "items": {
         "type": "number"

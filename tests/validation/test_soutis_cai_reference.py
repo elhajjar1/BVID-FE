@@ -29,7 +29,7 @@ from bvidfe.failure.soutis_openhole import soutis_cai
 def test_soutis_cai_returns_pristine_at_zero_dpa():
     """DPA = 0 must short-circuit to sigma_pristine exactly."""
     m = MATERIAL_LIBRARY["IM7/8552"]
-    sigma = soutis_cai(m, dpa_mm2=0.0, A_panel_mm2=15000.0, sigma_pristine_MPa=500.0)
+    sigma = soutis_cai(m, dpa_mm2=0.0, A_ref_mm2=15000.0, sigma_pristine_MPa=500.0)
     assert sigma == 500.0
 
 
@@ -55,8 +55,8 @@ def test_soutis_cai_dimensionless_invariance():
     absolute scale — the formula is purely dimensionless in that ratio."""
     m = MATERIAL_LIBRARY["IM7/8552"]
     sigma_0 = 400.0
-    s_small = soutis_cai(m, dpa_mm2=100.0, A_panel_mm2=10_000.0, sigma_pristine_MPa=sigma_0)
-    s_large = soutis_cai(m, dpa_mm2=400.0, A_panel_mm2=40_000.0, sigma_pristine_MPa=sigma_0)
+    s_small = soutis_cai(m, dpa_mm2=100.0, A_ref_mm2=10_000.0, sigma_pristine_MPa=sigma_0)
+    s_large = soutis_cai(m, dpa_mm2=400.0, A_ref_mm2=40_000.0, sigma_pristine_MPa=sigma_0)
     assert s_small == pytest.approx(s_large, rel=1e-12)
 
 

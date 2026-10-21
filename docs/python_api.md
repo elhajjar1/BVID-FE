@@ -32,7 +32,7 @@ config = AnalysisConfig(material="IM7/8552", layup_deg=[0,45,-45,90,90,-45,45,0]
                         loading="compression", tier="empirical",
                         impact=ImpactEvent(energy_J=10))
 result = BvidAnalysis(config).run()
-print(result.knockdown)   # 0.2833...
+print(result.knockdown)   # 0.4609...
 ```
 
 ## Workflow paths
@@ -59,15 +59,16 @@ config = AnalysisConfig(
 )
 result = BvidAnalysis(config).run()
 print(result)
-# AnalysisResults(tier='empirical', kd=0.283, sigma=170.4/601.3MPa, dpa=7830.4mm2, notes=0, warnings=0)
+# AnalysisResults(tier='empirical', kd=0.461, sigma=277.2/601.3MPa, dpa=928.3mm2, notes=0, warnings=0)
 ```
 
 Internally `BvidAnalysis.run()` dispatches `impact_to_damage()` (Olsson
-threshold + peanut-template DPA distribution + dent model) to build a
-`DamageState`, then runs the selected tier's residual-strength engine. The
-predicted damage area is capped at 80% of the panel area, with a
-`DPACapClipWarning`. On this 1.2 mm panel the cap is reached from about
-15 J, after which the knockdown stops changing.
+threshold + energy-balance damage area + peanut-template distribution +
+dent model) to build a `DamageState`, then runs the selected tier's
+residual-strength engine. The predicted damage area is capped at 80% of
+the panel area, with a `DPACapClipWarning`. On this panel the area grows by
+about 99 mm² per joule above onset, so the 12,000 mm² cap is not reached
+below about 120 J.
 
 `ImpactorGeometry` defaults to the ASTM D7136 impactor (`diameter_mm=16.0`,
 `shape="hemispherical"`; also `"flat"` and `"conical"`), and `ImpactEvent`
@@ -95,7 +96,7 @@ cscan_config = AnalysisConfig(
 )
 cscan_result = BvidAnalysis(cscan_config).run()
 print(cscan_result)
-# AnalysisResults(tier='semi_analytical', kd=0.459, sigma=275.9/601.3MPa, dpa=1040.8mm2, notes=0, warnings=0)
+# AnalysisResults(tier='semi_analytical', kd=0.447, sigma=268.7/601.3MPa, dpa=1040.8mm2, notes=0, warnings=0)
 print(cscan_result.critical_sublaminate)   # 4: the interface whose delamination grows first
 ```
 
@@ -104,6 +105,10 @@ print(cscan_result.critical_sublaminate)   # 4: the interface whose delamination
 `AnalysisConfig` raises `ValueError` unless exactly one of `impact` and
 `damage` is set, and for an unknown `tier` or `loading`.
 `ply_thickness_mm` may also be a list with one thickness per ply.
+`impact_panel` (a `PanelGeometry`, with `impact` only) is the panel the
+impact was applied on when it is not the one tested, e.g. a 60 × 60 mm
+clamped window and an 80 × 50 mm compression coupon: the damage is mapped
+on `impact_panel` and centred on `panel`.
 
 ## Results
 
@@ -129,9 +134,9 @@ JSON-serialisable dict.
 
 | tier | Runtime | Validation status | Good for |
 |---|---|---|---|
-| `empirical` | < 1 s | CAI calibrated (`soutis_k_s`) on two measured datasets: MAE 7.3% (NCAMP AS4/8552) and 10.9% (Lovejoy & Scotti IM7/8552); expect 16–21% on a new material. TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
-| `semi_analytical` | < 1 s | Same datasets: MAE 7.3% and 10.8%. Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.30) is uncalibrated; not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
+| `empirical` | < 1 s | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 9.0% (Lovejoy & Scotti IM7/8552); expect about 6–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
+| `semi_analytical` | < 1 s | Same datasets: MAE 1.5% and 9.0% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
+| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.20) is fitted to two quasi-isotropic CAI coupons (within 5%) but puts a hard laminate 47% low; not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
 ## Knockdown semantics
 
@@ -149,7 +154,7 @@ three tiers** — only the residual-strength numerator differs:
   first-ply failure for TAI, each divided by the same quantity on the
   undamaged panel (capped at 1) and applied to the pristine reference.
   First-ply failure runs on a mesh whose damage zone (the delamination
-  footprints, every ply) is softened in-plane ×0.3 with strain-equivalent
+  footprints, every ply) is softened in-plane ×0.2 with strain-equivalent
   strengths, and its stress is the reaction force at failure over the gross
   section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
   reported in `result.buckling_eigenvalues` but does not set the strength;
@@ -293,7 +298,7 @@ Without `--quick` / `--quick-json` the full result is printed as JSON.
 
 ## Adding a custom material
 
-Presets: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800/epoxy`
+Presets: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800S/3900-2B`, `T800/epoxy`
 (`MATERIAL_LIBRARY`, or `bvidfe --list-materials`).
 
 ```python
@@ -307,8 +312,8 @@ my_mat = OrthotropicMaterial(
     Xt=2200, Xc=1500, Yt=65, Yc=180, S12=85, S23=55,
     G_Ic=0.27, G_IIc=0.85, rho=1.58e-6,  # rho in kg/mm^3 (1.58 g/cm^3)
     # Optional impact/calibration constants (defaults shown):
-    olsson_alpha=0.8,     # DPA scaling
-    soutis_k_s=3.5,       # Soutis CAI constant (calibrated on measured CAI data)
+    olsson_alpha=0.078,   # fraction of the energy above onset that delaminates (DPA)
+    soutis_k_s=4.7,       # Soutis CAI constant (calibrated on measured CAI data)
     soutis_m=0.5,         # Soutis exponent
     wn_d0_mm=1.0,         # Whitney-Nuismer characteristic distance
     dent_beta=0.05,       # Dent-depth prefactor
@@ -329,8 +334,10 @@ Moduli and strengths are in MPa, toughnesses `G_Ic` / `G_IIc` in N/mm.
 Other optional fields: `Zt`, `Zc`, `S13` (through-thickness strengths;
 default to `Yt`, `Yc`, `S12`), `puck_p_nt_plus` / `puck_p_nt_minus` (0.30 /
 0.25), and `fiber_break_eta` / `fiber_break_E_threshold` (fibre-break core,
-off by default). Only `soutis_k_s` has been calibrated against measured
-data, and only for the 8552-matrix presets; treat the others as defaults.
+off by default). The defaults of `soutis_k_s` and `olsson_alpha` are
+calibrated against measured CAI data on the 8552-matrix presets (AS4/8552
+and IM7/8552), and `olsson_alpha` for T800S/3900-2B (0.047) against Hasebe
+et al.'s C-scan areas; treat the others as defaults.
 
 ## Logging
 
@@ -361,6 +368,6 @@ BVIDFE_LOG_LEVEL=WARNING bvidfe ...    # DEBUG, INFO (default), WARNING, ERROR
 - `examples/05_tier_comparison_sweep.py` — empirical vs. semi_analytical over energies
 - [C-scan schema](cscan_schema.md) — C-scan JSON format spec
 - [Physics Models](physics_models.md) — equations, defaults and limitations
-- `validation/README.md` — measured datasets and the `soutis_k_s` calibration
+- `validation/README.md` — measured datasets and the `soutis_k_s` and `olsson_alpha` calibration
 - `ARCHITECTURE.md` — module dependency graph and data flow
 - `CHANGELOG.md` — what changed in each release, with measured effects

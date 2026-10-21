@@ -55,8 +55,7 @@ def test_dpa_conserved_after_distribution():
     from bvidfe.impact.olsson import onset_energy
 
     E_onset = onset_energy(lam, pan, ev.impactor)
-    h = lam.thickness_mm
-    dpa_raw = m.olsson_alpha * (ev.energy_J - E_onset) * 1e3 / (m.G_IIc * h)
+    dpa_raw = m.olsson_alpha * (ev.energy_J - E_onset) * 1e3 / m.G_IIc
     A_cap = 0.8 * pan.Lx_mm * pan.Ly_mm
     dpa_target = min(dpa_raw, A_cap)
     assert dpa_target > 0

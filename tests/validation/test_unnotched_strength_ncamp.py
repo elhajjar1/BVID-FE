@@ -10,8 +10,16 @@ thickness, for the three standard layups:
 AS4/8552: CAM-RP-2010-002 Rev A (2011), Table 2-2, CPT 0.0074 in.
 IM7/8552: CAM-RP-2009-015 Rev B (2019), sections 2.3.9-2.3.14, CPT 0.0072 in.
 
-The IM7/8552 preset is not built from the NCAMP lamina data, so its
-agreement is looser than AS4/8552's.
+Both presets take Xt from NCAMP's cross-ply back-out value, the 0 deg ply
+strength realised inside a laminate (the other IM7/8552 constants are not
+NCAMP's). With the unidirectional-coupon Xt the 0 deg plies outlived the
++-45s cracking and broke 5-19% above the measured tension strengths. Now:
+
+* 50/40/10: the 0 deg plies break after the +-45s crack, at Xt: 0.99-1.02.
+* 25/50/25 and 10/80/10: they break as soon as the +-45 plies crack in
+  shear, so S12 sets the strength: 25/50/25 is 4% (IM7/8552) and 14%
+  (AS4/8552) high, 10/80/10 10% low. One shear strength cannot move these in
+  opposite directions; 10/80/10 compression is also 15-17% low.
 
 The old thickness-weighted ply-strength average was 1.17-2.85x these values
 (mean 1.75x).
@@ -73,4 +81,12 @@ def test_unnotched_strength_within_20_percent_of_ncamp(mat, layup, loading, meas
 def test_unnotched_strength_is_unbiased_against_ncamp():
     ratios = np.array([_predict(m, lay, ld) / meas for m, lay, ld, meas in _CASES])
     assert 0.95 <= ratios.mean() <= 1.05, ratios
-    assert np.exp(np.abs(np.log(ratios)).mean()) - 1 < 0.15, ratios
+    assert np.exp(np.abs(np.log(ratios)).mean()) - 1 < 0.10, ratios
+
+
+@pytest.mark.parametrize("mat", ["AS4/8552", "IM7/8552"])
+def test_fibre_governed_tension_is_within_5_percent_of_ncamp(mat):
+    """50/40/10: the 0 deg plies break at Xt after the +-45s crack."""
+    layup = "50/40/10"
+    measured = _NCAMP_KSI[(mat, layup)][0] * _KSI
+    assert _predict(mat, layup, "tension") / measured == pytest.approx(1.0, abs=0.05)
