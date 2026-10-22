@@ -237,7 +237,10 @@ release):
   stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.17, fitted to three measured
   CAI coupons, see [Limitations](#limitations); Soutis & Curtis 1996).
   Without it, delaminations left the in-plane stress field unchanged and
-  first-ply failure could not see the impact.
+  first-ply failure could not see the impact. An element straddling the
+  zone's edge takes the factor weighted by the fraction of its area inside
+  the zone (sampled on a 6 × 6 grid), so the zone does not move in
+  element-sized steps as the mesh changes.
 - The optional fibre-break core (elements within `fiber_break_radius_mm`
   of any delamination centroid; off in every preset) gets both factors:
   out-of-plane ×0.05 and in-plane ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR`
@@ -254,9 +257,18 @@ index first reaches 1 follows analytically (Tsai-Wu: root of a quadratic;
 LaRC05: `1/√index`; Puck: `1/index`). If nothing fails up to 5% strain, the
 5% state is used.
 
-First-ply failure is evaluated at all Gauss points (2 × 2 × 2 per element),
-on stress rotated into each ply's material frame, using LaRC05 (CAI) and
-Tsai-Wu (TAI). The solver also implements Puck; `BvidAnalysis` does not
+First-ply failure is evaluated on stress rotated into each ply's material
+frame, using LaRC05 (CAI) and Tsai-Wu (TAI). The failure index is averaged
+over each element's Gauss points (2 × 2 × 2) and then over the elements of
+the same through-thickness layer whose centres lie within
+`FPF_AVERAGING_RADIUS_MM` = 2.5 mm (an average-stress criterion; Whitney &
+Nuismer 1974), clipped at the panel edges; the averaged index is linear in
+the coefficients of the load multiplier, so the analytic scaling above
+still holds. A check at single Gauss points has no length scale: the stress
+at the re-entrant corners of the zone's footprint is singular, and the
+pointwise failure load kept moving as the mesh was refined. 2.5 mm is
+within the 1-4 mm characteristic distances of CFRP notched strength; at
+the default 5 mm mesh the disk holds only the element itself. The solver also implements Puck; `BvidAnalysis` does not
 expose a criterion choice, and an unknown criterion name raises
 `ValueError`.
 
