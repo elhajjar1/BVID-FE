@@ -75,10 +75,15 @@ window, and the sweep with that confinement gives:
 | 0.17 (default) | −3.5% | −4.4% | +1.9% |
 | 0.15 | −9.0% | −11.7% | not run |
 
-At 0.17 the three coupons give 171.4 MPa (177.7 measured), 140.4 MPa
+At 0.17 the three coupons gave 171.4 MPa (177.7 measured), 140.4 MPa
 (146.8) and 240.2 MPa (235.7): both laminate families fit within 5%, with
 a mean error of 3.3% (18.0% at 0.20 before the confinement). The three
-coupons are in-sample. The closed-form tiers barely move with the
+coupons are in-sample.
+
+Since then the zone is weighted by element area fraction and the failure
+index is averaged over a 2.5 mm disk (which made fe3d mesh-converged; see
+`docs/physics_models.md`). 0.17 still fits: the coupons give 171.9 MPa
+(−3.2%), 145.1 MPa (−1.2%) and 246.8 MPa (+4.7%), a mean error of 3.0%. The closed-form tiers barely move with the
 confinement: NCAMP 1.54% → 1.50%, Lovejoy & Scotti 8.97% → 8.95%.
 
 ### Calibration of `soutis_k_s`
@@ -231,7 +236,7 @@ the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
 error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The fe3d tier
 is run on the first three synthetic cases as a smoke run, not a gate: the
-synthetic set is empirical-tier output, so its error there (23.8%) measures
+synthetic set is empirical-tier output, so its error there (12.9%) measures
 the difference between the tiers, not fe3d's accuracy.
 
 ## Next datasets

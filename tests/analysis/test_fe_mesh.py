@@ -64,7 +64,8 @@ def test_mesh_damage_factor_reduced_inside_ellipse():
 def test_mesh_delamination_only_softens_damage_zone_in_plane():
     """Pure delamination (no fiber-break radius): OOP reduced at the
     delaminated interface, in-plane reduced to the damage-zone value in the
-    footprint (see test_fe3d_inplane_damage.py), 1.0 elsewhere."""
+    footprint (area-weighted where an element straddles its edge, see
+    test_fe3d_inplane_damage.py), 1.0 elsewhere."""
     from bvidfe.analysis.fe_mesh import DAMAGE_OOP_FACTOR, DAMAGE_ZONE_INPLANE_FACTOR
 
     cfg = _simple_config()
@@ -79,7 +80,8 @@ def test_mesh_delamination_only_softens_damage_zone_in_plane():
     assert np.allclose(mesh.damage_factors[damaged], DAMAGE_OOP_FACTOR)
     softened = mesh.in_plane_damage_factors < 1.0
     assert softened[damaged].all(), "delaminated elements lie in the damage zone"
-    assert np.all(mesh.in_plane_damage_factors[softened] == DAMAGE_ZONE_INPLANE_FACTOR)
+    assert np.all(mesh.in_plane_damage_factors >= DAMAGE_ZONE_INPLANE_FACTOR - 1e-12)
+    assert np.isclose(mesh.in_plane_damage_factors, DAMAGE_ZONE_INPLANE_FACTOR).any()
     assert not softened.all(), "elements outside the footprint keep full in-plane stiffness"
 
 

@@ -64,8 +64,15 @@ def test_damage_zone_softens_in_plane_stiffness_through_the_thickness():
     assert inside.any() and (~inside).any()
     # Every ply in the footprint's columns, not just the delaminated interface.
     assert set(mesh.ply_indices[inside]) == {0, 1, 2, 3}
-    assert np.all(mesh.in_plane_damage_factors[inside] == DAMAGE_ZONE_INPLANE_FACTOR)
-    assert np.all(mesh.in_plane_damage_factors[~inside] == 1.0)
+    f = mesh.in_plane_damage_factors
+    # Elements wholly inside the footprint take the zone factor, those
+    # straddling its edge the area-weighted value between it and 1.
+    assert f.min() == pytest.approx(DAMAGE_ZONE_INPLANE_FACTOR)
+    assert np.all((f >= DAMAGE_ZONE_INPLANE_FACTOR - 1e-12) & (f <= 1.0))
+    assert np.all(f[inside] < 1.0)
+    assert ((f > DAMAGE_ZONE_INPLANE_FACTOR + 1e-12) & (f < 1.0)).any()
+    # Same in-plane factor in every ply of a column.
+    assert np.ptp(f.reshape(-1, 5 * 10), axis=0).max() == 0.0
     # Out-of-plane softening stays at the delaminated interface only.
     assert np.all(mesh.damage_factors[mesh.damage_factors < 1.0] == DAMAGE_OOP_FACTOR)
     assert (mesh.damage_factors[inside] == 1.0).any()
