@@ -413,7 +413,7 @@ release):
   delamination footprints, where matrix cracks and fibre damage accompany
   the delaminations; confined to the impacted panel, see
   [step 5](#impact-to-damage-mapping)) is a soft inclusion with in-plane
-  stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.17, fitted to three measured
+  stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.15, fitted to three measured
   CAI coupons, see [Limitations](#limitations); Soutis & Curtis 1996).
   Without it, delaminations left the in-plane stress field unchanged and
   first-ply failure could not see the impact. An element straddling the
@@ -441,17 +441,22 @@ LaRC05: `1/√index`; Puck: `1/index`). If nothing fails up to 5% strain, the
 
 First-ply failure is evaluated on stress rotated into each ply's material
 frame, using LaRC05 (CAI) and Tsai-Wu (TAI). The failure index is averaged
-over each element's Gauss points (2 × 2 × 2) and then over the elements of
-the same through-thickness layer whose centres lie within
-`FPF_AVERAGING_RADIUS_MM` = 2.5 mm (after Whitney & Nuismer's 1974
+over each element's Gauss points (2 × 2 × 2) and then over a disk of
+radius `FPF_AVERAGING_RADIUS_MM` = 2.5 mm in the same through-thickness
+layer, each element weighted by the fraction of its area inside the disk
+(16 × 16 sample points per element; after Whitney & Nuismer's 1974
 average-stress criterion, though here the failure index is averaged,
 not the stress), clipped at the panel edges; the averaged index is linear in
 the coefficients of the load multiplier, so the analytic scaling above
 still holds. A check at single Gauss points has no length scale: the stress
 at the re-entrant corners of the zone's footprint is singular, and the
-pointwise failure load kept moving as the mesh was refined. 2.5 mm is
-within the 1-4 mm characteristic distances of CFRP notched strength; at
-the default 5 mm mesh the disk holds only the element itself. The solver also implements Puck; `BvidAnalysis` does not
+pointwise failure load kept moving as the mesh was refined. Counting
+whole elements by their centres instead of weighting them by overlap, the
+disk covered only the element and its four neighbours at 2–2.5 mm meshes
+and shrank as the mesh was refined. 2.5 mm is within the 1-4 mm
+characteristic distances of CFRP notched strength; at the default 5 mm
+mesh the disk holds only the element itself, and a damage zone only a few
+elements across is under-resolved (see [Limitations](#limitations)). The solver also implements Puck; `BvidAnalysis` does not
 expose a criterion choice, and an unknown criterion name raises
 `ValueError`.
 
@@ -593,7 +598,7 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension at 30 J: 0.33 against empirical 0.36, see
+  zone (16-ply QI tension at 30 J: 0.298 against empirical 0.361, see
   [Limitations](#limitations)), but its damage-zone stiffness is fitted to
   only three CAI coupons. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
@@ -619,9 +624,9 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   calls the rest generic values. AS4/3501-6, T700/2510 and T800/epoxy
   have no cited source.
 - Validation covers CAI only. TAI has no measured dataset, and fe3d is not
-  run on the measured datasets in CI (it gives 172 MPa against the measured
-  178 MPa on the first NCAMP coupon, one of the three coupons its
-  damage-zone factor is fitted to, `validation/README.md`).
+  run on the measured datasets in CI (it gives 144.5 MPa against the
+  measured 177.7 MPa, 18.7% low, on the first NCAMP coupon, one of the
+  three coupons its damage-zone factor is fitted to, `validation/README.md`).
 - **The TAI model is unvalidated and likely conservative.** It sizes the
   equivalent hole from the whole delamination footprint, has no
   finite-width correction, and at BVID sizes sits near its large-hole
@@ -646,40 +651,59 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   cohesive surfaces with bilinear traction-separation laws and a continuum
   damage model. Cohesive surfaces are deferred to a future release. The
   damage-zone in-plane factor is uniform over the footprint. Its value,
-  0.17, is fitted to three measured CAI coupons, with the delaminations
-  kept inside the ASTM D7136 impact window: the first NCAMP AS4/8552 and
-  the first Lovejoy & Scotti IM7/8552 quasi-isotropic coupons (3.2% and
-  1.2% low) and the first Lovejoy & Scotti 40-ply hard laminate (4.7%
-  high). Since the template takes ply angles modulo 180° (step 5) and the
-  ply stiffness uses `ν23`, the same factor gives 14.4% low, 10.8% high
-  and 10.8% high; it has not been refitted. Before the footprint was
+  0.15, is fitted in-sample to three measured CAI coupons, with the
+  delaminations kept inside the ASTM D7136 impact window: it puts the first
+  Lovejoy & Scotti IM7/8552 quasi-isotropic coupon and their first 40-ply
+  hard laminate 3.3% and 2.8% high and the first NCAMP AS4/8552 coupon
+  18.7% low, the lowest mean error (8.3%) of the factors tried. The NCAMP
+  coupon wants about 0.21 and the Lovejoy & Scotti coupons about 0.145, so
+  no single factor fits both families within 5%; fe3d strengths are
+  qualitative. (With the template before it took ply angles modulo 180°,
+  step 5, and the ply stiffness before it used `ν23`, 0.17 fitted all
+  three within 5%.) Before the footprint was
   confined, the hard laminate's template footprint was 108 × 108 mm on a
   102 mm wide coupon: the soft zone spanned the whole section, the 0°
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  below the empirical tier's (16-ply QI 0.32 against 0.36, 24-ply QI 0.31
-  against 0.36); the damage area
-  there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
+  below the empirical tier's (16-ply QI 0.298 against 0.361, 24-ply QI
+  0.314 against 0.361); the damage area
+  there (about 2,500–2,570 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
   (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances
-  of CFRP notched strength). Apart from that length, the stress
+  of CFRP notched strength), each element weighted by its overlap with the
+  disk. Apart from that length, the stress
   concentration at the edge of the soft damage zone depends on the zone's
   shape and on the panel width, not on its absolute size, so fe3d's
   notch-size effect is weaker than that of the empirical tier's Soutis and
-  Whitney-Nuismer models. With the averaging and the area-weighted zone
-  the result is mesh-converged: going from 5 mm to 2.5 mm elements changes
-  the 15 J knockdown on 8-ply IM7/8552 150 × 100 mm panels by 0.8% (QI
-  tension, 0.4209 to 0.4243), 3.1% (cross-ply tension, 0.2296 to 0.2368),
-  0.2% (cross-ply compression, 0.2488 to 0.2493) and 0.9% (QI
-  compression, 0.4260 to 0.4300). A centroid-assigned zone checked at
-  single Gauss points changed by 5.3%, 24.2%, 27.6% and 3.3%, and its
-  undamaged QI first-ply failure stress fell from 594.8 to 506.6 MPa (now
-  598.2 and 597.2 MPa). At the default 5 mm mesh the disk holds only the
-  element itself. Cohesive surfaces and proper load-introduction BCs are
-  left to a future release.
+  Whitney-Nuismer models. At the default 5 mm mesh the disk holds only
+  the element itself. Cohesive surfaces and proper load-introduction BCs
+  are left to a future release.
+- **At the default 5 mm mesh a small `fe3d` damage zone is
+  under-resolved.** On 8-ply IM7/8552 150 × 100 mm panels at 15 J (damage
+  area about 710 mm² cross-ply, 855 mm² QI) the knockdown is:
+
+    | Case | 5 mm | 2.5 mm | 2.0 mm |
+    |---|---|---|---|
+    | QI [0/45/−45/90]s, tension | 0.340 | 0.325 | – |
+    | QI, compression | 0.309 | 0.296 | 0.292 |
+    | Cross-ply [0/90/0/90]s, tension | 0.239 | 0.207 | – |
+    | Cross-ply, compression | 0.217 | 0.185 | 0.170 (1.67 mm: 0.174) |
+
+    The fine meshes converge (2.0 to 1.67 mm within 2.4%), but at 5 mm,
+    where the zone is a few elements across, the cross-ply knockdown is
+    about 25% above its converged value and the QI one about 6%. The
+    calibration coupons' damage areas (2,800–6,500 mm²) are well resolved
+    at 5 mm. Use 2.5 mm or finer when the damage area is below about
+    1,500 mm² (about 35 s for an 8-ply 150 × 100 mm panel);
+    `FE3D_MAX_DOF` (150,000) admits such a panel down to about 1.67 mm.
+    Before the averaging disk was weighted by element overlap it counted
+    whole elements by their centres and shrank with the mesh, and the
+    cross-ply compression knockdown kept falling (0.186 / 0.165 at 2.5 /
+    2.0 mm).
+
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
   enclosing rectangle, a fixed mixed-mode phase angle (52.1°; at a buckled

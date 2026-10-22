@@ -50,7 +50,7 @@ Implications for BVID-FE:
   on dense meshes. It also solves twice per run (damaged and undamaged
   panel, to normalise the knockdown): the default 8-ply 150 × 100 mm
   panel at the default 5 mm mesh (4,800 elements, about 17,600 DOF)
-  takes about 5 s (about 30 s at 2.5 mm), and thick laminates or finer
+  takes about 5 s (about 35 s at 2.5 mm), and thick laminates or finer
   meshes take longer. The Streamlit
   app defaults to the **empirical** tier and refuses an fe3d run whose
   estimated mesh exceeds `BVIDFE_FE3D_MAX_DOF` (150,000 degrees of freedom

@@ -111,7 +111,7 @@ constants are in [`validation/README.md`](validation/README.md).
 | Delamination threshold load `P_c` | `pi sqrt(8 G_IIc sqrt(D11 D22) / 9)` | `pi sqrt(32 D* G_IIc / 3)`, Olsson's `D*` (3.5x higher) |
 | Impactor diameter exponent on the damage area | 0.3 | 0.2 (not applied to cones) |
 | IM7/8552 `Xt` | 2560 MPa | 2238 MPa (NCAMP cross-ply back-out) |
-| fe3d `DAMAGE_ZONE_INPLANE_FACTOR` | (no damage zone) | 0.17 |
+| fe3d `DAMAGE_ZONE_INPLANE_FACTOR` | (no damage zone) | 0.15 |
 
 A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
 `olsson_alpha` defaults should set them explicitly, or be recalibrated
@@ -236,7 +236,8 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
   weakest delaminated interface.
 - **fe3d**: the damage zone (every ply under the delamination footprints)
   is a soft inclusion with in-plane stiffness x`DAMAGE_ZONE_INPLANE_FACTOR`
-  = 0.17, fitted to three measured CAI coupons. Its elements fail at the
+  = 0.15, fitted in-sample to three measured CAI coupons (Lovejoy & Scotti
+  within 3%, NCAMP 19% low; see *Fixed*). Its elements fail at the
   strain intact material would, and the failure stress is the loaded-edge
   reaction force over the gross section. CAI is
   `min(delamination growth, first-ply failure)`, normalised by an
@@ -297,11 +298,11 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
   NCAMP and Lovejoy & Scotti unchanged, Hasebe 23.28% -> 23.35% (per
   layup: cross-ply c8 23.2 -> 22.0%, c16 19.4 -> 27.7%, c24 22.6 -> 17.6%,
   QI q8 18.6 -> 19.3%, q16 23.2 -> 25.3%, q24 36.6 -> 37.4%, r0 34.6 ->
-  29.5%, r45 unchanged). fe3d on the three coupons that fix
-  `DAMAGE_ZONE_INPLANE_FACTOR` = 0.17 (5 mm mesh): NCAMP #0 -3.2% ->
-  -12.0%, Lovejoy & Scotti QI #0 -1.2% -> +18.9%, hard #4 +4.7% ->
-  +12.7%. The factor is not refitted here. The cross-ply CLI snapshot's
-  damage area moves by 1.2e-6.
+  29.5%, r45 unchanged). fe3d on the three calibration coupons at the
+  then factor 0.17 (5 mm mesh, before the Olsson correction): NCAMP #0
+  -3.2% -> -12.0%, Lovejoy & Scotti QI #0 -1.2% -> +18.9%, hard #4 +4.7%
+  -> +12.7%. The factor is refitted after the nu23 fix (next entry).
+  The cross-ply CLI snapshot's damage area moves by 1.2e-6.
 - **fe3d's 3D ply stiffness uses nu23, not nu21, for the 2-3 coupling.**
   `get_compliance_matrix` set `S23 = -nu21 / E22`, a 2-3 Poisson ratio of
   about 0.02 for every preset, while the presets' own `G23` implies
@@ -310,12 +311,21 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
   `None` resolves to that value (`nu23_resolved`), and a value outside
   (-1, 1) or one that makes the compliance indefinite is rejected. Only
   the fe3d hex stiffness uses the 3D matrix: the closed-form tiers and the
-  CLI snapshots are unchanged. fe3d coupons (on top of the template fix):
-  NCAMP #0 -12.0% -> -14.4%, Lovejoy & Scotti QI #0 +18.9% -> +10.8%,
-  hard #4 +12.7% -> +10.8% (on the old template alone: -3.2% -> -5.9%,
-  -1.2% -> -3.6%, +4.7% -> +3.5%). With both fixes the fe3d tension
-  knockdown at 30 J (IM7/8552, 150 x 100 mm) is 0.316 for 16-ply QI (was
-  0.333) and 0.312 for 24-ply QI (unchanged). A `[90]_4`
+  CLI snapshots are unchanged. fe3d coupons at 0.17 (on top of the
+  template fix, before the Olsson correction): NCAMP #0 -12.0% -> -14.4%,
+  Lovejoy & Scotti QI #0 +18.9% -> +10.8%, hard #4 +12.7% -> +10.8% (on
+  the old template alone: -3.2% -> -5.9%, -1.2% -> -3.6%, +4.7% ->
+  +3.5%). With both fixes and the corrected Olsson threshold,
+  `DAMAGE_ZONE_INPLANE_FACTOR` is refitted 0.17 -> 0.15, the lowest mean
+  error on the three coupons (8.3%): NCAMP #0 -18.7% (144.5 against
+  177.7 MPa), Lovejoy & Scotti QI #0 +3.3% (151.7 against 146.8 MPa),
+  hard #4 +2.8% (242.3 against 235.7 MPa); 0.17 now gives -12.5% /
+  +11.3% / +11.1%. The coupons no longer share a factor (NCAMP wants about
+  0.21, Lovejoy & Scotti about 0.145), so the fe3d calibration is
+  in-sample and qualitative; the sweep is in `validation/README.md`. The
+  fe3d tension knockdown at 30 J (IM7/8552, 150 x 100 mm, 5 mm mesh) is
+  0.298 for 16-ply QI and 0.314 for 24-ply QI (0.333 and 0.312 before
+  these fixes; empirical 0.361). A `[90]_4`
   coupon in compression with simply-supported loaded edges now fails
   3-4% below `Yc / E22`: the `u_z = 0` restraint on the whole loaded face
   blocks the ply's through-thickness Poisson expansion (the ply-frame test
@@ -327,11 +337,18 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
   IM7/8552, 150 x 100 mm) moved 24-28% between 5 and 2.5 mm meshes. Edge
   elements now take the in-plane factor weighted by their area fraction
   inside the zone, and the failure index is averaged over a 2.5 mm disk
-  within each element layer (`FPF_AVERAGING_RADIUS_MM`). 5 -> 2.5 mm now
-  moves the 15 J knockdowns 0.2-3.1% (QI tension 0.421 -> 0.424,
-  cross-ply tension 0.230 -> 0.237, cross-ply compression 0.249 -> 0.249,
-  QI compression 0.426 -> 0.430). `DAMAGE_ZONE_INPLANE_FACTOR` stays 0.17
-  (calibration coupons -3.2% / -1.2% / +4.7%).
+  within each element layer (`FPF_AVERAGING_RADIUS_MM`), each element
+  weighted by the fraction of its area inside the disk (`_disk_kernel`).
+  Counting whole elements by their centres, the disk covered only the
+  element and its four neighbours at 2-2.5 mm and shrank with the mesh
+  (cross-ply compression 0.186 / 0.165 at 2.5 / 2.0 mm, still falling).
+  The fine meshes now converge (cross-ply compression 0.185 / 0.170 /
+  0.174 at 2.5 / 2.0 / 1.67 mm, QI compression 0.296 / 0.292 at 2.5 /
+  2.0 mm), but the default 5 mm mesh under-resolves a damage zone only a
+  few elements across (about 710-855 mm^2 here): 0.217 cross-ply and
+  0.309 QI compression, about 25% and 6% above the converged values. Use
+  2.5 mm or finer for damage areas below about 1,500 mm^2; the
+  calibration coupons' areas (2,800-6,500 mm^2) are resolved at 5 mm.
 - **Inputs that gave silent or deep errors**: NaN/inf geometry, ply
   thickness and angles; `ImpactEvent(location_xy_mm=[0, 0])` from JSON
   (now a tuple, still the panel centre); a delamination outside the panel,

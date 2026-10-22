@@ -182,7 +182,7 @@ C-scan layout; the CLI prints it).
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.6% (NCAMP AS4/8552) and 8.7% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.6% and 8.7% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 30 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.17) is fitted to three measured CAI coupons, quasi-isotropic and hard (within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
+| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 3%, NCAMP 19% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,500 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high). |
 
 ## Knockdown semantics
 
@@ -200,10 +200,10 @@ three tiers** — only the residual-strength numerator differs:
   first-ply failure for TAI, each divided by the same quantity on the
   undamaged panel (capped at 1) and applied to the pristine reference.
   First-ply failure runs on a mesh whose damage zone (the delamination
-  footprints, every ply) is softened in-plane ×0.17 with strain-equivalent
+  footprints, every ply) is softened in-plane ×0.15 with strain-equivalent
   strengths, an element partly inside the zone softened by its area
-  fraction. The failure index is averaged over a 2.5 mm disk in each layer
-  before it is checked, and the stress is the reaction force at failure
+  fraction. The failure index is averaged over a 2.5 mm disk in each layer,
+  each element weighted by its overlap with the disk, before it is checked, and the stress is the reaction force at failure
   over the gross section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
   reported in `result.buckling_eigenvalues` but does not set the strength;
   whole-panel buckling is left out because CAI fixtures carry anti-buckling

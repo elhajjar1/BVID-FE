@@ -77,11 +77,15 @@ _log.addHandler(logging.NullHandler())
 # before first-ply failure is checked (average-stress criterion, Whitney &
 # Nuismer 1974). A pointwise check has no length scale: at the re-entrant
 # corners of the damage-zone footprint the stress is singular, so the
-# pointwise failure load kept falling as the mesh was refined (cross-ply
-# knockdown 0.175 / 0.223 / 0.211 at 5 / 2.5 / 2 mm). Averaged over 2.5 mm,
-# with the zone weighted by element area fraction, it is 0.249 / 0.249 /
-# 0.238. 2.5 mm is about the characteristic distance of CFRP notched
-# strength (1-4 mm); at a 5 mm mesh the disk holds only the element itself.
+# pointwise failure load kept moving as the mesh was refined (cross-ply
+# knockdown 0.175 / 0.223 / 0.211 at 5 / 2.5 / 2 mm, old damage template).
+# Averaged over 2.5 mm, with the zone weighted by element area fraction and
+# the disk by element overlap (_disk_kernel), the 8-ply cross-ply 15 J CAI
+# knockdown is 0.217 / 0.185 / 0.170 / 0.174 at 5 / 2.5 / 2 / 1.67 mm: the
+# fine meshes converge, but 5 mm under-resolves a zone this small (about
+# 710 mm^2, a few elements across). 2.5 mm is about the characteristic
+# distance of CFRP notched strength (1-4 mm); at a 5 mm mesh the disk holds
+# only the element itself.
 FPF_AVERAGING_RADIUS_MM = 2.5
 
 

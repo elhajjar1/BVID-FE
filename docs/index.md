@@ -40,8 +40,8 @@ documentation conventions.
       capped by Soutis; Whitney-Nuismer for TAI (tens of milliseconds)
     - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
       modelled as a soft inclusion, normalised by an undamaged fe3d run;
-      LaRC05 for CAI, Tsai-Wu for TAI (about 15–30 s for an 8-ply
-      150 × 100 mm panel at the default mesh; see
+      LaRC05 for CAI, Tsai-Wu for TAI (about 5 s for an 8-ply
+      150 × 100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm; see
       [Tier choice](python_api.md#tier-choice))
 - **CAI and TAI loading modes** (Compression-After-Impact and
   Tension-After-Impact)
