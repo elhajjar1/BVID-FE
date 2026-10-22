@@ -25,6 +25,16 @@ All three sweep entry points (`sweep_energies`, `sweep_layups`,
     Callback exceptions are caught and logged at DEBUG so a misbehaving
     UI never aborts the sweep itself.
 
+Each returns a ``pandas.DataFrame`` with the swept input first
+(``energy_J``, ``layup`` as a ``"0/45/-45/90"`` string, or
+``ply_thickness_mm``) followed by ``knockdown``, ``residual_MPa``,
+``pristine_MPa``, ``dpa_mm2``, ``dent_mm``, ``n_delaminations``,
+``tier_used`` and ``error`` (NaN on success). A failed point keeps
+``n_delaminations = 0`` and ``tier_used = ""`` with NaN numbers. With
+``csv_path`` the frame is also written as CSV (no index). Each impact
+warning category (``SmallMassQuasiStaticWarning``, ``DPACapClipWarning``) is
+shown at most once per sweep.
+
 Together these make sweeps robust to a single bad input (a degenerate
 mesh, a Tsai-Wu invalid combination, an out-of-range Olsson regime) and
 preserve the partial CSV that previously evaporated when the sweep
@@ -223,7 +233,20 @@ def sweep_energies(
 ) -> pd.DataFrame:
     """Sweep impact energies; base_cfg must have `impact` set.
 
-    See module docstring for ``on_error`` and ``progress_callback`` semantics.
+    Each point is ``base_cfg`` with ``impact.energy_J`` replaced. Raises
+    ``ValueError`` when ``base_cfg.impact`` is ``None``. See the module
+    docstring for the columns, ``csv_path``, ``on_error`` and
+    ``progress_callback``.
+
+    Examples
+    --------
+    >>> from bvidfe import AnalysisConfig, ImpactEvent, PanelGeometry
+    >>> cfg = AnalysisConfig(material="IM7/8552", layup_deg=[0, 45, -45, 90, 90, -45, 45, 0],
+    ...                      ply_thickness_mm=0.152, panel=PanelGeometry(150, 100),
+    ...                      impact=ImpactEvent(energy_J=10.0))
+    >>> df = sweep_energies(cfg, [5, 10, 20])
+    >>> df["knockdown"].round(2).tolist()
+    [0.56, 0.46, 0.37]
     """
     if base_cfg.impact is None:
         raise ValueError("sweep_energies requires base_cfg.impact to be set")
@@ -253,7 +276,14 @@ def sweep_layups(
     on_error: str = "raise",
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
-    """Sweep layup sequences."""
+    """Sweep layup sequences.
+
+    Each point is ``base_cfg`` with ``layup_deg`` replaced; the ``layup``
+    column holds it as a ``"0/45/-45/90"`` string. A per-ply
+    ``ply_thickness_mm`` list in ``base_cfg`` must match every layup's
+    length. See the module docstring for the columns, ``csv_path``,
+    ``on_error`` and ``progress_callback``.
+    """
     rows: List[dict] = []
     n = len(layups)
     with _dedupe_impact_warnings():
@@ -277,7 +307,13 @@ def sweep_thicknesses(
     on_error: str = "raise",
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
-    """Sweep ply thickness values."""
+    """Sweep ply thickness values.
+
+    Each point is ``base_cfg`` with a uniform ``ply_thickness_mm`` (mm)
+    replacing the base value, a per-ply list included. See the module
+    docstring for the columns, ``csv_path``, ``on_error`` and
+    ``progress_callback``.
+    """
     rows: List[dict] = []
     n = len(ply_thicknesses_mm)
     with _dedupe_impact_warnings():

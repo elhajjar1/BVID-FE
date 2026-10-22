@@ -28,7 +28,25 @@ def _ellipse_polygon(e: "DelaminationEllipse", n_pts: int = 72) -> Polygon:
 
 @dataclass
 class DelaminationEllipse:
-    """A single delamination at a specific ply interface, in the panel XY frame."""
+    """A single delamination at a specific ply interface, in the panel XY frame.
+
+    Attributes
+    ----------
+    interface_index : int
+        Interface between plies ``interface_index`` and ``interface_index + 1``
+        (0-based, in ``layup_deg`` order); ``>= 0``. ``AnalysisConfig``
+        rejects an index past the last interface of its layup.
+    centroid_mm : tuple of float
+        Ellipse centre ``(x, y)`` in mm, in the frame of the panel analysed
+        (``0 <= x <= Lx_mm``, x the load direction).
+    major_mm, minor_mm : float
+        Semi-axes in mm (``> 0``); ``area_mm2 = pi * major_mm * minor_mm``.
+    orientation_deg : float
+        Angle of the ``major_mm`` axis from the panel x axis, counterclockwise.
+
+    Raises ``ValueError`` for a non-positive semi-axis or a negative
+    ``interface_index``.
+    """
 
     interface_index: int
     centroid_mm: Tuple[float, float]
@@ -68,7 +86,29 @@ class DelaminationEllipse:
 
 @dataclass
 class DamageState:
-    """Full BVID damage description handed between impact mapping and solvers."""
+    """Full BVID damage description handed between impact mapping and solvers.
+
+    Attributes
+    ----------
+    delaminations : list of DelaminationEllipse
+        The delaminations; empty for an undamaged panel.
+    dent_depth_mm : float
+        Residual dent depth on the impact face (mm). Stored and reported;
+        no tier's strength uses it.
+    fiber_break_radius_mm : float
+        Radius (mm) of the fibre-break core; fe3d softens the elements
+        within it of any delamination centroid. ``0`` disables it.
+
+    ``projected_damage_area_mm2`` (the DPA) is the area of the union of the
+    footprints, each drawn as a 72-sided polygon (about 0.1% below the
+    exact ellipse area).
+
+    Examples
+    --------
+    >>> d = DamageState([DelaminationEllipse(3, (75.0, 50.0), 20.0, 10.0, 45.0)])
+    >>> round(d.projected_damage_area_mm2)
+    628
+    """
 
     delaminations: List[DelaminationEllipse] = field(default_factory=list)
     dent_depth_mm: float = 0.0

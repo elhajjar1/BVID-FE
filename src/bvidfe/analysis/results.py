@@ -98,6 +98,40 @@ class AnalysisResults:
     semi_analytical, and the lower of whole-panel and sublaminate buckling
     stress (MPa) for fe3d. ``critical_sublaminate`` is the interface whose
     delamination grows at the lowest stress (CAI only).
+
+    Attributes
+    ----------
+    residual_strength_MPa : float
+        Damaged strength (MPa) from the selected tier.
+    pristine_strength_MPa : float
+        Unnotched laminate strength (MPa), identical for every tier.
+    knockdown : float
+        ``residual_strength_MPa / pristine_strength_MPa`` (``0.0`` if the
+        pristine strength is not positive).
+    damage : DamageState
+        The damage state analysed: the given one, or the one predicted from
+        the impact (placed on ``panel``).
+    dpa_mm2 : float
+        ``damage.projected_damage_area_mm2``, the plan-view union area (mm²).
+    tier_used : str
+        The tier that ran.
+    config_snapshot : dict
+        ``dataclasses.asdict`` of the ``AnalysisConfig`` (a custom material
+        expanded to a dict), for provenance.
+    buckling_eigenvalues : list of float, optional
+        One value: N/mm for semi_analytical CAI, MPa for fe3d CAI. ``None``
+        for the empirical tier, for tension, and when there is no
+        delamination (semi_analytical) or no positive buckling stress (fe3d).
+    critical_sublaminate : int, optional
+        Interface index from
+        :func:`~bvidfe.analysis.semi_analytical.weakest_sublaminate_growth`
+        for semi_analytical and fe3d CAI; ``None`` otherwise.
+    field_results : FieldResults, optional
+        Always ``None`` at present.
+    notes : list of str
+        Human-readable diagnostics (see above).
+    warnings : list of str
+        Machine-readable tags; always empty at present (see below).
     """
 
     residual_strength_MPa: float
@@ -129,6 +163,9 @@ class AnalysisResults:
         )
 
     def summary(self) -> str:
+        """Multi-line, human-readable report: tier, strengths, knockdown,
+        damage area, dent depth, number of delaminations, then any
+        ``notes`` and ``warnings``."""
         lines = [
             "BVID Analysis Results",
             f"  tier_used              : {self.tier_used}",
@@ -150,6 +187,17 @@ class AnalysisResults:
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
+        """JSON-serialisable dict of the result (the CLI's JSON output).
+
+        Keys: ``residual_strength_MPa``, ``pristine_strength_MPa``,
+        ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage`` (in the
+        C-scan JSON layout without ``schema_version``),
+        ``buckling_eigenvalues``, ``critical_sublaminate``,
+        ``config_snapshot``, ``notes`` and ``warnings``. ``field_results``
+        is left out. ``config_snapshot`` holds the config's dataclasses as
+        dicts, with tuples kept as tuples (``json.dumps`` writes them as
+        lists).
+        """
         out = {
             "residual_strength_MPa": self.residual_strength_MPa,
             "pristine_strength_MPa": self.pristine_strength_MPa,
