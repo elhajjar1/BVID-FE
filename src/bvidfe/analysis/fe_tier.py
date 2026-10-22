@@ -15,10 +15,11 @@ zone (every ply under the union of the delamination footprints) is softened
 in-plane by ``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``, each element weighted by
 the fraction of its area inside the zone, and its elements see the effective
 stress of strain equivalence. The failure index, in each ply's material
-frame, is averaged over each element's Gauss points and then over the
-elements of the same through-thickness layer within
-``FPF_AVERAGING_RADIUS_MM`` (2.5 mm) of it before it is checked against 1;
-at the default 5 mm mesh that disk holds only the element itself. The
+frame, is averaged over each element's Gauss points and then over a disk
+of ``FPF_AVERAGING_RADIUS_MM`` (2.5 mm) in the same through-thickness
+layer, each element weighted by its area inside the disk, before it is
+checked against 1; at the default 5 mm mesh that disk holds only the
+element itself. The
 failure stress is the reaction force on the loaded edge over the gross
 section. ``BvidAnalysis`` divides the damaged result by the same quantity
 on the undamaged mesh and applies the ratio to the pristine strength.
