@@ -32,7 +32,7 @@ config = AnalysisConfig(material="IM7/8552", layup_deg=[0,45,-45,90,90,-45,45,0]
                         loading="compression", tier="empirical",
                         impact=ImpactEvent(energy_J=10))
 result = BvidAnalysis(config).run()
-print(result.knockdown)   # 0.4609...
+print(f"{result.knockdown:.3f}")   # 0.461
 ```
 
 ## Workflow paths
@@ -140,9 +140,9 @@ JSON-serialisable dict.
 
 | tier | Runtime | Validation status | Good for |
 |---|---|---|---|
-| `empirical` | < 1 s | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 9.0% (Lovejoy & Scotti IM7/8552); expect about 6–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
-| `semi_analytical` | < 1 s | Same datasets: MAE 1.5% and 9.0% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.17) is fitted to three measured CAI coupons, quasi-isotropic and hard (within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
+| `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 9.0% (Lovejoy & Scotti IM7/8552); expect about 6–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
+| `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 9.0% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
+| `fe3d` | Tens of seconds (two FE solves; about 15–30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, minutes for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.17) is fitted to three measured CAI coupons, quasi-isotropic and hard (within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
 ## Knockdown semantics
 
@@ -252,8 +252,8 @@ from bvidfe.failure.puck import puck_index
 
 m = MATERIAL_LIBRARY["IM7/8552"]
 s = [-800.0, 20.0, 0.0, 0.0, 0.0, 30.0]
-print(tsai_wu_index(m, s), larc05_index(m, s), puck_index(m, s))
-# 0.7227... 0.2531... 0.5031...
+print(f"{tsai_wu_index(m, s):.3f} {larc05_index(m, s):.3f} {puck_index(m, s):.3f}")
+# 0.705 0.253 0.503
 ```
 
 `FailureEvaluator(material, criterion)` (`bvidfe.failure.evaluator`;

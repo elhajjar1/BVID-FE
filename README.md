@@ -16,7 +16,7 @@ A Python library for predicting residual strength and stiffness of fiber-reinfor
 
 ## Why This Tool?
 
-Low-velocity impacts on composite structures can create internal delaminations that are invisible to the naked eye yet significantly degrade compression and tension strength. Engineers certifying composite airframes and pressure vessels need quick estimates of how much strength is lost and how the knockdown (residual strength divided by undamaged strength) depends on layup, panel size, and impact energy. BVID-FE provides three modeling tiers — from a closed-form empirical estimate that runs in tens of milliseconds to a 3D finite element solution that takes minutes — so the level of fidelity can be chosen for each stage of the design process.
+Low-velocity impacts on composite structures can create internal delaminations that are invisible to the naked eye yet significantly degrade compression and tension strength. Engineers certifying composite airframes and pressure vessels need quick estimates of how much strength is lost and how the knockdown (residual strength divided by undamaged strength) depends on layup, panel size, and impact energy. BVID-FE provides three modeling tiers — from closed-form estimates that run in tens of milliseconds to a 3D finite element solution that takes tens of seconds — so the level of fidelity can be chosen for each stage of the design process.
 
 BVID-FE is the third in a family of defect-specific composite tools, joining **PorosityFE** (porosity defects) and **WrinkleFE** (fiber waviness). The three tools share material models, laminate theory, failure criteria, and documentation conventions.
 
@@ -24,28 +24,52 @@ BVID-FE is the third in a family of defect-specific composite tools, joining **P
 
 - **Two workflow paths** converging on a shared `DamageState`:
   - *Impact-driven*: Olsson quasi-static threshold + energy-balance damage area + peanut-template distribution over the interfaces + empirical dent model
-  - *Inspection-driven*: C-scan JSON import per the documented schema (`docs/cscan_schema.md`)
+  - *Inspection-driven*: C-scan JSON import per the documented [schema](https://elhajjar1.github.io/BVID-FE/cscan_schema/)
 - **Three modeling tiers** for residual strength after BVID:
-  - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (under a second)
-  - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz sublaminate buckling + thin-film energy release rate + Benzeggagh-Kenane mixed-mode toughness, weakest interface governs), capped by Soutis; Whitney-Nuismer for TAI (under a second)
-  - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone modelled as a soft inclusion, normalised by an undamaged fe3d run; LaRC05 for CAI, Tsai-Wu for TAI (minutes)
+  - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (tens of milliseconds)
+  - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz sublaminate buckling + thin-film energy release rate + Benzeggagh-Kenane mixed-mode toughness, weakest interface governs), capped by Soutis; Whitney-Nuismer for TAI (tens of milliseconds)
+  - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone modelled as a soft inclusion, normalised by an undamaged fe3d run; LaRC05 for CAI, Tsai-Wu for TAI (tens of seconds; see [Which tier?](https://github.com/elhajjar1/BVID-FE#which-tier))
 - **CAI and TAI loading modes** (Compression-After-Impact and Tension-After-Impact)
 - **Pristine (unnotched) laminate strength** from classical lamination theory with ply-discount last-ply failure, checked against NCAMP unnotched test data
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with shapely-union projected damage area
 - **Six material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy
-- **Validation harness** (`validation/`) that scores the tiers against three measured CAI datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552, gated in CI; Hasebe et al. T800S/3900-2B, reported only); see [Validation](#validation)
+- **Validation harness** (`validation/`) that scores the tiers against three measured CAI datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552, gated in CI; Hasebe et al. T800S/3900-2B, reported only); see [Validation](https://github.com/elhajjar1/BVID-FE#validation)
 - **CLI** for single runs, several tiers in one call (`--tier empirical,semi_analytical`), and shell pipelines (`--quick`, `--quick-json`)
-- **Streamlit web app** with sidebar-driven `AnalysisConfig` and result tabs — Summary, Damage Map, Knockdown Curve (live empirical sweep around the current energy), 3D Damage (Plotly hex mesh coloured by damage factor), Buckling (tier-specific buckling indicator: `N_cr` in N/mm for `semi_analytical`, `σ_crit` in MPa for `fe3d`), Damage Severity (through-thickness sum of per-element `1 − damage_factor`; see [Physics Models](#damage-severity-heatmap)), Sweep (CSV-exportable parametric energy sweep), and Export NCR (a nonconformance report in Markdown or JSON with a *proposed* disposition that a Material Review Board must review). Cached runs, fe3d mesh-size guards, JSON/CSV downloads
+- **Streamlit web app** with sidebar-driven `AnalysisConfig` and result tabs — Summary, Damage Map, Knockdown Curve (live empirical sweep around the current energy), 3D Damage (Plotly hex mesh coloured by damage factor), Buckling (tier-specific buckling indicator: `N_cr` in N/mm for `semi_analytical`, `σ_crit` in MPa for `fe3d`), Damage Severity (through-thickness sum of per-element `1 − damage_factor`; see [Damage severity heatmap](https://github.com/elhajjar1/BVID-FE#damage-severity-heatmap)), Sweep (CSV-exportable parametric energy sweep), and Export NCR (a nonconformance report in Markdown or JSON with a *proposed* disposition that a Material Review Board must review). Cached runs, fe3d mesh-size guards, JSON/CSV downloads
 - **Parametric sweeps** over impact energy, layup, or ply thickness with CSV output
 - **2D plots**: damage map, knockdown curves, tier comparison charts
 - **Plotly 3D viz** for the damaged hex mesh (`bvidfe.viz.plotly_3d`)
 
+## Which tier?
+
+| Tier | Runtime | Validation status | Use it for |
+|---|---|---|---|
+| `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.5% and 9.0%, about 6–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated against data. | Screening, energy sweeps, design trade studies |
+| `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical`, not validated against data. | Checking whether delamination growth governs (low energy, cross-ply laminates) |
+| `fe3d` | About 15–30 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves); minutes for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted to three measured CAI coupons; not run on the measured datasets in CI | Stress-field context and damage through the thickness; not for allowables |
+
+All three report the knockdown against the same pristine strength; see
+[Knockdown definition](https://github.com/elhajjar1/BVID-FE#knockdown-definition-and-cross-tier-comparability)
+and [Validation](https://github.com/elhajjar1/BVID-FE#validation).
+
 ## Installation
+
+From PyPI:
+
+```bash
+pip install bvidfe            # library and the `bvidfe` command
+pip install "bvidfe[app]"     # also installs Streamlit, for the web app
+```
+
+The package contains the library and the CLI. The Streamlit app
+(`app.py`), the example scripts and data (`examples/`, including the
+`sample_cscan.json` used below), the Jupyter notebook and the validation
+harness and datasets are in the repository, so clone it to use those:
 
 ```bash
 git clone https://github.com/elhajjar1/BVID-FE.git
 cd BVID-FE
-pip install -e ".[dev]"
+pip install -e ".[dev]"       # tests, linters and Streamlit
 pytest -v
 ```
 
@@ -53,7 +77,7 @@ pytest -v
 
 ### Try it in Jupyter
 
-The fastest tour of the physics is [`examples/quickstart.ipynb`](examples/quickstart.ipynb) — a runnable notebook that walks through the Olsson damage threshold, peanut-template DPA distribution, Soutis CAI, and Whitney-Nuismer TAI with LaTeX derivations and inline Plotly damage map / knockdown sweep / 3D damage mesh visualisations. Open it with `jupyter notebook examples/quickstart.ipynb` (after `pip install -e . jupyter`).
+The fastest tour of the physics is [`examples/quickstart.ipynb`](https://github.com/elhajjar1/BVID-FE/blob/main/examples/quickstart.ipynb) — a runnable notebook that walks through the Olsson damage threshold, peanut-template DPA distribution, Soutis CAI, and Whitney-Nuismer TAI with LaTeX derivations and inline Plotly damage map / knockdown sweep / 3D damage mesh visualisations. Open it with `jupyter notebook examples/quickstart.ipynb` (from a clone, after `pip install -e . jupyter`).
 
 ### Streamlit web app
 
@@ -61,7 +85,7 @@ The fastest tour of the physics is [`examples/quickstart.ipynb`](examples/quicks
 streamlit run app.py
 ```
 
-Opens the BVID-FE web UI in your browser: configure material + layup, panel size, impact event or C-scan inspection, pick a tier, click **Run analysis**. Results appear across the Summary / Damage Map / Knockdown Curve / 3D Damage / Buckling / Damage Severity / Sweep / Export NCR tabs. Use the JSON / CSV download buttons to export results. See [DEPLOYMENT_STREAMLIT.md](DEPLOYMENT_STREAMLIT.md) for deploying a public URL on Streamlit Community Cloud.
+Opens the BVID-FE web UI in your browser: configure material + layup, panel size, impact event or C-scan inspection, pick a tier, click **Run analysis**. Results appear across the Summary / Damage Map / Knockdown Curve / 3D Damage / Buckling / Damage Severity / Sweep / Export NCR tabs. Use the JSON / CSV download buttons to export results. See [DEPLOYMENT_STREAMLIT.md](https://github.com/elhajjar1/BVID-FE/blob/main/DEPLOYMENT_STREAMLIT.md) for deploying a public URL on Streamlit Community Cloud.
 
 ### Command-line interface
 
@@ -89,8 +113,13 @@ comma-separated list), `--cscan scan.json` in place of `--energy`,
 bvidfe --material IM7/8552 --layup "0,45,-45,90,90,-45,45,0" \
        --thickness 0.152 --panel 150x100 --loading compression --energy 10 \
        --tier empirical,semi_analytical --quick-json
-# {"knockdown": 0.4609895085216997, "residual_strength_MPa": 277.186846370517, "pristine_strength_MPa": 601.2866697539371, "tier_used": "empirical"}
-# {"knockdown": 0.4609895085216997, "residual_strength_MPa": 277.186846370517, "pristine_strength_MPa": 601.2866697539371, "tier_used": "semi_analytical"}
+```
+
+prints one JSON line per tier (full precision; rounded here):
+
+```text
+{"knockdown": 0.461, "residual_strength_MPa": 277.2, "pristine_strength_MPa": 601.3, "tier_used": "empirical"}
+{"knockdown": 0.461, "residual_strength_MPa": 277.2, "pristine_strength_MPa": 601.3, "tier_used": "semi_analytical"}
 ```
 
 ### Python API — impact-driven path
@@ -100,7 +129,7 @@ from bvidfe.analysis import AnalysisConfig, BvidAnalysis
 from bvidfe.core.geometry import PanelGeometry, ImpactorGeometry
 from bvidfe.impact.mapping import ImpactEvent
 
-cfg = AnalysisConfig(
+impact_cfg = AnalysisConfig(
     material="IM7/8552",
     layup_deg=[0, 45, -45, 90] * 4,
     ply_thickness_mm=0.152,
@@ -113,7 +142,7 @@ cfg = AnalysisConfig(
     loading="compression",
     tier="semi_analytical",
 )
-result = BvidAnalysis(cfg).run()
+result = BvidAnalysis(impact_cfg).run()
 print(result.summary())
 ```
 
@@ -143,7 +172,7 @@ from bvidfe.core.geometry import PanelGeometry
 
 damage_state = load_cscan_json("examples/sample_cscan.json")
 
-cfg = AnalysisConfig(
+cscan_cfg = AnalysisConfig(
     material="AS4/3501-6",
     layup_deg=[0, 45, -45, 90] * 4,
     ply_thickness_mm=0.125,
@@ -152,28 +181,32 @@ cfg = AnalysisConfig(
     loading="compression",
     tier="empirical",
 )
-result = BvidAnalysis(cfg).run()
-print(f"Knockdown: {result.knockdown:.3f}")
+cscan_result = BvidAnalysis(cscan_cfg).run()
+print(f"Knockdown: {cscan_result.knockdown:.3f}")
 # Knockdown: 0.447
 ```
 
 ### Parametric sweep
 
+`sweep_energies` reruns an impact-driven config (here `impact_cfg` from
+above) at each energy and returns a pandas DataFrame:
+
 ```python
 from bvidfe.sweep.parametric_sweep import sweep_energies
 
 results_df = sweep_energies(
-    cfg,
+    impact_cfg,
     energies_J=[10, 20, 30, 40, 50],
     csv_path="knockdown_vs_energy.csv",
 )
+print(results_df[["energy_J", "knockdown", "dpa_mm2"]].round(3))
 ```
 
 ## Physics Models
 
 ### Empirical tier
 
-For CAI, the Soutis knockdown (after Soutis & Curtis 1996) scales the pristine strength by `1 / (1 + k_s·(DPA/A_ref)^m)`, where DPA is the projected damage area and `A_ref` = 15,000 mm² is the area of the 150 × 100 mm ASTM D7137 coupon (`SOUTIS_REFERENCE_AREA_MM2`). The reference area is fixed because impact damage is a local notch: it used to be the analysed panel's area, which sent the knockdown to 1 as the panel grew. The material constants `soutis_k_s` and `soutis_m` default to 4.7 and 0.5 for every preset; `k_s` = 4.7 is fitted to the two measured CAI datasets (see [Validation](#validation)). For TAI, the damage is treated as an equivalent circular hole of the same area, and the Whitney-Nuismer point-stress criterion gives the notched strength, with the orthotropic stress concentration `Kt_inf` from Lekhnitskii and a material characteristic distance `wn_d0_mm`. Both models are closed-form.
+For CAI, the Soutis knockdown (after Soutis & Curtis 1996) scales the pristine strength by `1 / (1 + k_s·(DPA/A_ref)^m)`, where DPA is the projected damage area and `A_ref` = 15,000 mm² is the area of the 150 × 100 mm ASTM D7137 coupon (`SOUTIS_REFERENCE_AREA_MM2`). The reference area is fixed because impact damage is a local notch: it used to be the analysed panel's area, which sent the knockdown to 1 as the panel grew. The material constants `soutis_k_s` and `soutis_m` default to 4.7 and 0.5 for every preset; `k_s` = 4.7 is fitted to the two gated measured CAI datasets (see [Validation](https://github.com/elhajjar1/BVID-FE#validation)). For TAI, the damage is treated as an equivalent circular hole of the same area, and the Whitney-Nuismer point-stress criterion gives the notched strength, with the orthotropic stress concentration `Kt_inf` from Lekhnitskii and a material characteristic distance `wn_d0_mm`. Both models are closed-form.
 
 ### Semi-analytical tier
 
@@ -187,6 +220,7 @@ A structured hexahedral mesh is built for the damaged laminate. Delaminated inte
 
 `AnalysisResults.knockdown` is computed in exactly one place — `BvidAnalysis.run()` (`src/bvidfe/analysis/bvid.py`):
 
+<!-- docs-test: skip (fragment) -->
 ```python
 knockdown = residual_strength_MPa / pristine_strength_MPa
 ```
@@ -229,7 +263,7 @@ The colorbar is therefore in units of "stacked OOP-stiffness loss contributions"
 `validation/validate_bvid_public.py` runs a tier on every case in
 `validation/datasets/` and reports the mean absolute error (MAE) between
 predicted and measured strength. Three datasets are measured CAI tests;
-details and sources are in [`validation/README.md`](validation/README.md).
+details and sources are in [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
 
 | Dataset | Material and layup | Coupons | Measured CAI (MPa) | Empirical MAE | Semi-analytical MAE |
 |---|---|---|---|---|---|
@@ -285,12 +319,12 @@ python validation/validate_bvid_public.py --tier semi_analytical \
 
 ## Limitations
 
-- `soutis_k_s` and the default `olsson_alpha` are calibrated on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J): `soutis_k_s` on their strengths, `olsson_alpha` on Lovejoy & Scotti's C-scan areas; see [Validation](#validation). `olsson_alpha` for T800S/3900-2B (0.047) and the impactor-shape and diameter factors are fitted to Hasebe et al.'s C-scan areas, the only open set that varies the impactor. The other impact-mapping constants (`dent_beta`, `dent_gamma`, the impactor-mass factor and related parameters) are uncalibrated defaults. The predicted damage area is within 13% of every Lovejoy & Scotti C-scan (in-sample) and at a median 1.03× of Hasebe et al.'s, but on Hasebe et al.'s coupons the knockdown still misses the effect of layup. Calibrate against coupon data for the material before using results in certification.
+- `soutis_k_s` and the default `olsson_alpha` are calibrated on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J): `soutis_k_s` on their strengths, `olsson_alpha` on Lovejoy & Scotti's C-scan areas; see [Validation](https://github.com/elhajjar1/BVID-FE#validation). `olsson_alpha` for T800S/3900-2B (0.047) and the impactor-shape and diameter factors are fitted to Hasebe et al.'s C-scan areas, the only open set that varies the impactor. The other impact-mapping constants (`dent_beta`, `dent_gamma`, the impactor-mass factor and related parameters) are uncalibrated defaults. The predicted damage area is within 13% of every Lovejoy & Scotti C-scan (in-sample) and at a median 1.03× of Hasebe et al.'s, but on Hasebe et al.'s coupons the knockdown still misses the effect of layup. Calibrate against coupon data for the material before using results in certification.
 - LaRC05 is implemented as a minimal Hashin-3D reduction. Full plane-search fiber-kinking is deferred to a future release.
 - The `fe3d` tier uses component-wise stiffness reduction (out-of-plane at delaminated interfaces, in-plane over the damage zone) instead of true cohesive surfaces with bilinear traction-separation laws and a continuum damage model. Cohesive surfaces are deferred to a future release. The damage-zone in-plane factor is uniform over the footprint. Its value, 0.17, is fitted to three measured CAI coupons, with the damage kept inside the ASTM D7136 impact window: the first NCAMP and the first Lovejoy & Scotti quasi-isotropic coupons (3.5% and 4.4% low) and the first Lovejoy & Scotti 40-ply hard laminate (1.9% high), so both laminate families fit within 5%. Before the footprint was confined the hard laminate's damage band spanned the 102 mm coupon and no single factor fitted both families (0.20 left it 47% low). On 150×100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is below the empirical tier's (16-ply QI 0.31 against 0.36, 24-ply QI 0.22 against 0.36); the damage area there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area at the cap would put the soft zone across the loaded edges.
 - **The `fe3d` first-ply failure has no characteristic length.** The stress concentration at the edge of the soft damage zone depends on the zone's shape and on the panel width, not on the zone's absolute size, so fe3d lacks the notch-size effect of the empirical tier's Soutis and Whitney-Nuismer models. It also depends on the mesh near the zone edge: going from 5 mm to 2.5 mm elements changes the 15 J tension knockdown on 8-ply IM7/8552 150×100 mm panels by 5.3% (QI, 0.4138 to 0.3920) and 24.2% (cross-ply, 0.1590 to 0.1975). Cohesive surfaces and proper load-introduction BCs are v0.3.0 scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses the straight-sided blister energy release rate over the delamination's enclosing rectangle, a fixed mixed-mode phase angle (52.1°), and treats the rest of the laminate as rigid. It is least accurate when the weakest sublaminate is near the mid-plane, which is common: the minimum over interfaces often lands on a 3-5 ply sublaminate. Once a sublaminate buckles at less than about 0.3× its steady-state growth stress `√(2E_f·G_c/h)`, the growth stress stays between 0.87× and 1× that value, so larger delaminations at the same interface lower it little and can raise it slightly. Knockdowns from this channel therefore follow impact energy mainly when a different interface becomes the weakest. In `fe3d` the first-ply failure of the softened damage zone falls with energy as well, so the fe3d CAI knockdown on IM7/8552 150×100 mm panels goes from 0.42 to 0.31 (16-ply QI, unchanged from 15 J on) and from 0.39 to 0.26 (8-ply QI) between 5 and 30 J, and changes least on an 8-ply cross-ply panel (0.22 to 0.19).
-- Validation covers CAI only: two carbon/8552 systems (gated) and T800S/3900-2B (reported, not gated). No measured TAI data is included, and the AS4/3501-6, T700/2510 and T800/epoxy presets have no measured residual-strength comparison. Candidate datasets are listed in [`validation/README.md`](validation/README.md).
+- Validation covers CAI only: two carbon/8552 systems (gated) and T800S/3900-2B (reported, not gated). No measured TAI data is included, and the AS4/3501-6, T700/2510 and T800/epoxy presets have no measured residual-strength comparison. Candidate datasets are listed in [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
 
 ## Citation
 
@@ -324,11 +358,12 @@ If you use BVID-FE in your research, please cite:
 - Daniel & Ishai (2006). *Engineering Mechanics of Composite Materials*, sec. 7.6 (ply-discount laminate strength).
 - NCAMP CAM-RP-2010-002 Rev A (2011). Hexcel 8552 AS4 unitape qualification, sections 2.3.31 and 4.31.
 - Lovejoy & Scotti (2019). Potential Weight Benefits of IM7/8552 Hybrid Thin-Ply Composites for Aircraft Structures. NASA Langley Research Center, NTRS 20200002432.
+- Hasebe, Higuchi, Yokozeki & Takeda (2025). Dataset of compression after impact testing on carbon fiber reinforced plastic laminates. *Data in Brief*, 60, 111509. Per-specimen data: Mendeley Data, doi:10.17632/8scdmfdcfb.3 (CC BY 4.0).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting bugs, suggesting features, and submitting pull requests.
+See [CONTRIBUTING.md](https://github.com/elhajjar1/BVID-FE/blob/main/CONTRIBUTING.md) for guidelines on reporting bugs, suggesting features, and submitting pull requests.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](https://github.com/elhajjar1/BVID-FE/blob/main/LICENSE) for details.

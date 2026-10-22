@@ -13,10 +13,10 @@ that are invisible to the naked eye yet significantly degrade compression and
 tension strength. Engineers certifying composite airframes and pressure vessels
 need quick estimates of how much strength is lost and how the knockdown
 (residual strength divided by undamaged strength) depends on layup, panel
-size, and impact energy. BVID-FE provides three modeling tiers — from a
-closed-form empirical estimate that runs in tens of milliseconds to a 3D
-finite-element solution that takes minutes — so the level of fidelity can be
-chosen for each stage of the design process.
+size, and impact energy. BVID-FE provides three modeling tiers — from
+closed-form estimates that run in tens of milliseconds to a 3D
+finite-element solution that takes tens of seconds — so the level of
+fidelity can be chosen for each stage of the design process.
 
 BVID-FE is the third in a family of defect-specific composite tools, joining
 **PorosityFE** (porosity defects) and **WrinkleFE** (fiber waviness). The three
@@ -32,15 +32,17 @@ documentation conventions.
     - *Inspection-driven*: C-scan JSON import per the documented schema
       (see [C-Scan Schema](cscan_schema.md))
 - **Three modeling tiers** for residual strength after BVID:
-    - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (under a
-      second)
+    - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (tens of
+      milliseconds)
     - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz
       sublaminate buckling + thin-film energy release rate +
       Benzeggagh-Kenane mixed-mode toughness, weakest interface governs),
-      capped by Soutis; Whitney-Nuismer for TAI (under a second)
+      capped by Soutis; Whitney-Nuismer for TAI (tens of milliseconds)
     - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
       modelled as a soft inclusion, normalised by an undamaged fe3d run;
-      LaRC05 for CAI, Tsai-Wu for TAI (minutes)
+      LaRC05 for CAI, Tsai-Wu for TAI (about 15–30 s for an 8-ply
+      150 × 100 mm panel at the default mesh; see
+      [Tier choice](python_api.md#tier-choice))
 - **CAI and TAI loading modes** (Compression-After-Impact and
   Tension-After-Impact)
 - **Per-interface ellipse damage model** using `DelaminationEllipse` with
@@ -49,14 +51,22 @@ documentation conventions.
   theory with ply-discount last-ply failure, within 0.83–1.14× of NCAMP
   unnotched tension and compression strengths
 - **Six material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy
-- **Validation harness** scored against two measured CAI datasets (see
-  [Validation](#validation) below)
+- **Validation harness** scored against three measured CAI datasets, two of
+  them gated in CI (see [Validation](#validation) below)
 - **CLI**, **Streamlit web app**, and **Python API**
 - **Parametric sweeps** over impact energy, layup, or ply thickness with
   CSV output
 - **2D / 3D visualisations** of damage and stress fields
 
 ## Installation
+
+```bash
+pip install bvidfe            # library and the `bvidfe` command
+pip install "bvidfe[app]"     # also installs Streamlit, for the web app
+```
+
+The examples, the notebook, the validation harness and the Streamlit app
+(`app.py`) are in the repository:
 
 ```bash
 git clone https://github.com/elhajjar1/BVID-FE.git
