@@ -234,6 +234,34 @@ is run on the first three synthetic cases as a smoke run, not a gate: the
 synthetic set is empirical-tier output, so its error there (23.8%) measures
 the difference between the tiers, not fe3d's accuracy.
 
+## Unnotched (pristine) strength
+
+Every tier divides by the same pristine strength, the unnotched laminate
+strength from ply-discount last-ply failure on classical lamination
+theory. `tests/validation/test_unnotched_strength_ncamp.py` checks it
+against the NCAMP RTD unnotched tension and compression strengths of
+AS4/8552 (CAM-RP-2010-002) and IM7/8552 (CAM-RP-2009-015) in the
+25/50/25, 10/80/10 and 50/40/10 layups, twelve values in all
+(predicted / measured):
+
+| Pristine strength | Range | Mean | Mean \|log error\| |
+|---|---|---|---|
+| Thickness-weighted ply-strength average (v0.2.0) | 1.17–2.85× | 1.75× | |
+| Laminate strength, unidirectional-coupon `Xt` | 0.83–1.19× | 1.00× | 10.9% |
+| Laminate strength, NCAMP cross-ply back-out `Xt` (current) | 0.83–1.14× | 0.97× | 8.4% |
+
+The 0.2.0 average treated the plies as sharing stress; they share strain,
+so the off-axis plies were credited with strength they never reach before
+the 0° fibres break. With the unidirectional-coupon `Xt` (AS4/8552
+1996 MPa, IM7/8552 2560 MPa) the 0° plies outlived the ±45 cracking and
+the fibre-governed tension strengths came out 5–19% high; NCAMP's
+cross-ply back-out value (1872 and 2238 MPa) is the 0° ply strength
+realised inside a laminate and puts the 50/40/10 laminates at
+0.99–1.02×. Where the ±45 plies cracking in shear sets the strength, one
+`S12` cannot fit both families: 25/50/25 tension is 4% (IM7/8552) and 14%
+(AS4/8552) high, 10/80/10 tension 10% low and 10/80/10 compression
+15–17% low.
+
 ## Next datasets
 
 From the literature survey of open CAI/TAI data, in priority order. Each
