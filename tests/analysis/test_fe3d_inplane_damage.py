@@ -180,17 +180,21 @@ def test_fe3d_tension_knockdown_responds_to_impact_damage():
 
 
 def test_fe3d_tension_knockdown_falls_with_impact_energy():
-    kd = [BvidAnalysis(_impact_cfg("tension", E)).run().knockdown for E in (5.0, 15.0)]
+    # Onset is about 7.2 J on this panel; 12 and 22 J give about 500 and
+    # 1,600 mm^2 of damage.
+    kd = [BvidAnalysis(_impact_cfg("tension", E)).run().knockdown for E in (12.0, 22.0)]
     assert kd[1] < kd[0] < 1.0, kd
 
 
 def test_fe3d_tension_knockdown_does_not_rise_as_the_damage_zone_spans_the_panel():
     """With full strengths in the damage zone, a zone spanning most of the
     panel lost its stress concentration and the panel looked stronger:
-    cross-ply tension 0.49 at 5 J -> 0.64 at 15 J on this mesh."""
+    cross-ply tension 0.49 at 5 J -> 0.64 at 15 J on this mesh (with the
+    onset energy then ~10x too low; onset is now 8.5 J, so the same damage
+    areas need about 12 and 22 J)."""
     cross_ply = [0, 90, 0, 90, 90, 0, 90, 0]
     kd = []
-    for energy_J in (5.0, 15.0):
+    for energy_J in (12.0, 22.0):
         cfg = AnalysisConfig(
             material="IM7/8552",
             layup_deg=cross_ply,

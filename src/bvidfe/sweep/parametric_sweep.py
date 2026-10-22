@@ -246,7 +246,7 @@ def sweep_energies(
     ...                      impact=ImpactEvent(energy_J=10.0))
     >>> df = sweep_energies(cfg, [5, 10, 20])
     >>> df["knockdown"].round(2).tolist()
-    [0.56, 0.46, 0.37]
+    [1.0, 0.59, 0.41]
     """
     if base_cfg.impact is None:
         raise ValueError("sweep_energies requires base_cfg.impact to be set")
