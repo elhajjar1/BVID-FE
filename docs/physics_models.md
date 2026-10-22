@@ -410,31 +410,36 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   damage-zone in-plane factor is uniform over the footprint. Its value,
   0.17, is fitted to three measured CAI coupons, with the delaminations
   kept inside the ASTM D7136 impact window: the first NCAMP AS4/8552 and
-  the first Lovejoy & Scotti IM7/8552 quasi-isotropic coupons (3.5% and
-  4.4% low) and the first Lovejoy & Scotti 40-ply hard laminate (1.9%
+  the first Lovejoy & Scotti IM7/8552 quasi-isotropic coupons (3.2% and
+  1.2% low) and the first Lovejoy & Scotti 40-ply hard laminate (4.7%
   high), so both laminate families fit within 5%. Before the footprint was
   confined, the hard laminate's template footprint was 108 × 108 mm on a
   102 mm wide coupon: the soft zone spanned the whole section, the 0°
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  below the empirical tier's (16-ply QI 0.31 against 0.36, 24-ply QI 0.22
+  below the empirical tier's (16-ply QI 0.33 against 0.36, 24-ply QI 0.31
   against 0.36); the damage area
   there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
-- **The `fe3d` first-ply failure has no characteristic length.** The
-  stress concentration at the edge of the soft damage zone depends on the
-  zone's shape and on the panel width, not on the zone's absolute size, so
-  fe3d lacks the notch-size effect of the empirical tier's Soutis and
-  Whitney-Nuismer models. It also depends on the mesh near the zone edge:
-  going from 5 mm to 2.5 mm elements changes the 15 J knockdown on 8-ply
-  IM7/8552 150 × 100 mm panels by 5.3% (QI tension, 0.4138 to 0.3920),
-  24.2% (cross-ply tension, 0.1590 to 0.1975), 27.6% (cross-ply
-  compression, 0.1748 to 0.2231) and 3.3% (QI compression, 0.4143 to
-  0.4280). In QI compression the damaged and undamaged first-ply failure
-  stresses both fall with the finer mesh (246.4 to 216.8 MPa and 594.8 to
-  506.6 MPa), and the ratio changes little. Cohesive surfaces and proper
-  load-introduction BCs are v0.3.0 scope.
+- **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
+  failure index is averaged over a 2.5 mm disk
+  (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances
+  of CFRP notched strength). Apart from that length, the stress
+  concentration at the edge of the soft damage zone depends on the zone's
+  shape and on the panel width, not on its absolute size, so fe3d's
+  notch-size effect is weaker than that of the empirical tier's Soutis and
+  Whitney-Nuismer models. With the averaging and the area-weighted zone
+  the result is mesh-converged: going from 5 mm to 2.5 mm elements changes
+  the 15 J knockdown on 8-ply IM7/8552 150 × 100 mm panels by 0.8% (QI
+  tension, 0.4209 to 0.4243), 3.1% (cross-ply tension, 0.2296 to 0.2368),
+  0.2% (cross-ply compression, 0.2488 to 0.2493) and 0.9% (QI
+  compression, 0.4260 to 0.4300). A centroid-assigned zone checked at
+  single Gauss points changed by 5.3%, 24.2%, 27.6% and 3.3%, and its
+  undamaged QI first-ply failure stress fell from 594.8 to 506.6 MPa (now
+  598.2 and 597.2 MPa). At the default 5 mm mesh the disk holds only the
+  element itself. Cohesive surfaces and proper load-introduction BCs are
+  left to a future release.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
   the straight-sided blister energy release rate over the delamination's
   enclosing rectangle, a fixed mixed-mode phase angle (52.1°; at a buckled

@@ -82,7 +82,9 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # [45/0/-45/90]4s coupon at -4.4% and their 40-ply hard laminate at +1.9%
 # (0.20: +4.7%, +6.6%, +12.4%; 0.15: -9.0%, -11.7%). Before the window
 # confinement the hard laminate's damage band spanned the coupon and no
-# single factor fitted both families (0.20 left it at -47%).
+# single factor fitted both families (0.20 left it at -47%). With the zone
+# weighted by element area fraction and the failure index averaged over
+# fe_tier.FPF_AVERAGING_RADIUS_MM, 0.17 gives -3.2%, -1.2% and +4.7%.
 DAMAGE_ZONE_INPLANE_FACTOR = 0.17
 
 # Sub-sampling grid (per side) for the fraction of an element's area inside
