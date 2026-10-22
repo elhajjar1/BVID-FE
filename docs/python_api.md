@@ -116,6 +116,45 @@ the damage footprint: every delamination ellipse is kept inside it,
 measured from the impact point. Without `impact_panel` the tested panel
 bounds it.
 
+## Configuration reference
+
+`AnalysisConfig` fields (lengths in mm, angles in degrees):
+
+| Field | Default | Meaning |
+|---|---|---|
+| `material` | required | Preset name from `MATERIAL_LIBRARY` or an `OrthotropicMaterial` |
+| `layup_deg` | required | Ply angles in stacking order; `0` is the load direction (x) |
+| `ply_thickness_mm` | required | One thickness for every ply, or a list with one per ply (`len(layup_deg)` entries) |
+| `panel` | required | `PanelGeometry(Lx_mm, Ly_mm, boundary="simply_supported")`, the tested panel; x is the load direction |
+| `loading` | `"compression"` | `"compression"` (CAI) or `"tension"` (TAI) |
+| `tier` | `"empirical"` | `"empirical"`, `"semi_analytical"` or `"fe3d"` |
+| `impact` | `None` | `ImpactEvent(energy_J, impactor=ImpactorGeometry(), mass_kg=5.5, location_xy_mm=(0.0, 0.0))`; `(0, 0)` means the panel centre |
+| `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
+| `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
+| `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
+
+`MeshParams` fields (fe3d only):
+
+| Field | Default | Meaning |
+|---|---|---|
+| `elements_per_ply` | `1` | Hex elements through each ply (a positive `int`) |
+| `in_plane_size_mm` | `5.0` | Target element edge; the mesh has `ceil(Lx_mm / size)` × `ceil(Ly_mm / size)` equal elements |
+| `cohesive_zone_factor` | `1.0` | Reserved for cohesive surfaces; validated (> 0) but not used |
+
+The first-ply failure index is averaged over a 2.5 mm disk
+(`FPF_AVERAGING_RADIUS_MM` in `bvidfe.analysis.fe_tier`), so at the
+default 5 mm mesh it is checked element by element; finer meshes average
+over neighbouring elements. Check the size of a mesh before running it:
+
+```python
+from dataclasses import replace
+from bvidfe import MeshParams
+from bvidfe.analysis.fe_mesh import estimate_fe_mesh_size
+
+fine = replace(config, tier="fe3d", mesh=MeshParams(in_plane_size_mm=2.5))
+print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 500,000)
+```
+
 ## Results
 
 `AnalysisResults` fields:
@@ -127,14 +166,15 @@ bounds it.
 | `knockdown` | `residual_strength_MPa / pristine_strength_MPa` |
 | `damage`, `dpa_mm2` | The `DamageState` used and its projected damage area (mm²) |
 | `tier_used`, `config_snapshot` | Provenance |
-| `buckling_eigenvalues` | Buckling *onset*, not strength: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI, else `None` |
-| `critical_sublaminate` | CAI only: interface whose delamination grows at the lowest stress |
-| `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here |
+| `buckling_eigenvalues` | Buckling *onset*, not strength, as a one-element list: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI; `None` for `empirical`, for TAI and for `semi_analytical` without delaminations |
+| `critical_sublaminate` | `semi_analytical` and `fe3d` CAI: interface whose delamination grows at the lowest stress; else `None` |
+| `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here (and, for CAI, the delamination-growth and whole-panel buckling stresses). Impact-mapping regimes are Python warnings, not notes |
 | `warnings` | Machine-readable tags; no backend emits one at present |
 | `field_results` | Always `None` for now |
 
 `result.summary()` returns a printable block and `result.to_dict()` a
-JSON-serialisable dict.
+JSON-serialisable dict (every field but `field_results`, the damage in the
+C-scan layout; the CLI prints it).
 
 ## Tier choice
 
@@ -161,8 +201,10 @@ three tiers** — only the residual-strength numerator differs:
   undamaged panel (capped at 1) and applied to the pristine reference.
   First-ply failure runs on a mesh whose damage zone (the delamination
   footprints, every ply) is softened in-plane ×0.17 with strain-equivalent
-  strengths, and its stress is the reaction force at failure over the gross
-  section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
+  strengths, an element partly inside the zone softened by its area
+  fraction. The failure index is averaged over a 2.5 mm disk in each layer
+  before it is checked, and the stress is the reaction force at failure
+  over the gross section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
   reported in `result.buckling_eigenvalues` but does not set the strength;
   whole-panel buckling is left out because CAI fixtures carry anti-buckling
   guides, and its stress is recorded in `result.notes`.
@@ -198,10 +240,14 @@ df.to_csv("sweep.csv")
 `sweep_energies` needs a config with `impact` set. `sweep_layups(config,
 layups=[...])` and `sweep_thicknesses(config, ply_thicknesses_mm=[...])`
 put `layup` or `ply_thickness_mm` in the first column instead. All three
-take `csv_path=` to write the CSV directly, `on_error=` (`"raise"`
-(default), `"skip"` or `"warn"`; a failed point becomes a row of NaNs with
-the message in `error`), and `progress_callback=` (called as
-`cb(i, n)` or `cb(i, n, inputs)`).
+take `csv_path=` to write the CSV directly (no index column), `on_error=`
+(`"raise"` (default), `"skip"` or `"warn"`; a failed point keeps its input,
+NaN numbers, `n_delaminations=0`, `tier_used=""` and the message in
+`error`, which is NaN on success), and `progress_callback=` (called as
+`cb(i, n)` or `cb(i, n, inputs)`, where `inputs` is e.g.
+`{"energy_J": 10.0}`). `sweep_thicknesses` sets a uniform thickness, so it
+replaces a per-ply list. Each impact warning category is shown once per
+sweep.
 
 ## Visualization
 
@@ -282,25 +328,72 @@ interface, its buckling load (N/mm), the film buckling and growth stresses
 and the far-field growth stress (MPa); see
 [Physics Models](physics_models.md#semi-analytical-tier).
 
+The tiers' residual-strength functions take the laminate, the damage and
+the pristine strength (MPa):
+
+```python
+from bvidfe.failure.soutis_openhole import SOUTIS_REFERENCE_AREA_MM2, soutis_cai
+from bvidfe.analysis.semi_analytical import semi_analytical_cai
+
+damage = load_cscan_json("examples/sample_cscan.json")
+sigma_0 = unnotched_strength(lam, "compression")
+dpa = damage.projected_damage_area_mm2
+print(SOUTIS_REFERENCE_AREA_MM2)                  # 15000.0 (the 150 x 100 mm coupon)
+print(f"{soutis_cai(lam.material, dpa, SOUTIS_REFERENCE_AREA_MM2, sigma_0):.0f}")   # 269 MPa
+r = semi_analytical_cai(lam, damage, sigma_0, boundary="clamped")
+print(f"{r.residual_strength_MPa:.0f}", r.critical_interface_index)   # 269 4
+```
+
+`soutis_cai(m, dpa_mm2, A_ref_mm2, sigma_pristine_MPa)` is the empirical
+CAI strength `sigma_pristine_MPa / (1 + m.soutis_k_s * (dpa_mm2 /
+A_ref_mm2) ** m.soutis_m)`; `BvidAnalysis` passes
+`SOUTIS_REFERENCE_AREA_MM2` (15,000 mm², fixed, not the panel area).
+`semi_analytical_cai(lam, damage, sigma_pristine_MPa,
+A_ref_mm2=SOUTIS_REFERENCE_AREA_MM2, boundary="simply_supported")` returns
+a `SemiAnalyticalResult` (`residual_strength_MPa`,
+`critical_interface_index`, `critical_buckling_load_N` in N/mm), the
+lower of that Soutis bound and the delamination growth stress; `boundary`
+scales the sublaminate buckling load (clamped ×1.9, free ×0.5).
+`whitney_nuismer_tai(m, dpa_mm2, sigma_pristine_MPa, Kt_inf)` (same
+module) is the TAI counterpart; pass `Kt_inf=lekhnitskii_kt_infinity(lam)`.
+
+`impact_to_damage(event, lam, panel)` (`bvidfe.impact.mapping`) is the
+impact model on its own, and `save_cscan_json(damage, path)`
+(`bvidfe.damage.io`) writes any `DamageState`, for example
+`result.damage`, as C-scan JSON for an inspection-driven rerun.
+
 ## CLI
 
-Available flags:
+`bvidfe` (or `python -m bvidfe.cli`) runs one analysis per tier and prints
+the result:
+
 ```
-bvidfe --help
-bvidfe --version
-bvidfe --list-materials
-bvidfe --material NAME --layup 0,45,-45,90 --thickness 0.152 \
-       --panel 150x100 --loading compression --tier empirical \
-       --energy 30                                # impact-driven
-bvidfe ... --energy 30 --impactor-diameter 16 --mass 5.5   # impactor (defaults shown)
-bvidfe ... --cscan path.json                      # inspection-driven
-bvidfe ... --tier empirical,semi_analytical,fe3d  # several tiers in one call
-bvidfe ... --quick                                # knockdown scalar only
-bvidfe ... --quick-json                           # knockdown, strengths and tier as one-line JSON
+bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
+       --panel 150x100 --loading compression --energy 10 --quick
+# 0.461 (printed to six decimals)
 ```
 
-`--thickness` also takes a comma-separated list with one thickness per ply.
-Without `--quick` / `--quick-json` the full result is printed as JSON.
+| Flag | Default | Meaning |
+|---|---|---|
+| `--material NAME` | required | Preset: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800/epoxy`, `T800S/3900-2B` |
+| `--layup A,B,...` | required | Comma-separated ply angles in degrees |
+| `--thickness T` | required | Ply thickness in mm, or a comma-separated list with one per ply |
+| `--panel 150x100` | required | Panel size in mm, e.g. `150x100` (simply supported; the CLI has no boundary option) |
+| `--loading` | required | `compression` or `tension` |
+| `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
+| `--energy J` | — | Impact energy in J (impact-driven); exactly one of `--energy` and `--cscan` |
+| `--cscan PATH` | — | C-scan JSON file (inspection-driven) |
+| `--impactor-diameter D` | `16.0` | Impactor diameter in mm (hemispherical; the CLI has no shape option) |
+| `--mass M` | `5.5` | Impactor mass in kg |
+| `--quick` | off | Print only the knockdown (6 decimals) |
+| `--quick-json` | off | Print `{knockdown, residual_strength_MPa, pristine_strength_MPa, tier_used}` as one-line JSON |
+| `--list-materials` | — | List the presets (E11, E22, Xt, Xc, Yt, Yc in MPa) and exit |
+| `--version`, `-h/--help` | — | Print the version or the help and exit |
+
+Without `--quick` / `--quick-json` the full result is printed as JSON
+(`AnalysisResults.to_dict()`). With several tiers the output is a JSON
+array, one JSON line per tier (`--quick-json`), or `tier<TAB>knockdown`
+lines (`--quick`). `--quick` and `--quick-json` cannot be combined.
 
 ## Adding a custom material
 
@@ -361,7 +454,9 @@ BVIDFE_LOG_LEVEL=WARNING bvidfe ...    # DEBUG, INFO (default), WARNING, ERROR
 - `BVIDFE_FE3D_MAX_DOF` — hard cap on fe3d problem size (default 500,000).
   Above it `BvidAnalysis.run()` raises `FE3DSizeError`
   (`bvidfe.analysis.fe_tier`). Raise at your own risk; past this size
-  scipy's sparse solvers can exhaust memory and SIGSEGV.
+  scipy's sparse solvers can exhaust memory and SIGSEGV. A value that is
+  not a positive integer falls back to the default with a warning on
+  stderr. It is read once, at import.
 - `BVIDFE_LOG_LEVEL` — level of the `bvidfe.fe3d` logger; see above. An
   invalid value falls back to `INFO` with a warning on stderr.
 
