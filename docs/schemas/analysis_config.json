@@ -208,6 +208,12 @@
         "nu12": {
           "type": "number"
         },
+        "nu23": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "olsson_alpha": {
           "type": "number"
         },

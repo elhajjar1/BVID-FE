@@ -24,6 +24,10 @@ class OrthotropicMaterial:
     when material-specific through-thickness data are available — measured
     Zt is typically 20-40% lower than Yt for void-prone CFRP (Makeev et al.
     2012, *Composites Part A*).
+
+    The transverse Poisson ratio ``nu23`` of the 3D compliance is optional
+    too: ``None`` resolves (``nu23_resolved``) to ``E22 / (2 G23) - 1``, the
+    value G23 implies for a transversely isotropic ply.
     """
 
     name: str
@@ -71,6 +75,10 @@ class OrthotropicMaterial:
     # Puck-Schürmann 1998 (Composites Sci. Tech. 58, 1045-1067).
     puck_p_nt_plus: float = 0.30
     puck_p_nt_minus: float = 0.25
+    # Transverse (2-3 plane) Poisson ratio of the 3D compliance. None = the
+    # transversely isotropic value E22 / (2 G23) - 1 implied by G23 (see
+    # ``nu23_resolved``); set it when nu23 is measured independently of G23.
+    nu23: Optional[float] = None
 
     def __post_init__(self) -> None:
         positive_fields = (
@@ -103,6 +111,21 @@ class OrthotropicMaterial:
                 raise ValueError(f"{k} must be >= 0 (got {v})")
         if not -1.0 < self.nu12 < 0.5:
             raise ValueError(f"nu12 out of physical range (got {self.nu12})")
+        nu23 = self.nu23_resolved
+        source = "nu23" if self.nu23 is not None else "nu23 = E22 / (2 G23) - 1"
+        if not -1.0 < nu23 < 1.0:
+            raise ValueError(
+                f"{source} = {nu23:.3g} is outside (-1, 1); "
+                "set nu23 explicitly or check E22 and G23"
+            )
+        # Positive-definite 3D compliance (Lempriere 1968): with E33 = E22 and
+        # nu13 = nu12, the normal block is positive definite iff
+        # (1 + nu23) (1 - nu23 - 2 nu12 nu21) > 0.
+        if 1.0 - nu23 - 2.0 * self.nu12 * self.nu21 <= 0.0:
+            raise ValueError(
+                f"{source} = {nu23:.3g} with nu12 = {self.nu12} gives a 3D compliance "
+                "that is not positive definite (need nu23 < 1 - 2 nu12 nu21)"
+            )
         # rho is kg/mm^3; realistic engineering materials span ~[1e-7, 1e-5]
         # (0.1 .. 10 g/cm^3). A value outside this range almost always means
         # the user followed the old (wrong) "t/mm^3" docstring and is 1000x
@@ -117,6 +140,14 @@ class OrthotropicMaterial:
     @property
     def nu21(self) -> float:
         return self.nu12 * self.E22 / self.E11
+
+    @property
+    def nu23_resolved(self) -> float:
+        """Transverse Poisson ratio nu23 of the 3D compliance. Falls back to
+        the transversely isotropic value ``E22 / (2 G23) - 1`` when not set."""
+        if self.nu23 is not None:
+            return self.nu23
+        return self.E22 / (2.0 * self.G23) - 1.0
 
     @property
     def Zt_resolved(self) -> float:
@@ -138,14 +169,20 @@ class OrthotropicMaterial:
 
     def get_compliance_matrix(self) -> np.ndarray:
         """Return the 6x6 orthotropic compliance matrix in Voigt notation
-        (engineering shear strains), material frame."""
+        (engineering shear strains), material frame.
+
+        Transversely isotropic in the 2-3 plane for the moduli: E33 = E22,
+        nu13 = nu12. The 2-3 coupling uses ``nu23_resolved`` (about 0.3-0.7
+        for CFRP), not nu21 = nu12 E22 / E11 (about 0.02), which is the
+        minor 1-2 ratio. Plane-stress CLT does not use this matrix.
+        """
         S = np.zeros((6, 6))
         S[0, 0] = 1.0 / self.E11
         S[1, 1] = 1.0 / self.E22
         S[2, 2] = 1.0 / self.E22
         S[0, 1] = S[1, 0] = -self.nu12 / self.E11
         S[0, 2] = S[2, 0] = -self.nu12 / self.E11
-        S[1, 2] = S[2, 1] = -self.nu21 / self.E22
+        S[1, 2] = S[2, 1] = -self.nu23_resolved / self.E22
         S[3, 3] = 1.0 / self.G23
         S[4, 4] = 1.0 / self.G13
         S[5, 5] = 1.0 / self.G12

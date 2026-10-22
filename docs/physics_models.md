@@ -237,6 +237,13 @@ quasi-isotropic ones), where the semi-analytical MAE is 23.3% against
 A structured hexahedral mesh of the whole panel is built for the damaged
 laminate (`MeshParams`: `in_plane_size_mm`, default 5 mm, and
 `elements_per_ply`, default 1). Ply interfaces lie on element faces.
+Each ply's 3D stiffness is orthotropic with the 2-3 plane transversely
+isotropic in its moduli: `E33 = E22`, `ν13 = ν12`, and the 2-3 Poisson
+ratio `ν23` is `OrthotropicMaterial.nu23` or, unset, the value
+`E22 / (2 G23) − 1` the preset's `G23` implies (0.30 to 0.68 over the
+presets; 0.45 for AS4/8552, the measured value its `G23` was derived
+from). Until this release the compliance used `ν21 = ν12 E22 / E11`
+(about 0.02) for the 2-3 term. The plane-stress tiers do not use `ν23`.
 Delaminated interfaces are approximated by a **component-wise
 stiffness-reduction model** (true cohesive surfaces deferred to a future
 release):
