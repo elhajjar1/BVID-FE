@@ -88,6 +88,8 @@ pytest -q
 
 Runnable examples live in `examples/`. The script set (`01_empirical_quick.py` ... `05_tier_comparison_sweep.py`) covers the headless workflows; `examples/quickstart.ipynb` is an annotated Jupyter notebook that mirrors `01_empirical_quick.py` with LaTeX derivations of the Olsson, Soutis, and Whitney-Nuismer models plus inline Plotly visualisations. **Strip notebook outputs before committing** with `nbstripout examples/quickstart.ipynb` (`pip install nbstripout`); commits with output cells will be flagged in review.
 
+The ```` ```python ```` blocks in `README.md`, `docs/quickstart.md` and `docs/python_api.md` are executed by `tests/test_docs_examples.py`, in order and sharing one namespace per file, so a later block can use a name an earlier one defined. Quote printed numbers rounded so small model changes do not stale them. Mark a block that cannot run on its own (a fragment, or one that needs fe3d or Streamlit) with `<!-- docs-test: skip (reason) -->` on the line before its fence.
+
 ## Adding New Materials
 
 Add a new entry to `MATERIAL_LIBRARY` in `src/bvidfe/core/material.py` using the `OrthotropicMaterial` dataclass, with `name` equal to the dict key. Include all orthotropic stiffness constants (MPa), strength values (MPa), interlaminar fracture toughnesses (N/mm), and density (kg/mm^3, e.g. `1.58e-6`). Cite a literature source for every constant in a comment above the entry (see the `AS4/8552` entry). Leave the calibration constants (`soutis_k_s`, `olsson_alpha`, ...) at their defaults unless you have material-specific test data. Add tests in `tests/core/test_material.py` and add the name to the preset lists in `test_material_library_has_six_presets` and `tests/test_cli_version.py`. The step-by-step procedure is in `.claude/skills/add-material/SKILL.md`.
@@ -207,7 +209,7 @@ until that environment is created — which is the intended fail-safe.
    push with `git push origin vX.Y.Z`.
 5. The `Publish to PyPI` workflow takes over: it verifies the tag
    matches `pyproject.toml`, builds an sdist + wheel, runs
-   `twine check`, and uploads to PyPI through OIDC. No manual token
+   `twine check --strict`, and uploads to PyPI through OIDC. No manual token
    handling.
 
 If the tag/version check fails, delete the tag (`git push --delete
