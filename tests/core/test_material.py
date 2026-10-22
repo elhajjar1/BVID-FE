@@ -97,7 +97,7 @@ def test_t800s_3900_2b_constants_match_their_sources():
     S_T = m.Yc * math.cos(a0) * (math.sin(a0) + math.cos(a0) / math.tan(2 * a0))
     assert m.S23 == pytest.approx(S_T, rel=1e-2)
     # Fitted to Hasebe et al.'s C-scan areas (see validation/README.md).
-    assert m.olsson_alpha == 0.047
+    assert m.olsson_alpha == 0.0648
 
 
 def test_as4_8552_derived_constants():

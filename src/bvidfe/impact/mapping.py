@@ -45,19 +45,30 @@ class DPACapClipWarning(UserWarning):
 # same-energy groups, a 15.9 mm flat-ended impactor left 0.20x the C-scan
 # area of a 12.7 mm hemisphere (14 groups; 11 of 40 flat specimens had
 # none) and a 60 deg cone 1.20x (37 groups). Relative to a 16 mm hemisphere
-# that is 0.2 and 1.3. The previous, unsourced 1.4 (flat) and 0.7 (conical)
-# ran the other way.
+# that is 0.2 and 1.3, the values used while the onset energy was ~10x too
+# low. With the corrected threshold load the onset energy depends on the
+# tip through the contact stiffness (the linearised cone contact is the
+# softest, so the cone's onset is the highest), and the factors are refitted
+# so that, per same-layup, same-energy group, the model's predicted /
+# measured area ratio for each tip matches the 12.7 mm hemisphere's
+# (median over groups): flat 0.21 (kept at 0.2) and conical 1.54 (1.5).
+# With them the per-impactor median predicted / measured area is 1.00
+# (flat), 1.02 (cone), 0.99, 1.05 and 0.96 (12.7, 25.4 and 31.8 mm
+# hemispheres). The previous, unsourced 1.4 (flat) and 0.7 (conical) ran
+# the other way.
 _SHAPE_DPA_FACTOR: dict[str, float] = {
     "hemispherical": 1.0,
     "flat": 0.2,
-    "conical": 1.3,
+    "conical": 1.5,
 }
 
 # Reference impactor diameter (mm) for the footprint-spread correction.
 # Matches ASTM D7136 default. The exponent is fitted to the same data:
 # 25.4 and 31.8 mm hemispheres left 0.88x and 0.87x the C-scan area of the
 # 12.7 mm one (30 and 6 groups), against 0.81x and 0.76x at the previous
-# 0.3.
+# 0.3. The corrected onset energy moved the model's same-group ratios to
+# the 12.7 mm hemisphere by under 5% (25.4 mm: 1.01 to 1.04; 31.8 mm: 1.25
+# to 1.27, on 6 cross-ply groups only), so 0.2 is kept.
 _DIAMETER_REF_MM: float = 16.0
 _DIAMETER_DPA_EXPONENT: float = 0.2
 
@@ -185,7 +196,7 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
     >>> lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
     >>> d = impact_to_damage(ImpactEvent(energy_J=10.0), lam, PanelGeometry(150, 100))
     >>> round(d.projected_damage_area_mm2)
-    928
+    308
     """
     material = lam.material
 
