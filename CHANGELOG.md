@@ -192,6 +192,19 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 
 ### Changed
 
+- **fe3d solves ~9x faster in ~6x less memory.** `solve_linear_static`
+  eliminates the constrained DOFs instead of adding a 1e10 penalty and
+  calling `spsolve` (SuperLU, COLAMD), and solves the reduced system by
+  ILU-preconditioned CG to a relative residual of 1e-10, with GMRES and
+  then a direct LU as fallbacks. Whole `BvidAnalysis.run()`, 8-ply
+  [0/45/-45/90]s IM7/8552 150 x 100 mm, 15 J, fe3d compression, one
+  thread: 5 mm 20.8 s / 0.55 GB -> 5.1 s / 0.20 GB, 2.5 mm 270 s /
+  3.05 GB -> 31.5 s / 0.46 GB. Knockdowns move by ~2e-7 (0.43002956 ->
+  0.43002967 at 2.5 mm), the penalty's own constraint error. Repeated
+  BCs on a DOF are merged and conflicting ones raise `ValueError`;
+  `method="penalty"` keeps the old path. `BVIDFE_FE3D_MAX_DOF` defaults
+  to 150,000 (was 500,000; 265k DOFs ran out of 15 GB with the old
+  solver), sized so the direct fallback stays within a few GB.
 - **Damage area**: energy balance with `olsson_alpha` = 0.078, fitted to
   the median of Lovejoy & Scotti's C-scan areas (0.047 for T800S/3900-2B,
   fitted to Hasebe et al.'s). It now grows with laminate thickness at

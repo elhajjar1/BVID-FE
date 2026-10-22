@@ -90,7 +90,7 @@ the semi-analytical result equals the empirical one.
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.5% and 9.0%, about 6–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated against data. | Screening, energy sweeps, design trade studies |
 | `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical`, not validated against data. | Checking whether delamination growth governs (low energy, cross-ply laminates) |
-| `fe3d` | About 15–30 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves); minutes for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted to three measured CAI coupons; not run on the measured datasets in CI | Stress-field context and damage through the thickness; not for allowables |
+| `fe3d` | About 5 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves), about 30 s at 2.5 mm; longer for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted to three measured CAI coupons; not run on the measured datasets in CI | Stress-field context and damage through the thickness; not for allowables |
 
 See [Python API → Tier choice](python_api.md#tier-choice) and
 [Physics Models](physics_models.md) for what each tier solves.

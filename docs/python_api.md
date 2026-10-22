@@ -152,7 +152,7 @@ from bvidfe import MeshParams
 from bvidfe.analysis.fe_mesh import estimate_fe_mesh_size
 
 fine = replace(config, tier="fe3d", mesh=MeshParams(in_plane_size_mm=2.5))
-print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 500,000)
+print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 150,000)
 ```
 
 ## Results
@@ -182,7 +182,7 @@ C-scan layout; the CLI prints it).
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 9.0% (Lovejoy & Scotti IM7/8552); expect about 6–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 9.0% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Tens of seconds (two FE solves; about 15–30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, minutes for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.17) is fitted to three measured CAI coupons, quasi-isotropic and hard (within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
+| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 30 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.17) is fitted to three measured CAI coupons, quasi-isotropic and hard (within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
 ## Knockdown semantics
 
@@ -455,12 +455,14 @@ BVIDFE_LOG_LEVEL=WARNING bvidfe ...    # DEBUG, INFO (default), WARNING, ERROR
 
 ## Environment variables
 
-- `BVIDFE_FE3D_MAX_DOF` — hard cap on fe3d problem size (default 500,000).
+- `BVIDFE_FE3D_MAX_DOF` — hard cap on fe3d problem size (default 150,000).
   Above it `BvidAnalysis.run()` raises `FE3DSizeError`
-  (`bvidfe.analysis.fe_tier`). Raise at your own risk; past this size
-  scipy's sparse solvers can exhaust memory and SIGSEGV. A value that is
-  not a positive integer falls back to the default with a warning on
-  stderr. It is read once, at import.
+  (`bvidfe.analysis.fe_tier`). Raise at your own risk: a run needs about
+  0.5 GB at 67k DOFs and ~1 GB at 150k, but the direct-solver fallback
+  (taken only if the iterative solve fails) needs several times more, and
+  an out-of-memory error inside scipy's native code kills the process. A
+  value that is not a positive integer falls back to the default with a
+  warning on stderr. It is read once, at import.
 - `BVIDFE_LOG_LEVEL` — level of the `bvidfe.fe3d` logger; see above. An
   invalid value falls back to `INFO` with a warning on stderr.
 

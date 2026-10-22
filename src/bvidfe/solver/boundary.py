@@ -1,4 +1,8 @@
-"""Displacement-controlled boundary conditions applied via penalty method.
+"""Displacement-controlled boundary conditions.
+
+``solve_linear_static`` imposes these by eliminating the constrained DOFs;
+``apply_dirichlet_penalty`` is the earlier penalty path, still used by its
+``method="penalty"`` option.
 
 Standard patterns:
 - uniaxial_x_bcs: clamp x_min, prescribe u_x at x_max (+ symmetry on y_min,

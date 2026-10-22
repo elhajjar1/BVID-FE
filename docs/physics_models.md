@@ -391,8 +391,12 @@ which locked too aggressively on thin laminates at affordable mesh sizes
 fixtures carry anti-buckling guides; its stress is recorded in
 `AnalysisResults.notes`.
 
-The fe3d run is refused with `FE3DSizeError` above 500,000 degrees of
-freedom (`BVIDFE_FE3D_MAX_DOF`).
+The linear solve eliminates the constrained DOFs and runs conjugate
+gradients preconditioned by an incomplete LU factorisation to a relative
+residual of 1e-10, retrying with GMRES and then a direct sparse LU if it
+does not converge (`bvidfe.solver.static`). The fe3d run is refused with
+`FE3DSizeError` above 150,000 degrees of freedom (`BVIDFE_FE3D_MAX_DOF`),
+which admits an 8-ply 150 × 100 mm panel down to a ~1.7 mm mesh.
 
 ### Failure criteria
 

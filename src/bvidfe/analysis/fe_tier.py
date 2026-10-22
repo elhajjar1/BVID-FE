@@ -26,7 +26,7 @@ on the undamaged mesh and applies the ratio to the pristine strength.
 Buckling onset (whole panel and sublaminate, Rayleigh-Ritz closed form) is
 reported by :func:`fe3d_cai_buckling` but does not enter the residual.
 
-Problems above ``FE3D_MAX_DOF`` degrees of freedom (500,000, or the
+Problems above ``FE3D_MAX_DOF`` degrees of freedom (150,000, or the
 ``BVIDFE_FE3D_MAX_DOF`` environment variable) raise :class:`FE3DSizeError`.
 Stage timings go to stderr on the ``bvidfe.fe3d`` logger, at the level set
 by ``BVIDFE_LOG_LEVEL`` (default ``INFO``).
@@ -103,7 +103,7 @@ def _resolve_log_level(default: str = "INFO") -> int:
     return logging.getLevelName(default)
 
 
-def _resolve_max_dof(default: int = 500000) -> int:
+def _resolve_max_dof(default: int = 150000) -> int:
     """Resolve BVIDFE_FE3D_MAX_DOF → positive int, falling back to ``default``
     with a stderr warning when the value is not a positive integer."""
     raw = os.environ.get("BVIDFE_FE3D_MAX_DOF")
@@ -159,13 +159,22 @@ def _t(msg: str, t0: float) -> None:
     _log.info("%s (%.2fs)", msg, time.time() - t0)
 
 
-# Hard cap on fe3d problem size. Beyond ~500k DOFs the pure-Python assembler
-# + scipy sparse LU factorization start risking memory exhaustion and native-
-# code crashes (scipy calls into BLAS/SuiteSparse which cannot be caught by
-# Python exception handling — an OOM there is a SIGSEGV in the parent process).
-# Override via BVIDFE_FE3D_MAX_DOF env var at your own risk; an invalid
-# value falls back to the default with a stderr warning instead of raising
-# at import time.
+# Hard cap on fe3d problem size, so an oversized mesh raises FE3DSizeError
+# instead of exhausting memory inside SuperLU (native code: an OOM there
+# kills the process rather than raising). Peak RSS of a whole fe3d CAI run
+# (two solves) on an 8-ply 150 x 100 mm panel, OMP_NUM_THREADS=1:
+#   mesh    DOFs   ILU-CG (default)  direct LU fallback  old penalty + spsolve
+#   5 mm    17.6k  0.20 GB           0.33 GB             0.55 GB
+#   2.5 mm  67.5k  0.46 GB           1.3 GB              3.0 GB
+#   1.25mm  265k   -                 -                   killed (OOM, 15 GB)
+# ILU-CG memory grows about linearly (~1 GB at 150k DOFs); the direct LU,
+# used only when ILU-CG and ILU-GMRES both fail, grows as ~n^1.4 in fill
+# (113M factor entries at 63k free DOFs on a cross-ply panel), so ~4-8 GB
+# at 150k. The cap keeps that worst case within a workstation's memory; it
+# admits 8-ply 150 x 100 mm panels down to ~1.7 mm and 16-ply ones at
+# 2.5 mm. Override via the BVIDFE_FE3D_MAX_DOF env var at your own risk; an
+# invalid value falls back to the default with a stderr warning instead of
+# raising at import time.
 FE3D_MAX_DOF: int = _resolve_max_dof()
 
 
