@@ -3,7 +3,9 @@
 Wraps ``bvidfe.analysis.BvidAnalysis`` in a browser UI: sidebar inputs
 build an ``AnalysisConfig``, the main area shows results across tabs
 (Summary, Damage Map, Knockdown Curve, 3D Damage, Buckling, Damage
-Severity, Sweep).
+Severity, Sweep, Export NCR). The app does not expose
+``AnalysisConfig.impact_panel``: the impact is applied on the panel that
+is tested.
 
 Run locally:
     streamlit run app.py
@@ -68,9 +70,9 @@ st.set_page_config(
 
 st.title("BVID-FE — Barely Visible Impact Damage analysis")
 st.caption(
-    "Predicts residual strength and stiffness of composite laminates "
-    "after low-velocity impact. Configure parameters in the sidebar and "
-    "click **Run analysis**."
+    "Predicts the compression- and tension-after-impact residual strength "
+    "of composite laminates after low-velocity impact. Configure parameters "
+    "in the sidebar and click **Run analysis**."
 )
 
 
@@ -766,7 +768,8 @@ with st.sidebar:
             "**Off (default)** — simplified sidebar: material, layup, panel, "
             "impact event, tier, loading.\n\n"
             "**On** — full controls: ply thickness, boundary condition, "
-            "impactor shape/mass, mesh density for fe3d."
+            "impactor shape, mass and impact location, and the fe3d mesh "
+            "parameters expanded."
         ),
     )
 
@@ -777,7 +780,13 @@ with st.sidebar:
         "Material",
         MATERIAL_NAMES,
         key="material_choice",
-        help="Built-in carbon/epoxy preset from the BVID-FE material library.",
+        help=(
+            "Built-in carbon/epoxy preset from the BVID-FE material library. "
+            "CAI is checked against measured coupons for AS4/8552 and "
+            "IM7/8552 (calibration) and T800S/3900-2B (reported, a known "
+            "miss); AS4/3501-6, T700/2510 and T800/epoxy have no measured "
+            "residual-strength comparison."
+        ),
     )
 
     if expert_mode:
@@ -788,7 +797,11 @@ with st.sidebar:
             value=0.152,
             step=0.001,
             format="%.4f",
-            help="Cured ply thickness. Default 0.152 mm matches AS4/3501-6.",
+            help=(
+                "Cured ply thickness, the same for every ply. 0.152 mm "
+                "(0.006 in) is a common nominal value; NCAMP AS4/8552 tape "
+                "cures to about 0.188 mm."
+            ),
         )
     else:
         ply_thickness_mm = 0.152
@@ -799,7 +812,11 @@ with st.sidebar:
         "Layup [deg]",
         key="layup_text",
         height=80,
-        help="Comma-separated ply angles in degrees, mid-plane to outer surface.",
+        help=(
+            "Comma-separated ply angles in degrees, every ply of the full "
+            "stack (write symmetric halves out in full), listed from the "
+            "impacted face to the back face."
+        ),
     )
     try:
         layup_deg = _parse_layup(layup_text)
@@ -823,9 +840,13 @@ with st.sidebar:
             BOUNDARIES,
             index=0,
             help=(
-                "Edge constraint applied by the Olsson onset model and the "
-                "semi-analytical buckling solve. 'free' uses a 0.4× SSSS "
-                "approximation — interpret qualitatively."
+                "Panel edge support. Scales the plate bending stiffness in "
+                "the Olsson onset model (clamped 2.5×, free 0.4× simply "
+                "supported) and the sublaminate and panel buckling loads "
+                "(clamped 1.9×, free 0.5×), and sets the out-of-plane edge "
+                "restraint in fe3d. The Soutis and Whitney-Nuismer "
+                "knockdowns see it only through the damage area. 'free' is "
+                "a crude approximation — interpret qualitatively."
             ),
         )
     else:
@@ -840,8 +861,13 @@ with st.sidebar:
         horizontal=False,
         key="input_mode",
         help=(
-            "**Impact event** — predict damage from impact energy via "
-            "Olsson's quasi-static threshold model.\n\n"
+            "**Impact event** — predict damage from impact energy: Olsson's "
+            "quasi-static onset threshold, then an energy-balance damage "
+            "area spread over the ply interfaces and kept inside the panel. "
+            "The impact is applied on the panel that is tested; to impact a "
+            "support window (e.g. the ASTM D7136 125 × 75 mm opening) and "
+            "test another panel, use `AnalysisConfig.impact_panel` in the "
+            "Python API.\n\n"
             "**C-scan inspection** — load measured delamination ellipses "
             "directly from a JSON C-scan file."
         ),
@@ -870,19 +896,43 @@ with st.sidebar:
             max_value=100.0,
             step=1.0,
             key="diameter_mm",
+            help=(
+                "Impactor tip diameter; ASTM D7136 uses 16 mm. The damage "
+                "area scales with (16 mm / d)^0.2 (not for a cone)."
+            ),
         )
         if expert_mode:
-            impactor_shape = st.selectbox("Impactor shape", IMPACTOR_SHAPES, index=0)
+            impactor_shape = st.selectbox(
+                "Impactor shape",
+                IMPACTOR_SHAPES,
+                index=0,
+                help=(
+                    "Relative to a 16 mm hemisphere, a flat-ended impactor leaves "
+                    "0.2× and a 60° cone 1.3× the damage area (fitted to "
+                    "Hasebe et al. 2025)."
+                ),
+            )
             mass_kg = st.number_input(
                 "Impactor mass [kg]",
                 min_value=0.01,
                 max_value=100.0,
                 value=5.5,
                 step=0.1,
+                help=(
+                    "5.5 kg is the reference drop-weight mass. At the same "
+                    "energy a lighter impactor leaves slightly more damage "
+                    "((5.5 / m)^0.1); below the plate's own mass the "
+                    "quasi-static model may underpredict damage."
+                ),
             )
             col_lx_loc, col_ly_loc = st.columns(2)
-            loc_x = col_lx_loc.number_input("Location X [mm]", value=0.0, step=1.0)
-            loc_y = col_ly_loc.number_input("Location Y [mm]", value=0.0, step=1.0)
+            _loc_help = (
+                "Impact point measured from the panel corner; (0, 0) means "
+                "the panel centre. The delaminations are kept inside the "
+                "panel around this point."
+            )
+            loc_x = col_lx_loc.number_input("Location X [mm]", value=0.0, step=1.0, help=_loc_help)
+            loc_y = col_ly_loc.number_input("Location Y [mm]", value=0.0, step=1.0, help=_loc_help)
         else:
             impactor_shape = "hemispherical"
             mass_kg = 5.5
@@ -902,7 +952,16 @@ with st.sidebar:
             help="JSON conforming to docs/cscan_schema.md.",
         )
         dent_depth_mm = st.number_input(
-            "Dent depth [mm]", min_value=0.0, max_value=10.0, value=0.0, step=0.05
+            "Dent depth [mm]",
+            min_value=0.0,
+            max_value=10.0,
+            value=0.0,
+            step=0.05,
+            help=(
+                "Replaces the file's dent depth when > 0; 0 keeps the file's "
+                "value. Reported and used by the NCR detectability check; it "
+                "does not change the predicted strength."
+            ),
         )
         fb_radius_mm = st.number_input(
             "Fiber-break radius [mm]",
@@ -910,6 +969,11 @@ with st.sidebar:
             max_value=50.0,
             value=0.0,
             step=0.5,
+            help=(
+                "Replaces the file's fiber-break core radius when > 0; 0 "
+                "keeps the file's value. Softens the fe3d mesh around the "
+                "delamination centroids; the closed-form tiers ignore it."
+            ),
         )
         if uploaded is not None:
             try:
@@ -944,11 +1008,22 @@ with st.sidebar:
         TIERS,
         key="tier",
         help=(
-            "**empirical** — Soutis closed-form CAI, milliseconds.\n\n"
-            "**semi_analytical** — buckling-driven delamination growth, "
-            "capped by Soutis, seconds.\n\n"
-            "**fe3d** — 3D hex FE with LaRC05/Tsai-Wu, minutes; capped at "
-            f"{FE3D_MAX_DOF:,} DOF."
+            "**empirical** — closed form: Soutis knockdown on the damage "
+            "area (CAI), Whitney-Nuismer open-hole equivalent (TAI). "
+            "Milliseconds.\n\n"
+            "**semi_analytical** — CAI is the lower of the Soutis bound and "
+            "the stress at which the weakest buckled sublaminate grows its "
+            "delamination; TAI as empirical. Well under a second.\n\n"
+            "Both closed-form tiers: CAI calibrated on measured NCAMP "
+            "AS4/8552 and Lovejoy & Scotti IM7/8552 coupons, about 6-9% "
+            "error when fitted on one dataset and checked on the other. TAI "
+            "is not validated against measured data.\n\n"
+            "**fe3d** — 3D hex FE, first-ply failure (LaRC05 for CAI, "
+            "Tsai-Wu for TAI) with a softened damage zone; mesh-converged. "
+            "Qualitative: the damage-zone stiffness is fitted to three "
+            "measured CAI coupons. About 15-30 s at the 5 mm default mesh "
+            f"(solves damaged and undamaged panels); capped at {FE3D_MAX_DOF:,} "
+            "DOF."
         ),
     )
     loading = st.radio(
@@ -972,8 +1047,11 @@ with st.sidebar:
                 value=5.0,
                 step=0.5,
                 help=(
-                    "Smaller values = finer mesh, more memory. On the cloud "
-                    "tier (1 GB RAM) keep this >= 5 mm."
+                    "Target in-plane element edge length. Smaller values = "
+                    "finer mesh, quadratically more elements, memory and "
+                    "time; the 5 mm default is mesh-converged to within a "
+                    "few percent of 2.5 mm. On Streamlit Community Cloud "
+                    "(1 GB RAM) keep this >= 5 mm."
                 ),
             )
             mesh_params = MeshParams(
@@ -1256,13 +1334,14 @@ with tabs[3]:
         else:
             try:
                 st.plotly_chart(
-                    mesh_damage_figure(mesh, title="Damage factor (1 = pristine, 0 = damaged)"),
+                    mesh_damage_figure(mesh, title="Out-of-plane stiffness loss (0 = pristine)"),
                     use_container_width=True,
                 )
                 st.caption(
                     f"Mesh: {mesh.n_elements:,} elements, {mesh.n_nodes:,} nodes. "
-                    "Hot-colored regions sit inside a delamination or fiber-break "
-                    "footprint."
+                    "Red elements touch a delaminated interface inside its "
+                    "ellipse, or sit in the fiber-break core. The in-plane "
+                    "softening of the whole damage zone (fe3d) is not shown."
                 )
             except Exception as exc:
                 st.error(f"Could not render the 3D mesh: {exc}")
@@ -1291,13 +1370,16 @@ with tabs[4]:
             if tier_used == "fe3d":
                 col_label, unit_note = (
                     "σ_crit [MPa]",
-                    "fe3d: critical compressive buckling stress from the "
-                    "Rayleigh-Ritz closed form (#129).",
+                    "fe3d: the lower of whole-panel and sublaminate buckling "
+                    "stress, from the Rayleigh-Ritz closed form (#129). "
+                    "Buckling onset only; it does not set the strength.",
                 )
             else:
                 col_label, unit_note = (
                     "N_cr [N/mm]",
-                    "semi_analytical: critical sublaminate buckling force " "per unit width.",
+                    "semi_analytical: buckling force per unit width of the "
+                    "sublaminate whose delamination grows first. Buckling "
+                    "onset only; the growth stress sets the strength.",
                 )
             st.caption(unit_note)
             df_eigs = pd.DataFrame({"mode": list(range(1, len(eigs) + 1)), col_label: eigs})
@@ -1365,8 +1447,10 @@ with tabs[6]:
             TIERS,
             index=0,
             help=(
-                "Use **empirical** for fast scans; **fe3d** sweeps can take "
-                "minutes per point and may exhaust cloud memory."
+                "Use **empirical** or **semi_analytical** for fast scans. "
+                "**fe3d** takes about 15-30 s per point at the 5 mm default "
+                "mesh (longer for thick laminates or finer meshes); keep "
+                "fe3d sweeps short on the 1 GB cloud tier."
             ),
         )
         sweep_clicked = st.button("Run sweep", type="primary")

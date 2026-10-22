@@ -16,8 +16,9 @@ streamlit run app.py
 ```
 
 A browser tab should open at <http://localhost:8501>. Tweak parameters in
-the sidebar, click **Run analysis**, and verify the **Results** tabs
-populate.
+the sidebar, click **Run analysis**, and verify the result tabs
+(Summary, Damage Map, Knockdown Curve, 3D Damage, Buckling, Damage
+Severity, Sweep, Export NCR) populate.
 
 ## 2. Push to GitHub
 
@@ -76,7 +77,7 @@ Every push to the configured branch triggers an automatic redeploy. Use
 the **Manage app** panel (bottom-right gear in the live app) to:
 - view live logs
 - reboot the app if it gets stuck
-- change Python version or secrets
+- edit secrets and other app settings
 - pause / delete the app
 
 ## 7. Resource limits to know about
@@ -91,8 +92,10 @@ Streamlit Cloud (Community tier) gives every app:
 Implications for BVID-FE:
 - The **fe3d** tier solves a 3D FE problem and can easily blow past 1 GB
   on dense meshes. It also solves twice per run (damaged and undamaged
-  panel, to normalise the knockdown), so a run takes from tens of seconds
-  to minutes. The Streamlit
+  panel, to normalise the knockdown): the default 8-ply 150 × 100 mm
+  panel at the default 5 mm mesh (4,800 elements, about 17,600 DOF)
+  takes about 15-30 s, and thick laminates or finer meshes take
+  minutes. The Streamlit
   app defaults to the **empirical** tier and refuses an fe3d run whose
   estimated mesh exceeds `BVIDFE_FE3D_MAX_DOF` (500,000 degrees of freedom
   by default). If you want to allow fe3d in the cloud, keep
@@ -113,9 +116,12 @@ Implications for BVID-FE:
 
 ## 9. Optional next steps
 
-- Add a `runtime.txt` with `python-3.11` if you want to pin the Python
-  version exactly (Streamlit Cloud reads this).
+- The Python version is the one picked under **Advanced settings** at
+  deploy time; see Streamlit's documentation for changing it on a
+  deployed app.
 - Add Streamlit secrets via the Manage panel if the app needs API keys
   later.
 - Configure a custom domain in Streamlit Cloud's settings.
-- Add CI to run `streamlit run --headless` smoke tests on every PR.
+- CI already imports `app.py` on every push (`tests/test_streamlit_app.py`);
+  a fuller smoke test could click **Run analysis** through
+  `streamlit.testing.v1.AppTest`.
