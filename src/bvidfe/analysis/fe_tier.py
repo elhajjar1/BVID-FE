@@ -19,10 +19,16 @@ import time
 from typing import List
 
 import numpy as np
+from scipy.ndimage import convolve
 
 from bvidfe._types import _CRITERION_NAMES, CriterionName
 from bvidfe.analysis.config import AnalysisConfig
-from bvidfe.analysis.fe_mesh import FeMesh, build_fe_mesh, estimate_fe_mesh_size
+from bvidfe.analysis.fe_mesh import (
+    FeMesh,
+    build_fe_mesh,
+    element_grid_shape,
+    estimate_fe_mesh_size,
+)
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
 from bvidfe.elements.hex8 import Hex8Element, build_geometry_table
@@ -42,6 +48,17 @@ from bvidfe.solver.static import solve_linear_static
 # the Streamlit app from a terminal (or running the CLI / Python API) will see
 # one log line per FE stage, making long runs observable.
 _log = logging.getLogger("bvidfe.fe3d")
+
+# Radius (mm) of the in-plane disk over which the failure index is averaged
+# before first-ply failure is checked (average-stress criterion, Whitney &
+# Nuismer 1974). A pointwise check has no length scale: at the re-entrant
+# corners of the damage-zone footprint the stress is singular, so the
+# pointwise failure load kept falling as the mesh was refined (cross-ply
+# knockdown 0.175 / 0.223 / 0.211 at 5 / 2.5 / 2 mm). Averaged over 2.5 mm,
+# with the zone weighted by element area fraction, it is 0.249 / 0.249 /
+# 0.238. 2.5 mm is about the characteristic distance of CFRP notched
+# strength (1-4 mm); at a 5 mm mesh the disk holds only the element itself.
+FPF_AVERAGING_RADIUS_MM = 2.5
 
 
 def _resolve_log_level(default: str = "INFO") -> int:
@@ -237,6 +254,7 @@ def _solve_failure_strain_analytic(
     strain_sign: int,
     criterion: CriterionName,
     strain_cap: float = 0.05,
+    averaging_radius_mm: float | None = FPF_AVERAGING_RADIUS_MM,
 ) -> float:
     """Find the applied strain magnitude at which max failure index hits 1,
     using a single FE solve + analytic scaling.
@@ -275,11 +293,15 @@ def _solve_failure_strain_analytic(
     Numerical equivalence with the prior scalar form is locked by
     ``tests/analysis/test_fpf_strain_solve_equivalence.py`` against the
     ``_solve_failure_strain_analytic_scalar_ref`` reference implementation
-    kept in this module purely for the equivalence test.
+    kept in this module purely for the equivalence test, which passes
+    ``averaging_radius_mm=None`` (pointwise, as the reference is); see
+    ``_critical_strain_multiplier``.
     """
     _require_known_criterion(criterion)
     u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
-    c_crit_min = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion)
+    c_crit_min = _critical_strain_multiplier(
+        cfg, mesh, elements, u_ref, criterion, averaging_radius_mm
+    )
     if not np.isfinite(c_crit_min) or c_crit_min <= 0:
         return strain_cap  # nothing failed up to strain_cap
     return min(strain_cap, c_crit_min * strain_cap)
@@ -323,10 +345,90 @@ def _critical_strain_multiplier(
     elements: List[Hex8Element],
     u_ref: np.ndarray,
     criterion: CriterionName,
+    averaging_radius_mm: float | None = FPF_AVERAGING_RADIUS_MM,
 ) -> float:
     """Smallest multiplier ``c`` on ``u_ref`` at which the failure index
-    reaches 1 anywhere (``inf`` when no Gauss point is loaded towards
-    failure). See ``_solve_failure_strain_analytic`` for the scaling."""
+    reaches 1 (``inf`` when nothing is loaded towards failure). See
+    ``_solve_failure_strain_analytic`` for the scaling.
+
+    With ``averaging_radius_mm`` (default ``FPF_AVERAGING_RADIUS_MM``) the
+    index is averaged over each element's Gauss points and then over the
+    elements of the same through-thickness layer whose centroids lie within
+    that radius; ``None`` checks every Gauss point on its own."""
+    if averaging_radius_mm is None:
+        return _critical_strain_multiplier_pointwise(cfg, mesh, elements, u_ref, criterion)
+    a, b = _index_coefficients(cfg, mesh, elements, u_ref, criterion)
+    nz, ny, nx = element_grid_shape(cfg)
+    if a.size != nz * ny * nx:
+        raise ValueError(f"mesh has {a.size} elements, expected a {nz}x{ny}x{nx} grid")
+    hx, hy = cfg.panel.Lx_mm / nx, cfg.panel.Ly_mm / ny
+    rx, ry = int(averaging_radius_mm // hx) + 1, int(averaging_radius_mm // hy) + 1
+    jj, ii = np.meshgrid(np.arange(-ry, ry + 1), np.arange(-rx, rx + 1), indexing="ij")
+    r2 = averaging_radius_mm**2 * (1 + 1e-9)
+    kernel = ((ii * hx) ** 2 + (jj * hy) ** 2 <= r2).astype(float)
+    # Near the panel edge the disk is clipped: average over what is inside.
+    weight = convolve(np.ones((ny, nx)), kernel, mode="constant")
+    a_avg = np.stack(
+        [convolve(layer, kernel, mode="constant") / weight for layer in a.reshape(nz, ny, nx)]
+    )
+    b_avg = np.stack(
+        [convolve(layer, kernel, mode="constant") / weight for layer in b.reshape(nz, ny, nx)]
+    )
+    return float(_smallest_positive_root(a_avg.ravel(), b_avg.ravel()).min())
+
+
+def _index_coefficients(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    u_ref: np.ndarray,
+    criterion: CriterionName,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-element ``(a, b)`` with the Gauss-point mean of the failure index
+    at multiplier ``c`` on ``u_ref`` equal to ``a c + b c^2``."""
+    material = _resolve_material(cfg)
+    in_plane = mesh.in_plane_damage_factors
+    a = np.zeros(len(elements))
+    b = np.zeros(len(elements))
+    for eidx, elem in enumerate(elements):
+        dof_map = mesh.element_dof_maps[eidx]
+        sigma_ref = _failure_stress_material(elem, u_ref[dof_map], in_plane[eidx])
+        if criterion == "larc05":
+            b[eidx] = larc05_index_batch(material, sigma_ref).mean()
+        elif criterion == "puck":
+            a[eidx] = puck_index_batch(material, sigma_ref).mean()
+        else:
+            idx_ref = tsai_wu_index_batch(material, sigma_ref)
+            idx_2 = tsai_wu_index_batch(material, 2.0 * sigma_ref)
+            b_gp = (idx_2 - 2.0 * idx_ref) / 2.0
+            b[eidx] = b_gp.mean()
+            a[eidx] = (idx_ref - b_gp).mean()
+    return a, b
+
+
+def _smallest_positive_root(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Smallest ``c > 0`` with ``a c + b c^2 = 1`` elementwise (``inf``
+    where there is none)."""
+    tiny = 1e-14
+    c = np.full(a.shape, np.inf)
+    lin = (np.abs(b) < tiny) & (a >= tiny)
+    c = np.where(lin, 1.0 / np.where(lin, a, 1.0), c)
+    disc = a * a + 4.0 * b
+    quad = (np.abs(b) >= tiny) & (disc >= 0)
+    root = (-a + np.sqrt(np.where(quad, disc, 0.0))) / np.where(quad, 2.0 * b, 1.0)
+    c = np.where(quad, root, c)
+    return np.where(c > 0, c, np.inf)
+
+
+def _critical_strain_multiplier_pointwise(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    u_ref: np.ndarray,
+    criterion: CriterionName,
+) -> float:
+    """``_critical_strain_multiplier`` checked at every Gauss point on its
+    own (``inf`` when no Gauss point is loaded towards failure)."""
     material = _resolve_material(cfg)
     in_plane = mesh.in_plane_damage_factors
     c_crit_min = np.inf

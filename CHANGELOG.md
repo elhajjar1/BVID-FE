@@ -403,6 +403,35 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **fe3d first-ply failure converges under mesh refinement.** The damage
+  zone took or left whole elements by their centroid, and failure was
+  checked at single Gauss points, where the stress at the re-entrant
+  corners of the zone's footprint is singular: the 15 J cross-ply
+  knockdown (8-ply IM7/8552, 150 x 100 mm) moved 24-28% between 5 and
+  2.5 mm meshes and kept moving at 2 mm. Elements straddling the zone's
+  edge now take the in-plane factor weighted by their area fraction inside
+  it, and the failure index is averaged over a 2.5 mm disk within each
+  element layer (`FPF_AVERAGING_RADIUS_MM`, average-stress criterion).
+  5 mm -> 2.5 mm at 15 J:
+
+  | Case | Before | After |
+  |---|---|---|
+  | QI tension | 0.4138 -> 0.3920 (5.3%) | 0.4209 -> 0.4243 (0.8%) |
+  | Cross-ply tension | 0.1590 -> 0.1975 (24.2%) | 0.2296 -> 0.2368 (3.1%) |
+  | Cross-ply compression | 0.1748 -> 0.2231 (27.6%) | 0.2488 -> 0.2493 (0.2%) |
+  | QI compression | 0.4143 -> 0.4280 (3.3%) | 0.4260 -> 0.4300 (0.9%) |
+
+  `DAMAGE_ZONE_INPLANE_FACTOR` stays 0.17: the three calibration coupons
+  go from -3.5% / -4.4% / +1.9% to -3.2% / -1.2% / +4.7%. Other fe3d
+  knockdowns at the default 5 mm mesh (IM7/8552, 150 x 100 mm) rise: CAI
+  between 5 and 30 J 0.416 -> 0.313 becomes 0.427 -> 0.335 (16-ply QI),
+  0.387 -> 0.256 becomes 0.502 -> 0.406 (8-ply QI), 0.222 -> 0.188 becomes
+  0.253 -> 0.200 (8-ply cross-ply); 30 J tension 0.307 -> 0.333 (16-ply
+  QI) and 0.224 -> 0.312 (24-ply QI). The fe3d smoke run's gap to the
+  empirical tier on the first three synthetic cases goes 23.8% -> 12.9%.
+  `_critical_strain_multiplier(..., averaging_radius_mm=None)` keeps the
+  pointwise check.
+
 - **Predicted delaminations stay inside the impacted panel.** The union of
   the template's differently oriented ellipses spreads well beyond the
   circle of the same area: 99 x 52 mm on the NCAMP quasi-isotropic coupon
