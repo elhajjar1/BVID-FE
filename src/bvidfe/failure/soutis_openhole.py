@@ -2,11 +2,13 @@
 
 CAI knockdown (after Soutis & Curtis 1996):
     sigma_CAI / sigma_0 = 1 / (1 + k_s * (DPA / A_ref)^m)
-with A_ref = SOUTIS_REFERENCE_AREA_MM2, the 150 x 100 mm ASTM D7137 coupon.
+with A_ref = SOUTIS_REFERENCE_AREA_MM2, the 150 x 100 mm ASTM D7137 coupon,
+and k_s, m the material's ``soutis_k_s`` and ``soutis_m``.
 
 TAI via equivalent open hole (Whitney & Nuismer 1974, point-stress criterion):
     sigma_N / sigma_0 = 2 / (2 + xi^2 + 3*xi^4 - (Kt_inf - 3)*(5*xi^6 - 7*xi^8))
-where xi = R / (R + d0), R = sqrt(DPA/pi), d0 = material characteristic distance,
+where xi = R / (R + d0), R = sqrt(DPA/pi), d0 = material characteristic distance
+(``wn_d0_mm``),
 Kt_inf = infinite-plate stress concentration (3.0 for isotropic; for orthotropic
 laminates use ``lekhnitskii_kt_infinity``).
 """
@@ -67,6 +69,26 @@ def soutis_cai(
     ``dpa_mm2 == 0``. The returned value is the numerator used by
     ``BvidAnalysis.run()`` to compute ``AnalysisResults.knockdown``; the
     pristine reference is the same for all three tiers.
+
+    Parameters
+    ----------
+    m : OrthotropicMaterial
+        Supplies ``soutis_k_s`` and ``soutis_m``.
+    dpa_mm2 : float
+        Projected damage area (mm²); ``<= 0`` returns the pristine strength.
+    A_ref_mm2 : float
+        Reference area (mm²) the damage area is scaled by; pass
+        ``SOUTIS_REFERENCE_AREA_MM2`` to match the calibration of
+        ``soutis_k_s``.
+    sigma_pristine_MPa : float
+        Unnotched compressive strength (MPa).
+
+    Examples
+    --------
+    >>> from bvidfe import MATERIAL_LIBRARY
+    >>> m = MATERIAL_LIBRARY["IM7/8552"]  # soutis_k_s = 4.7, soutis_m = 0.5
+    >>> round(soutis_cai(m, 928.3, SOUTIS_REFERENCE_AREA_MM2, 601.3), 1)
+    277.2
     """
     if dpa_mm2 <= 0:
         return sigma_pristine_MPa
@@ -96,7 +118,8 @@ def whitney_nuismer_tai(
     d0 from the hole edge, which is physically never below 1. For
     Kt_inf >~ 9.2 the polynomial dips below 1 (knockdown > 1, i.e. residual
     above pristine) and for Kt_inf >~ 20.3 it crosses zero (a pole). The
-    material presets stay below Kt_inf ~ 7.3; custom high-modulus cards can
+    material presets stay below Kt_inf ~ 7.8 (all-0 deg layups; about 3 for
+    quasi-isotropic ones); custom high-modulus cards can
     reach these values. The ratio is clamped to 1 (knockdown 1.0) with a
     ``UserWarning`` so the result stays bounded instead of exceeding
     pristine or diverging.

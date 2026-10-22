@@ -5,9 +5,11 @@ Pipeline:
   2. if below threshold -> empty DamageState
   3. compute target DPA = alpha * (E - Eonset) * 1e3 / G_IIc, then apply
      multiplicative corrections for:
-       - dynamic amplification (small impactor-to-plate mass ratios)
+       - impactor mass, (5.5 kg / mass_kg) ** 0.1 (a warning below the
+         plate's mass)
        - impactor-tip footprint (hemispherical / flat / conical)
        - impactor-diameter spread
+     and cap it at 80% of the panel area (``DPACapClipWarning``)
   4. compute dent depth and fiber-break radius
   5. distribute DPA across interfaces via peanut template with union-area
      scaling, every ellipse kept inside the impacted panel
@@ -118,7 +120,24 @@ def _dynamic_amplification_factor(
 
 @dataclass
 class ImpactEvent:
-    """Parameters describing a single impact event."""
+    """Parameters describing a single impact event.
+
+    Attributes
+    ----------
+    energy_J : float
+        Impact energy in J. At or below the onset energy the damage state
+        is empty.
+    impactor : ImpactorGeometry
+        Impactor tip; default the ASTM D7136 16 mm hemisphere.
+    mass_kg : float
+        Impactor mass in kg (default 5.5, the ASTM D7136 reference, at
+        which the mass correction is 1). The damage area scales by
+        ``(5.5 / mass_kg) ** 0.1``.
+    location_xy_mm : tuple of float
+        Impact point ``(x, y)`` in mm on the impacted panel
+        (``AnalysisConfig.impact_panel`` if set, else ``panel``). The
+        default ``(0.0, 0.0)`` means the panel centre.
+    """
 
     energy_J: float
     impactor: ImpactorGeometry = field(default_factory=ImpactorGeometry)
@@ -127,7 +146,35 @@ class ImpactEvent:
 
 
 def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) -> DamageState:
-    """Map an impact event to a full BVID damage state."""
+    """Map an impact event to a full BVID damage state.
+
+    Follows the pipeline in the module docstring. ``panel`` is the impacted
+    panel: its size and ``boundary`` set the onset energy, and the
+    delaminations are kept inside it, measured from the impact point.
+
+    Returns a :class:`DamageState` in ``panel``'s frame (empty at or below
+    the onset energy).
+
+    Warns
+    -----
+    SmallMassQuasiStaticWarning
+        Impactor lighter than the plate (outside Olsson's quasi-static regime).
+    DPACapClipWarning
+        Predicted damage area above 80% of the panel area, clipped to it.
+    UserWarning
+        The damage area does not fit inside the panel around the impact
+        point; the largest footprint that fits is used. Also for a
+        ``"free"`` panel boundary.
+
+    Examples
+    --------
+    >>> from bvidfe import MATERIAL_LIBRARY, PanelGeometry
+    >>> from bvidfe.core.laminate import Laminate
+    >>> lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
+    >>> d = impact_to_damage(ImpactEvent(energy_J=10.0), lam, PanelGeometry(150, 100))
+    >>> round(d.projected_damage_area_mm2)
+    928
+    """
     material = lam.material
 
     # If location is (0, 0), interpret as panel center for Olsson bending stiffness

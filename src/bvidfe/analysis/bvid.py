@@ -55,10 +55,49 @@ def _config_snapshot_dict(cfg: AnalysisConfig) -> dict:
 
 
 class BvidAnalysis:
+    """Runs one BVID residual-strength analysis for an :class:`AnalysisConfig`.
+
+    ``run()`` resolves the material, builds the laminate, obtains the damage
+    state (the config's ``damage``, or :func:`~bvidfe.impact.mapping.impact_to_damage`
+    on ``impact_panel`` or ``panel`` for an ``impact``), computes the
+    pristine (unnotched) strength and dispatches to the selected tier.
+
+    Examples
+    --------
+    >>> from bvidfe import AnalysisConfig, BvidAnalysis, ImpactEvent, PanelGeometry
+    >>> cfg = AnalysisConfig(
+    ...     material="IM7/8552",
+    ...     layup_deg=[0, 45, -45, 90, 90, -45, 45, 0],
+    ...     ply_thickness_mm=0.152,
+    ...     panel=PanelGeometry(150, 100),
+    ...     impact=ImpactEvent(energy_J=10.0),
+    ... )
+    >>> result = BvidAnalysis(cfg).run()
+    >>> round(result.knockdown, 2)
+    0.46
+    """
+
     def __init__(self, config: AnalysisConfig) -> None:
         self.config = config
 
     def run(self) -> AnalysisResults:
+        """Run the analysis and return an :class:`AnalysisResults`.
+
+        The config is not modified, so ``run()`` can be called again.
+
+        Raises
+        ------
+        KeyError
+            For a material name not in ``MATERIAL_LIBRARY``.
+        bvidfe.analysis.fe_tier.FE3DSizeError
+            For ``tier="fe3d"`` when the mesh exceeds ``FE3D_MAX_DOF``.
+
+        Warns
+        -----
+        SmallMassQuasiStaticWarning, DPACapClipWarning, UserWarning
+            From the impact mapping (impact-driven configs), see
+            :func:`~bvidfe.impact.mapping.impact_to_damage`.
+        """
         mat = _resolve_material(self.config.material)
         lam = Laminate(
             material=mat,
