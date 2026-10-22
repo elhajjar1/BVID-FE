@@ -486,8 +486,11 @@ def semi_analytical_cai(
           sublaminate buckling (:func:`weakest_sublaminate_growth`;
           boundary-aware through the sublaminate buckling stress).
 
-    Sublaminate buckling onset alone is not used: a thin sublaminate over
-    a BVID-sized delamination buckles at a few MPa and keeps carrying load.
+    Sublaminate buckling onset alone is not used: a buckled sublaminate
+    keeps carrying load until its delamination grows. At the governing
+    interface the film buckling stress is typically 70-370 MPa (IM7/8552
+    150 x 100 mm panels at 5-30 J); a one-ply film over a back-face
+    delamination buckles at 2-26 MPa.
 
     Because of (b), the returned residual stress is always less-than-or-equal
     to the empirical-tier result on the same input — so the resulting
