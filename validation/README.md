@@ -7,28 +7,28 @@ composite-after-impact test data.
 
 | Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical | Calibration role |
 |---|---|---|---|---|---|---|---|
-| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
-| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 9.0% | 9.0% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.3% | 23.3% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
+| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.6% | 1.6% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
+| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.7% | 8.7% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.2% | 23.2% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 0.0% (not gated) | Tautological (empirical-tier output) |
 
 These are the MAEs `validate_bvid_public.py` prints (rounded). Three
 things the gate does not show:
-- **The gated strength MAEs are in-sample.** `soutis_k_s` = 4.7 is the
+- **The gated strength MAEs are in-sample.** `soutis_k_s` = 4.8 is the
   pooled optimum over NCAMP and Lovejoy & Scotti, so both gated MAEs are
   in-sample; the fair measure is the cross-dataset check under
-  [Calibration of `soutis_k_s`](#calibration-of-soutis_k_s) (6.5–9.0%).
+  [Calibration of `soutis_k_s`](#calibration-of-soutis_k_s) (4.9–8.7%).
   Hasebe et al.'s strengths are not fitted, but the model is known to
   miss them and they are not gated.
 - **The semi-analytical growth channel is not exercised by the gate.**
   On every NCAMP and Lovejoy & Scotti coupon the Soutis bound is lower
-  than the delamination growth stress (176 against 221–223 MPa on NCAMP;
-  158 against 234–236 MPa and 226 against 252 MPa on Lovejoy & Scotti),
-  so the two tiers give identical numbers there. On Hasebe et al.'s set
-  growth governs 225 of 343 coupons (all cross-ply c8/c16/c24 and hard
-  r0 coupons, 41 of 132 quasi-isotropic, no soft r45), and on those 225
-  the semi-analytical MAE is 25.0% against 21.9% empirical (both 20.1%
-  on the other 118). The growth channel is therefore unvalidated, and
+  than the delamination growth stress (176–178 against 221–223 MPa on
+  NCAMP; 156 against 237–239 MPa and 224 against 253 MPa on Lovejoy &
+  Scotti), so the two tiers give identical numbers there. On Hasebe et
+  al.'s set growth governs 205 of 343 coupons (154 of 157 cross-ply
+  c8/c16/c24, all 27 hard r0, 24 of 132 quasi-isotropic, no soft r45),
+  and on those 205 the semi-analytical MAE is 23.6% against 20.3%
+  empirical (both 22.5% on the other 138). The growth channel is therefore unvalidated, and
   where it acts it makes the prediction worse.
 - **TAI is not validated.** The only tension cases are the synthetic
   self-check.
@@ -57,8 +57,8 @@ LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
 
 Each case carries the measured thickness, dent depth and C-scan damage area.
 The areas and dents are recorded, not scored. The predicted areas
-(5,304 and 6,616 mm²) are in-sample, since `olsson_alpha` is fitted to
-their median. The predicted dent is on the model's `h / 2` cap in every
+(about 5,270 and 6,530 mm²) are in-sample, since `olsson_alpha` is fitted
+to their median. The predicted dent is on the model's `h / 2` cap in every
 case, 7.5–8.8× the measured dent (see `docs/physics_models.md`).
 The impactor is not described, so the ASTM D7136 standard is assumed.
 Like the NCAMP cases, each is impacted on the ASTM D7136 125 × 75 mm
@@ -135,13 +135,15 @@ and fitted on Lovejoy & Scotti alone (4.0) it predicted NCAMP at 15.7%.
 The Lovejoy & Scotti damage area was overpredicted (about 8,900 mm²
 against 5,190–7,530 mm²).
 
-**3.5 to 4.7.** Two changes to the model made the datasets agree:
+**3.5 to 4.7.** Two changes to the model made the datasets agree
+(numbers in this step are with the onset energy of the time, about 10×
+too low; see *4.7 to 4.8* below):
 - The damage area is an energy balance, `α (E − E_onset) / G_IIc` in mm²,
   with α = 0.078 fitted to the median of Lovejoy & Scotti's eight C-scan
   areas. Dividing by the thickness as well left the area flat in
   thickness at constant J/mm, where the measured area grows with it:
   Lovejoy & Scotti's 7.6 mm coupons had 1.21× the C-scan area of their
-  6.1 mm coupons at the same 8.9 J/mm. The predicted areas are now
+  6.1 mm coupons at the same 8.9 J/mm. The predicted areas became
   5,304 mm² (quasi-isotropic) and 6,616 mm² (hard), against 5,190–5,740
   and 6,260–7,530 mm² measured. NCAMP reports no damage area, so its
   predicted area (about 2,900 mm², was about 6,650 mm²) is an independent
@@ -159,24 +161,48 @@ coupon), rerun with the delaminations confined to the impact window:
 |---|---|---|
 | 4.0 | 11.4% | 15.5% |
 | 4.5 | 3.2% | 9.2% |
-| 4.7 (default) | 1.5% | 9.0% |
+| 4.7 | 1.5% | 9.0% |
 | 5.0 | 4.0% | 8.6% |
 | 5.2 | 6.5% | 8.4% |
 | 5.5 | 10.2% | 10.4% |
 
-4.7 is the pooled optimum of both tiers. Neither change was enough alone.
+4.7 was the pooled optimum of both tiers. Neither change was enough alone.
 With the thickness-divided area and the fixed reference area the two
 datasets wanted different `k_s` (NCAMP 7.3% and Lovejoy & Scotti 9.6% at
 3.5; 15.7% and 4.6% at 4.0). With the energy-balance area and the panel
 area, `k_s` ≈ 4.7 fitted both (3.5% and 9.7%) but put the Hasebe set at
 31–34%.
 
+**4.7 to 4.8.** The Olsson threshold load was 3.5× too low (see
+`docs/physics_models.md`), so the onset energy was about 10× too low:
+0.4 J on the NCAMP coupons and 0.8 J on Lovejoy & Scotti's, now 4.7 J
+and 6.1–8.3 J. With the corrected onset `olsson_alpha` was refitted to the
+median of Lovejoy & Scotti's C-scan areas (0.078 → 0.0865), the
+T800S/3900-2B value and the cone factor to Hasebe et al. (below), and
+`k_s` again to the pooled empirical and semi-analytical MAE over NCAMP (7
+coupons) and Lovejoy & Scotti (8), weighted by coupon count (the two tiers
+agree on both datasets):
+
+| `k_s` | NCAMP | Lovejoy & Scotti | Pooled |
+|---|---|---|---|
+| 4.5 | 4.9% | 9.1% | 7.1% |
+| 4.6 | 3.4% | 9.0% | 6.4% |
+| 4.7 | 2.3% | 8.8% | 5.8% |
+| 4.8 (default) | 1.6% | 8.7% | 5.4% |
+| 4.9 | 1.8% | 8.6% | 5.4% |
+| 5.0 | 2.3% | 8.5% | 5.6% |
+| 5.2 | 4.9% | 8.3% | 6.7% |
+| 5.5 | 8.5% | 10.1% | 9.4% |
+
+Keeping 4.7 with the refitted `olsson_alpha` would cost 0.8 points on
+NCAMP. The NCAMP damage area falls from about 2,900 to 2,790 mm².
+
 The in-sample numbers flatter the model. The fair measure is
 cross-dataset:
-- `k_s` fitted on NCAMP alone (4.7) predicts Lovejoy & Scotti at 9.0% MAE.
-- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 6.5%.
+- `k_s` fitted on NCAMP alone (4.8) predicts Lovejoy & Scotti at 8.7% MAE.
+- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 4.9%.
 
-Expect errors of about 6–9% on a new material or layup tested to ASTM
+Expect errors of about 5–9% on a new material or layup tested to ASTM
 D7136/D7137, and more on a matrix other than 8552: both datasets share
 it. `olsson_alpha` was fitted on Lovejoy & Scotti's areas, so only the
 NCAMP damage area is out of sample, and NCAMP reports no area to check
@@ -188,7 +214,7 @@ area. Its characteristic distance calibrates cleanly from the NCAMP
 open-hole compression data (d0 = 0.7–1.8 mm). But the predicted damage
 spanned 78–126 mm of a 100 mm wide coupon, so the equivalent hole filled
 the specimen. It has not been retried with the energy-balance area (about
-2,900 mm² on the NCAMP coupons, against about 6,650 mm² then).
+2,800 mm² on the NCAMP coupons, against about 6,650 mm² then).
 
 **`hasebe_t800s_3900_2b_cai`** is measured data the model is known to miss,
 so it is not gated: Hasebe, Higuchi, Yokozeki & Takeda, *Data in Brief* 60
@@ -220,40 +246,54 @@ thickness, coupon size, C-scan area and dent. Notes:
   left 0.88× and 0.87× the C-scan area (diameter exponent 0.2, was 0.3),
   the 15.9 mm flat-ended impactor 0.20× and the 60° cone 1.20×. Relative
   to a 16 mm hemisphere that is a shape factor of 0.2 (flat) and 1.3
-  (conical), where the unsourced previous values were 1.4 and 0.7.
+  (conical), where the unsourced previous values were 1.4 and 0.7. With
+  the corrected onset energy the tip also changes the onset (through the
+  contact stiffness; the linearised cone contact is the softest, so the
+  cone's onset is the highest), and the factors were refitted so that,
+  in each same-layup, same-energy group, the model's predicted / measured
+  area for a tip matches that of the 12.7 mm hemisphere (median over
+  groups). That ratio moved from 0.99 to 0.84 for the cone (37 groups)
+  and from 0.83 to 0.95 for the flat-ended impactor (11 groups), giving
+  1.54 (now 1.5) and 0.21 (kept at 0.2). For the 25.4 and 31.8 mm
+  hemispheres it moved by under 5% (1.01 → 1.04, 30 groups; 1.25 → 1.27,
+  6 cross-ply groups), so the exponent stays 0.2.
 
 The `T800S/3900-2B` preset takes its elastic constants and toughness from
 Hasebe's Table 1 and its strengths from the Toray 3900 data sheet (Hasebe's
 Xc of 719 MPa is under half the data sheet's ASTM D6641 1779 MPa).
-`olsson_alpha` = 0.047 is fitted to the C-scan areas of the
+`olsson_alpha` = 0.0648 is fitted to the C-scan areas of the
 quasi-isotropic laminates struck by the 12.7 mm hemisphere (median of 38
-specimens; the default 0.078 overpredicts them about 1.7×, as the
-material is interlayer-toughened). With the energy-balance area it
-predicts the area of the 329 specimens with a measured area (11
-flat-impactor and 3 25.4 mm hemisphere specimens show none) at a median
-1.01× (per-layup medians 0.81–1.23×, per-impactor 0.91–1.16×), and
-the mean area per impactor over all 343 within 8%, except the 31.8 mm
-hemisphere (19% low): 368 against 364 mm² for the 60° cone, 48 against
-52 mm² for the flat-ended impactor, and 277 against 281, 266 against 277
-and 204 against 251 mm² for the 12.7, 25.4 and 31.8 mm hemispheres.
+specimens; the default 0.0865 overpredicts them about 1.3×, as the
+material is interlayer-toughened; it was 0.047 against a default of
+0.078 while the onset energy was about 10× too low). It predicts the
+area of the 329 specimens with a measured area (11 flat-impactor and 3
+25.4 mm hemisphere specimens show none) at a median 1.01× (per-layup
+medians 0.78–1.13×, per-impactor 0.96–1.05×), and the mean area per
+impactor over all 343 within 6%, except the 31.8 mm hemisphere (19%
+low): 385 against 364 mm² for the 60° cone, 54 against 52 mm² for the
+flat-ended impactor, and 285 against 281, 288 against 277 and 204
+against 251 mm² for the 12.7, 25.4 and 31.8 mm hemispheres. The
+corrected onset energy is a median 2.5 J here (up to 5.9 J): three
+24-ply cross-ply specimens struck by the cone at 1.1 J/mm (5.0 J) fall
+below it and are predicted undamaged, against 62–72 mm² measured.
 These area checks are in-sample: `olsson_alpha` and the impactor shape
 and diameter factors are fitted to the same specimens. The predicted
-dent is on the model's `h / 2` cap for every specimen, a median 9.0×
-the measured dent over the 308 with a positive one.
+dent is on the model's `h / 2` cap for 337 of the 343 specimens, a median
+9.0× the measured dent over the 308 with a positive one.
 
 Why the model misses: the damage area is right, but the knockdown map is
 not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
-21.3% (empirical) and 23.3% (semi-analytical). The empirical MAE per
-layup is 13% (c8), 33% (c16), 19% (c24), 19% (q8), 23% (q16), 36% (q24),
-14% (r0) and 5% (r45). The predicted knockdown averages 0.64 against 0.73
+21.2% (empirical) and 23.2% (semi-analytical). The empirical MAE per
+layup is 13% (c8), 31% (c16), 18% (c24), 19% (q8), 24% (q16), 37% (q24),
+15% (r0) and 4% (r45). The predicted knockdown averages 0.64 against 0.73
 measured. Two things remain:
 - Layup. At similar delamination area, cross-ply c16 keeps 0.64 of its
   strength and quasi-isotropic q16 0.84; the DPA-based knockdown gives
   both about 0.64.
 - Thin, fixture-limited coupons. The undamaged reference is itself
   limited by the JIS fixture (see above), and a `k_s` fitted per layup
-  rises steeply with thickness within each family (q8 0.8, q16 1.2,
-  q24 2.5). That looks like the fixture, not the material.
+  rises with thickness within each family (q8 1.4, q16 1.5, q24 3.1).
+  That looks like the fixture, not the material.
 
 A layup factor from Lekhnitskii's `Kt_inf` was tried and helps little
 (about 1.6 points with the measured areas) and points the wrong way for

@@ -32,10 +32,10 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | Module | Submodule | Role |
 |--------|-----------|------|
 | `_types.py` | — | Shared `Literal` aliases `TierName`, `LoadingMode`, `CriterionName` and their runtime-validation frozensets (`_TIER_NAMES`, `_LOADING_MODES`, `_CRITERION_NAMES`). Each alias and its frozenset change together. |
-| `core/` | `material.py` | `OrthotropicMaterial` dataclass (moduli, strengths, toughnesses, density in kg/mm^3, impact-mapping and knockdown calibration constants such as `soutis_k_s` = 4.7 and `olsson_alpha` = 0.078) + the `MATERIAL_LIBRARY` dict with six presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy). Ported from WrinkleFE. |
+| `core/` | `material.py` | `OrthotropicMaterial` dataclass (moduli, strengths, toughnesses, density in kg/mm^3, impact-mapping and knockdown calibration constants such as `soutis_k_s` = 4.8 and `olsson_alpha` = 0.0865) + the `MATERIAL_LIBRARY` dict with six presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy). Ported from WrinkleFE. |
 | | `laminate.py` | `Laminate`: Classical Lamination Theory ABD matrices, effective engineering constants, flexural rigidity; uniform or per-ply thicknesses. Ported from WrinkleFE. |
 | | `geometry.py` | `PanelGeometry`, `ImpactorGeometry`, `BoundaryKind` (`clamped` / `simply_supported` / `free`), `ImpactorShape` (`hemispherical` / `flat` / `conical`). |
-| `impact/` | `olsson.py` | Olsson quasi-static damage-threshold load (`threshold_load`) and onset energy (`onset_energy`) from plate bending + fracture energy balance; boundary- and impactor-shape-aware. |
+| `impact/` | `olsson.py` | Quasi-static delamination threshold load (`threshold_load`, `π √(32 D* G_IIc / 3)` with Olsson's orthotropic `D*`) and onset energy (`onset_energy`) from plate bending + contact stiffness; boundary- and impactor-shape-aware. |
 | | `shape_templates.py` | Layup-dependent per-interface "peanut" templates that distribute the total DPA into per-interface elliptical delaminations (`distribute_damage`). With `max_half_extent_mm` each ellipse is shrunk, aspect ratio kept, to fit a window about the impact point, and the union is re-solved for the same area. |
 | | `dent_model.py` | Thickness-normalized empirical dent depth (`dent_depth_mm`) and fiber-break core radius (`fiber_break_radius_mm`) from impact energy. |
 | | `mapping.py` | `ImpactEvent` and `impact_to_damage`: `ImpactEvent` → `DamageState`. The DPA is an energy balance, `olsson_alpha (E − E_onset) / G_IIc`, with impactor-mass, shape and diameter corrections and an 80%-of-panel cap. The delaminations are kept inside the impacted panel (`impact_panel`, else `panel`; for an ASTM D7136 coupon the 125 × 75 mm support window), measured from the impact point. |
@@ -168,6 +168,7 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
 - **AS4/8552 preset** and the first **measured validation datasets** (`ncamp_as4_8552_cai`, `lovejoy_scotti_im7_8552_cai`); `soutis_k_s` calibrated on them (3.5, then 4.7).
 - **T800S/3900-2B preset** and the Hasebe et al. CAI dataset (reported, not gated); impactor shape and diameter factors fitted to it.
 - **Energy-balance damage area** (`DPA = olsson_alpha (E − E_onset) / G_IIc`, default `olsson_alpha` 0.078 fitted to Lovejoy & Scotti's C-scans) and a **fixed reference area** in the Soutis knockdown; `soutis_k_s` 4.7.
+- **Corrected Olsson threshold load** (`π √(32 D* G_IIc / 3)`; it was 3.5× too low), with `olsson_alpha` refitted to 0.0865 (0.0648 for T800S/3900-2B), the conical shape factor to 1.5 and `soutis_k_s` to 4.8.
 - **Delaminations confined to the impacted panel** (`distribute_damage(max_half_extent_mm=...)`); the NCAMP and Lovejoy & Scotti cases are impacted on the ASTM D7136 125 × 75 mm window.
 - **fe3d damage-zone in-plane factor** 0.30 -> 0.20 -> 0.17, fitted to the first NCAMP, Lovejoy & Scotti quasi-isotropic and Lovejoy & Scotti hard CAI coupons.
 - CI checks the generated JSON schemas (`scripts/generate_schemas.py --check`) and gates the semi-analytical tier on the measured datasets.

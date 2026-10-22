@@ -79,6 +79,11 @@ constants are in [`validation/README.md`](validation/README.md).
   thickness-weighted average of the ply strengths along the load. Every
   absolute strength drops: a 16-ply IM7/8552 quasi-isotropic laminate goes
   887.5 -> 601.3 MPa in compression and 1316.5 -> 753.2 MPa in tension.
+- The delamination threshold load is `pi sqrt(32 D* G_IIc / 3)` with
+  Olsson's `D* = sqrt(D11 D22 (A + 1) / 2)`, about 3.5x the 0.2.0 value,
+  so the onset energy is 8-12x higher (about 7 J on a 150 x 100 mm
+  IM7/8552 panel, was about 0.6 J): a low-energy impact that used to
+  predict damage may now predict none (see *Fixed*).
 - The damage area is an energy balance,
   `DPA = olsson_alpha (E - E_onset) / G_IIc` (mm^2), times the impactor
   mass, shape and diameter factors and capped at 80% of the panel. It was
@@ -99,10 +104,11 @@ constants are in [`validation/README.md`](validation/README.md).
 
 | Constant | 0.2.0 | Now |
 |---|---|---|
-| `OrthotropicMaterial.soutis_k_s` | 2.5 | 4.7 |
+| `OrthotropicMaterial.soutis_k_s` | 2.5 | 4.8 |
 | Soutis reference area | panel `Lx * Ly` | `SOUTIS_REFERENCE_AREA_MM2` = 15,000 mm^2 |
-| `OrthotropicMaterial.olsson_alpha` | 0.8 (area divided by thickness) | 0.078 (energy balance); 0.047 for T800S/3900-2B |
-| Impactor shape factor on the damage area, flat / conical | 1.4 / 0.7 | 0.2 / 1.3 |
+| `OrthotropicMaterial.olsson_alpha` | 0.8 (area divided by thickness) | 0.0865 (energy balance); 0.0648 for T800S/3900-2B |
+| Impactor shape factor on the damage area, flat / conical | 1.4 / 0.7 | 0.2 / 1.5 |
+| Delamination threshold load `P_c` | `pi sqrt(8 G_IIc sqrt(D11 D22) / 9)` | `pi sqrt(32 D* G_IIc / 3)`, Olsson's `D*` (3.5x higher) |
 | Impactor diameter exponent on the damage area | 0.3 | 0.2 (not applied to cones) |
 | IM7/8552 `Xt` | 2560 MPa | 2238 MPa (NCAMP cross-ply back-out) |
 | fe3d `DAMAGE_ZONE_INPLANE_FACTOR` | (no damage zone) | 0.17 |
@@ -129,16 +135,18 @@ with the 0.2.0 code):
 
 | Case | Empirical, 0.2.0 -> now | Semi-analytical, 0.2.0 -> now |
 |---|---|---|
-| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.555 | 0.007 -> 0.555 |
-| same, 20 J, CAI | 0.353 -> 0.373 | 0.002 -> 0.373 |
-| same, 20 J, TAI | 0.349 -> 0.365 | 0.349 -> 0.365 |
-| same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 0.457 | 0.003 -> 0.457 |
-| 8-ply QI [0/45/-45/90]s, 150 x 100 mm, 10 J, CAI | 0.356 -> 0.461 | 0.010 -> 0.461 |
-| 8-ply cross-ply [0/90]2s, 150 x 100 mm, 10 J, CAI | 0.360 -> 0.465 | 0.001 -> 0.391 |
+| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 1.000 | 0.007 -> 1.000 |
+| same, 20 J, CAI | 0.353 -> 0.400 | 0.002 -> 0.400 |
+| same, 20 J, TAI | 0.349 -> 0.369 | 0.349 -> 0.369 |
+| same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 1.000 | 0.003 -> 1.000 |
+| 8-ply QI [0/45/-45/90]s, 150 x 100 mm, 10 J, CAI | 0.356 -> 0.593 | 0.010 -> 0.508 |
+| 8-ply cross-ply [0/90]2s, 150 x 100 mm, 10 J, CAI | 0.360 -> 0.667 | 0.001 -> 0.562 |
 
 The predicted damage area falls several-fold on thin laminates (16-ply QI
-at 20 J: 8,090 -> 1,918 mm^2), and the absolute strengths fall with the
-pristine strength (the same case: 312.9 -> 224.3 MPa). 0.2.0's
+at 20 J: 8,090 -> 1,464 mm^2), and the absolute strengths fall with the
+pristine strength (the same case: 312.9 -> 240.6 MPa). The 5 J case and
+the 500 x 500 mm panel are below the corrected onset energy (6.6 J and
+122 J), so no damage is predicted there. 0.2.0's
 semi-analytical CAI was the sublaminate buckling onset, hence its
 near-zero values. fe3d results are not comparable with 0.2.0, whose fe3d
 knockdown was below 1 for an undamaged panel and whose first-ply failure
@@ -150,13 +158,13 @@ mapped on the tested coupon since 0.2.0 has no `impact_panel`):
 
 | Dataset | 0.2.0 | Now |
 |---|---|---|
-| `ncamp_as4_8552_cai`, 7 coupons | no AS4/8552 preset | 1.5% / 1.5% |
-| `lovejoy_scotti_im7_8552_cai`, 8 coupons | 91.6% / 82.8% | 9.0% / 9.0% |
-| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.3% / 23.3% |
+| `ncamp_as4_8552_cai`, 7 coupons | no AS4/8552 preset | 1.6% / 1.6% |
+| `lovejoy_scotti_im7_8552_cai`, 8 coupons | 91.6% / 82.8% | 8.7% / 8.7% |
+| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.2% / 23.2% |
 
 The two gated datasets were used to fit `soutis_k_s` and `olsson_alpha`,
 so these errors are in-sample. Fitted on one dataset alone, `soutis_k_s`
-predicts the other at 6.2-9.0%, the error to expect on a new material or
+predicts the other at 4.9-8.7%, the error to expect on a new material or
 layup. On the Hasebe set a constant knockdown scores 30.3%.
 
 ### Added
@@ -192,17 +200,18 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 
 ### Changed
 
-- **Damage area**: energy balance with `olsson_alpha` = 0.078, fitted to
-  the median of Lovejoy & Scotti's C-scan areas (0.047 for T800S/3900-2B,
+- **Damage area**: energy balance with `olsson_alpha` = 0.0865, fitted to
+  the median of Lovejoy & Scotti's C-scan areas (0.0648 for T800S/3900-2B,
   fitted to Hasebe et al.'s). It now grows with laminate thickness at
   constant J/mm, as measured.
-- **Soutis CAI knockdown**: fixed reference area and `soutis_k_s` = 4.7,
+- **Soutis CAI knockdown**: fixed reference area and `soutis_k_s` = 4.8,
   the pooled optimum of both closed-form tiers on NCAMP and Lovejoy &
   Scotti.
 - **Impactor shape and diameter factors** are fitted to Hasebe et al.
   2025, the only open data that vary the impactor on one material:
-  flat-ended impacts now predict about 7x less damage, conical about 1.9x
-  more; 16 mm hemispherical results are unchanged.
+  flat-ended impacts now predict about 7x less damage, conical about 2.1x
+  more (both also have their own onset energy); 16 mm hemispherical
+  results are unchanged.
 - **Pristine strength** is the unnotched laminate strength, within
   0.83-1.14x of the NCAMP unnotched tension and compression strengths of
   AS4/8552 and IM7/8552 (`tests/validation/test_unnotched_strength_ncamp.py`).
@@ -231,6 +240,29 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 
 ### Fixed
 
+- **The delamination threshold load was 3.5x too low.** `threshold_load`
+  computed `pi sqrt(8 G_IIc sqrt(D11 D22) / 9)`: Davies' isotropic
+  formula with the bending stiffness `D` put in place of
+  `E h^3 / (1 - nu^2)`, which is `12 D`. It is now the quasi-static,
+  large-mass threshold for one delamination,
+  `pi sqrt(32 D* G_IIc / 3)` with Olsson's orthotropic
+  `D* = sqrt(D11 D22 (A + 1) / 2)`, `A = (D12 + 2 D66) / sqrt(D11 D22)`
+  (Davies & Zhang 1995; Suemasu & Majima 1996; Olsson 2001; González et
+  al. 2011, Eq. 8), with no dynamic factor (the 1.213 of Olsson et al.
+  2006 is for small-mass impacts). Against measured threshold loads,
+  predicted / measured goes from 0.25 to 0.86 (González et al. 2011,
+  AS4/8552 [(45/0/-45/90)4]s, 9.94 kN measured), 0.29 to 0.99 (Salvetti
+  et al. 2016, IM7/MTM45-1, about 5.7 kN) and 0.27 to 0.96 (NIAR,
+  IM7/8552, about 6.7 kN). The onset energy rises 8-12x: about 7 J on
+  150 x 100 mm IM7/8552 panels (was about 0.6 J), 4.7 J on the NCAMP
+  coupons and 6.1-8.3 J on Lovejoy & Scotti's. The constants that had
+  absorbed the error were refitted: `olsson_alpha` 0.078 -> 0.0865 and
+  0.047 -> 0.0648 (T800S/3900-2B), the conical shape factor 1.3 -> 1.5,
+  `soutis_k_s` 4.7 -> 4.8; the gated MAEs move 1.5% -> 1.6% (NCAMP) and
+  9.0% -> 8.7% (Lovejoy & Scotti). The onset uses the linear bending
+  stiffness, so on thin or large panels, which deflect more than their
+  thickness before the threshold load, it is overestimated: about 29 J on
+  an 8-ply 300 x 200 mm panel and 120 J on a 16-ply 500 x 500 mm one.
 - **fe3d first-ply failure depended on the mesh.** The damage zone took or
   left whole elements by their centroid, and failure was checked at
   single Gauss points, where the stress at the re-entrant corners of the
