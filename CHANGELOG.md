@@ -276,6 +276,50 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
   stiffness, so on thin or large panels, which deflect more than their
   thickness before the threshold load, it is overestimated: about 29 J on
   an 8-ply 300 x 200 mm panel and 120 J on a 16-ply 500 x 500 mm one.
+- **The damage template no longer depends on how the layup is written.**
+  `distribute_damage` took the ply mismatch as `|theta_b - theta_a|` and
+  the ellipse axis as `(theta_a + theta_b) / 2` without wrapping, so a
+  -45/90 interface was a 135 deg mismatch (aspect ratio clipped to 4) at
+  22.5 deg, and writing -45 as 135 changed the footprint of the same
+  16-ply QI laminate at 1500 mm^2 from 71 x 36 mm to 40 x 71 mm. Angles are
+  now axial (modulo 180 deg): the mismatch is the acute angle between the
+  fibres (-45/90 is 45 deg, aspect ratio 2.125), each ellipse lies along
+  the fibres of the back-face-side ply of its interface (ply 0 is the
+  impact face; Liu 1988, Abrate 1998), and interfaces between plies of the
+  same direction (the doubled mid-plane ply) carry no delamination (a
+  unidirectional layup keeps every interface). Unconfined footprints of the
+  calibration coupons become near-round: NCAMP 99 x 52 -> 67 x 62 mm,
+  Lovejoy & Scotti QI 134 x 70 -> 89 x 85 mm, hard laminate 108 x 108 ->
+  125 x 122 mm (confined to the 125 x 75 mm window: 99 x 52 -> 67 x 62,
+  125 x 75 -> 92 x 75, 111 x 75 -> 125 x 75 mm). Closed-form tiers:
+  empirical MAE unchanged (NCAMP 1.50%, Lovejoy & Scotti 8.95%, Hasebe
+  21.25% -> 21.25%, the union area moving by under 0.5%); semi-analytical
+  NCAMP and Lovejoy & Scotti unchanged, Hasebe 23.28% -> 23.35% (per
+  layup: cross-ply c8 23.2 -> 22.0%, c16 19.4 -> 27.7%, c24 22.6 -> 17.6%,
+  QI q8 18.6 -> 19.3%, q16 23.2 -> 25.3%, q24 36.6 -> 37.4%, r0 34.6 ->
+  29.5%, r45 unchanged). fe3d on the three coupons that fix
+  `DAMAGE_ZONE_INPLANE_FACTOR` = 0.17 (5 mm mesh): NCAMP #0 -3.2% ->
+  -12.0%, Lovejoy & Scotti QI #0 -1.2% -> +18.9%, hard #4 +4.7% ->
+  +12.7%. The factor is not refitted here. The cross-ply CLI snapshot's
+  damage area moves by 1.2e-6.
+- **fe3d's 3D ply stiffness uses nu23, not nu21, for the 2-3 coupling.**
+  `get_compliance_matrix` set `S23 = -nu21 / E22`, a 2-3 Poisson ratio of
+  about 0.02 for every preset, while the presets' own `G23` implies
+  `nu23 = E22 / (2 G23) - 1` = 0.30-0.68 (AS4/8552's `G23` was derived
+  from a measured 0.45). `OrthotropicMaterial` gains an optional `nu23`;
+  `None` resolves to that value (`nu23_resolved`), and a value outside
+  (-1, 1) or one that makes the compliance indefinite is rejected. Only
+  the fe3d hex stiffness uses the 3D matrix: the closed-form tiers and the
+  CLI snapshots are unchanged. fe3d coupons (on top of the template fix):
+  NCAMP #0 -12.0% -> -14.4%, Lovejoy & Scotti QI #0 +18.9% -> +10.8%,
+  hard #4 +12.7% -> +10.8% (on the old template alone: -3.2% -> -5.9%,
+  -1.2% -> -3.6%, +4.7% -> +3.5%). With both fixes the fe3d tension
+  knockdown at 30 J (IM7/8552, 150 x 100 mm) is 0.316 for 16-ply QI (was
+  0.333) and 0.312 for 24-ply QI (unchanged). A `[90]_4`
+  coupon in compression with simply-supported loaded edges now fails
+  3-4% below `Yc / E22`: the `u_z = 0` restraint on the whole loaded face
+  blocks the ply's through-thickness Poisson expansion (the ply-frame test
+  now uses free edges for that case).
 - **fe3d first-ply failure depended on the mesh.** The damage zone took or
   left whole elements by their centroid, and failure was checked at
   single Gauss points, where the stress at the re-entrant corners of the

@@ -173,30 +173,46 @@ also bounds the delamination footprint (step 5).
    every preset, so the fibre-break core is off unless a custom material
    or a C-scan file sets it.
 
-5. **Distribution over interfaces** ("peanut" template). Every ply
-   interface `i` (`0 … n_plies − 2`) gets one ellipse centred on the impact
-   point. Its orientation is the mean of the two adjacent ply angles, its
-   aspect ratio is `1 + 0.025 |Δθ|` clipped to [1, 4], and its size weight
+5. **Distribution over interfaces** ("peanut" template). Ply 0 of
+   `layup_deg` (at `z = −h/2`) is the impacted face, and interface `i`
+   (`0 … n_plies − 2`) lies between ply `i` (impact side) and ply `i + 1`
+   (back-face side). Fibre directions are axial, so every angle is taken
+   modulo 180°: `−45` and `135`, or `90` and `−90`, give the same
+   footprint. Each interface whose two plies differ in direction gets one
+   ellipse centred on the impact point. Its orientation is the fibre
+   angle of the back-face-side ply `i + 1`: a peanut-shaped delamination
+   elongates along the fibres of the ply below the interface (Liu 1988;
+   Abrate 1998). Its aspect ratio is `1 + 0.025 Δθ`, where `Δθ` ∈ [0°, 90°]
+   is the acute angle between the two fibre directions (1 to 3.25; a
+   −45/90 interface is 45°, AR 2.125). Its size weight
    `0.3 + 0.7 (i + 1) / n_interfaces` grows from the impact face to the
-   back face. One scale factor is solved so the union of the footprints
-   equals the target DPA within 1%. The weights take ply 0 (the first
-   entry of `layup_deg`, at `z = −h/2` in the CLT stack and at `z = 0`
-   in the fe3d mesh) as the impact face, so interface 0 gets the smallest
-   delamination; list the layup from the impacted face.
+   back face. Interfaces between plies of the same direction (the doubled
+   mid-plane ply of a symmetric laminate) carry no delamination: there is
+   no bending-stiffness mismatch to drive one (Liu 1988), and
+   delaminations are observed only between plies of different orientation
+   (Abrate 1991). A layup whose plies all share one direction keeps a
+   circle at every interface. One scale factor is solved so the union of
+   the footprints equals the target DPA within 1%. The weights take ply 0
+   (the first entry of `layup_deg`, at `z = −h/2` in the CLT stack and at
+   `z = 0` in the fe3d mesh) as the impact face, so interface 0 gets the
+   smallest delamination; list the layup from the impacted face.
 
    Every ellipse is kept inside the impacted panel (`impact_panel`, else
    `panel`): an ellipse whose bounding box would reach past the panel edge
    nearest the impact point is shrunk, keeping its aspect ratio, and the
    scale factor is re-solved for the same union area. If the panel cannot
    hold the target area, the largest footprint that fits is used with a
-   `UserWarning`. The union of differently oriented ellipses spreads well
+   `UserWarning`. The union of differently oriented ellipses spreads
    beyond the circle of the same area: unconfined, the template footprint
-   was 99 × 52 mm on the NCAMP quasi-isotropic coupon (same-area circle
-   61 mm), 134 × 70 mm on Lovejoy & Scotti's quasi-isotropic coupon
-   (circle 82 mm) and 108 × 108 mm on their hard laminate (circle 92 mm),
-   wider than the 102 mm coupon. For an ASTM D7136 coupon the impacted
-   panel is the 125 × 75 mm support window, which is where the damage
-   stays.
+   is 67 × 62 mm on the NCAMP quasi-isotropic coupon (same-area circle
+   61 mm), 89 × 85 mm on Lovejoy & Scotti's quasi-isotropic coupon
+   (circle 82 mm) and 125 × 122 mm on their hard laminate (circle 92 mm),
+   wider than the 102 mm coupon. (Before the angles were taken modulo
+   180°, the −45/90 interfaces of the quasi-isotropic coupons were
+   ellipses of aspect ratio 4 at 22.5°, and the footprints were 99 × 52
+   and 134 × 70 mm; the hard laminate's was 108 × 108 mm.) For an ASTM
+   D7136 coupon the impacted panel is the 125 × 75 mm support window,
+   which is where the damage stays.
 
 The dent depth is carried in `DamageState` and reported, but no tier uses
 it in the residual-strength calculation (and it is not a usable
@@ -377,6 +393,13 @@ against 21.3% over the whole set.
 A structured hexahedral mesh of the whole panel is built for the damaged
 laminate (`MeshParams`: `in_plane_size_mm`, default 5 mm, and
 `elements_per_ply`, default 1). Ply interfaces lie on element faces.
+Each ply's 3D stiffness is orthotropic with the 2-3 plane transversely
+isotropic in its moduli: `E33 = E22`, `ν13 = ν12`, and the 2-3 Poisson
+ratio `ν23` is `OrthotropicMaterial.nu23` or, unset, the value
+`E22 / (2 G23) − 1` the preset's `G23` implies (0.30 to 0.68 over the
+presets; 0.45 for AS4/8552, the measured value its `G23` was derived
+from). Until this release the compliance used `ν21 = ν12 E22 / E11`
+(about 0.02) for the 2-3 term. The plane-stress tiers do not use `ν23`.
 Delaminated interfaces are approximated by a **component-wise
 stiffness-reduction model** (true cohesive surfaces deferred to a future
 release):
@@ -627,13 +650,15 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   kept inside the ASTM D7136 impact window: the first NCAMP AS4/8552 and
   the first Lovejoy & Scotti IM7/8552 quasi-isotropic coupons (3.2% and
   1.2% low) and the first Lovejoy & Scotti 40-ply hard laminate (4.7%
-  high), so both laminate families fit within 5%. Before the footprint was
+  high). Since the template takes ply angles modulo 180° (step 5) and the
+  ply stiffness uses `ν23`, the same factor gives 14.4% low, 10.8% high
+  and 10.8% high; it has not been refitted. Before the footprint was
   confined, the hard laminate's template footprint was 108 × 108 mm on a
   102 mm wide coupon: the soft zone spanned the whole section, the 0°
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  below the empirical tier's (16-ply QI 0.33 against 0.36, 24-ply QI 0.31
+  below the empirical tier's (16-ply QI 0.32 against 0.36, 24-ply QI 0.31
   against 0.36); the damage area
   there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
@@ -728,6 +753,12 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - Hutchinson, J.W. & Suo, Z. (1992). Mixed mode cracking in layered
   materials. *Advances in Applied Mechanics*, 29, 63-191.
 - Lemaitre, J. (1992). *A Course on Damage Mechanics*. Springer.
+- Liu, D. (1988). Impact-induced delamination — a view of bending stiffness
+  mismatching. *Journal of Composite Materials*, 22(7), 674-692.
+- Abrate, S. (1991). Impact on laminated composite materials. *Applied
+  Mechanics Reviews*, 44(4), 155-190.
+- Abrate, S. (1998). *Impact on Composite Structures*. Cambridge University
+  Press.
 - Soutis, C. & Curtis, P.T. (1996). Prediction of the post-impact
   compressive strength of CFRP laminated composites. *Composites Science
   and Technology*, 56(6), 677-684.

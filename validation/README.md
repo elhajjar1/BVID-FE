@@ -113,6 +113,17 @@ index is averaged over a 2.5 mm disk (which made fe3d mesh-converged; see
 still in-sample. fe3d has not been run on the other 12 measured NCAMP
 and Lovejoy & Scotti coupons, so it has no out-of-sample check.
 
+Two physics fixes then moved the coupons without a refit. The damage
+template now takes ply angles modulo 180° (a −45/90 interface is a 45°
+mismatch, not 135°; each ellipse lies along the back-face-side ply; no
+delamination between plies of the same direction): 156.3 MPa (−12.0%),
+174.6 MPa (+18.9%) and 265.6 MPa (+12.7%). The 3D ply stiffness then
+uses `ν23 = E22 / (2 G23) − 1` instead of `ν21` for the 2-3 coupling:
+152.1 MPa (−14.4%), 162.6 MPa (+10.8%) and 261.2 MPa (+10.8%), a mean
+error of 12.0%. The NCAMP coupon now wants a stiffer zone and both
+Lovejoy & Scotti coupons a softer one, so a single factor cannot bring
+all three back within 5%.
+
 ### Calibration of `soutis_k_s`
 
 The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_ref)^m)`, with

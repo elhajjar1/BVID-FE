@@ -431,7 +431,9 @@ print(BvidAnalysis(config).run().knockdown)
 
 Moduli and strengths are in MPa, toughnesses `G_Ic` / `G_IIc` in N/mm.
 Other optional fields: `Zt`, `Zc`, `S13` (through-thickness strengths;
-default to `Yt`, `Yc`, `S12`), `puck_p_nt_plus` / `puck_p_nt_minus` (0.30 /
+default to `Yt`, `Yc`, `S12`), `nu23` (transverse Poisson ratio of the fe3d
+3D stiffness; defaults to `E22 / (2 G23) - 1`, 0.41 above),
+`puck_p_nt_plus` / `puck_p_nt_minus` (0.30 /
 0.25), and `fiber_break_eta` / `fiber_break_E_threshold` (fibre-break core,
 off by default). The defaults of `soutis_k_s` and `olsson_alpha` are
 calibrated against measured CAI data on the 8552-matrix presets (AS4/8552
