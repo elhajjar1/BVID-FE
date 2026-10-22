@@ -1,6 +1,6 @@
 {
   "name": "ncamp_as4_8552_cai",
-  "reference": "NCAMP CAM-RP-2010-002 Rev A (2011), Hexcel 8552 AS4 unitape qualification, sec. 2.3.31 and 4.31: CAI1, [45/0/-45/90]3s, ASTM D7136/D7137, RTD, 1500 in-lbf/in impact. Measured (not CPT-normalized) strengths with each specimen's measured thickness. Impactor mass and the 0.625 in hemispherical tup are the ASTM D7136 standard values; the report does not list them. No dent depth or damage area is reported.",
+  "reference": "NCAMP CAM-RP-2010-002 Rev A (2011), Hexcel 8552 AS4 unitape qualification, sec. 2.3.31 and 4.31: CAI1, [45/0/-45/90]3s, ASTM D7136/D7137, RTD, 1500 in-lbf/in impact. Measured (not CPT-normalized) strengths with each specimen's measured thickness. Impactor mass and the 0.625 in hemispherical tup are the ASTM D7136 standard values; the report does not list them. No dent depth or damage area is reported. The plate is impacted on the ASTM D7136 125 x 75 mm support window (impact_panel), which also confines the predicted delaminations.",
   "target_mae_pct": 15.0,
   "cases": [
     {
@@ -41,7 +41,10 @@
       "impact_energy_J": 29.927,
       "loading": "compression",
       "measured_strength_MPa": 177.65,
-      "note": "HFUKA111A: 264.88 in-lbf, 25.766 ksi measured, t = 0.176 in, failure mode LDM"
+      "note": "HFUKA111A: 264.88 in-lbf, 25.766 ksi measured, t = 0.176 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     },
     {
       "material": "AS4/8552",
@@ -81,7 +84,10 @@
       "impact_energy_J": 30.088,
       "loading": "compression",
       "measured_strength_MPa": 181.93,
-      "note": "HFUKA112A: 266.3 in-lbf, 26.386 ksi measured, t = 0.177 in, failure mode LDM"
+      "note": "HFUKA112A: 266.3 in-lbf, 26.386 ksi measured, t = 0.177 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     },
     {
       "material": "AS4/8552",
@@ -121,7 +127,10 @@
       "impact_energy_J": 29.884,
       "loading": "compression",
       "measured_strength_MPa": 176.46,
-      "note": "HFUKA113A: 264.5 in-lbf, 25.594 ksi measured, t = 0.177 in, failure mode LDM"
+      "note": "HFUKA113A: 264.5 in-lbf, 25.594 ksi measured, t = 0.177 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     },
     {
       "material": "AS4/8552",
@@ -161,7 +170,10 @@
       "impact_energy_J": 30.317,
       "loading": "compression",
       "measured_strength_MPa": 175.06,
-      "note": "HFUKA114A: 268.33 in-lbf, 25.391 ksi measured, t = 0.179 in, failure mode LDM"
+      "note": "HFUKA114A: 268.33 in-lbf, 25.391 ksi measured, t = 0.179 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     },
     {
       "material": "AS4/8552",
@@ -201,7 +213,10 @@
       "impact_energy_J": 29.873,
       "loading": "compression",
       "measured_strength_MPa": 172.8,
-      "note": "HFUKA115A: 264.4 in-lbf, 25.062 ksi measured, t = 0.178 in, failure mode LDM"
+      "note": "HFUKA115A: 264.4 in-lbf, 25.062 ksi measured, t = 0.178 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     },
     {
       "material": "AS4/8552",
@@ -241,7 +256,10 @@
       "impact_energy_J": 30.046,
       "loading": "compression",
       "measured_strength_MPa": 178.48,
-      "note": "HFUKA116A: 265.93 in-lbf, 25.887 ksi measured, t = 0.177 in, failure mode LDM"
+      "note": "HFUKA116A: 265.93 in-lbf, 25.887 ksi measured, t = 0.177 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     },
     {
       "material": "AS4/8552",
@@ -281,7 +299,10 @@
       "impact_energy_J": 30.336,
       "loading": "compression",
       "measured_strength_MPa": 171.18,
-      "note": "HFUKA117A: 268.5 in-lbf, 24.828 ksi measured, t = 0.179 in, failure mode LDM"
+      "note": "HFUKA117A: 268.5 in-lbf, 24.828 ksi measured, t = 0.179 in, failure mode LDM",
+      "impact_panel_Lx_mm": 125.0,
+      "impact_panel_Ly_mm": 75.0,
+      "impact_boundary": "simply_supported"
     }
   ]
 }

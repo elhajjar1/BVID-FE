@@ -68,7 +68,7 @@ BVID Analysis Results
   pristine_strength_MPa  : 601.3
   residual_strength_MPa  : 224.3
   knockdown              : 0.373
-  dpa_mm2                : 1918.4
+  dpa_mm2                : 1918.5
   dent_depth_mm          : 1.216
   n_delaminations        : 15
 ```

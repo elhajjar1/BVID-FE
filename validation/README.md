@@ -19,10 +19,12 @@ to ASTM D7136/D7137 at RTD and impacted at 1500 in-lbf/in (about 30 J). The
 measured CAI is 171–182 MPa and every coupon failed through the impact damage
 (failure code LDM). Each case uses its own measured thickness and impact
 energy. The report does not give the impactor mass or tup, so the ASTM
-D7136 standard values (5.5 kg, 0.625 in hemispherical) are used. It reports
-no dent depth or damage area. The fe3d tier gives 186 MPa on the first
-coupon (4.8% high; its damage-zone factor is fitted to this coupon, see
-below). At about 3 minutes per coupon it is not run in CI.
+D7136 standard values (5.5 kg, 0.625 in hemispherical) are used, and the
+plate is impacted on the standard's 125 × 75 mm support window
+(`impact_panel_*`), which also confines the predicted delaminations. It
+reports no dent depth or damage area. The fe3d tier gives 171 MPa on the
+first coupon (3.5% low; its damage-zone factor is fitted to this coupon,
+see below). At about 3 minutes per coupon it is not run in CI.
 
 **`lovejoy_scotti_im7_8552_cai`** is measured data: Lovejoy & Scotti, NASA
 LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
@@ -33,32 +35,51 @@ LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
   50 ft-lb (68 J), 236–249 MPa.
 
 Each case carries the measured thickness, dent depth and C-scan damage area.
-The impactor is not described, so the ASTM D7136 standard is assumed. The
-hybrid thin-ply coupons are omitted, because a case has a single ply
-thickness.
+The impactor is not described, so the ASTM D7136 standard is assumed.
+Like the NCAMP cases, each is impacted on the ASTM D7136 125 × 75 mm
+support window (`impact_panel_*`), which also confines the predicted
+delaminations. The hybrid thin-ply coupons are omitted, because a case has
+a single ply thickness.
 
 ### fe3d damage-zone factor
 
 fe3d softens the in-plane stiffness of every ply under the damage
 footprint by `DAMAGE_ZONE_INPLANE_FACTOR`. It was an unfitted 0.30. With
 the energy-balance damage area the zone shrank, and 0.30 put the
-quasi-isotropic coupons 30–36% high. A sweep on three coupons (error of
-the fe3d strength against the measured CAI):
+quasi-isotropic coupons 30–36% high. A first sweep on three coupons (error
+of the fe3d strength against the measured CAI), with the delaminations
+not yet confined:
 
 | Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 |
 |---|---|---|---|
-| 0.30 (old) | +30.2% | +35.5% | −14.1% |
+| 0.30 | +30.2% | +35.5% | −14.1% |
 | 0.25 | +18.3% | +16.7% | −31.1% |
-| 0.20 (new) | +4.8% | −2.0% | −47.1% |
+| 0.20 | +4.8% | −2.0% | −47.1% |
 | 0.15 | −8.9% | −20.4% | −62.1% |
 
-At 0.20 the three coupons give 186.1 MPa (177.7 measured), 143.9 MPa
-(146.8) and 124.7 MPa (235.7). 0.20 has the lowest mean error, 18.0%
-against 26.6% at 0.30, and errs conservative on the hard laminate, which
-wants more than 0.30. One factor cannot fit both families: fe3d has no
-characteristic length, and the stress concentration at the zone edge
-depends on the laminate's orthotropy. The two quasi-isotropic coupons are
-in-sample.
+No factor fitted both families: the hard laminate wanted more than 0.30
+while the quasi-isotropic coupons wanted about 0.20. The cause was the
+footprint, not the factor. The union of the template's differently
+oriented ellipses spreads well beyond the circle of the same area: on the
+hard laminate it was 108 × 108 mm (same-area circle 92 mm) on a 102 mm
+wide coupon, so fe3d's soft zone spanned the whole section and the 0°
+fibres failed at the coupon's side edge (2.4 mm from it). On the
+quasi-isotropic coupons it was 99 × 52 mm (NCAMP, circle 61 mm) and
+134 × 70 mm (Lovejoy & Scotti, circle 82 mm). The delaminations are now
+kept inside the impacted panel, here the ASTM D7136 125 × 75 mm support
+window, and the sweep with that confinement gives:
+
+| Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 |
+|---|---|---|---|
+| 0.20 | +4.7% | +6.6% | +12.4% |
+| 0.17 (default) | −3.5% | −4.4% | +1.9% |
+| 0.15 | −9.0% | −11.7% | not run |
+
+At 0.17 the three coupons give 171.4 MPa (177.7 measured), 140.4 MPa
+(146.8) and 240.2 MPa (235.7): both laminate families fit within 5%, with
+a mean error of 3.3% (18.0% at 0.20 before the confinement). The three
+coupons are in-sample. The closed-form tiers barely move with the
+confinement: NCAMP 1.54% → 1.50%, Lovejoy & Scotti 8.97% → 8.95%.
 
 ### Calibration of `soutis_k_s`
 
@@ -89,7 +110,7 @@ against 5,190–7,530 mm²).
   thickness at constant J/mm, where the measured area grows with it:
   Lovejoy & Scotti's 7.6 mm coupons had 1.21× the C-scan area of their
   6.1 mm coupons at the same 8.9 J/mm. The predicted areas are now
-  5,281 mm² (quasi-isotropic) and 6,589 mm² (hard), against 5,190–5,740
+  5,304 mm² (quasi-isotropic) and 6,616 mm² (hard), against 5,190–5,740
   and 6,260–7,530 mm² measured. NCAMP reports no damage area, so its
   predicted area (about 2,900 mm², was about 6,650 mm²) is an independent
   prediction.
@@ -210,7 +231,7 @@ the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
 error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The fe3d tier
 is run on the first three synthetic cases as a smoke run, not a gate: the
-synthetic set is empirical-tier output, so its error there (17.9%) measures
+synthetic set is empirical-tier output, so its error there (23.8%) measures
 the difference between the tiers, not fe3d's accuracy.
 
 ## Next datasets

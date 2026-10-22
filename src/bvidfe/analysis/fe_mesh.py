@@ -74,14 +74,14 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # In-plane stiffness fraction of the damage zone (soft inclusion over the
 # projected damage area, every ply). Its strengths drop with it (strain
 # equivalence, see fe_tier._failure_stress_material). Fitted to the measured
-# CAI coupons on the energy-balance damage area: 0.20 puts the first NCAMP
-# AS4/8552 [45/0/-45/90]3s coupon at +4.8% and the first Lovejoy & Scotti
-# IM7/8552 [45/0/-45/90]4s coupon at -2.0%, but the 40-ply hard laminate at
-# -47% (it wants more than 0.30). One factor cannot fit both families: fe3d
-# has no characteristic length, and the stress concentration at the zone edge
-# depends on the laminate's orthotropy. 0.30 (the previous, unfitted value)
-# put the two quasi-isotropic coupons 30-36% high.
-DAMAGE_ZONE_INPLANE_FACTOR = 0.20
+# CAI coupons on the energy-balance damage area, with the delaminations kept
+# inside the ASTM D7136 impact window: 0.17 puts the first NCAMP AS4/8552
+# [45/0/-45/90]3s coupon at -3.5%, the first Lovejoy & Scotti IM7/8552
+# [45/0/-45/90]4s coupon at -4.4% and their 40-ply hard laminate at +1.9%
+# (0.20: +4.7%, +6.6%, +12.4%; 0.15: -9.0%, -11.7%). Before the window
+# confinement the hard laminate's damage band spanned the coupon and no
+# single factor fitted both families (0.20 left it at -47%).
+DAMAGE_ZONE_INPLANE_FACTOR = 0.17
 
 
 def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:

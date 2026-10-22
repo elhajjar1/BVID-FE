@@ -66,9 +66,11 @@ Internally `BvidAnalysis.run()` dispatches `impact_to_damage()` (Olsson
 threshold + energy-balance damage area + peanut-template distribution +
 dent model) to build a `DamageState`, then runs the selected tier's
 residual-strength engine. The predicted damage area is capped at 80% of
-the panel area, with a `DPACapClipWarning`. On this panel the area grows by
-about 99 mm² per joule above onset, so the 12,000 mm² cap is not reached
-below about 120 J.
+the panel area, with a `DPACapClipWarning`, and the delaminations are kept
+inside the impacted panel. On this panel the area grows by about 99 mm²
+per joule above onset; from about 114 J the footprint fills what the
+panel can hold (about 11,200 mm², with a `UserWarning`), before the
+12,000 mm² cap.
 
 `ImpactorGeometry` defaults to the ASTM D7136 impactor (`diameter_mm=16.0`,
 `shape="hemispherical"`; also `"flat"` and `"conical"`), and `ImpactEvent`
@@ -108,7 +110,11 @@ print(cscan_result.critical_sublaminate)   # 4: the interface whose delamination
 `impact_panel` (a `PanelGeometry`, with `impact` only) is the panel the
 impact was applied on when it is not the one tested, e.g. a 60 × 60 mm
 clamped window and an 80 × 50 mm compression coupon: the damage is mapped
-on `impact_panel` and centred on `panel`.
+on `impact_panel` and centred on `panel`. For an ASTM D7136 coupon it is
+the 125 × 75 mm support window (`PanelGeometry(125, 75)`). It also bounds
+the damage footprint: every delamination ellipse is kept inside it,
+measured from the impact point. Without `impact_panel` the tested panel
+bounds it.
 
 ## Results
 
@@ -136,7 +142,7 @@ JSON-serialisable dict.
 |---|---|---|---|
 | `empirical` | < 1 s | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 9.0% (Lovejoy & Scotti IM7/8552); expect about 6–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | < 1 s | Same datasets: MAE 1.5% and 9.0% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.20) is fitted to two quasi-isotropic CAI coupons (within 5%) but puts a hard laminate 47% low; not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
+| `fe3d` | Tens of seconds (two FE solves; about 30 s for the 8-ply 150×100 mm panel at the default 5 mm mesh) | **Qualitative** — the damage-zone stiffness (×0.17) is fitted to three measured CAI coupons, quasi-isotropic and hard (within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. |
 
 ## Knockdown semantics
 
@@ -154,7 +160,7 @@ three tiers** — only the residual-strength numerator differs:
   first-ply failure for TAI, each divided by the same quantity on the
   undamaged panel (capped at 1) and applied to the pristine reference.
   First-ply failure runs on a mesh whose damage zone (the delamination
-  footprints, every ply) is softened in-plane ×0.2 with strain-equivalent
+  footprints, every ply) is softened in-plane ×0.17 with strain-equivalent
   strengths, and its stress is the reaction force at failure over the gross
   section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
   reported in `result.buckling_eigenvalues` but does not set the strength;

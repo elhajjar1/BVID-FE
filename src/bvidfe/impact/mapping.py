@@ -9,7 +9,8 @@ Pipeline:
        - impactor-tip footprint (hemispherical / flat / conical)
        - impactor-diameter spread
   4. compute dent depth and fiber-break radius
-  5. distribute DPA across interfaces via peanut template with union-area scaling
+  5. distribute DPA across interfaces via peanut template with union-area
+     scaling, every ellipse kept inside the impacted panel
 """
 
 from __future__ import annotations
@@ -192,13 +193,19 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
     dent = dent_depth_mm(material, event.energy_J, E_onset, h)
     r_fb = fiber_break_radius_mm(material, event.energy_J)
 
-    # Centroid for distribute_damage is the event location on the panel
+    # Centroid for distribute_damage is the event location on the panel. The
+    # delaminations stay inside the panel (support window) that was impacted.
+    half_extent = (
+        min(loc[0], panel.Lx_mm - loc[0]),
+        min(loc[1], panel.Ly_mm - loc[1]),
+    )
     ellipses = distribute_damage(
         layup_deg=lam.layup_deg,
         target_dpa_mm2=dpa_target,
         dent_depth_mm=dent,
         fiber_break_radius_mm=r_fb,
         centroid_mm=loc,
+        max_half_extent_mm=half_extent,
     )
 
     return DamageState(delaminations=ellipses, dent_depth_mm=dent, fiber_break_radius_mm=r_fb)

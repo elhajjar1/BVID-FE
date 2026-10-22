@@ -16,8 +16,10 @@ When an `AnalysisConfig` carries an `ImpactEvent` rather than a measured
 `DamageState`, `impact_to_damage()` (`src/bvidfe/impact/`) builds the damage
 state in five steps. It uses `AnalysisConfig.impact_panel` when the plate
 was impacted on a different panel or window than the one tested (for
-example a 60 × 60 mm clamped window and an 80 × 50 mm compression coupon);
-the damage is then moved to the centre of the test panel.
+example the 125 × 75 mm ASTM D7136 support window and a 150 × 100 mm CAI
+coupon, or a 60 × 60 mm clamped window and an 80 × 50 mm coupon); the
+damage is then moved to the centre of the test panel. The impacted panel
+also bounds the delamination footprint (step 5).
 
 1. **Onset energy** (Olsson 2001). The threshold load is
    `P_c = π √(8 G_IIc D_eff / 9)`, with `D_eff = √(D11 D22)` from the
@@ -65,9 +67,10 @@ the damage is then moved to the centre of the test panel.
     cone 1.20× the C-scan area of a 12.7 mm hemisphere, and 25.4 and
     31.8 mm hemispheres 0.88× and 0.87×. At the ASTM D7136 reference
     (5.5 kg, 16 mm, hemispherical) the three correction factors are 1. DPA
-    is capped at 80% of the panel area (`DPACapClipWarning`); on a
-    150 × 100 mm IM7/8552 panel the area grows by about 99 mm² per joule,
-    so the cap is reached only above about 120 J. A
+    is capped at 80% of the panel area (`DPACapClipWarning`). On a
+    150 × 100 mm IM7/8552 panel the area grows by about 99 mm² per joule;
+    the footprint confinement of step 5 then holds it at about 11,200 mm²
+    from about 114 J, before the 12,000 mm² cap. A
     `SmallMassQuasiStaticWarning` is raised when the impactor is lighter
     than the panel.
 
@@ -87,6 +90,20 @@ the damage is then moved to the centre of the test panel.
    `0.3 + 0.7 (i + 1) / n_interfaces` grows from the impact face to the
    back face. One scale factor is solved so the union of the footprints
    equals the target DPA within 1%.
+
+   Every ellipse is kept inside the impacted panel (`impact_panel`, else
+   `panel`): an ellipse whose bounding box would reach past the panel edge
+   nearest the impact point is shrunk, keeping its aspect ratio, and the
+   scale factor is re-solved for the same union area. If the panel cannot
+   hold the target area, the largest footprint that fits is used with a
+   `UserWarning`. The union of differently oriented ellipses spreads well
+   beyond the circle of the same area: unconfined, the template footprint
+   was 99 × 52 mm on the NCAMP quasi-isotropic coupon (same-area circle
+   61 mm), 134 × 70 mm on Lovejoy & Scotti's quasi-isotropic coupon
+   (circle 82 mm) and 108 × 108 mm on their hard laminate (circle 92 mm),
+   wider than the 102 mm coupon. For an ASTM D7136 coupon the impacted
+   panel is the 125 × 75 mm support window, which is where the damage
+   stays.
 
 The dent depth is carried in `DamageState` and reported, but no tier uses
 it in the residual-strength calculation.
@@ -193,7 +210,7 @@ QI panel at 5 J (0.500 against 0.556) and on the cross-ply panel at
 5–15 J (0.39–0.40 against 0.41–0.57); Soutis governs elsewhere. On the
 NCAMP and Lovejoy & Scotti validation cases (`validation/datasets/`)
 Soutis governs throughout (on the 40-ply hard laminate the growth stress
-is 273 MPa against a 227 MPa Soutis bound), so the two tiers give the
+is 252 MPa against a 226 MPa Soutis bound), so the two tiers give the
 same CAI strengths there. Growth governs on 225 of Hasebe et al.'s 343
 coupons (every cross-ply and hard-laminate coupon, and some
 quasi-isotropic ones), where the semi-analytical MAE is 23.3% against
@@ -215,11 +232,12 @@ release):
   out-of-plane Poisson coupling.
 - The damage zone as a whole (every ply under the union of the
   delamination footprints, where matrix cracks and fibre damage accompany
-  the delaminations) is a soft inclusion with in-plane stiffness
-  ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.20, fitted to two quasi-isotropic CAI
-  coupons, see [Limitations](#limitations); Soutis & Curtis 1996). Without
-  it, delaminations left the in-plane stress field unchanged
-  and first-ply failure could not see the impact.
+  the delaminations; confined to the impacted panel, see
+  [step 5](#impact-to-damage-mapping)) is a soft inclusion with in-plane
+  stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.17, fitted to three measured
+  CAI coupons, see [Limitations](#limitations); Soutis & Curtis 1996).
+  Without it, delaminations left the in-plane stress field unchanged and
+  first-ply failure could not see the impact.
 - The optional fibre-break core (elements within `fiber_break_radius_mm`
   of any delamination centroid; off in every preset) gets both factors:
   out-of-plane ×0.05 and in-plane ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR`
@@ -345,9 +363,9 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension: 0.43/0.34/0.33 at 5/15/30 J, against empirical
-  0.40/0.37/0.36), but its damage-zone stiffness is fitted to only two
-  quasi-isotropic CAI coupons. Where the delamination growth stress
+  zone (16-ply QI tension: 0.40/0.31/0.31 at 5/15/30 J, against empirical
+  0.40/0.37/0.36), but its damage-zone stiffness is fitted to only three
+  CAI coupons. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
   stress changes little with delamination size once the sublaminate
   buckles well below it.
@@ -367,9 +385,9 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   chosen for typical CFRP systems. Precise values need calibration against
   material-specific coupon test data before use in certification.
 - Validation covers CAI only. TAI has no measured dataset, and fe3d is not
-  run on the measured datasets in CI (it gives 186 MPa against the measured
-  178 MPa on the first NCAMP coupon, to which its damage-zone factor is
-  fitted, `validation/README.md`).
+  run on the measured datasets in CI (it gives 171 MPa against the measured
+  178 MPa on the first NCAMP coupon, one of the three coupons its
+  damage-zone factor is fitted to, `validation/README.md`).
 - LaRC05 is implemented as a minimal Hashin-3D reduction: σ₃ and τ₁₃ do
   not enter the index. Full plane-search fiber-kinking is deferred to a
   future release.
@@ -378,15 +396,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   cohesive surfaces with bilinear traction-separation laws and a continuum
   damage model. Cohesive surfaces are deferred to a future release. The
   damage-zone in-plane factor is uniform over the footprint. Its value,
-  0.20, is fitted to the first NCAMP AS4/8552 and the first Lovejoy &
-  Scotti IM7/8552 quasi-isotropic CAI coupons (4.8% high and 2.0% low;
-  0.30, the previous unfitted value, put them 30% and 36% high). It puts
-  the first Lovejoy & Scotti 40-ply hard-laminate coupon 47% low; that
-  laminate wants more than 0.30. One factor cannot fit both families:
-  fe3d has no characteristic length (below), and the stress concentration
-  at the zone edge depends on the laminate's orthotropy. On
+  0.17, is fitted to three measured CAI coupons, with the delaminations
+  kept inside the ASTM D7136 impact window: the first NCAMP AS4/8552 and
+  the first Lovejoy & Scotti IM7/8552 quasi-isotropic coupons (3.5% and
+  4.4% low) and the first Lovejoy & Scotti 40-ply hard laminate (1.9%
+  high), so both laminate families fit within 5%. Before the footprint was
+  confined, the hard laminate's template footprint was 108 × 108 mm on a
+  102 mm wide coupon: the soft zone spanned the whole section, the 0°
+  fibres failed at the coupon's side edge, and no single factor fitted
+  both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  below the empirical tier's (16-ply QI 0.33 against 0.36, 24-ply QI 0.25
+  below the empirical tier's (16-ply QI 0.31 against 0.36, 24-ply QI 0.22
   against 0.36); the damage area
   there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
@@ -396,11 +416,11 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   fe3d lacks the notch-size effect of the empirical tier's Soutis and
   Whitney-Nuismer models. It also depends on the mesh near the zone edge:
   going from 5 mm to 2.5 mm elements changes the 15 J knockdown on 8-ply
-  IM7/8552 150 × 100 mm panels by 5.0% (QI tension, 0.4424 to 0.4201),
-  20.7% (cross-ply tension, 0.1849 to 0.2232), 22.6% (cross-ply
-  compression, 0.2027 to 0.2485) and 3.6% (QI compression, 0.4408 to
-  0.4565). In QI compression the damaged and undamaged first-ply failure
-  stresses both fall with the finer mesh (262.2 to 231.3 MPa and 594.8 to
+  IM7/8552 150 × 100 mm panels by 5.3% (QI tension, 0.4138 to 0.3920),
+  24.2% (cross-ply tension, 0.1590 to 0.1975), 27.6% (cross-ply
+  compression, 0.1748 to 0.2231) and 3.3% (QI compression, 0.4143 to
+  0.4280). In QI compression the damaged and undamaged first-ply failure
+  stresses both fall with the finer mesh (246.4 to 216.8 MPa and 594.8 to
   506.6 MPa), and the ratio changes little. Cohesive surfaces and proper
   load-introduction BCs are v0.3.0 scope.
 - **The delamination growth stress is a 1D thin-film estimate.** It uses
