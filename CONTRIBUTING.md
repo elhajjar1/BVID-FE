@@ -19,12 +19,18 @@ Open an issue describing:
 
 ## Development Setup
 
+Python 3.10 or newer (CI tests 3.10, 3.11 and 3.12).
+
 ```bash
 git clone https://github.com/elhajjar1/BVID-FE.git
 cd BVID-FE
 pip install -e ".[dev]"
-pytest tests/ -v
+python -m pytest -q tests
 ```
+
+`requirements.txt` holds only the runtime dependencies (it is what
+Streamlit Cloud installs); the `dev` extra in `pyproject.toml` adds pytest,
+pytest-cov, coverage, ruff, black and pre-commit.
 
 ## Running Tests
 
@@ -47,7 +53,9 @@ tests that run `python -m bvidfe.cli` count towards it.
 
 ## Code Style
 
-- Format with **black** and lint with **ruff** (pre-commit hooks enforce both)
+- Format with **black** and lint with **ruff**, both at line length 100
+  (`[tool.black]` / `[tool.ruff]` in `pyproject.toml`); CI checks `src`
+  and `tests`, and pre-commit runs both on every staged file
 - Add docstrings to all public functions and classes
 - Include units in variable names and docstrings (MPa, mm, rad, J)
 - Use SI units throughout (millimetres, MPa, kg)
@@ -70,10 +78,13 @@ already formatted, so you must auto-format with `black` (not just verify
 with `black --check`):
 
 ```bash
-ruff check src tests
 black src tests        # auto-format in place; do NOT use --check here
-pytest -q
+ruff check src tests
+python -m pytest -q tests
 ```
+
+`tests/test_streamlit_app.py` imports `app.py`, so the suite also catches a
+broken app.
 
 ## Pull Requests
 
@@ -86,7 +97,9 @@ pytest -q
 
 ## Examples
 
-Runnable examples live in `examples/`. The script set (`01_empirical_quick.py` ... `05_tier_comparison_sweep.py`) covers the headless workflows; `examples/quickstart.ipynb` is an annotated Jupyter notebook that mirrors `01_empirical_quick.py` with LaTeX derivations of the Olsson, Soutis, and Whitney-Nuismer models plus inline Plotly visualisations. **Strip notebook outputs before committing** with `nbstripout examples/quickstart.ipynb` (`pip install nbstripout`); commits with output cells will be flagged in review.
+Runnable examples live in `examples/`; run them from the repository root
+(`python examples/01_empirical_quick.py`). They write PNGs and CSVs to
+`examples/output/`, which is gitignored. The script set (`01_empirical_quick.py` ... `05_tier_comparison_sweep.py`) covers the headless workflows; `examples/quickstart.ipynb` is an annotated Jupyter notebook that mirrors `01_empirical_quick.py` with LaTeX derivations of the Olsson, Soutis, and Whitney-Nuismer models plus inline Plotly visualisations. **Strip notebook outputs before committing** with `nbstripout examples/quickstart.ipynb` (`pip install nbstripout`); commits with output cells will be flagged in review.
 
 ## Adding New Materials
 
@@ -110,6 +123,9 @@ Details: `.claude/skills/add-modeling-tier/SKILL.md`.
 
 Validation datasets live in `validation/datasets/<name>.json`; the harness
 (`validation/validate_bvid_public.py`) discovers every `*.json` there.
+[`validation/README.md`](validation/README.md) describes the existing
+datasets, the case fields and the calibration history; read its
+"Adding a new dataset" section first.
 
 1. Write the file with a top-level `name`, `reference` (full citation and
    any assumptions), `target_mae_pct` and `cases`. Each case needs
@@ -118,18 +134,24 @@ Validation datasets live in `validation/datasets/<name>.json`; the harness
    if the source omits them, state the assumed values in `reference`),
    `impact_energy_J` and `measured_strength_MPa`. Optional: `loading`
    (default `compression`), `boundary`, `impactor_shape`,
-   `measured_dent_mm`, `measured_dpa_mm2`, `note`.
-2. Run it: `python validation/validate_bvid_public.py --dataset <name>`
-   (and `--tier semi_analytical`).
+   `measured_dent_mm`, `measured_dpa_mm2`, `measured_pristine_MPa`
+   (score on predicted knockdown x this measured undamaged strength),
+   `impact_panel_Lx_mm` / `impact_panel_Ly_mm` / `impact_boundary` (the
+   window the plate was impacted on, when it is not the test panel),
+   `note`. The material must be a preset in `MATERIAL_LIBRARY`.
+2. Run it on both closed-form tiers, then with the gate:
+   `python validation/validate_bvid_public.py --tier empirical --dataset <name>`,
+   the same with `--tier semi_analytical`, and
+   `python validation/validate_bvid_public.py --gate` (what CI runs).
 3. If the model is known to miss the dataset, set `"gate": false` with a
    `gate_note` explaining why: its error is still printed but cannot fail
    `--gate`.
 4. Do not tune calibration constants against the dataset you validate on
    without checking them on held-out data; see `validation/README.md`.
 5. For a measured dataset, also add its name to the semi-analytical step
-   in `.github/workflows/tests.yml` and to the parametrize list of
-   `test_measured_cai_gates_pass_for_the_closed_form_tiers` in
-   `tests/test_validation_smoke.py`.
+   in `.github/workflows/tests.yml`, and, if it is gated, to the
+   parametrize list of `test_measured_cai_gates_pass_for_the_closed_form_tiers`
+   in `tests/test_validation_smoke.py`.
 
 ## Continuous Integration
 
@@ -153,7 +175,15 @@ Validation datasets live in `validation/datasets/<name>.json`; the harness
 
 `--gate` fails when a dataset's MAE exceeds its `target_mae_pct` times
 1.25 (empirical, semi-analytical) or 2.0 (fe3d), unless the dataset sets
-`"gate": false`.
+`"gate": false`. To run the validation job locally:
+
+```bash
+python scripts/generate_schemas.py --check
+python validation/validate_bvid_public.py --gate
+python validation/validate_bvid_public.py --gate --tier=semi_analytical \
+    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
+python validation/validate_bvid_public.py --tier=fe3d --dataset=synthetic_selfcheck --max-cases=3
+```
 
 `.github/workflows/docs.yml` builds the MkDocs site with `mkdocs build
 --strict` and deploys it on every push to `main`.
@@ -192,16 +222,24 @@ until that environment is created — which is the intended fail-safe.
 
 ### Cut-a-release flow
 
+Releases are tagged from `main` only, with a clean, up-to-date checkout.
+The step-by-step procedure is also in `.claude/skills/release/SKILL.md`.
+
 1. Bump the version (e.g. `0.2.0` → `0.2.1` for a patch, `0.3.0` for a
    feature release) in all four places: `[project].version` in
    `pyproject.toml`, `__version__` in `src/bvidfe/__init__.py`,
    `version` and `date-released` in `CITATION.cff`, and the BibTeX
    `version = {...}` line in `README.md`. `tests/test_package.py` fails if
    they disagree.
-2. Update `CHANGELOG.md`: move the `## [Unreleased]` notes into a
-   new `## [X.Y.Z] - YYYY-MM-DD` section (today's date) and leave a
-   fresh empty `## [Unreleased]` above it.
-3. Commit those changes on `main` and wait for CI to pass; the publish
+   Run `python -m pytest -q tests/test_package.py`.
+2. Update `CHANGELOG.md`: rename `## [Unreleased]` to
+   `## [X.Y.Z] - YYYY-MM-DD` (today's date) and add a fresh
+   `## [Unreleased]` above it with empty `### Added`, `### Changed` and
+   `### Fixed` subsections. Do not release with an empty
+   `## [Unreleased]`.
+3. Commit those changes on `main` (`git commit -m "Release vX.Y.Z"`),
+   push, and wait for the `tests` workflow to pass (the `test` and
+   `validation` jobs; the fe3d smoke step is advisory). The publish
    workflow does not run the tests.
 4. Tag the commit with `git tag vX.Y.Z` (note the leading `v`) and
    push with `git push origin vX.Y.Z`.
