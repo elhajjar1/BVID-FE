@@ -74,6 +74,16 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **`AnalysisResults.warnings` now lists every `UserWarning` raised during
+  `BvidAnalysis.run`** as `"<WarningClass>: <message>"` (also in `to_dict()`
+  and the CLI JSON); the warnings are still re-emitted to Python's filters.
+- **The library no longer logs to stderr on import.** `bvidfe.fe3d` gets only
+  a `NullHandler`; the CLI and Streamlit app call the new
+  `fe_tier.enable_stderr_logging()`. An explicit `BVIDFE_LOG_LEVEL` still
+  sets the logger level.
+- **CLI ply angles must lie in [-90, 90] degrees**, as in the app.
+  `--tier`/`--loading` choices come from `_types`; `--help` no longer shows
+  `(default: None)` or a doubled default on `--impactor-diameter`/`--mass`.
 - **fe3d damage-zone in-plane factor 0.20 -> 0.17, refitted with the
   delaminations confined to the impact window** (see *Fixed*). With the
   confinement the three coupons sweep as (fe3d strength against measured
@@ -403,6 +413,26 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Fixed
 
+- **Non-finite and out-of-domain inputs are rejected with a `ValueError`
+  naming the field**: NaN/inf in `PanelGeometry`, `ImpactorGeometry`,
+  `DelaminationEllipse`, `MeshParams`, `ImpactEvent`; negative dent/fibre-break
+  radius in `DamageState`; zero/negative `mass_kg` and negative `energy_J`;
+  `MeshParams(elements_per_ply=True)`; and in `AnalysisConfig` a non-finite
+  ply thickness or angle, an empty or string layup, a non-`PanelGeometry`
+  panel, and an unknown material name (which used to be a bare `KeyError` at
+  run time; the message lists the `MATERIAL_LIBRARY` names).
+- **`ImpactEvent(location_xy_mm=[0.0, 0.0])`** (a list, as JSON gives) is
+  stored as a tuple and keeps meaning the panel centre.
+- **`DamageOutsidePanelWarning`** when a delamination centroid lies outside
+  the panel: the closed-form tiers counted it in the DPA while the fe3d mesh
+  silently missed it.
+- **CLI errors no longer print tracebacks**: a malformed C-scan
+  (`CScanSchemaError`), config `ValueError`s and non-finite `--thickness` /
+  `--layup` / `--panel` / `--energy` values are argparse errors (exit 2),
+  `FE3DSizeError` is a one-line error (exit 1), and a closed stdout pipe
+  (`bvidfe ... | head`) exits quietly.
+- **Streamlit `_config_from_dict` accepts per-ply thickness lists** (it
+  called `float()` on them), and the NCR export formats them.
 - **Predicted delaminations stay inside the impacted panel.** The union of
   the template's differently oriented ellipses spreads well beyond the
   circle of the same area: 99 x 52 mm on the NCAMP quasi-isotropic coupon

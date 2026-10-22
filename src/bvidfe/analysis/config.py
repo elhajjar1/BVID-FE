@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Union
 
 from bvidfe._types import _LOADING_MODES, _TIER_NAMES, LoadingMode, TierName
+from bvidfe._validation import require_finite, require_positive
 from bvidfe.core.geometry import PanelGeometry
-from bvidfe.core.material import OrthotropicMaterial
+from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
 from bvidfe.damage.state import DamageState
 from bvidfe.impact.mapping import ImpactEvent
 
@@ -58,20 +59,17 @@ class MeshParams:
     cohesive_zone_factor: float = 1.0
 
     def __post_init__(self) -> None:
-        if not isinstance(self.elements_per_ply, int) or self.elements_per_ply <= 0:
+        if (
+            isinstance(self.elements_per_ply, bool)
+            or not isinstance(self.elements_per_ply, int)
+            or self.elements_per_ply <= 0
+        ):
             raise ValueError(
                 f"MeshParams.elements_per_ply must be a positive int "
                 f"(got {self.elements_per_ply!r})"
             )
-        if not (self.in_plane_size_mm > 0):
-            raise ValueError(
-                f"MeshParams.in_plane_size_mm must be > 0 " f"(got {self.in_plane_size_mm!r})"
-            )
-        if not (self.cohesive_zone_factor > 0):
-            raise ValueError(
-                f"MeshParams.cohesive_zone_factor must be > 0 "
-                f"(got {self.cohesive_zone_factor!r})"
-            )
+        require_positive(self.in_plane_size_mm, "MeshParams.in_plane_size_mm")
+        require_positive(self.cohesive_zone_factor, "MeshParams.cohesive_zone_factor")
 
 
 @dataclass
@@ -105,6 +103,56 @@ class AnalysisConfig:
     def __post_init__(self) -> None:
         _validate_choice(self.tier, _TIER_NAMES, "tier")
         _validate_choice(self.loading, _LOADING_MODES, "loading")
+        if isinstance(self.material, str):
+            if self.material not in MATERIAL_LIBRARY:
+                raise ValueError(
+                    f"material {self.material!r} is not in MATERIAL_LIBRARY; choose one of "
+                    f"{sorted(MATERIAL_LIBRARY)} (case-sensitive) or pass an "
+                    f"OrthotropicMaterial"
+                )
+        elif not isinstance(self.material, OrthotropicMaterial):
+            raise ValueError(
+                f"material must be a MATERIAL_LIBRARY name or an OrthotropicMaterial "
+                f"(got {type(self.material).__name__})"
+            )
+        if isinstance(self.layup_deg, (str, bytes)):
+            raise ValueError(
+                f"layup_deg must be a list of ply angles in degrees, not a string "
+                f"(got {self.layup_deg!r}); e.g. [0, 45, -45, 90]"
+            )
+        try:
+            n_plies = len(self.layup_deg)
+        except TypeError as exc:
+            raise ValueError(
+                f"layup_deg must be a list of ply angles in degrees "
+                f"(got {type(self.layup_deg).__name__})"
+            ) from exc
+        if n_plies == 0:
+            raise ValueError("layup_deg must contain at least one ply")
+        for i, a in enumerate(self.layup_deg):
+            require_finite(a, f"layup_deg[{i}]")
+        for name in ("panel", "impact_panel"):
+            value = getattr(self, name)
+            if value is None and name == "impact_panel":
+                continue
+            if not isinstance(value, PanelGeometry):
+                raise ValueError(
+                    f"AnalysisConfig.{name} must be a PanelGeometry, e.g. "
+                    f"PanelGeometry(Lx_mm=150, Ly_mm=100) (got {type(value).__name__}: "
+                    f"{value!r})"
+                )
+        if self.impact is not None and not isinstance(self.impact, ImpactEvent):
+            raise ValueError(
+                f"AnalysisConfig.impact must be an ImpactEvent (got {type(self.impact).__name__})"
+            )
+        if self.damage is not None and not isinstance(self.damage, DamageState):
+            raise ValueError(
+                f"AnalysisConfig.damage must be a DamageState (got {type(self.damage).__name__})"
+            )
+        if self.mesh is not None and not isinstance(self.mesh, MeshParams):
+            raise ValueError(
+                f"AnalysisConfig.mesh must be a MeshParams (got {type(self.mesh).__name__})"
+            )
         if (self.impact is None) == (self.damage is None):
             raise ValueError(
                 "Provide exactly one of AnalysisConfig.impact or AnalysisConfig.damage"
@@ -124,11 +172,9 @@ class AnalysisConfig:
                     f"of plies ({len(self.layup_deg)})."
                 )
             for i, t in enumerate(self.ply_thickness_mm):
-                if not (float(t) > 0):
-                    raise ValueError(f"ply_thickness_mm[{i}] must be > 0 (got {t}).")
+                require_positive(t, f"ply_thickness_mm[{i}]")
         else:
-            if not (float(self.ply_thickness_mm) > 0):
-                raise ValueError(f"ply_thickness_mm must be > 0 (got {self.ply_thickness_mm}).")
+            require_positive(self.ply_thickness_mm, "ply_thickness_mm")
         if self.damage is not None:
             # An n-ply laminate has interfaces 0 .. n-2. A larger index used
             # to be silently ignored by the closed-form tiers and to raise

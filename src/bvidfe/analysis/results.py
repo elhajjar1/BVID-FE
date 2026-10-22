@@ -111,15 +111,11 @@ class AnalysisResults:
     critical_sublaminate: Optional[int] = None
     field_results: Optional[FieldResults] = None
     notes: List[str] = field(default_factory=list)
-    #: Machine-readable diagnostic tags, distinct from the human-readable
-    #: ``notes``, so a script can disambiguate an overloaded ``knockdown``
-    #: without string-scraping ``notes``. No backend emits a tag at present
-    #: (default ``[]``); ``"fe3d_buckling_fallback"`` was retired when
-    #: buckling onset stopped setting the fe3d residual.
-    #:
-    #: The ``impactor_mass_ratio_below_unity`` / ``dpa_panel_area_cap_clipped``
-    #: regimes currently surface only via Python ``UserWarning`` + ``notes``;
-    #: structured tags for them are future work.
+    #: Every ``UserWarning`` raised during ``BvidAnalysis.run`` (e.g.
+    #: ``DPACapClipWarning``, ``SmallMassQuasiStaticWarning``,
+    #: ``DamageOutsidePanelWarning``), as ``"<WarningClass>: <message>"``,
+    #: de-duplicated, in the order raised. The warnings are still emitted
+    #: through Python's ``warnings`` machinery as well.
     warnings: List[str] = field(default_factory=list)
 
     def __repr__(self) -> str:

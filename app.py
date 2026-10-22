@@ -41,7 +41,7 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis, MeshParams  # noqa: E402
 from bvidfe.analysis.fe_mesh import build_fe_mesh, estimate_fe_mesh_size  # noqa: E402
-from bvidfe.analysis.fe_tier import FE3D_MAX_DOF  # noqa: E402
+from bvidfe.analysis.fe_tier import FE3D_MAX_DOF, enable_stderr_logging  # noqa: E402
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry  # noqa: E402
 from bvidfe.core.material import MATERIAL_LIBRARY  # noqa: E402
 from bvidfe.damage.io import CScanSchemaError, damage_state_from_dict  # noqa: E402
@@ -52,6 +52,9 @@ from bvidfe.core.laminate import Laminate  # noqa: E402
 from bvidfe.sweep.parametric_sweep import sweep_energies  # noqa: E402
 from bvidfe.viz.plots_2d import plot_damage_map, plot_knockdown_curve  # noqa: E402
 from bvidfe.viz.plotly_3d import mesh_damage_figure  # noqa: E402
+
+# fe3d stage logs to the terminal running `streamlit run` (idempotent across reruns).
+enable_stderr_logging()
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -418,6 +421,19 @@ def _onset_preview_cached(
         return None
 
 
+def _ply_thickness_from_json(t):
+    """A uniform thickness (number) or per-ply thicknesses (list)."""
+    if isinstance(t, (list, tuple)):
+        return [float(x) for x in t]
+    return float(t)
+
+
+def _format_ply_thickness(t) -> str:
+    if isinstance(t, (list, tuple)):
+        return ", ".join(f"{x:g}" for x in t) + " mm (per ply)"
+    return f"{t:g} mm"
+
+
 def _config_from_dict(d: dict) -> AnalysisConfig:
     panel = PanelGeometry(
         Lx_mm=float(d["panel"]["Lx_mm"]),
@@ -464,7 +480,7 @@ def _config_from_dict(d: dict) -> AnalysisConfig:
     return AnalysisConfig(
         material=d["material"],
         layup_deg=list(d["layup_deg"]),
-        ply_thickness_mm=float(d["ply_thickness_mm"]),
+        ply_thickness_mm=_ply_thickness_from_json(d["ply_thickness_mm"]),
         panel=panel,
         loading=d["loading"],
         tier=d["tier"],
@@ -648,7 +664,7 @@ def _build_ncr(form: dict, cfg, result_dict: dict | None, rec: dict | None) -> t
     lines.append("")
     lines.append(f"- **Material:** {cfg.material}")
     lines.append(f"- **Layup:** {layup_str} ({len(cfg.layup_deg)} plies)")
-    lines.append(f"- **Ply thickness:** {cfg.ply_thickness_mm:g} mm")
+    lines.append(f"- **Ply thickness:** {_format_ply_thickness(cfg.ply_thickness_mm)}")
     lines.append(
         f"- **Panel:** {cfg.panel.Lx_mm:g} × {cfg.panel.Ly_mm:g} mm, " f"{cfg.panel.boundary}"
     )

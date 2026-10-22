@@ -130,7 +130,7 @@ bounds it.
 | `buckling_eigenvalues` | Buckling *onset*, not strength: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI, else `None` |
 | `critical_sublaminate` | CAI only: interface whose delamination grows at the lowest stress |
 | `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here |
-| `warnings` | Machine-readable tags; no backend emits one at present |
+| `warnings` | Every `UserWarning` raised during the run, as `"<WarningClass>: <message>"` (also emitted as Python warnings) |
 | `field_results` | Always `None` for now |
 
 `result.summary()` returns a printable block and `result.to_dict()` a
@@ -347,10 +347,14 @@ et al.'s C-scan areas; treat the others as defaults.
 
 ## Logging
 
-The fe3d tier streams stage-by-stage timing lines to stderr under the
-`bvidfe.fe3d` logger: mesh build, element build, the first-ply-failure
-solve and its result, and the closed-form buckling stress. The empirical
-and semi-analytical tiers do not log.
+The fe3d tier logs stage-by-stage timing lines under the `bvidfe.fe3d`
+logger: mesh build, element build, the first-ply-failure solve and its
+result, and the closed-form buckling stress. The empirical and
+semi-analytical tiers do not log. The `bvidfe` CLI and the Streamlit app
+print these lines to stderr; as a library, bvidfe attaches only a
+`NullHandler`, so from Python call
+`bvidfe.analysis.fe_tier.enable_stderr_logging()` (or configure `logging`
+yourself) to see them.
 
 ```bash
 BVIDFE_LOG_LEVEL=WARNING bvidfe ...    # DEBUG, INFO (default), WARNING, ERROR

@@ -142,4 +142,4 @@ def test_bvid_analysis_fe3d_residual_ignores_buckling_onset(small_cfg, monkeypat
     r = BvidAnalysis(small_cfg).run()
     assert r.residual_strength_MPa == baseline.residual_strength_MPa
     assert r.buckling_eigenvalues is None
-    assert r.warnings == []
+    assert r.warnings == baseline.warnings  # no extra fallback warning

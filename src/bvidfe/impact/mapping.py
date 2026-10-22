@@ -19,6 +19,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Tuple
 
+from bvidfe._validation import require_non_negative, require_positive, require_xy
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
@@ -118,12 +119,28 @@ def _dynamic_amplification_factor(
 
 @dataclass
 class ImpactEvent:
-    """Parameters describing a single impact event."""
+    """Parameters describing a single impact event.
+
+    ``energy_J`` must be finite and ``>= 0`` (0 J is no impact), ``mass_kg``
+    finite and ``> 0``. ``location_xy_mm`` is the impact point in the panel
+    frame; the default ``(0.0, 0.0)`` means the panel centre. A list (as
+    JSON gives) is stored as a tuple.
+    """
 
     energy_J: float
     impactor: ImpactorGeometry = field(default_factory=ImpactorGeometry)
     mass_kg: float = 5.5
     location_xy_mm: Tuple[float, float] = (0.0, 0.0)
+
+    def __post_init__(self) -> None:
+        require_non_negative(self.energy_J, "ImpactEvent.energy_J")
+        require_positive(self.mass_kg, "ImpactEvent.mass_kg")
+        if not isinstance(self.impactor, ImpactorGeometry):
+            raise ValueError(
+                f"ImpactEvent.impactor must be an ImpactorGeometry "
+                f"(got {type(self.impactor).__name__})"
+            )
+        self.location_xy_mm = require_xy(self.location_xy_mm, "ImpactEvent.location_xy_mm")
 
 
 def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) -> DamageState:

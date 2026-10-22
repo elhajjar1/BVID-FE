@@ -38,10 +38,12 @@ from bvidfe.analysis.semi_analytical import (
 from bvidfe.solver.boundary import uniaxial_x_bcs
 from bvidfe.solver.static import solve_linear_static
 
-# Configure a module-level logger that writes to stderr. Users launching
-# the Streamlit app from a terminal (or running the CLI / Python API) will see
-# one log line per FE stage, making long runs observable.
+# Module-level logger, one line per FE stage. As a library, bvidfe only adds
+# a NullHandler; the CLI and the Streamlit app call enable_stderr_logging()
+# so long runs stay observable from a terminal. Python API users opt in with
+# that call or their own logging configuration.
 _log = logging.getLogger("bvidfe.fe3d")
+_log.addHandler(logging.NullHandler())
 
 
 def _resolve_log_level(default: str = "INFO") -> int:
@@ -81,10 +83,35 @@ def _resolve_max_dof(default: int = 500000) -> int:
         return default
 
 
-if not _log.handlers:
-    _h = logging.StreamHandler(sys.stderr)
-    _h.setFormatter(logging.Formatter("[bvidfe.fe3d %(asctime)s] %(message)s", "%H:%M:%S"))
-    _log.addHandler(_h)
+class _StderrHandler(logging.StreamHandler):
+    """StreamHandler that writes to whatever ``sys.stderr`` is at emit time
+    (so a replaced or captured stderr never leaves it holding a closed
+    stream)."""
+
+    def __init__(self) -> None:
+        super().__init__(sys.stderr)
+
+    @property  # type: ignore[override]
+    def stream(self):
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, value) -> None:
+        pass
+
+
+def enable_stderr_logging() -> None:
+    """Send ``bvidfe.fe3d`` stage logs to stderr at ``BVIDFE_LOG_LEVEL``
+    (default INFO). Idempotent: repeated calls add one handler only."""
+    if not any(isinstance(h, _StderrHandler) for h in _log.handlers):
+        h = _StderrHandler()
+        h.setFormatter(logging.Formatter("[bvidfe.fe3d %(asctime)s] %(message)s", "%H:%M:%S"))
+        _log.addHandler(h)
+    _log.setLevel(_resolve_log_level())
+
+
+# An explicit BVIDFE_LOG_LEVEL still sets the logger's level for library use.
+if "BVIDFE_LOG_LEVEL" in os.environ:
     _log.setLevel(_resolve_log_level())
 
 
