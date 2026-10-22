@@ -132,7 +132,7 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
     WN TAI; ms)   delamination         delamination growth
                   growth; WN TAI)      and first-ply failure;
                                        damaged / undamaged
-                                       run; minutes)
+                                       run; tens of s)
           │            │                    │
           └────────────┴────────────────────┘
                        ▼
