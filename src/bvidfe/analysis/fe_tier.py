@@ -410,20 +410,17 @@ def _critical_strain_multiplier(
     ``_solve_failure_strain_analytic`` for the scaling.
 
     With ``averaging_radius_mm`` (default ``FPF_AVERAGING_RADIUS_MM``) the
-    index is averaged over each element's Gauss points and then over the
-    elements of the same through-thickness layer whose centroids lie within
-    that radius; ``None`` checks every Gauss point on its own."""
+    index is averaged over each element's Gauss points and then over a disk
+    of that radius in the same through-thickness layer, each element
+    weighted by the fraction of its area inside the disk
+    (``_disk_kernel``); ``None`` checks every Gauss point on its own."""
     if averaging_radius_mm is None:
         return _critical_strain_multiplier_pointwise(cfg, mesh, elements, u_ref, criterion)
     a, b = _index_coefficients(cfg, mesh, elements, u_ref, criterion)
     nz, ny, nx = element_grid_shape(cfg)
     if a.size != nz * ny * nx:
         raise ValueError(f"mesh has {a.size} elements, expected a {nz}x{ny}x{nx} grid")
-    hx, hy = cfg.panel.Lx_mm / nx, cfg.panel.Ly_mm / ny
-    rx, ry = int(averaging_radius_mm // hx) + 1, int(averaging_radius_mm // hy) + 1
-    jj, ii = np.meshgrid(np.arange(-ry, ry + 1), np.arange(-rx, rx + 1), indexing="ij")
-    r2 = averaging_radius_mm**2 * (1 + 1e-9)
-    kernel = ((ii * hx) ** 2 + (jj * hy) ** 2 <= r2).astype(float)
+    kernel = _disk_kernel(cfg.panel.Lx_mm / nx, cfg.panel.Ly_mm / ny, averaging_radius_mm)
     # Near the panel edge the disk is clipped: average over what is inside.
     weight = convolve(np.ones((ny, nx)), kernel, mode="constant")
     a_avg = np.stack(
@@ -433,6 +430,26 @@ def _critical_strain_multiplier(
         [convolve(layer, kernel, mode="constant") / weight for layer in b.reshape(nz, ny, nx)]
     )
     return float(_smallest_positive_root(a_avg.ravel(), b_avg.ravel()).min())
+
+
+def _disk_kernel(hx: float, hy: float, radius_mm: float, samples: int = 16) -> np.ndarray:
+    """Weights of the elements of an ``hx`` x ``hy`` grid around one at the
+    origin: the fraction of each element's area inside a disk of
+    ``radius_mm`` centred on it, from ``samples`` x ``samples`` points per
+    element. Counting whole elements whose centres lie inside the disk
+    averaged over only the element and its four neighbours at 2-2.5 mm
+    meshes, an area that shrank with the mesh, and the cross-ply 15 J
+    knockdown kept falling with it (0.186 / 0.165 at 2.5 / 2 mm); weighted
+    by overlap the disk keeps its area and the knockdown settles (0.185 /
+    0.170 / 0.174 at 2.5 / 2 / 1.67 mm). At 5 mm the disk fits inside the
+    element, so the kernel is the element alone."""
+    rx = int(np.ceil(radius_mm / hx + 0.5))
+    ry = int(np.ceil(radius_mm / hy + 0.5))
+    t = (np.arange(samples) + 0.5) / samples - 0.5
+    x = (np.arange(-rx, rx + 1)[:, None] + t[None, :]) * hx  # (2rx+1, samples)
+    y = (np.arange(-ry, ry + 1)[:, None] + t[None, :]) * hy  # (2ry+1, samples)
+    inside = x[None, :, None, :] ** 2 + y[:, None, :, None] ** 2 <= radius_mm**2
+    return inside.mean(axis=(2, 3))  # (2ry+1, 2rx+1)
 
 
 def _index_coefficients(
