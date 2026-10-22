@@ -1050,8 +1050,10 @@ with st.sidebar:
                     "Target in-plane element edge length. Smaller values = "
                     "finer mesh, quadratically more elements, memory and "
                     "time; the 5 mm default is mesh-converged to within a "
-                    "few percent of 2.5 mm. On Streamlit Community Cloud "
-                    "(1 GB RAM) keep this >= 5 mm."
+                    "few percent of 2.5 mm. An 8-ply 150 x 100 mm panel "
+                    "peaks at ~0.2 GB at 5 mm and ~0.5 GB at 2.5 mm (more if "
+                    "the solver falls back to a direct factorisation). On "
+                    "Streamlit Community Cloud (1 GB RAM) keep this >= 5 mm."
                 ),
             )
             mesh_params = MeshParams(
