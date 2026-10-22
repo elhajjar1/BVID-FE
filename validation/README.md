@@ -86,6 +86,17 @@ index is averaged over a 2.5 mm disk (which made fe3d mesh-converged; see
 (−3.2%), 145.1 MPa (−1.2%) and 246.8 MPa (+4.7%), a mean error of 3.0%. The closed-form tiers barely move with the
 confinement: NCAMP 1.54% → 1.50%, Lovejoy & Scotti 8.97% → 8.95%.
 
+Two physics fixes then moved the coupons without a refit. The damage
+template now takes ply angles modulo 180° (a −45/90 interface is a 45°
+mismatch, not 135°; each ellipse lies along the back-face-side ply; no
+delamination between plies of the same direction): 156.3 MPa (−12.0%),
+174.6 MPa (+18.9%) and 265.6 MPa (+12.7%). The 3D ply stiffness then
+uses `ν23 = E22 / (2 G23) − 1` instead of `ν21` for the 2-3 coupling:
+152.1 MPa (−14.4%), 162.6 MPa (+10.8%) and 261.2 MPa (+10.8%), a mean
+error of 12.0%. The NCAMP coupon now wants a stiffer zone and both
+Lovejoy & Scotti coupons a softer one, so a single factor cannot bring
+all three back within 5%.
+
 ### Calibration of `soutis_k_s`
 
 The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_ref)^m)`, with
@@ -146,7 +157,7 @@ area, `k_s` ≈ 4.7 fitted both (3.5% and 9.7%) but put the Hasebe set at
 The in-sample numbers flatter the model. The fair measure is
 cross-dataset:
 - `k_s` fitted on NCAMP alone (4.7) predicts Lovejoy & Scotti at 9.0% MAE.
-- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 6.2%.
+- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 6.5%.
 
 Expect errors of about 6–9% on a new material or layup tested to ASTM
 D7136/D7137. `olsson_alpha` was fitted on Lovejoy & Scotti's areas, so
@@ -199,8 +210,8 @@ Xc of 719 MPa is under half the data sheet's ASTM D6641 1779 MPa).
 quasi-isotropic laminates struck by the 12.7 mm hemisphere (median of 38
 specimens; the default 0.078 overpredicts them about 1.7×, as the
 material is interlayer-toughened). With the energy-balance area it
-predicts the area of all 343 specimens at a median 1.03× (0.81–1.31× per
-layup), and the mean area per impactor within 8%, except the 31.8 mm
+predicts the area of the 329 specimens with a measured area at a median
+1.00× (0.81–1.23× per layup, 0.91–1.16× per impactor), and the mean area per impactor within 8%, except the 31.8 mm
 hemisphere (19% low): 368 against 364 mm² for the 60° cone, 48 against
 52 mm² for the flat-ended impactor, and 277 against 281, 266 against 277
 and 204 against 251 mm² for the 12.7, 25.4 and 31.8 mm hemispheres.

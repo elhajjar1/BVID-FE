@@ -117,9 +117,9 @@ also bounds the delamination footprint (step 5).
    wider than the 102 mm coupon. (Before the angles were taken modulo
    180°, the −45/90 interfaces of the quasi-isotropic coupons were
    ellipses of aspect ratio 4 at 22.5°, and the footprints were 99 × 52
-   and 134 × 70 mm; the hard laminate's was 108 × 108 mm.) For an ASTM D7136 coupon the impacted
-   panel is the 125 × 75 mm support window, which is where the damage
-   stays.
+   and 134 × 70 mm; the hard laminate's was 108 × 108 mm.) For an ASTM
+   D7136 coupon the impacted panel is the 125 × 75 mm support window,
+   which is where the damage stays.
 
 The dent depth is carried in `DamageState` and reported, but no tier uses
 it in the residual-strength calculation.
@@ -435,13 +435,15 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   kept inside the ASTM D7136 impact window: the first NCAMP AS4/8552 and
   the first Lovejoy & Scotti IM7/8552 quasi-isotropic coupons (3.2% and
   1.2% low) and the first Lovejoy & Scotti 40-ply hard laminate (4.7%
-  high), so both laminate families fit within 5%. Before the footprint was
+  high). Since the template takes ply angles modulo 180° (step 5) and the
+  ply stiffness uses `ν23`, the same factor gives 14.4% low, 10.8% high
+  and 10.8% high; it has not been refitted. Before the footprint was
   confined, the hard laminate's template footprint was 108 × 108 mm on a
   102 mm wide coupon: the soft zone spanned the whole section, the 0°
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  below the empirical tier's (16-ply QI 0.33 against 0.36, 24-ply QI 0.31
+  below the empirical tier's (16-ply QI 0.32 against 0.36, 24-ply QI 0.31
   against 0.36); the damage area
   there (about 2,900 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.

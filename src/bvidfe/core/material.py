@@ -60,7 +60,7 @@ class OrthotropicMaterial:
     # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.7 is
     # the pooled optimum of both tiers. Fitted on NCAMP alone (4.7) it
     # predicts Lovejoy & Scotti at 9.0%; on Lovejoy & Scotti alone (5.2),
-    # NCAMP at 6.2%.
+    # NCAMP at 6.5%.
     soutis_k_s: float = 4.7
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
@@ -293,8 +293,9 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # delamination areas Hasebe et al. measured on their quasi-isotropic
     # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
     # the default 0.078 overpredicts them about 1.7x (interlayer-toughened).
-    # Over all 343 specimens in validation/datasets it predicts the area at a
-    # median 1.03x (0.81-1.31x per layup).
+    # Over the 329 specimens in validation/datasets with a measured area it
+    # predicts the area at a median 1.00x (0.81-1.23x per layup, 0.91-1.16x
+    # per impactor).
     "T800S/3900-2B": OrthotropicMaterial(
         name="T800S/3900-2B",
         E11=153000,
