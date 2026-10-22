@@ -60,3 +60,35 @@ def test_app_module_imports(monkeypatch: pytest.MonkeyPatch) -> None:
     assert hasattr(app_module, "MATERIAL_NAMES"), "app.py did not finish initialising"
     assert app_module.MATERIAL_NAMES, "MATERIAL_NAMES should not be empty"
     assert hasattr(app_module, "_parse_layup"), "expected _parse_layup helper in app.py"
+
+
+def _import_app(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
+    monkeypatch.syspath_prepend(str(REPO_ROOT))
+    return importlib.import_module("app")
+
+
+@pytest.mark.parametrize("thickness", [0.152, [0.1, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.1]])
+def test_config_from_dict_round_trips_ply_thickness(monkeypatch, thickness) -> None:
+    """``_config_from_dict`` used to call ``float()`` on ``ply_thickness_mm``
+    and so rejected per-ply thickness lists."""
+    app_module = _import_app(monkeypatch)
+    d = {
+        "material": "IM7/8552",
+        "layup_deg": [0, 45, -45, 90, 90, -45, 45, 0],
+        "ply_thickness_mm": thickness,
+        "panel": {"Lx_mm": 150.0, "Ly_mm": 100.0, "boundary": "simply_supported"},
+        "loading": "compression",
+        "tier": "empirical",
+        "impact": {
+            "energy_J": 20.0,
+            "impactor": {"diameter_mm": 16.0, "shape": "hemispherical"},
+            "mass_kg": 5.5,
+            "location_xy_mm": [0.0, 0.0],
+        },
+        "damage": None,
+    }
+    cfg = app_module._config_from_dict(d)
+    assert cfg.ply_thickness_mm == thickness
+    assert cfg.impact.location_xy_mm == (0.0, 0.0)
+    assert "mm" in app_module._format_ply_thickness(cfg.ply_thickness_mm)

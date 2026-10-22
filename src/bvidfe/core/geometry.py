@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from bvidfe._validation import require_positive
+
 BoundaryKind = Literal["clamped", "simply_supported", "free"]
 ImpactorShape = Literal["hemispherical", "flat", "conical"]
 
@@ -22,10 +24,8 @@ class PanelGeometry:
     boundary: BoundaryKind = "simply_supported"
 
     def __post_init__(self) -> None:
-        if self.Lx_mm <= 0:
-            raise ValueError(f"Lx_mm must be > 0 (got {self.Lx_mm})")
-        if self.Ly_mm <= 0:
-            raise ValueError(f"Ly_mm must be > 0 (got {self.Ly_mm})")
+        require_positive(self.Lx_mm, "Lx_mm")
+        require_positive(self.Ly_mm, "Ly_mm")
         if self.boundary not in ("clamped", "simply_supported", "free"):
             raise ValueError(f"boundary {self.boundary!r} not recognized")
 
@@ -42,7 +42,6 @@ class ImpactorGeometry:
     shape: ImpactorShape = "hemispherical"
 
     def __post_init__(self) -> None:
-        if self.diameter_mm <= 0:
-            raise ValueError(f"diameter_mm must be > 0 (got {self.diameter_mm})")
+        require_positive(self.diameter_mm, "diameter_mm")
         if self.shape not in ("hemispherical", "flat", "conical"):
             raise ValueError(f"shape {self.shape!r} not recognized")

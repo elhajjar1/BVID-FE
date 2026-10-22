@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
+
+from bvidfe._validation import require_finite, require_non_negative, require_positive, require_xy
 
 
 def _ellipse_polygon(e: "DelaminationEllipse", n_pts: int = 72) -> Polygon:
@@ -34,10 +37,22 @@ class DelaminationEllipse:
     orientation_deg: float
 
     def __post_init__(self) -> None:
-        if self.major_mm <= 0 or self.minor_mm <= 0:
-            raise ValueError("ellipse semi-axes must be positive")
+        if isinstance(self.interface_index, bool) or not isinstance(
+            self.interface_index, numbers.Integral
+        ):
+            raise ValueError(
+                f"interface_index must be an int (got {type(self.interface_index).__name__}: "
+                f"{self.interface_index!r})"
+            )
         if self.interface_index < 0:
             raise ValueError("interface_index must be >= 0")
+        self.centroid_mm = require_xy(self.centroid_mm, "centroid_mm")
+        try:
+            require_positive(self.major_mm, "major_mm")
+            require_positive(self.minor_mm, "minor_mm")
+        except ValueError as exc:
+            raise ValueError(f"ellipse semi-axes must be positive and finite: {exc}") from exc
+        require_finite(self.orientation_deg, "orientation_deg")
 
     @property
     def area_mm2(self) -> float:
@@ -58,6 +73,15 @@ class DamageState:
     delaminations: List[DelaminationEllipse] = field(default_factory=list)
     dent_depth_mm: float = 0.0
     fiber_break_radius_mm: float = 0.0
+
+    def __post_init__(self) -> None:
+        require_non_negative(self.dent_depth_mm, "dent_depth_mm")
+        require_non_negative(self.fiber_break_radius_mm, "fiber_break_radius_mm")
+        for i, e in enumerate(self.delaminations):
+            if not isinstance(e, DelaminationEllipse):
+                raise ValueError(
+                    f"delaminations[{i}] must be a DelaminationEllipse " f"(got {type(e).__name__})"
+                )
 
     @property
     def projected_damage_area_mm2(self) -> float:
