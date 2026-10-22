@@ -373,8 +373,8 @@ dataset.
    and report the error on data held out from the fit (the cross-dataset
    check above), and rerun every other dataset.
 5. For a measured dataset, add its name to the semi-analytical step in
-   `.github/workflows/tests.yml` and to
-   `test_measured_cai_gates_pass_for_the_closed_form_tiers` in
-   `tests/test_validation_smoke.py`.
+   `.github/workflows/tests.yml`; if it is gated (no `"gate": false`),
+   also add it to `test_measured_cai_gates_pass_for_the_closed_form_tiers`
+   in `tests/test_validation_smoke.py`.
 6. Commit the dataset, any recalibration, and the updated numbers in a
    single PR.
