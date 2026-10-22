@@ -35,9 +35,31 @@ CLI reads it with `--cscan path.json`). A complete example ships as
 Each delamination object (all five fields required):
 - `interface_index` (integer, >= 0): ply interface index (`0` = between plies 0 and 1, so the last interface of an `n`-ply layup is `n - 2`). Plies are numbered in `layup_deg` order.
 - `centroid_mm` (array `[x, y]`): ellipse center in the panel frame, millimeters. The panel spans `0 <= x <= Lx_mm` (x is the load direction) and `0 <= y <= Ly_mm`.
-- `major_mm` (number, > 0): semi-major axis length in millimeters.
-- `minor_mm` (number, > 0): semi-minor axis length in millimeters.
-- `orientation_deg` (number): rotation of the `major_mm` axis from the panel x axis, counterclockwise, in degrees.
+- `major_mm` (number, > 0): semi-major axis length in millimeters (half the delamination's length along that axis, not the full length). The ellipse area is `π · major_mm · minor_mm` mm².
+- `minor_mm` (number, > 0): semi-minor axis length in millimeters. Nothing requires `minor_mm <= major_mm`; the names only label the axis that `orientation_deg` rotates.
+- `orientation_deg` (number): angle in degrees from the panel +x axis to the `major_mm` axis, positive from +x towards +y. This is the same sense as the ply angles in `layup_deg` (a fibre at +45° and an ellipse at +45° are parallel). Any real value is accepted; 0° and 180° describe the same ellipse.
+
+### Which face is which
+
+The file has no field for the impacted face; the convention comes from
+the layup order. Ply 0 is the first entry of `layup_deg`. It lies at
+`z = −h/2` in the classical-lamination stack and at `z = 0` in the fe3d
+mesh (where the whole `z = 0` face is held at `u_z = 0`). The impact
+model (`impact_to_damage`) treats ply 0 as the impact face: its
+delaminations grow from interface 0 (smallest) to interface `n − 2`
+(largest, back face). So list `layup_deg` starting from the impacted
+face, and number the C-scan interfaces from that face: interface `i`
+lies between the `i`-th and `(i+1)`-th plies counted from the impact
+side, both counted from 0. The semi-analytical growth check (which takes
+the thinner of plies `0 … i` and `i+1 … n−1`) and fe3d both read
+`interface_index` against `layup_deg`, so the file and the layup must
+count from the same face.
+
+### Units
+
+Lengths in millimeters throughout (`dent_depth_mm`, `fiber_break_radius_mm`,
+`centroid_mm`, `major_mm`, `minor_mm`); angles in degrees. Inches or
+in² from an inspection report must be converted (1 in = 25.4 mm).
 
 Every number must be finite (`NaN` and `Infinity` are rejected), and
 `interface_index` must be a JSON integer (`3`, not `3.0` or `true`).

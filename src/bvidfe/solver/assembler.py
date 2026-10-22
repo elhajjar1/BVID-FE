@@ -15,10 +15,11 @@ def assemble_coo(
 ) -> sp.csc_matrix:
     """Assemble a global sparse matrix from per-element 24x24 contributions.
 
-    Shared core for both the elastic stiffness (``assemble_global_stiffness``)
-    and the geometric stiffness (assembled inline by the buckling path in
-    ``analysis.fe_tier``). The two had drifted into independent
-    list-of-chunks COO assemblers; this helper centralises the COO build.
+    Generic over the element matrix: ``matrix_fn`` supplies each element's
+    24x24 contribution. Its only production caller is
+    ``assemble_global_stiffness`` (elastic stiffness); the fe3d geometric-
+    stiffness buckling path that also used it was removed in issue #129,
+    when fe3d buckling moved to the Rayleigh-Ritz closed form.
 
     Memory: row/col/data buffers are pre-allocated as a single contiguous
     ``np.empty(n_elem * 576)`` each rather than appended-and-concatenated
@@ -77,10 +78,13 @@ def assemble_global_stiffness(
 ) -> sp.csc_matrix:
     """Assemble the global elastic stiffness matrix in CSC format.
 
-    Thin wrapper around :func:`assemble_coo` preserved for backwards
-    compatibility — call sites that already exist (``solver.static``,
-    ``analysis.fe_tier``, and the test suite) continue to work
-    unchanged.
+    Thin wrapper around :func:`assemble_coo` with each element's
+    ``stiffness_matrix()`` as the contribution. Called by
+    ``solver.static.solve_linear_static`` (and the test suite).
+
+    Raises ``ValueError`` when ``elements`` and ``element_dof_maps`` differ
+    in length, a DOF map does not have 24 entries, or an element matrix is
+    not 24x24.
 
     Parameters
     ----------

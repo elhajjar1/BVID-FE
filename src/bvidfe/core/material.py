@@ -24,6 +24,61 @@ class OrthotropicMaterial:
     when material-specific through-thickness data are available — measured
     Zt is typically 20-40% lower than Yt for void-prone CFRP (Makeev et al.
     2012, *Composites Part A*).
+
+    Attributes
+    ----------
+    name : str
+        Label (``MATERIAL_LIBRARY`` key for the presets).
+    E11, E22 : float
+        Fibre-direction and transverse Young's moduli (MPa); E33 = E22.
+    nu12 : float
+        Major Poisson's ratio, ``-1 < nu12 < 0.5``.
+    G12, G13, G23 : float
+        Shear moduli (MPa).
+    Xt, Xc, Yt, Yc : float
+        Fibre-direction and transverse tensile / compressive strengths
+        (MPa, positive magnitudes).
+    S12, S23 : float
+        In-plane and transverse (2-3) shear strengths (MPa).
+    G_Ic, G_IIc : float
+        Mode I and mode II interlaminar fracture toughness (N/mm). G_IIc
+        sets the impact onset load and the damage area; both set the
+        delamination-growth toughness (Benzeggagh-Kenane) of the
+        semi-analytical and fe3d CAI; G_Ic sets the dent depth.
+    rho : float
+        Density (kg/mm^3), ``1e-7 <= rho <= 1e-5``; used for the
+        impactor-to-plate mass ratio.
+    olsson_alpha : float
+        Fraction of the impact energy above onset that delaminates:
+        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.078
+        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.047 for
+        T800S/3900-2B.
+    dent_beta, dent_gamma : float
+        Dent depth ``d = h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
+        dent_gamma``, capped at ``h / 2`` (h the laminate thickness).
+        Defaults 0.05 and 0.5. The dent does not enter any strength.
+    fiber_break_eta, fiber_break_E_threshold : float
+        Fibre-break core radius ``r = fiber_break_eta * sqrt(E -
+        fiber_break_E_threshold)`` (mm, E in J), used only by fe3d. Off by
+        default (``eta = 0``, threshold 1e9 J) and in every preset.
+    soutis_k_s, soutis_m : float
+        Soutis CAI knockdown ``1 / (1 + k_s (DPA / A_ref) ** m)``, see
+        :func:`bvidfe.failure.soutis_openhole.soutis_cai`. Defaults 4.7
+        (calibrated on the NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552 CAI
+        data) and 0.5.
+    wn_d0_mm : float
+        Whitney-Nuismer characteristic distance (mm) of the TAI model;
+        default 1.0.
+    Zt, Zc, S13 : float, optional
+        Through-thickness strengths and 1-3 shear strength (MPa), see above;
+        used by Tsai-Wu only.
+    puck_p_nt_plus, puck_p_nt_minus : float
+        Puck inclination parameters (``>= 0``), defaults 0.30 / 0.25.
+
+    Raises ``ValueError`` for a non-positive modulus, strength, toughness or
+    density, ``nu12`` outside ``(-1, 0.5)``, ``rho`` outside
+    ``[1e-7, 1e-5]``, a non-positive ``Zt`` / ``Zc`` / ``S13``, or a
+    negative Puck parameter.
     """
 
     name: str
@@ -156,6 +211,12 @@ class OrthotropicMaterial:
         return np.linalg.inv(self.get_compliance_matrix())
 
 
+#: Built-in presets by name: ``"AS4/3501-6"``, ``"AS4/8552"``, ``"IM7/8552"``,
+#: ``"T700/2510"``, ``"T800S/3900-2B"`` and ``"T800/epoxy"``. Pass a name as
+#: ``AnalysisConfig.material``; to change a value, copy a preset with
+#: ``dataclasses.replace(MATERIAL_LIBRARY["IM7/8552"], name="...", ...)``
+#: rather than mutating the shared instance. AS4/8552, IM7/8552 and
+#: T800S/3900-2B cite their sources below; the other three are generic values.
 MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     "AS4/3501-6": OrthotropicMaterial(
         name="AS4/3501-6",

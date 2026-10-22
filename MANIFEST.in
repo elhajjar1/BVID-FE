@@ -1,0 +1,8 @@
+# The sdist holds the package, its metadata, the license, the changelog and
+# the citation file. The test suite is left out on purpose, as a whole:
+# it needs the repository around it (examples/, validation/datasets/,
+# app.py and the docs it executes), so run it from a clone.
+include CHANGELOG.md CITATION.cff
+prune tests
+exclude conftest.py
+global-exclude __pycache__ *.py[cod]

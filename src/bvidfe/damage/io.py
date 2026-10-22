@@ -29,6 +29,7 @@ _DELAMINATION_KEYS = frozenset(
 
 
 def damage_state_to_dict(ds: DamageState) -> Dict[str, Any]:
+    """Return ``ds`` as a schema-v1.0 dict (the layout of ``save_cscan_json``)."""
     return {
         "schema_version": SCHEMA_VERSION,
         "dent_depth_mm": ds.dent_depth_mm,
@@ -125,6 +126,12 @@ def _validate_dict(data: Dict[str, Any]) -> None:
 
 
 def damage_state_from_dict(data: Dict[str, Any]) -> DamageState:
+    """Validate a schema-v1.0 dict and build the :class:`DamageState`.
+
+    Raises :class:`CScanSchemaError` (a ``ValueError``) for a missing or
+    invalid field, and warns (``UserWarning``) about unknown fields, which
+    are ignored. See ``docs/cscan_schema.md``.
+    """
     _validate_dict(data)
     try:
         dels = [
@@ -147,10 +154,28 @@ def damage_state_from_dict(data: Dict[str, Any]) -> DamageState:
 
 
 def save_cscan_json(ds: DamageState, path: Union[str, Path]) -> None:
+    """Write ``ds`` to ``path`` as schema-v1.0 C-scan JSON (indented).
+
+    ``load_cscan_json`` reads it back unchanged, so a predicted damage state
+    (``AnalysisResults.damage``) can be saved and re-run inspection-driven.
+    """
     Path(path).write_text(json.dumps(damage_state_to_dict(ds), indent=2))
 
 
 def load_cscan_json(path: Union[str, Path]) -> DamageState:
+    """Read a C-scan JSON file (``docs/cscan_schema.md``) into a DamageState.
+
+    Raises :class:`CScanSchemaError` for malformed JSON or a file that does
+    not match the schema, and ``OSError`` (e.g. ``FileNotFoundError``) when
+    the file cannot be read. The layup is not in the file, so
+    ``interface_index`` is checked against it later, by ``AnalysisConfig``.
+
+    Examples
+    --------
+    >>> damage = load_cscan_json("examples/sample_cscan.json")
+    >>> len(damage.delaminations), round(damage.projected_damage_area_mm2)
+    (7, 1041)
+    """
     try:
         data = json.loads(Path(path).read_text())
     except json.JSONDecodeError as exc:
