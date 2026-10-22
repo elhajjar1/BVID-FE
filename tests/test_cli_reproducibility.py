@@ -136,11 +136,13 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # Recaptured when IM7/8552 Xt became NCAMP's cross-ply back-out
             # value (2560 -> 2238 MPa): pristine 1280.6 -> 1119.6 MPa. Then
             # energy-balance DPA (8902 -> 1389 mm^2, below the 80% cap):
-            # knockdown 0.219 -> 0.260.
-            "knockdown": 0.26044588747306874,
-            "residual_strength_MPa": 291.5865203189998,
+            # knockdown 0.219 -> 0.260. Then the axial (mod-180) template
+            # without the 90/90 mid-plane delamination: the union area lands
+            # 1.2e-6 higher on the Brent tolerance (knockdown -1.7e-7).
+            "knockdown": 0.2604458437299361,
+            "residual_strength_MPa": 291.58647134564893,
             "pristine_strength_MPa": 1119.566613810138,
-            "dpa_mm2": 1388.6893652021163,
+            "dpa_mm2": 1388.6910613653863,
             "tier_used": "empirical",
         },
     ),
