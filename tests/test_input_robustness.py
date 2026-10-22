@@ -9,6 +9,7 @@ attached a stderr log handler.
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import logging
 import os
@@ -419,6 +420,24 @@ def test_cli_closed_stdout_pipe_exits_without_traceback():
     code = proc.wait(timeout=120)
     assert "Traceback" not in err and "BrokenPipeError" not in err, err
     assert code == 1
+
+
+@pytest.mark.parametrize(
+    "os_name, exc, expected",
+    [
+        ("posix", BrokenPipeError(errno.EPIPE, "Broken pipe"), True),
+        ("nt", BrokenPipeError(errno.EPIPE, "Broken pipe"), True),
+        # Windows reports a closed pipe as EINVAL.
+        ("nt", OSError(errno.EINVAL, "Invalid argument"), True),
+        ("posix", OSError(errno.EINVAL, "Invalid argument"), False),
+        ("nt", OSError(errno.EACCES, "Permission denied"), False),
+    ],
+)
+def test_cli_recognises_a_closed_pipe_on_each_platform(monkeypatch, os_name, exc, expected):
+    from bvidfe import cli
+
+    monkeypatch.setattr(cli.os, "name", os_name)
+    assert cli._is_closed_pipe(exc) is expected
 
 
 # ------------------------------------------------------------------ logging

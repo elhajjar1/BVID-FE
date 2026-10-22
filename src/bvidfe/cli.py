@@ -6,6 +6,7 @@ Runs a BvidAnalysis from command-line arguments and prints the result as JSON.
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import math
 import os
@@ -252,10 +253,19 @@ def _error(msg: str) -> int:
     return 1
 
 
+def _is_closed_pipe(exc: OSError) -> bool:
+    """True when writing failed because the reader closed the pipe. Windows
+    reports that as ``EINVAL`` rather than ``EPIPE`` (as ``subprocess``
+    also assumes for a child's stdin)."""
+    return isinstance(exc, BrokenPipeError) or (os.name == "nt" and exc.errno == errno.EINVAL)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         return _main(argv)
-    except BrokenPipeError:
+    except OSError as exc:
+        if not _is_closed_pipe(exc):
+            raise
         # The reader went away (``bvidfe ... | head``). Point stdout at
         # devnull so the interpreter's final flush does not raise again; see
         # the "Note on SIGPIPE" in the Python ``signal`` docs.
