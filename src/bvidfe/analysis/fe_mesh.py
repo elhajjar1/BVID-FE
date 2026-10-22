@@ -21,9 +21,11 @@ to the 6x6 elasticity matrix in the global Voigt frame
                                      the in-plane sub-block on rows/cols
                                      {0, 1, 5}. Reduced to
                                      DAMAGE_ZONE_INPLANE_FACTOR through
-                                     the thickness wherever the element
-                                     centroid lies in any delamination
-                                     footprint (the damage zone), and to
+                                     the thickness inside the union of
+                                     the delamination footprints (the
+                                     damage zone), interpolated by the
+                                     fraction of the element's area
+                                     inside it, and to
                                      DAMAGE_FIBER_BREAK_INPLANE_FACTOR
                                      inside the fiber-break core (within
                                      `fiber_break_radius_mm` of any
@@ -83,16 +85,18 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # single factor fitted both families (0.20 left it at -47%).
 DAMAGE_ZONE_INPLANE_FACTOR = 0.17
 
+# Sub-sampling grid (per side) for the fraction of an element's area inside
+# the damage zone. A binary centroid test moved whole elements in or out of
+# the zone as the mesh changed, a staircase that alone shifted the cross-ply
+# knockdown by ~25% between 5 and 2.5 mm meshes.
+ZONE_FRACTION_SAMPLES = 6
+
 
 def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:
     """Return a dict with n_elements, n_nodes, n_dof for a would-be fe_mesh build.
 
     Use this to warn the user BEFORE running the analysis."""
-    mesh = config.mesh if config.mesh is not None else MeshParams()
-    n_plies = len(config.layup_deg)
-    nx = max(1, math.ceil(config.panel.Lx_mm / mesh.in_plane_size_mm))
-    ny = max(1, math.ceil(config.panel.Ly_mm / mesh.in_plane_size_mm))
-    nz = n_plies * mesh.elements_per_ply
+    nz, ny, nx = element_grid_shape(config)
     n_elements = nx * ny * nz
     n_nodes = (nx + 1) * (ny + 1) * (nz + 1)
     n_dof = 3 * n_nodes
@@ -181,6 +185,15 @@ class FeMeshSkeleton:
     ply_top_z: np.ndarray
 
 
+def element_grid_shape(config: AnalysisConfig) -> tuple[int, int, int]:
+    """``(nz, ny, nx)`` of the structured mesh: element ``e`` sits at
+    ``e = k*(ny*nx) + j*nx + i``, so a per-element array reshapes to it."""
+    mesh = config.mesh if config.mesh is not None else MeshParams()
+    nx = max(1, math.ceil(config.panel.Lx_mm / mesh.in_plane_size_mm))
+    ny = max(1, math.ceil(config.panel.Ly_mm / mesh.in_plane_size_mm))
+    return len(config.layup_deg) * mesh.elements_per_ply, ny, nx
+
+
 def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
     """Build the damage-independent skeleton of the structured brick mesh.
 
@@ -208,9 +221,7 @@ def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
         ply_top_z[k + 1] = ply_top_z[k] + t
 
     Lx, Ly = panel.Lx_mm, panel.Ly_mm
-    nx = max(1, math.ceil(Lx / mesh.in_plane_size_mm))
-    ny = max(1, math.ceil(Ly / mesh.in_plane_size_mm))
-    nz = n_plies * mesh.elements_per_ply
+    nz, ny, nx = element_grid_shape(config)
 
     # Nodes on a regular x-y grid; the z-grid follows per-ply thicknesses so
     # ply boundaries (and therefore interfaces) align exactly with element
@@ -293,13 +304,37 @@ def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
     )
 
 
+def _zone_area_fraction(skeleton: FeMeshSkeleton, damage: DamageState) -> np.ndarray:
+    """Fraction of each element's x-y area inside the union of the
+    delamination footprints, sampled on a ``ZONE_FRACTION_SAMPLES``-square
+    grid per element. The zone runs through the thickness, so it is
+    evaluated on the bottom layer of elements and repeated up the stack."""
+    n_elem = skeleton.element_connectivity.shape[0]
+    n_layer = int(np.count_nonzero(skeleton.cz_bot == skeleton.cz_bot.min()))
+    # Nodes 0 and 2 are the (x_min, y_min) and (x_max, y_max) corners.
+    lo = skeleton.node_coords[skeleton.element_connectivity[:n_layer, 0], :2]
+    hi = skeleton.node_coords[skeleton.element_connectivity[:n_layer, 2], :2]
+    t = (np.arange(ZONE_FRACTION_SAMPLES) + 0.5) / ZONE_FRACTION_SAMPLES
+    inside = np.zeros(n_layer)
+    for a in t:
+        for b in t:
+            px = lo[:, 0] + a * (hi[:, 0] - lo[:, 0])
+            py = lo[:, 1] + b * (hi[:, 1] - lo[:, 1])
+            hit = np.zeros(n_layer, dtype=bool)
+            for ell in damage.delaminations:
+                hit |= _points_in_ellipse(px, py, ell)
+            inside += hit
+    return (inside / t.size**2)[np.arange(n_elem) % n_layer]
+
+
 def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     """Fill per-element damage factors onto a skeleton, returning a FeMesh.
 
     Out-of-plane reduction where an element straddles a delaminated
     interface and its centroid lies in the ellipse; in-plane reduction of
-    every element whose centroid lies in any ellipse (the damage zone, all
-    plies); then fiber-break-core reduction (both factors) within
+    every element overlapping any ellipse (the damage zone, all plies),
+    interpolated by the fraction of its area inside the zone; then
+    fiber-break-core reduction (both factors) within
     ``fiber_break_radius_mm`` of any delamination centroid.
     """
     n_elem = skeleton.element_connectivity.shape[0]
@@ -317,17 +352,18 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     # scalar code breaks on the first match; assigning a constant makes the
     # vectorised "any match" result identical.
     oop_hit = np.zeros(n_elem, dtype=bool)
-    zone_hit = np.zeros(n_elem, dtype=bool)
     for ell in damage.delaminations:
         inside = _points_in_ellipse(cx, cy, ell)
-        zone_hit |= inside
         z_iface = ply_top_z[ell.interface_index + 1]
         straddles = (cz_bot <= z_iface) & (z_iface <= cz_top)
         oop_hit |= straddles & inside
     damage_factors[oop_hit] = DAMAGE_OOP_FACTOR
     # Damage zone: soft inclusion over the delamination footprints,
-    # through the thickness.
-    in_plane_damage_factors[zone_hit] = DAMAGE_ZONE_INPLANE_FACTOR
+    # through the thickness. An element partly inside takes the
+    # area-weighted factor.
+    if damage.delaminations:
+        frac = _zone_area_fraction(skeleton, damage)
+        in_plane_damage_factors = 1.0 - frac * (1.0 - DAMAGE_ZONE_INPLANE_FACTOR)
 
     # Fiber-break core: within fiber_break_radius of any delamination
     # centroid → both factors reduced (OOP also forced to DAMAGE_OOP_FACTOR).

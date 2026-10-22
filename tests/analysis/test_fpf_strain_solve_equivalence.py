@@ -6,7 +6,9 @@ a per-Gauss-point Python loop with batched ``larc05_index_batch`` /
 ``tsai_wu_index_batch`` calls. ``_solve_failure_strain_analytic_scalar_ref``
 is the unchanged pre-vectorisation implementation, kept solely so this
 test can prove the two paths return identical strain-at-failure values
-on representative inputs. Any future regression in either path will
+on representative inputs. Both check every Gauss point on its own
+(``averaging_radius_mm=None``); the production default averages the index
+over a disk, which the reference does not. Any future regression in either path will
 trip this test.
 
 Three cases are exercised:
@@ -82,7 +84,7 @@ def test_vectorised_matches_scalar_reference(criterion, damage):
     """Compression FPF: vectorised result must equal scalar-ref result."""
     cfg, mesh, elements = _build_setup(damage)
     eps_vec = _solve_failure_strain_analytic(
-        cfg, mesh, elements, strain_sign=-1, criterion=criterion
+        cfg, mesh, elements, strain_sign=-1, criterion=criterion, averaging_radius_mm=None
     )
     eps_ref = _solve_failure_strain_analytic_scalar_ref(
         cfg, mesh, elements, strain_sign=-1, criterion=criterion
@@ -106,7 +108,7 @@ def test_vectorised_tension_path_also_matches_scalar_reference():
     )
     cfg, mesh, elements = _build_setup(damage)
     eps_vec = _solve_failure_strain_analytic(
-        cfg, mesh, elements, strain_sign=+1, criterion="tsai_wu"
+        cfg, mesh, elements, strain_sign=+1, criterion="tsai_wu", averaging_radius_mm=None
     )
     eps_ref = _solve_failure_strain_analytic_scalar_ref(
         cfg, mesh, elements, strain_sign=+1, criterion="tsai_wu"
@@ -189,7 +191,7 @@ def test_puck_index_reaches_one_at_returned_strain(strain_sign):
     stress the criterion sees (effective in the damage zone), at exactly 1."""
     cfg, mesh, elements = _build_setup(_DELAM, layup_deg=_ANGLE_PLY)
     eps = _solve_failure_strain_analytic(
-        cfg, mesh, elements, strain_sign=strain_sign, criterion="puck"
+        cfg, mesh, elements, strain_sign=strain_sign, criterion="puck", averaging_radius_mm=None
     )
     bcs = uniaxial_x_bcs(mesh.node_coords, strain_sign * eps, boundary=cfg.panel.boundary)
     u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
