@@ -13,9 +13,12 @@ to the 6x6 elasticity matrix in the global Voigt frame
   - `damage_factors[e]`            — out-of-plane (OOP) factor in (0, 1].
                                      Scales the OOP block (rows/cols 2,
                                      3, 4) and the in-plane / OOP
-                                     Poisson cross-coupling. Reduced
-                                     inside delamination footprints to
-                                     DAMAGE_OOP_FACTOR.
+                                     Poisson cross-coupling. Reduced to
+                                     DAMAGE_OOP_FACTOR in elements that
+                                     span a delaminated interface with
+                                     their centroid inside that
+                                     delamination's footprint, and in
+                                     the fiber-break core.
 
   - `in_plane_damage_factors[e]`   — in-plane factor in (0, 1]. Scales
                                      the in-plane sub-block on rows/cols
@@ -97,7 +100,9 @@ ZONE_FRACTION_SAMPLES = 6
 def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:
     """Return a dict with n_elements, n_nodes, n_dof for a would-be fe_mesh build.
 
-    Use this to warn the user BEFORE running the analysis."""
+    Also ``nx``, ``ny`` and ``nz`` (elements along x, y and through the
+    thickness). Cheap (no mesh is built): use it to check a config against
+    ``fe_tier.FE3D_MAX_DOF`` BEFORE running the analysis."""
     nz, ny, nx = element_grid_shape(config)
     n_elements = nx * ny * nz
     n_nodes = (nx + 1) * (ny + 1) * (nz + 1)
@@ -421,7 +426,25 @@ _SKELETON_CACHE: dict = {}
 
 
 def build_fe_mesh(config: AnalysisConfig, damage: DamageState) -> FeMesh:
-    """Build a structured brick mesh for the panel with per-element metadata."""
+    """Build a structured brick mesh for the panel with per-element metadata.
+
+    The mesh spans ``0 <= x <= Lx_mm``, ``0 <= y <= Ly_mm`` and the laminate
+    thickness from ``z = 0`` (ply 0) upwards, at the resolution of
+    ``config.mesh`` (``MeshParams()`` when ``None``); ``damage`` sets the
+    per-element damage factors (see the module docstring). The
+    damage-independent skeleton of the last mesh is cached, so a sweep
+    that changes only the damage rebuilds only the factors.
+
+    Examples
+    --------
+    >>> from bvidfe import AnalysisConfig, DamageState, ImpactEvent, PanelGeometry
+    >>> cfg = AnalysisConfig(material="IM7/8552", layup_deg=[0, 90, 90, 0],
+    ...                      ply_thickness_mm=0.152, panel=PanelGeometry(150, 100),
+    ...                      impact=ImpactEvent(energy_J=10.0))
+    >>> mesh = build_fe_mesh(cfg, DamageState())
+    >>> mesh.n_elements  # 30 x 20 elements in-plane, one per ply
+    2400
+    """
     sig = _skeleton_signature(config)
     skeleton = _SKELETON_CACHE.get(sig)
     if skeleton is None:

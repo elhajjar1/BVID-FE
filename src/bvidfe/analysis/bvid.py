@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 from copy import deepcopy
 from dataclasses import asdict, replace
 from typing import Union
@@ -31,10 +32,51 @@ from bvidfe.failure.soutis_openhole import (
 from bvidfe.impact.mapping import impact_to_damage
 
 
+class DamageOutsidePanelWarning(UserWarning):
+    """A delamination's centroid lies outside the panel. The closed-form
+    tiers still count its area in the DPA, but the fe3d mesh (which spans
+    the panel only) may not see it at all."""
+
+
+# Registry for re-emitting the warnings ``BvidAnalysis.run`` records, so the
+# caller's "default" (once per location) action deduplicates repeats within a
+# run (e.g. the damaged and undamaged fe3d solves). Python clears it whenever
+# the filters change, which ``catch_warnings`` does, so each run shows its own.
+_REEMIT_REGISTRY: dict = {}
+
+
 def _resolve_material(m: Union[str, OrthotropicMaterial]) -> OrthotropicMaterial:
     if isinstance(m, str):
-        return MATERIAL_LIBRARY[m]
+        try:
+            return MATERIAL_LIBRARY[m]
+        except KeyError:
+            raise ValueError(
+                f"material {m!r} is not in MATERIAL_LIBRARY; choose one of "
+                f"{sorted(MATERIAL_LIBRARY)} (case-sensitive)"
+            ) from None
     return m
+
+
+def _warn_damage_outside_panel(damage: DamageState, Lx_mm: float, Ly_mm: float) -> None:
+    """Warn when a delamination centroid is outside the ``[0, Lx] x [0, Ly]``
+    panel frame (e.g. a C-scan in a different coordinate origin)."""
+    outside = [
+        (i, e.centroid_mm)
+        for i, e in enumerate(damage.delaminations)
+        if not (0.0 <= e.centroid_mm[0] <= Lx_mm and 0.0 <= e.centroid_mm[1] <= Ly_mm)
+    ]
+    if not outside:
+        return
+    listed = ", ".join(f"#{i} at ({x:g}, {y:g})" for i, (x, y) in outside[:5])
+    more = f" and {len(outside) - 5} more" if len(outside) > 5 else ""
+    warnings.warn(
+        f"{len(outside)} delamination(s) have a centroid outside the "
+        f"{Lx_mm:g} x {Ly_mm:g} mm panel ({listed}{more}); centroids are in the panel "
+        f"frame with the origin at a corner. The empirical and semi_analytical tiers "
+        f"still count their area in the DPA, but the fe3d mesh may not see them.",
+        DamageOutsidePanelWarning,
+        stacklevel=4,  # the caller of BvidAnalysis.run
+    )
 
 
 def _pristine_strength(lam: Laminate, loading: LoadingMode) -> float:
@@ -55,10 +97,78 @@ def _config_snapshot_dict(cfg: AnalysisConfig) -> dict:
 
 
 class BvidAnalysis:
+    """Runs one BVID residual-strength analysis for an :class:`AnalysisConfig`.
+
+    ``run()`` resolves the material, builds the laminate, obtains the damage
+    state (the config's ``damage``, or :func:`~bvidfe.impact.mapping.impact_to_damage`
+    on ``impact_panel`` or ``panel`` for an ``impact``), computes the
+    pristine (unnotched) strength and dispatches to the selected tier.
+
+    Examples
+    --------
+    >>> from bvidfe import AnalysisConfig, BvidAnalysis, ImpactEvent, PanelGeometry
+    >>> cfg = AnalysisConfig(
+    ...     material="IM7/8552",
+    ...     layup_deg=[0, 45, -45, 90, 90, -45, 45, 0],
+    ...     ply_thickness_mm=0.152,
+    ...     panel=PanelGeometry(150, 100),
+    ...     impact=ImpactEvent(energy_J=10.0),
+    ... )
+    >>> result = BvidAnalysis(cfg).run()
+    >>> round(result.knockdown, 2)
+    0.46
+    """
+
     def __init__(self, config: AnalysisConfig) -> None:
         self.config = config
 
     def run(self) -> AnalysisResults:
+        """Run the analysis and return an :class:`AnalysisResults`.
+
+        The config is not modified, so ``run()`` can be called again.
+
+        Every ``UserWarning`` raised during the run (e.g.
+        ``DPACapClipWarning``, ``DamageOutsidePanelWarning``) is recorded as
+        ``"<Category>: <message>"`` in ``AnalysisResults.warnings`` and then
+        re-emitted with its original category and location, so the
+        caller's warning filters (and ``pytest.warns``) still see it.
+
+        Raises
+        ------
+        bvidfe.analysis.fe_tier.FE3DSizeError
+            For ``tier="fe3d"`` when the mesh exceeds ``FE3D_MAX_DOF``.
+
+        Warns
+        -----
+        SmallMassQuasiStaticWarning, DPACapClipWarning, UserWarning
+            From the impact mapping (impact-driven configs), see
+            :func:`~bvidfe.impact.mapping.impact_to_damage`.
+        DamageOutsidePanelWarning
+            When a delamination centroid lies outside the panel.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            # Record everything; the caller's filters apply on re-emission.
+            warnings.simplefilter("always")
+            result = self._run()
+        recorded: list[str] = []
+        for w in caught:
+            if issubclass(w.category, UserWarning):
+                text = f"{w.category.__name__}: {w.message}"
+                if text not in recorded:
+                    recorded.append(text)
+        result.warnings.extend(recorded)
+        for w in caught:
+            warnings.warn_explicit(
+                w.message,
+                w.category,
+                w.filename,
+                w.lineno,
+                registry=_REEMIT_REGISTRY,
+                source=w.source,
+            )
+        return result
+
+    def _run(self) -> AnalysisResults:
         mat = _resolve_material(self.config.material)
         lam = Laminate(
             material=mat,
@@ -66,9 +176,9 @@ class BvidAnalysis:
             ply_thickness_mm=self.config.ply_thickness_mm,
         )
         damage = self._resolve_damage(lam)
+        _warn_damage_outside_panel(damage, self.config.panel.Lx_mm, self.config.panel.Ly_mm)
         sigma_0 = _pristine_strength(lam, self.config.loading)
         notes: list[str] = []
-        warnings_tags: list[str] = []
 
         if self.config.tier == "empirical":
             sigma = self._empirical(lam, damage, sigma_0)
@@ -101,7 +211,6 @@ class BvidAnalysis:
             critical_sublaminate=critical_interface,
             field_results=field_results,
             notes=notes,
-            warnings=warnings_tags,
         )
 
     def _fe3d_raw_strength(self, lam: Laminate, damage: DamageState) -> float:

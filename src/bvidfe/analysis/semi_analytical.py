@@ -1,22 +1,26 @@
 """Semi-analytical tier: sublaminate buckling and delamination growth.
 
-The ellipse is approximated as its enclosing simply-supported rectangle
-with full side lengths (2 * major_mm) x (2 * minor_mm) in the panel
-frame. For orthotropic simply-supported rectangles under uniaxial
-compression, the sine basis is exact and the eigenvalue is closed-form —
-we minimize over integer modes (m, n) in [1..5] x [1..5]. The closed-
-form formula uses the FULL side lengths (a, b) as in Timoshenko & Gere
-§9.2 / Reddy 4.4.4, NOT the ellipse semi-axes.
+The ellipse is approximated as a simply-supported rectangle with full side
+lengths (2 * major_mm) along x (the load direction) by (2 * minor_mm);
+``orientation_deg`` is not used. For orthotropic simply-supported
+rectangles under uniaxial compression, the sine basis is exact and the
+eigenvalue is closed-form — we minimize over integer modes (m, n) in
+[1..5] x [1..5]. The closed-form formula uses the FULL side lengths (a, b)
+as in Timoshenko & Gere §9.2 / Reddy 4.4.4, NOT the ellipse semi-axes.
+A boundary-dependent factor (clamped 1.9, free 0.5) scales the result
+for panels that are not simply supported.
 
-Sublaminate selection: the plies above the delaminated interface form the
-thinner buckling sublaminate (closer to the impact face for interfaces in
-the upper half of the laminate). We always use the smaller of the two
-sublaminates because it buckles first.
+Sublaminate selection: at interface ``i`` the laminate splits into plies
+``0..i`` and ``i+1..n-1``; the thinner stack (by thickness, not ply count)
+is the buckling sublaminate because it buckles first.
 
 Buckling of the sublaminate does not fail the laminate; the compressive
 strength is the far-field stress at which the buckled sublaminate grows its
 delamination (:func:`sublaminate_growth_stress`), minimised over the
 delaminated interfaces (:func:`weakest_sublaminate_growth`).
+:func:`semi_analytical_cai` takes the lower of that and the Soutis bound
+of the empirical tier. In tension (:func:`semi_analytical_tai`) the tier
+is the empirical Whitney-Nuismer model unchanged.
 """
 
 from __future__ import annotations
@@ -179,8 +183,8 @@ def sublaminate_buckling_load(
     ellipse: DelaminationEllipse,
     boundary: str = "simply_supported",
 ) -> float:
-    """Critical buckling force per unit width N_cr (N/mm) for the sublaminate
-    above the given delamination interface.
+    """Critical buckling force per unit width N_cr (N/mm) for the thinner
+    sublaminate at the given delamination interface.
 
     The delaminated sublaminate is approximated as an orthotropic
     simply-supported rectangle whose full side lengths equal twice the
@@ -224,7 +228,8 @@ def sublaminate_buckling_load(
         (``major_mm`` / ``minor_mm`` are the ellipse semi-axes, per
         ``DelaminationEllipse.area_mm2 = pi * major * minor``).
     boundary : str
-        One of ``"simply_supported"``, ``"clamped"``, ``"free"``.
+        One of ``"simply_supported"``, ``"clamped"``, ``"free"``; any other
+        value is treated as ``"simply_supported"``.
 
     The ellipse aspect ratio ``a / b`` is clipped to ``_MAX_SUBLAMINATE_ASPECT``
     (50) before evaluating the eigenvalue. Slender peanut-template ellipses
@@ -340,6 +345,11 @@ def panel_buckling_load(
 
 def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]:
     """Return the interface index that would fail first under compression.
+
+    A heuristic score, used by ``fe3d_cai_buckling`` to pick the sublaminate
+    for its buckling-onset value; the interface reported as
+    ``AnalysisResults.critical_sublaminate`` comes from
+    :func:`weakest_sublaminate_growth` instead and can differ.
 
     Scoring: max_area_i * max(|z_upper_i|, |z_lower_i|), where z is distance
     from interface to the top/bottom laminate surface. Largest wins.
@@ -476,13 +486,34 @@ def semi_analytical_cai(
           sublaminate buckling (:func:`weakest_sublaminate_growth`;
           boundary-aware through the sublaminate buckling stress).
 
-    Sublaminate buckling onset alone is not used: a thin sublaminate over
-    a BVID-sized delamination buckles at a few MPa and keeps carrying load.
+    Sublaminate buckling onset alone is not used: a buckled sublaminate
+    keeps carrying load until its delamination grows. At the governing
+    interface the film buckling stress is typically 70-370 MPa (IM7/8552
+    150 x 100 mm panels at 5-30 J); a one-ply film over a back-face
+    delamination buckles at 2-26 MPa.
 
     Because of (b), the returned residual stress is always less-than-or-equal
     to the empirical-tier result on the same input — so the resulting
     ``knockdown`` (as computed downstream by ``BvidAnalysis.run()``) is
-    guaranteed to be less-than-or-equal to the ``empirical`` tier's.
+    guaranteed to be less-than-or-equal to the ``empirical`` tier's (with
+    the default ``A_ref_mm2``, which is what both tiers use).
+
+    Parameters
+    ----------
+    lam : Laminate
+        The laminate.
+    damage : DamageState
+        Damage in the panel frame.
+    sigma_pristine_MPa : float
+        Unnotched compressive strength (MPa) the Soutis knockdown scales.
+    A_ref_mm2 : float
+        Reference area of the Soutis knockdown, default
+        ``SOUTIS_REFERENCE_AREA_MM2`` (15,000 mm², the coupon ``soutis_k_s``
+        is calibrated on).
+    boundary : str
+        Panel edge condition (``"simply_supported"``, ``"clamped"`` or
+        ``"free"``) for the sublaminate buckling factor; ``BvidAnalysis``
+        passes ``panel.boundary``.
 
     Returns
     -------
@@ -491,6 +522,15 @@ def semi_analytical_cai(
         ``critical_interface_index``, and ``critical_buckling_load_N``.
         If the damage state is empty, ``residual_strength_MPa`` equals
         ``sigma_pristine_MPa`` and the two interface fields are ``None``.
+
+    Examples
+    --------
+    >>> from bvidfe import MATERIAL_LIBRARY, load_cscan_json
+    >>> from bvidfe.core.laminate import Laminate
+    >>> lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
+    >>> r = semi_analytical_cai(lam, load_cscan_json("examples/sample_cscan.json"), 601.3)
+    >>> round(r.residual_strength_MPa), r.critical_interface_index
+    (269, 4)
     """
     if not damage.delaminations:
         return SemiAnalyticalResult(

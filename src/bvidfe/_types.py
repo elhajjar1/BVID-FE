@@ -2,9 +2,11 @@
 
 This module centralises the small set of string-enum-style options that flow
 through ``AnalysisConfig`` and the analysis pipeline so they can be referenced
-from a single place. Caller modules (e.g. ``bvid.py``, ``fe_tier.py``,
-``failure/evaluator.py``) will migrate to these aliases in follow-up PRs;
-this PR only wires them through :class:`bvidfe.analysis.config.AnalysisConfig`.
+from a single place. :class:`bvidfe.analysis.config.AnalysisConfig` validates
+``tier`` and ``loading`` against them; ``analysis/bvid.py`` and
+``failure/laminate_strength.py`` use ``LoadingMode``, and
+``failure/evaluator.py`` and ``analysis/fe_tier.py`` use ``CriterionName``
+(``fe_tier`` also rejects unknown criteria with ``_CRITERION_NAMES``).
 
 The frozensets ``_TIER_NAMES``, ``_LOADING_MODES``, and ``_CRITERION_NAMES``
 mirror each ``Literal`` so callers have an O(1) runtime-validation set that

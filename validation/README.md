@@ -5,12 +5,33 @@ composite-after-impact test data.
 
 ## Datasets
 
-| Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical |
-|---|---|---|---|---|---|---|
-| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% |
-| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 9.0% | 9.0% |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.3% | 23.3% |
-| `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | ~0% (by construction) | n/a |
+| Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical | Calibration role |
+|---|---|---|---|---|---|---|---|
+| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
+| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 9.0% | 9.0% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.3% | 23.3% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
+| `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 0.0% (not gated) | Tautological (empirical-tier output) |
+
+These are the MAEs `validate_bvid_public.py` prints (rounded). Three
+things the gate does not show:
+- **The gated strength MAEs are in-sample.** `soutis_k_s` = 4.7 is the
+  pooled optimum over NCAMP and Lovejoy & Scotti, so both gated MAEs are
+  in-sample; the fair measure is the cross-dataset check under
+  [Calibration of `soutis_k_s`](#calibration-of-soutis_k_s) (6.5–9.0%).
+  Hasebe et al.'s strengths are not fitted, but the model is known to
+  miss them and they are not gated.
+- **The semi-analytical growth channel is not exercised by the gate.**
+  On every NCAMP and Lovejoy & Scotti coupon the Soutis bound is lower
+  than the delamination growth stress (176 against 221–223 MPa on NCAMP;
+  158 against 234–236 MPa and 226 against 252 MPa on Lovejoy & Scotti),
+  so the two tiers give identical numbers there. On Hasebe et al.'s set
+  growth governs 225 of 343 coupons (all cross-ply c8/c16/c24 and hard
+  r0 coupons, 41 of 132 quasi-isotropic, no soft r45), and on those 225
+  the semi-analytical MAE is 25.0% against 21.9% empirical (both 20.1%
+  on the other 118). The growth channel is therefore unvalidated, and
+  where it acts it makes the prediction worse.
+- **TAI is not validated.** The only tension cases are the synthetic
+  self-check.
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
 (2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
@@ -22,9 +43,9 @@ energy. The report does not give the impactor mass or tup, so the ASTM
 D7136 standard values (5.5 kg, 0.625 in hemispherical) are used, and the
 plate is impacted on the standard's 125 × 75 mm support window
 (`impact_panel_*`), which also confines the predicted delaminations. It
-reports no dent depth or damage area. The fe3d tier gives 171 MPa on the
-first coupon (3.5% low; its damage-zone factor is fitted to this coupon,
-see below). At about 3 minutes per coupon it is not run in CI.
+reports no dent depth or damage area. The fe3d tier gives 171.9 MPa on
+the first coupon (3.2% low; its damage-zone factor is fitted to this
+coupon, see below). At about 3 minutes per coupon it is not run in CI.
 
 **`lovejoy_scotti_im7_8552_cai`** is measured data: Lovejoy & Scotti, NASA
 LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
@@ -35,6 +56,10 @@ LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
   50 ft-lb (68 J), 236–249 MPa.
 
 Each case carries the measured thickness, dent depth and C-scan damage area.
+The areas and dents are recorded, not scored. The predicted areas
+(5,304 and 6,616 mm²) are in-sample, since `olsson_alpha` is fitted to
+their median. The predicted dent is on the model's `h / 2` cap in every
+case, 7.5–8.8× the measured dent (see `docs/physics_models.md`).
 The impactor is not described, so the ASTM D7136 standard is assumed.
 Like the NCAMP cases, each is impacted on the ASTM D7136 125 × 75 mm
 support window (`impact_panel_*`), which also confines the predicted
@@ -78,13 +103,15 @@ window, and the sweep with that confinement gives:
 At 0.17 the three coupons gave 171.4 MPa (177.7 measured), 140.4 MPa
 (146.8) and 240.2 MPa (235.7): both laminate families fit within 5%, with
 a mean error of 3.3% (18.0% at 0.20 before the confinement). The three
-coupons are in-sample.
+coupons are in-sample. The closed-form tiers barely move with the
+confinement: NCAMP 1.54% → 1.50%, Lovejoy & Scotti 8.97% → 8.95%.
 
 Since then the zone is weighted by element area fraction and the failure
 index is averaged over a 2.5 mm disk (which made fe3d mesh-converged; see
 `docs/physics_models.md`). 0.17 still fits: the coupons give 171.9 MPa
-(−3.2%), 145.1 MPa (−1.2%) and 246.8 MPa (+4.7%), a mean error of 3.0%. The closed-form tiers barely move with the
-confinement: NCAMP 1.54% → 1.50%, Lovejoy & Scotti 8.97% → 8.95%.
+(−3.2%), 145.1 MPa (−1.2%) and 246.8 MPa (+4.7%), a mean error of 3.0%,
+still in-sample. fe3d has not been run on the other 12 measured NCAMP
+and Lovejoy & Scotti coupons, so it has no out-of-sample check.
 
 ### Calibration of `soutis_k_s`
 
@@ -126,15 +153,16 @@ against 5,190–7,530 mm²).
 
 With both, the empirical MAE against `k_s` (the semi-analytical tier gives
 the same on these datasets, because the Soutis bound governs every
-coupon):
+coupon), rerun with the delaminations confined to the impact window:
 
 | `k_s` | NCAMP | Lovejoy & Scotti |
 |---|---|---|
-| 4.0 | 11.8% | 15.8% |
-| 4.5 | 3.5% | 9.2% |
+| 4.0 | 11.4% | 15.5% |
+| 4.5 | 3.2% | 9.2% |
 | 4.7 (default) | 1.5% | 9.0% |
-| 5.0 | 3.6% | 8.6% |
-| 5.5 | 9.8% | 10.1% |
+| 5.0 | 4.0% | 8.6% |
+| 5.2 | 6.5% | 8.4% |
+| 5.5 | 10.2% | 10.4% |
 
 4.7 is the pooled optimum of both tiers. Neither change was enough alone.
 With the thickness-divided area and the fixed reference area the two
@@ -146,11 +174,13 @@ area, `k_s` ≈ 4.7 fitted both (3.5% and 9.7%) but put the Hasebe set at
 The in-sample numbers flatter the model. The fair measure is
 cross-dataset:
 - `k_s` fitted on NCAMP alone (4.7) predicts Lovejoy & Scotti at 9.0% MAE.
-- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 6.2%.
+- `k_s` fitted on Lovejoy & Scotti alone (5.2) predicts NCAMP at 6.5%.
 
 Expect errors of about 6–9% on a new material or layup tested to ASTM
-D7136/D7137. `olsson_alpha` was fitted on Lovejoy & Scotti's areas, so
-only the NCAMP damage area is out of sample.
+D7136/D7137, and more on a matrix other than 8552: both datasets share
+it. `olsson_alpha` was fitted on Lovejoy & Scotti's areas, so only the
+NCAMP damage area is out of sample, and NCAMP reports no area to check
+it against.
 
 An equivalent-open-hole model (Whitney-Nuismer point stress with a
 finite-width correction) was also tried, with the thickness-divided damage
@@ -199,11 +229,17 @@ Xc of 719 MPa is under half the data sheet's ASTM D6641 1779 MPa).
 quasi-isotropic laminates struck by the 12.7 mm hemisphere (median of 38
 specimens; the default 0.078 overpredicts them about 1.7×, as the
 material is interlayer-toughened). With the energy-balance area it
-predicts the area of all 343 specimens at a median 1.03× (0.81–1.31× per
-layup), and the mean area per impactor within 8%, except the 31.8 mm
+predicts the area of the 329 specimens with a measured area (11
+flat-impactor and 3 25.4 mm hemisphere specimens show none) at a median
+1.01× (per-layup medians 0.81–1.23×, per-impactor 0.91–1.16×), and
+the mean area per impactor over all 343 within 8%, except the 31.8 mm
 hemisphere (19% low): 368 against 364 mm² for the 60° cone, 48 against
 52 mm² for the flat-ended impactor, and 277 against 281, 266 against 277
 and 204 against 251 mm² for the 12.7, 25.4 and 31.8 mm hemispheres.
+These area checks are in-sample: `olsson_alpha` and the impactor shape
+and diameter factors are fitted to the same specimens. The predicted
+dent is on the model's `h / 2` cap for every specimen, a median 9.0×
+the measured dent over the 308 with a positive one.
 
 Why the model misses: the damage area is right, but the knockdown map is
 not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
@@ -225,7 +261,10 @@ the soft r45 laminate, so no layup term was added. Replicate scatter alone
 accounts for about 6–9%.
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
-the empirical tier at a known input, so its MAE is ~0% by construction. It
+the empirical tier at a known input, so its MAE is ~0% by construction.
+The semi-analytical tier also scores 0.0% on it (Soutis governs every
+compression case, and TAI is the same model), but CI does not run that
+tier on it. It
 exercises the harness end-to-end and gates regressions in the empirical
 pipeline. Regenerate it when the empirical tier changes on purpose; there
 is no generator script, so rerun each case through the empirical tier and
@@ -238,6 +277,34 @@ error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The
 is run on the first three synthetic cases as a smoke run, not a gate: the
 synthetic set is empirical-tier output, so its error there (12.9%) measures
 the difference between the tiers, not fe3d's accuracy.
+
+## Unnotched (pristine) strength
+
+Every tier divides by the same pristine strength, the unnotched laminate
+strength from ply-discount last-ply failure on classical lamination
+theory. `tests/validation/test_unnotched_strength_ncamp.py` checks it
+against the NCAMP RTD unnotched tension and compression strengths of
+AS4/8552 (CAM-RP-2010-002) and IM7/8552 (CAM-RP-2009-015) in the
+25/50/25, 10/80/10 and 50/40/10 layups, twelve values in all
+(predicted / measured):
+
+| Pristine strength | Range | Mean | Mean \|log error\| |
+|---|---|---|---|
+| Thickness-weighted ply-strength average (v0.2.0) | 1.17–2.85× | 1.75× | |
+| Laminate strength, unidirectional-coupon `Xt` | 0.83–1.19× | 1.00× | 10.9% |
+| Laminate strength, NCAMP cross-ply back-out `Xt` (current) | 0.83–1.14× | 0.97× | 8.4% |
+
+The 0.2.0 average treated the plies as sharing stress; they share strain,
+so the off-axis plies were credited with strength they never reach before
+the 0° fibres break. With the unidirectional-coupon `Xt` (AS4/8552
+1996 MPa, IM7/8552 2560 MPa) the 0° plies outlived the ±45 cracking and
+the fibre-governed tension strengths came out 5–19% high; NCAMP's
+cross-ply back-out value (1872 and 2238 MPa) is the 0° ply strength
+realised inside a laminate and puts the 50/40/10 laminates at
+0.99–1.02×. Where the ±45 plies cracking in shear sets the strength, one
+`S12` cannot fit both families: 25/50/25 tension is 4% (IM7/8552) and 14%
+(AS4/8552) high, 10/80/10 tension 10% low and 10/80/10 compression
+15–17% low.
 
 ## Next datasets
 
@@ -306,8 +373,8 @@ dataset.
    and report the error on data held out from the fit (the cross-dataset
    check above), and rerun every other dataset.
 5. For a measured dataset, add its name to the semi-analytical step in
-   `.github/workflows/tests.yml` and to
-   `test_measured_cai_gates_pass_for_the_closed_form_tiers` in
-   `tests/test_validation_smoke.py`.
+   `.github/workflows/tests.yml`; if it is gated (no `"gate": false`),
+   also add it to `test_measured_cai_gates_pass_for_the_closed_form_tiers`
+   in `tests/test_validation_smoke.py`.
 6. Commit the dataset, any recalibration, and the updated numbers in a
    single PR.

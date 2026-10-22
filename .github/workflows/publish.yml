@@ -26,6 +26,6 @@ jobs:
       - name: Build sdist + wheel
         run: python -m build
       - name: Twine check
-        run: python -m twine check dist/*
+        run: python -m twine check --strict dist/*
       - name: Publish to PyPI via OIDC
         uses: pypa/gh-action-pypi-publish@release/v1

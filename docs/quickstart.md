@@ -10,6 +10,11 @@ cd BVID-FE
 pip install -e ".[dev]"
 ```
 
+`pip install bvidfe` installs the library and the `bvidfe` command alone
+(`pip install "bvidfe[app]"` adds Streamlit). The examples, the sample
+C-scan, the notebook, the validation harness and the Streamlit app
+(`app.py`) are only in the clone.
+
 To also build this documentation site locally, install the `docs` extras:
 
 ```bash
@@ -78,6 +83,17 @@ BVID Analysis Results
 unnotched laminate strength from classical lamination theory. In this case
 the Soutis bound (224.3 MPa) is below the delamination growth stress, so
 the semi-analytical result equals the empirical one.
+
+### Which tier?
+
+| Tier | Runtime | Validation status | Use it for |
+|---|---|---|---|
+| `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.5% and 9.0%, about 6–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated against data. | Screening, energy sweeps, design trade studies |
+| `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical`, not validated against data. | Checking whether delamination growth governs (low energy, cross-ply laminates) |
+| `fe3d` | About 15–30 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves); minutes for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted to three measured CAI coupons; not run on the measured datasets in CI | Stress-field context and damage through the thickness; not for allowables |
+
+See [Python API → Tier choice](python_api.md#tier-choice) and
+[Physics Models](physics_models.md) for what each tier solves.
 
 ## 4. Run from the command line
 
