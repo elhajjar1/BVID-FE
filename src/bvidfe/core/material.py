@@ -50,8 +50,8 @@ class OrthotropicMaterial:
         impactor-to-plate mass ratio.
     olsson_alpha : float
         Fraction of the impact energy above onset that delaminates:
-        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.078
-        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.047 for
+        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.0865
+        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.0648 for
         T800S/3900-2B.
     dent_beta, dent_gamma : float
         Dent depth ``d = h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
@@ -63,12 +63,16 @@ class OrthotropicMaterial:
         default (``eta = 0``, threshold 1e9 J) and in every preset.
     soutis_k_s, soutis_m : float
         Soutis CAI knockdown ``1 / (1 + k_s (DPA / A_ref) ** m)``, see
-        :func:`bvidfe.failure.soutis_openhole.soutis_cai`. Defaults 4.7
+        :func:`bvidfe.failure.soutis_openhole.soutis_cai`. Defaults 4.8
         (calibrated on the NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552 CAI
         data) and 0.5.
     wn_d0_mm : float
         Whitney-Nuismer characteristic distance (mm) of the TAI model;
         default 1.0.
+    nu23 : float, optional
+        Transverse (2-3) Poisson's ratio of the 3D compliance; ``None``
+        resolves (``nu23_resolved``) to ``E22 / (2 G23) - 1``, the value G23
+        implies for a transversely isotropic ply.
     Zt, Zc, S13 : float, optional
         Through-thickness strengths and 1-3 shear strength (MPa), see above;
         used by Tsai-Wu only.
@@ -100,19 +104,21 @@ class OrthotropicMaterial:
     # Impact-mapping calibration (defaults chosen for typical CFRP; per-material override).
     # olsson_alpha: fraction of the impact energy above onset that goes into
     # mode-II delamination, DPA = alpha (E - E_onset) / G_IIc. Fitted to the
-    # C-scan areas of Lovejoy & Scotti's eight IM7/8552 CAI coupons (median).
-    olsson_alpha: float = 0.078
+    # C-scan areas of Lovejoy & Scotti's eight IM7/8552 CAI coupons (median),
+    # with the corrected Olsson threshold load (0.078 while the onset energy
+    # was ~10x too low).
+    olsson_alpha: float = 0.0865
     dent_beta: float = 0.05
     dent_gamma: float = 0.5
     fiber_break_eta: float = 0.0
     fiber_break_E_threshold: float = 1e9  # disabled unless explicitly overridden
     # Calibrated on the measured CAI datasets in validation/datasets (NCAMP
     # AS4/8552, Lovejoy & Scotti IM7/8552), with the damage area scaled by the
-    # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.7 is
-    # the pooled optimum of both tiers. Fitted on NCAMP alone (4.7) it
-    # predicts Lovejoy & Scotti at 9.0%; on Lovejoy & Scotti alone (5.2),
-    # NCAMP at 6.2%.
-    soutis_k_s: float = 4.7
+    # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.8 is
+    # the pooled optimum of both tiers (4.7 with the onset energy ~10x too
+    # low). Fitted on NCAMP alone (4.8) it predicts Lovejoy & Scotti at 8.7%;
+    # on Lovejoy & Scotti alone (5.2), NCAMP at 4.9%.
+    soutis_k_s: float = 4.8
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
     # Through-thickness strengths and 1-3 shear (None = transverse-isotropy
@@ -126,6 +132,10 @@ class OrthotropicMaterial:
     # Puck-Schürmann 1998 (Composites Sci. Tech. 58, 1045-1067).
     puck_p_nt_plus: float = 0.30
     puck_p_nt_minus: float = 0.25
+    # Transverse (2-3 plane) Poisson ratio of the 3D compliance. None = the
+    # transversely isotropic value E22 / (2 G23) - 1 implied by G23 (see
+    # ``nu23_resolved``); set it when nu23 is measured independently of G23.
+    nu23: Optional[float] = None
 
     def __post_init__(self) -> None:
         positive_fields = (
@@ -158,6 +168,21 @@ class OrthotropicMaterial:
                 raise ValueError(f"{k} must be >= 0 (got {v})")
         if not -1.0 < self.nu12 < 0.5:
             raise ValueError(f"nu12 out of physical range (got {self.nu12})")
+        nu23 = self.nu23_resolved
+        source = "nu23" if self.nu23 is not None else "nu23 = E22 / (2 G23) - 1"
+        if not -1.0 < nu23 < 1.0:
+            raise ValueError(
+                f"{source} = {nu23:.3g} is outside (-1, 1); "
+                "set nu23 explicitly or check E22 and G23"
+            )
+        # Positive-definite 3D compliance (Lempriere 1968): with E33 = E22 and
+        # nu13 = nu12, the normal block is positive definite iff
+        # (1 + nu23) (1 - nu23 - 2 nu12 nu21) > 0.
+        if 1.0 - nu23 - 2.0 * self.nu12 * self.nu21 <= 0.0:
+            raise ValueError(
+                f"{source} = {nu23:.3g} with nu12 = {self.nu12} gives a 3D compliance "
+                "that is not positive definite (need nu23 < 1 - 2 nu12 nu21)"
+            )
         # rho is kg/mm^3; realistic engineering materials span ~[1e-7, 1e-5]
         # (0.1 .. 10 g/cm^3). A value outside this range almost always means
         # the user followed the old (wrong) "t/mm^3" docstring and is 1000x
@@ -172,6 +197,14 @@ class OrthotropicMaterial:
     @property
     def nu21(self) -> float:
         return self.nu12 * self.E22 / self.E11
+
+    @property
+    def nu23_resolved(self) -> float:
+        """Transverse Poisson ratio nu23 of the 3D compliance. Falls back to
+        the transversely isotropic value ``E22 / (2 G23) - 1`` when not set."""
+        if self.nu23 is not None:
+            return self.nu23
+        return self.E22 / (2.0 * self.G23) - 1.0
 
     @property
     def Zt_resolved(self) -> float:
@@ -193,14 +226,20 @@ class OrthotropicMaterial:
 
     def get_compliance_matrix(self) -> np.ndarray:
         """Return the 6x6 orthotropic compliance matrix in Voigt notation
-        (engineering shear strains), material frame."""
+        (engineering shear strains), material frame.
+
+        Transversely isotropic in the 2-3 plane for the moduli: E33 = E22,
+        nu13 = nu12. The 2-3 coupling uses ``nu23_resolved`` (about 0.3-0.7
+        for CFRP), not nu21 = nu12 E22 / E11 (about 0.02), which is the
+        minor 1-2 ratio. Plane-stress CLT does not use this matrix.
+        """
         S = np.zeros((6, 6))
         S[0, 0] = 1.0 / self.E11
         S[1, 1] = 1.0 / self.E22
         S[2, 2] = 1.0 / self.E22
         S[0, 1] = S[1, 0] = -self.nu12 / self.E11
         S[0, 2] = S[2, 0] = -self.nu12 / self.E11
-        S[1, 2] = S[2, 1] = -self.nu21 / self.E22
+        S[1, 2] = S[2, 1] = -self.nu23_resolved / self.E22
         S[3, 3] = 1.0 / self.G23
         S[4, 4] = 1.0 / self.G13
         S[5, 5] = 1.0 / self.G12
@@ -316,9 +355,9 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # (nu23 = 0.45; LaRC03 from Yc). olsson_alpha is fitted to the projected
     # delamination areas Hasebe et al. measured on their quasi-isotropic
     # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
-    # the default 0.078 overpredicts them about 1.7x (interlayer-toughened).
-    # Over all 343 specimens in validation/datasets it predicts the area at a
-    # median 1.03x (0.81-1.31x per layup).
+    # the default 0.0865 overpredicts them about 1.3x (interlayer-toughened).
+    # Over the 329 specimens in validation/datasets with a measured area it
+    # predicts the area at a median 1.01x (0.78-1.13x per layup).
     "T800S/3900-2B": OrthotropicMaterial(
         name="T800S/3900-2B",
         E11=153000,
@@ -336,7 +375,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_Ic=0.54,
         G_IIc=1.64,
         rho=1.54e-6,
-        olsson_alpha=0.047,
+        olsson_alpha=0.0648,
     ),
     "T800/epoxy": OrthotropicMaterial(
         name="T800/epoxy",

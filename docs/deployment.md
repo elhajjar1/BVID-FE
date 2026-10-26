@@ -50,12 +50,14 @@ Implications for BVID-FE:
   on dense meshes. It also solves twice per run (damaged and undamaged
   panel, to normalise the knockdown): the default 8-ply 150 × 100 mm
   panel at the default 5 mm mesh (4,800 elements, about 17,600 DOF)
-  takes about 15-30 s, and thick laminates or finer meshes take
-  minutes. The Streamlit
+  takes about 5 s (about 35 s at 2.5 mm), and thick laminates or finer
+  meshes take longer. The Streamlit
   app defaults to the **empirical** tier and refuses an fe3d run whose
-  estimated mesh exceeds `BVIDFE_FE3D_MAX_DOF` (500,000 degrees of freedom
-  by default). If you allow fe3d in the cloud, keep `elements_per_ply = 1`
-  and `in_plane_size_mm >= 5` (the app's defaults).
+  estimated mesh exceeds `BVIDFE_FE3D_MAX_DOF` (150,000 degrees of freedom
+  by default). An 8-ply 150 × 100 mm panel peaks at about 0.2 GB at 5 mm
+  and 0.5 GB at 2.5 mm, but the direct-solver fallback needs ~1.3 GB at
+  2.5 mm. If you allow fe3d in the cloud, keep `elements_per_ply = 1` and
+  `in_plane_size_mm >= 5` (the app's defaults).
 - Don't write user-supplied data anywhere except `tempfile`-scoped paths;
   the filesystem resets on every reboot.
 
@@ -68,7 +70,7 @@ Implications for BVID-FE:
 | Plots don't render | Make sure `matplotlib.use("Agg")` is called before any `pyplot` import. `app.py` already does this. |
 | Slow first run | Expected — numpy/scipy/shapely wheels are ~100 MB combined. |
 | Out of memory on large fe3d run | Increase `in_plane_size_mm`, keep `elements_per_ply = 1`, or switch to the empirical / semi_analytical tier. |
-| `FE3DSizeError` or "exceeding the safe cap" | The mesh exceeds `BVIDFE_FE3D_MAX_DOF` (default 500,000). Coarsen the mesh — Streamlit Cloud doesn't have the headroom to raise this cap. |
+| `FE3DSizeError` or "exceeding the safe cap" | The mesh exceeds `BVIDFE_FE3D_MAX_DOF` (default 150,000). Coarsen the mesh — Streamlit Cloud doesn't have the headroom to raise this cap. |
 
 ## Optional next steps
 

@@ -71,16 +71,18 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # Recaptured when soutis_k_s went from 2.5 to 3.5: knockdown
             # 0.439 -> 0.359; and when DPA became the energy balance
             # (7824 -> 1855 mm^2) with soutis_k_s = 4.7 and the fixed
-            # reference area: 0.377.
-            "knockdown": 0.376947092365602,
-            "residual_strength_MPa": 226.65326184194257,
+            # reference area: 0.377. Corrected Olsson threshold load (onset
+            # 1.2 -> 14.3 J on this panel; DPA 1855 -> 628 mm^2) with
+            # olsson_alpha 0.0865 and soutis_k_s 4.8: 0.505.
+            "knockdown": 0.5045652386609865,
+            "residual_strength_MPa": 303.38835202806507,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 1855.1737990544545,
+            "dpa_mm2": 627.6927028441303,
             "tier_used": "empirical",
         },
     ),
     (
-        "semi_analytical_quasi_iso_quad_10J",
+        "semi_analytical_quasi_iso_quad_22J",
         [
             "--tier",
             "semi_analytical",
@@ -95,7 +97,7 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             "--loading",
             "compression",
             "--energy",
-            "10",
+            "22",
         ],
         {
             # Recaptured when the sublaminate channel changed from buckling
@@ -106,11 +108,14 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # 0.451. With soutis_k_s = 3.5 the Soutis cap now binds:
             # 0.450. Energy-balance DPA (3660 -> 868 mm^2), soutis_k_s =
             # 4.7 and the fixed reference area instead of the 200x150 panel:
-            # 0.469.
-            "knockdown": 0.46937209584178946,
-            "residual_strength_MPa": 282.2271843841354,
+            # 0.469. With the corrected Olsson threshold load the onset is
+            # 14.3 J on this panel and 10 J leaves no damage, so the case
+            # moved to 22 J (DPA 847 mm^2, close to the 868 mm^2 at 10 J
+            # before): 0.467.
+            "knockdown": 0.46720340120844095,
+            "residual_strength_MPa": 280.92317721033606,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 867.8430258492908,
+            "dpa_mm2": 846.6807392998476,
             "tier_used": "semi_analytical",
         },
     ),
@@ -136,11 +141,15 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # Recaptured when IM7/8552 Xt became NCAMP's cross-ply back-out
             # value (2560 -> 2238 MPa): pristine 1280.6 -> 1119.6 MPa. Then
             # energy-balance DPA (8902 -> 1389 mm^2, below the 80% cap):
-            # knockdown 0.219 -> 0.260.
-            "knockdown": 0.26044588747306874,
-            "residual_strength_MPa": 291.5865203189998,
+            # knockdown 0.219 -> 0.260. Corrected Olsson threshold load
+            # (onset 0.9 -> 8.6 J; DPA 1389 -> 706 mm^2) and olsson_alpha 0.0865:
+            # 0.290. Then the axial (mod-180) template without the 90/90
+            # mid-plane delamination: the union area lands 4.5e-5 lower on
+            # the Brent tolerance (knockdown +8e-6).
+            "knockdown": 0.2897725258141808,
+            "residual_strength_MPa": 324.41964550099317,
             "pristine_strength_MPa": 1119.566613810138,
-            "dpa_mm2": 1388.6893652021163,
+            "dpa_mm2": 705.904180099177,
             "tier_used": "empirical",
         },
     ),

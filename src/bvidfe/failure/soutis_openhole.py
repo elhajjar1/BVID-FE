@@ -86,9 +86,9 @@ def soutis_cai(
     Examples
     --------
     >>> from bvidfe import MATERIAL_LIBRARY
-    >>> m = MATERIAL_LIBRARY["IM7/8552"]  # soutis_k_s = 4.7, soutis_m = 0.5
+    >>> m = MATERIAL_LIBRARY["IM7/8552"]  # soutis_k_s = 4.8, soutis_m = 0.5
     >>> round(soutis_cai(m, 928.3, SOUTIS_REFERENCE_AREA_MM2, 601.3), 1)
-    277.2
+    274.1
     """
     if dpa_mm2 <= 0:
         return sigma_pristine_MPa

@@ -87,7 +87,9 @@ def test_small_mass_emits_quasi_static_warning():
     prediction in drop-tower / light-impactor simulations."""
     lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0] * 16, 0.2)
     pan = PanelGeometry(500, 500)
-    ev = ImpactEvent(energy_J=20.0, impactor=ImpactorGeometry(), mass_kg=0.5)
+    # Above the onset energy (about 84 J on this large, thin panel), where
+    # the damage area and the warning are computed.
+    ev = ImpactEvent(energy_J=100.0, impactor=ImpactorGeometry(), mass_kg=0.5)
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         impact_to_damage(ev, lam, pan)

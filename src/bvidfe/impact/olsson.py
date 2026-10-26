@@ -1,8 +1,10 @@
 """Olsson quasi-static impact threshold load and onset energy.
 
-Closed-form threshold load from plate bending + delamination fracture balance:
+Closed-form threshold load from plate bending + delamination fracture balance
+(quasi-static, large mass, one delamination):
 
-    Pc = pi * sqrt(8 * G_IIc * D_eff / 9)
+    Pc = pi * sqrt(32 * D* * G_IIc / 3)
+    D* = sqrt(D11 * D22 * (A + 1) / 2),   A = (D12 + 2 * D66) / sqrt(D11 * D22)
     E_onset = Pc^2 / (2 * k_cb)
     k_cb = 1 / (1/k_bending + 1/k_contact_linearized_at_Pc)
 
@@ -23,7 +25,15 @@ The contact stiffness ``k_contact`` depends on the impactor tip shape:
   linearized at P.
 
 References:
-- Olsson (2001), Composites Part A, 32(9).
+- Davies & Robinson (1992); Davies & Zhang (1995), Int. J. Impact Eng. 16,
+  149 (isotropic form Pc^2 = 8 pi^2 E h^3 G_IIc / (9 (1 - nu^2))).
+- Suemasu & Majima (1996), J. Compos. Mater. 30, 441 (n delaminations).
+- Olsson (1992), AIAA J. 30, 1587 (orthotropic effective stiffness D*).
+- Olsson (2001), Composites Part A, 32(9), 1207 (threshold with D*).
+- Olsson, Donadon & Falzon (2006), Int. J. Solids Struct. 43, 3124
+  (small-mass dynamic threshold).
+- Gonzalez et al. (2011), Compos. Sci. Technol. 71, 805, Eq. (8);
+  Salvetti et al. (2016), Procedia Eng. 167, 2, Eq. (4).
 - Olsson (2010), Int. J. Solids Struct., 47(21).
 - Timoshenko & Woinowsky-Krieger, Theory of Plates and Shells, §4.
 - Johnson (1985), Contact Mechanics, §3.4 (flat punch), §3.5 (cone).
@@ -207,22 +217,56 @@ def _k_contact(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
     raise ValueError(f"impactor shape {imp.shape!r} not recognized")
 
 
+def _olsson_D_star(lam: Laminate) -> float:
+    """Olsson's effective plate stiffness D* (N*mm) for an orthotropic laminate.
+
+    ``D* = sqrt(D11 * D22 * (A + 1) / 2)`` with ``A = (D12 + 2 * D66) /
+    sqrt(D11 * D22)`` (Olsson 1992; 2001). ``A`` is 1 for an isotropic
+    plate (so ``D* = D``), about 1.0-1.25 for quasi-isotropic tape laminates
+    and about 0.15 for a cross-ply, where ``D*`` is about 0.76
+    ``sqrt(D11 * D22)``. It is the harmonic mean over directions of the
+    directional bending stiffness ``D(theta)``, which sets a plate's static
+    point-load deflection: exact for ``D11 = D22``, within a few percent
+    otherwise.
+    """
+    _, _, D = lam.abd_matrices()
+    D12, D66 = float(D[0, 1]), float(D[2, 2])
+    D_geo = lam.flexural_rigidity_Deff()  # sqrt(D11 * D22), validated positive
+    A = (D12 + 2.0 * D66) / D_geo
+    return D_geo * math.sqrt((A + 1.0) / 2.0)
+
+
 def threshold_load(lam: Laminate, pan: PanelGeometry, imp: ImpactorGeometry) -> float:
-    """Olsson quasi-static damage-threshold load Pc (Newtons).
+    """Quasi-static delamination threshold load Pc (Newtons).
 
-    Closed-form prediction from Olsson (2001) "Analytical prediction of large
-    mass impact damage in composite laminates", *Composites Part A* 32(9):
+    Load at which a single delamination (n = 1) starts to grow unstably in a
+    centrally loaded plate, from the energy release rate of a plate split
+    into two sublaminates (Davies & Robinson 1992; Suemasu & Majima 1996),
+    with Olsson's (2001) effective stiffness for orthotropic laminates:
 
-        Pc = pi * sqrt(8 * G_IIc * D_eff / 9)
+        Pc = pi * sqrt(32 * D* * G_IIc / 3)
+        D* = sqrt(D11 * D22 * (A + 1) / 2),  A = (D12 + 2 * D66) / sqrt(D11 * D22)
 
-    where ``G_IIc`` is the mode-II interlaminar fracture toughness (N/mm,
-    from the material card) and ``D_eff = sqrt(D11 * D22)`` is the
-    geometric-mean flexural rigidity of the laminate (N*mm). The formula is
-    derived from a plate-bending energy balance at the onset of through-
-    thickness shear delamination and is independent of the panel size and
-    impactor shape — only the laminate stack matters. Boundary-condition
-    and shape effects enter the *onset energy* via ``onset_energy``, not
-    here.
+    ``G_IIc`` is the mode-II interlaminar fracture toughness (N/mm, from the
+    material card) and ``D11, D22, D12, D66`` the CLT bending stiffnesses
+    (N*mm), so Pc is in N. For an isotropic plate ``D* = D = E h^3 / (12 (1 -
+    nu^2))`` and this is Davies' ``Pc^2 = 8 pi^2 E h^3 G_IIc / (9 (1 -
+    nu^2))``. It is the n = 1 case of ``pi * sqrt(32 D* G_IIc / (n + 2))``
+    (Gonzalez et al. 2011, Eq. 8; Salvetti et al. 2016, Eq. 4). The threshold
+    is independent of the panel size, boundary and impactor shape; those
+    enter the *onset energy* via ``onset_energy``, not here.
+
+    No dynamic factor is applied. Olsson, Donadon & Falzon (2006) found the
+    threshold about 21% higher (factor 1 / sqrt(1 - 7 pi^2 / 216) = 1.213)
+    for small-mass, inertia-dominated impacts; ASTM D7136 drop-weight tests
+    (5.5 kg on a 150 x 100 mm coupon) and the validation datasets are
+    large-mass, quasi-static impacts, where the quasi-static value applies.
+
+    On unclustered quasi-isotropic tape laminates this value is 0.86-0.99x
+    the measured onset loads (Gonzalez et al. 2011 AS4/8552; Salvetti et al.
+    2016; NIAR IM7/8552; see ``docs/physics_models.md``). Up to 0.2.0 the
+    code used ``pi * sqrt(8 G_IIc sqrt(D11 D22) / 9)``, Davies' formula with
+    D in place of ``E h^3 / (1 - nu^2) = 12 D``, which is sqrt(12) = 3.5x low.
 
     Parameters
     ----------
@@ -238,9 +282,9 @@ def threshold_load(lam: Laminate, pan: PanelGeometry, imp: ImpactorGeometry) -> 
     float
         Threshold load Pc in Newtons. Always positive.
     """
-    D_eff = lam.flexural_rigidity_Deff()  # N*mm
+    D_star = _olsson_D_star(lam)  # N*mm
     G_IIc = lam.material.G_IIc  # N/mm
-    return math.pi * math.sqrt(8 * G_IIc * D_eff / 9.0)
+    return math.pi * math.sqrt(32.0 * D_star * G_IIc / 3.0)
 
 
 def onset_energy(
@@ -253,6 +297,12 @@ def onset_energy(
 
     Depends on panel boundary condition (via k_bending) and impactor shape
     (via k_contact). See module docstring for the full set of formulas.
+
+    ``k_bending`` is the *linear* (small-deflection) plate stiffness. At Pc a
+    thin plate can deflect by about its own thickness (e.g. an 8-ply coupon
+    on a 60 mm clamped window), where membrane stretching stiffens it; the
+    linear stiffness then overestimates the onset energy of very thin plates.
+    Olsson's membrane term (``k_m w^3``) is not modelled.
     """
     if location_xy_mm is None:
         location_xy_mm = (pan.Lx_mm / 2, pan.Ly_mm / 2)

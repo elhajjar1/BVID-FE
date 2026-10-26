@@ -1,9 +1,31 @@
 """Layup-dependent 'peanut' template distributing DPA into per-interface delamination ellipses.
 
-Each interface's ellipse is parametrised by:
-- aspect ratio AR = 1 + 0.025 * |delta_theta|, clipped to [1, 4]
-- orientation = bisector of neighbour-ply angles
-- relative size grows from impact face (small) toward back face (large)
+Ply ``k`` of ``layup_deg`` sits at ``z_k`` with ply 0 at ``z = -h/2``, and ply
+0 is taken as the impacted face (as the size ramp below and the C-scan
+schema's ``interface_index`` assume). Interface ``i`` lies between ply ``i``
+(impact-face side) and ply ``i + 1`` (back-face side).
+
+Fibre directions are axial (``theta`` and ``theta + 180`` are the same ply), so
+every angle below is taken modulo 180 deg and ``-45`` / ``135`` or ``90`` /
+``-90`` give the same footprint. Each interface's ellipse is parametrised by:
+
+- ply mismatch ``dtheta`` = the acute angle between the two fibre directions,
+  in [0, 90] deg;
+- aspect ratio AR = 1 + 0.025 * dtheta (1 to 3.25; the [1, 4] clip never binds);
+- orientation = fibre angle of the back-face-side ply (ply ``i + 1``),
+  reported in (-90, 90]: the peanut-shaped delamination at an interface
+  elongates along the fibres of the ply below it, on the side away from the
+  impactor (Liu 1988, *J. Compos. Mater.* 22, 674-692; Abrate 1998, *Impact
+  on Composite Structures*);
+- relative size grows from impact face (small) toward back face (large).
+
+Interfaces between plies of the same direction (``dtheta = 0``, e.g. the
+doubled 90/90 ply at the mid-plane of a symmetric laminate) carry no
+delamination: with no bending-stiffness mismatch there is nothing to drive
+one (Liu 1988), and delaminations are observed only at interfaces between
+plies of different orientation (Abrate 1991, *Appl. Mech. Rev.* 44, 155-190). A layup whose plies all share
+one direction keeps an ellipse at every interface (circles), so it still
+receives the target damage area.
 
 Total DPA is enforced by a Brent root-find on a single scalar multiplier so the
 polygon-union footprint equals the target DPA within 1%.
@@ -12,9 +34,9 @@ With ``max_half_extent_mm`` each ellipse is shrunk (aspect ratio kept) until
 its bounding box fits inside the given half-extents about the centroid: the
 delaminations stay inside the window the plate was supported on when it was
 impacted. The union of differently oriented ellipses spreads well beyond the
-circle of the same area (on the 40-ply hard Lovejoy & Scotti coupon, 108 mm
-across a 102 mm coupon, which left fe3d a damage band through the whole
-section). If the window cannot hold the target area, the saturated footprint
+circle of the same area (on the 40-ply hard Lovejoy & Scotti coupon, 125 mm
+across a 102 mm coupon, which would leave fe3d a damage band through the
+whole section). If the window cannot hold the target area, the saturated footprint
 is returned and a ``DPACapClipWarning``-style ``UserWarning`` is raised.
 
 Performance notes (issue #87):
@@ -38,12 +60,31 @@ from scipy.optimize import brentq
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 
 
+def _ply_mismatch_deg(theta_a_deg, theta_b_deg):
+    """Acute angle between two fibre directions, in [0, 90] deg.
+
+    Works on scalars and NumPy arrays; fibre directions are axial, so the
+    difference is taken modulo 180 deg.
+    """
+    d = np.mod(np.abs(np.asarray(theta_b_deg, dtype=float) - theta_a_deg), 180.0)
+    return np.minimum(d, 180.0 - d)
+
+
+def _axial_angle_deg(theta_deg):
+    """Fibre angle mapped into (-90, 90] deg (``theta`` and ``theta + 180``
+    are the same direction). Works on scalars and NumPy arrays."""
+    return 90.0 - np.mod(90.0 - np.asarray(theta_deg, dtype=float), 180.0)
+
+
 def _aspect_ratio(delta_theta_deg: float) -> float:
-    return min(4.0, max(1.0, 1.0 + 0.025 * abs(delta_theta_deg)))
+    return min(4.0, max(1.0, 1.0 + 0.025 * float(_ply_mismatch_deg(0.0, delta_theta_deg))))
 
 
-def _orientation_deg(lower_ply_deg: float, upper_ply_deg: float) -> float:
-    return 0.5 * (lower_ply_deg + upper_ply_deg)
+def _orientation_deg(impact_side_ply_deg: float, back_side_ply_deg: float) -> float:
+    """Ellipse orientation of the interface between the two plies: the fibre
+    angle of the back-face-side ply (Liu 1988)."""
+    del impact_side_ply_deg  # the impact-face-side ply does not set the axis
+    return float(_axial_angle_deg(back_side_ply_deg))
 
 
 def _relative_size(interface_index: int, n_interfaces: int) -> float:
@@ -57,15 +98,29 @@ def _template_arrays(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Precompute per-interface (ar, rel, orient) as NumPy arrays."""
     layup = np.asarray(layup_deg, dtype=float)
-    lower = layup[:-1]
-    upper = layup[1:]
-    dtheta = np.abs(upper - lower)
+    impact_side = layup[:-1]
+    back_side = layup[1:]
+    dtheta = _ply_mismatch_deg(impact_side, back_side)
     ar = np.clip(1.0 + 0.025 * dtheta, 1.0, 4.0)
-    orient = 0.5 * (lower + upper)
+    orient = _axial_angle_deg(back_side)
     idx = np.arange(n_interfaces, dtype=float)
     z = (idx + 1.0) / n_interfaces
     rel = 0.3 + 0.7 * z
     return ar, rel, orient
+
+
+def _delaminated_interfaces(layup_deg: List[float]) -> np.ndarray:
+    """Indices of the interfaces that carry a delamination: those between
+    plies of different fibre direction, or every interface when all plies
+    share one direction."""
+    layup = np.asarray(layup_deg, dtype=float)
+    mismatch = _ply_mismatch_deg(layup[:-1], layup[1:])
+    active = np.flatnonzero(mismatch > _SAME_DIRECTION_TOL_DEG)
+    return active if active.size else np.arange(len(layup) - 1)
+
+
+# Plies whose fibre directions differ by less than this are the same direction.
+_SAME_DIRECTION_TOL_DEG = 1e-6
 
 
 def distribute_damage(
@@ -82,6 +137,10 @@ def distribute_damage(
         return []
 
     ar_arr, rel_arr, orient_arr = _template_arrays(layup_deg, n_interfaces)
+    # Same-direction interfaces carry no delamination (module docstring).
+    active = _delaminated_interfaces(layup_deg)
+    ar_arr, rel_arr, orient_arr = ar_arr[active], rel_arr[active], orient_arr[active]
+    index_list = active.tolist()
     # Per-interface "major / scalar" and "minor / scalar" factors.
     major_factor = ar_arr * rel_arr
     minor_factor = rel_arr
@@ -108,11 +167,11 @@ def distribute_damage(
             DelaminationEllipse(
                 interface_index=i,
                 centroid_mm=centroid_mm,
-                major_mm=majors[i],
-                minor_mm=minors[i],
-                orientation_deg=orient_list[i],
+                major_mm=majors[k],
+                minor_mm=minors[k],
+                orientation_deg=orient_list[k],
             )
-            for i in range(n_interfaces)
+            for k, i in enumerate(index_list)
         ]
 
     def _union_area(scalar: float) -> float:

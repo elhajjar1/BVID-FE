@@ -53,7 +53,7 @@ class MeshParams:
         failure index is averaged over a ``FPF_AVERAGING_RADIUS_MM``
         (2.5 mm) disk (:mod:`bvidfe.analysis.fe_tier`), so at the default
         mesh the average covers only the element itself. Problems above
-        ``FE3D_MAX_DOF`` (500,000 DOFs unless ``BVIDFE_FE3D_MAX_DOF`` is
+        ``FE3D_MAX_DOF`` (150,000 DOFs unless ``BVIDFE_FE3D_MAX_DOF`` is
         set) raise ``FE3DSizeError``; ``fe_mesh.estimate_fe_mesh_size``
         gives the size beforehand. The Streamlit app's help text advises
         ``>= 5`` mm on its 1 GB-RAM cloud deployment.

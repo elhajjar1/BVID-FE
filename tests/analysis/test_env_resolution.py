@@ -39,7 +39,7 @@ def test_log_level_typo_falls_back_to_default_with_warning(monkeypatch, capsys):
 
 def test_max_dof_default(monkeypatch):
     monkeypatch.delenv("BVIDFE_FE3D_MAX_DOF", raising=False)
-    assert _resolve_max_dof() == 500000
+    assert _resolve_max_dof() == 150000
 
 
 def test_max_dof_overrides(monkeypatch):
@@ -49,7 +49,7 @@ def test_max_dof_overrides(monkeypatch):
 
 def test_max_dof_non_numeric_falls_back_with_warning(monkeypatch, capsys):
     monkeypatch.setenv("BVIDFE_FE3D_MAX_DOF", "lots")
-    assert _resolve_max_dof() == 500000
+    assert _resolve_max_dof() == 150000
     captured = capsys.readouterr()
     assert "BVIDFE_FE3D_MAX_DOF" in captured.err
     assert "lots" in captured.err
@@ -57,7 +57,7 @@ def test_max_dof_non_numeric_falls_back_with_warning(monkeypatch, capsys):
 
 def test_max_dof_zero_or_negative_falls_back_with_warning(monkeypatch, capsys):
     monkeypatch.setenv("BVIDFE_FE3D_MAX_DOF", "0")
-    assert _resolve_max_dof() == 500000
+    assert _resolve_max_dof() == 150000
     monkeypatch.setenv("BVIDFE_FE3D_MAX_DOF", "-50")
-    assert _resolve_max_dof() == 500000
+    assert _resolve_max_dof() == 150000
     assert capsys.readouterr().err.count("BVIDFE_FE3D_MAX_DOF") >= 2
