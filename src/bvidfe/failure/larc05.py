@@ -43,8 +43,8 @@ def larc05_index(m: OrthotropicMaterial, stress: Sequence[float]) -> float:
         Material card supplying Xt/Xc/Yt/Yc/S12/S23. The s3 / t13 components
         of `stress` are accepted (Voigt indexing), but the simplified LaRC05
         reduction implemented here does not couple them into the matrix-mode
-        index — extending to the full plane-search formulation is a v0.3.0
-        roadmap item.
+        index — extending to the full plane-search formulation is planned for
+        a future release.
     stress : sequence of 6 floats
         Voigt-6 stress vector in the material frame, ordered
         ``[s1, s2, s3, t23, t13, t12]`` (i.e. directions 1, 2, 3 followed by

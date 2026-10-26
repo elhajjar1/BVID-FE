@@ -2,12 +2,34 @@
 
 The CAI residual is the minimum of two channels:
 - first-ply failure on the damaged 3D mesh (this module's distinctive
-  value: 3D stress states with per-element damage factors);
+  value: 3D stress states with per-element damage factors), LaRC05;
 - the far-field stress at which the weakest buckled sublaminate grows its
   delamination (delegated to :mod:`bvidfe.analysis.semi_analytical`).
 
+The TAI residual is first-ply failure alone, Tsai-Wu.
+
+First-ply failure: one linear static solve of the structured hex mesh
+(:mod:`bvidfe.analysis.fe_mesh`) at a reference end strain along x, scaled
+analytically to the load at which the failure index reaches 1. The damage
+zone (every ply under the union of the delamination footprints) is softened
+in-plane by ``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``, each element weighted by
+the fraction of its area inside the zone, and its elements see the effective
+stress of strain equivalence. The failure index, in each ply's material
+frame, is averaged over each element's Gauss points and then over the
+elements of the same through-thickness layer within
+``FPF_AVERAGING_RADIUS_MM`` (2.5 mm) of it before it is checked against 1;
+at the default 5 mm mesh that disk holds only the element itself. The
+failure stress is the reaction force on the loaded edge over the gross
+section. ``BvidAnalysis`` divides the damaged result by the same quantity
+on the undamaged mesh and applies the ratio to the pristine strength.
+
 Buckling onset (whole panel and sublaminate, Rayleigh-Ritz closed form) is
 reported by :func:`fe3d_cai_buckling` but does not enter the residual.
+
+Problems above ``FE3D_MAX_DOF`` degrees of freedom (500,000, or the
+``BVIDFE_FE3D_MAX_DOF`` environment variable) raise :class:`FE3DSizeError`.
+Stage timings go to stderr on the ``bvidfe.fe3d`` logger, at the level set
+by ``BVIDFE_LOG_LEVEL`` (default ``INFO``).
 """
 
 from __future__ import annotations
@@ -44,10 +66,12 @@ from bvidfe.analysis.semi_analytical import (
 from bvidfe.solver.boundary import uniaxial_x_bcs
 from bvidfe.solver.static import solve_linear_static
 
-# Configure a module-level logger that writes to stderr. Users launching
-# the Streamlit app from a terminal (or running the CLI / Python API) will see
-# one log line per FE stage, making long runs observable.
+# Module-level logger, one line per FE stage. As a library, bvidfe only adds
+# a NullHandler; the CLI and the Streamlit app call enable_stderr_logging()
+# so long runs stay observable from a terminal. Python API users opt in with
+# that call or their own logging configuration.
 _log = logging.getLogger("bvidfe.fe3d")
+_log.addHandler(logging.NullHandler())
 
 # Radius (mm) of the in-plane disk over which the failure index is averaged
 # before first-ply failure is checked (average-stress criterion, Whitney &
@@ -98,10 +122,35 @@ def _resolve_max_dof(default: int = 500000) -> int:
         return default
 
 
-if not _log.handlers:
-    _h = logging.StreamHandler(sys.stderr)
-    _h.setFormatter(logging.Formatter("[bvidfe.fe3d %(asctime)s] %(message)s", "%H:%M:%S"))
-    _log.addHandler(_h)
+class _StderrHandler(logging.StreamHandler):
+    """StreamHandler that writes to whatever ``sys.stderr`` is at emit time
+    (so a replaced or captured stderr never leaves it holding a closed
+    stream)."""
+
+    def __init__(self) -> None:
+        super().__init__(sys.stderr)
+
+    @property  # type: ignore[override]
+    def stream(self):
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, value) -> None:
+        pass
+
+
+def enable_stderr_logging() -> None:
+    """Send ``bvidfe.fe3d`` stage logs to stderr at ``BVIDFE_LOG_LEVEL``
+    (default INFO). Idempotent: repeated calls add one handler only."""
+    if not any(isinstance(h, _StderrHandler) for h in _log.handlers):
+        h = _StderrHandler()
+        h.setFormatter(logging.Formatter("[bvidfe.fe3d %(asctime)s] %(message)s", "%H:%M:%S"))
+        _log.addHandler(h)
+    _log.setLevel(_resolve_log_level())
+
+
+# An explicit BVIDFE_LOG_LEVEL still sets the logger's level for library use.
+if "BVIDFE_LOG_LEVEL" in os.environ:
     _log.setLevel(_resolve_log_level())
 
 
@@ -725,7 +774,12 @@ def fe3d_tai(
     lam: Laminate,
     sigma_pristine_MPa: float,
 ) -> float:
-    """3D FE tension-after-impact residual strength (MPa)."""
+    """3D FE tension-after-impact residual strength (MPa).
+
+    First-ply failure (Tsai-Wu) on the damaged mesh in tension, as the
+    loaded-edge reaction force over the gross section, capped at
+    ``sigma_pristine_MPa``. Raises :class:`FE3DSizeError` above the size cap.
+    """
     mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI")
     sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu")
     return min(sigma, sigma_pristine_MPa)

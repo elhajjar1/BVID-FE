@@ -145,8 +145,10 @@ def mesh_damage_figure(mesh: FeMesh, *, title: str = "Damage factor") -> go.Figu
     """Render the hex mesh boundary surface coloured by damage factor.
 
     ``damage_factor`` is the per-element out-of-plane stiffness multiplier
-    (1.0 for pristine, ``DAMAGE_OOP_FACTOR`` ≈ 0.05 inside delaminations
-    and the fiber-break core). Lower values = more severe damage; we
+    (1.0 for pristine, ``DAMAGE_OOP_FACTOR`` ≈ 0.05 in the elements that
+    span a delaminated interface inside its footprint, and in the
+    fiber-break core). The in-plane damage zone is not shown; render
+    ``mesh.in_plane_damage_factors`` with :func:`stress_field_figure`. Lower values = more severe damage; we
     invert the scale for the colorbar so red = damaged.
     """
     return _mesh3d_figure(

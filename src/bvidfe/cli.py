@@ -6,13 +6,18 @@ Runs a BvidAnalysis from command-line arguments and prints the result as JSON.
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import math
+import os
 import sys
 from dataclasses import replace
 from typing import List, Sequence
 
 import bvidfe
+from bvidfe._types import _LOADING_MODES, _TIER_NAMES
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.analysis.fe_tier import FE3DSizeError, enable_stderr_logging
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.impact.mapping import ImpactEvent
 
@@ -23,26 +28,40 @@ def _parse_panel(spec: str) -> PanelGeometry:
         Lx, Ly = float(a), float(b)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"--panel must be '<Lx>x<Ly>' (got {spec!r})") from exc
-    if Lx <= 0 or Ly <= 0:
-        raise argparse.ArgumentTypeError(f"--panel dimensions must be positive (got {Lx}x{Ly})")
+    if not (math.isfinite(Lx) and math.isfinite(Ly)) or Lx <= 0 or Ly <= 0:
+        raise argparse.ArgumentTypeError(
+            f"--panel dimensions must be positive and finite (got {Lx}x{Ly})"
+        )
     return PanelGeometry(Lx_mm=Lx, Ly_mm=Ly)
 
 
 def _parse_layup(spec: str) -> List[float]:
+    """Comma-separated ply angles, each finite and within [-90, 90] degrees
+    (the same range the Streamlit app accepts)."""
     try:
-        return [float(x) for x in spec.split(",")]
+        angles = [float(x) for x in spec.split(",")]
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
             "--layup must be a comma-separated list of ply angles in degrees"
         ) from exc
+    for i, a in enumerate(angles):
+        if not math.isfinite(a):
+            raise argparse.ArgumentTypeError(f"ply angle {i} must be finite (got {a})")
+        if not -90.0 <= a <= 90.0:
+            raise argparse.ArgumentTypeError(
+                f"ply angle {i} must be within [-90, 90] degrees (got {a:g})"
+            )
+    return angles
 
 
 def _positive_float(spec: str) -> float:
-    """argparse type that rejects non-positive numbers."""
+    """argparse type that rejects non-positive and non-finite numbers."""
     try:
         v = float(spec)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"expected a number (got {spec!r})") from exc
+    if not math.isfinite(v):
+        raise argparse.ArgumentTypeError(f"must be finite (got {v})")
     if v <= 0:
         raise argparse.ArgumentTypeError(f"must be > 0 (got {v})")
     return v
@@ -64,8 +83,10 @@ def _parse_thickness(spec: str):
                 "list of positive numbers (got " + repr(spec) + ")"
             ) from exc
         for i, t in enumerate(ts):
-            if t <= 0:
-                raise argparse.ArgumentTypeError(f"--thickness[{i}] must be > 0 (got {t})")
+            if not math.isfinite(t) or t <= 0:
+                raise argparse.ArgumentTypeError(
+                    f"--thickness[{i}] must be > 0 and finite (got {t})"
+                )
         return ts
     return _positive_float(spec)
 
@@ -82,7 +103,7 @@ def _existing_path(spec: str):
     return p
 
 
-_VALID_TIERS = ("empirical", "semi_analytical", "fe3d")
+_VALID_TIERS = tuple(sorted(_TIER_NAMES))
 
 
 def _parse_tiers(spec: str) -> List[str]:
@@ -107,11 +128,21 @@ def _parse_tiers(spec: str) -> List[str]:
     return tiers
 
 
+class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+    """Show ``(default: ...)`` only for options that have a real default,
+    not ``None`` (required inputs) or ``False`` (flags)."""
+
+    def _get_help_string(self, action: argparse.Action) -> str:
+        if action.default is None or action.default is False:
+            return action.help or ""
+        return super()._get_help_string(action) or ""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="bvidfe",
         description="BVID-FE: Barely Visible Impact Damage residual-strength analysis.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=_HelpFormatter,
     )
     p.add_argument(
         "--version",
@@ -150,17 +181,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--loading",
-        choices=["compression", "tension"],
+        choices=sorted(_LOADING_MODES),
         help="Load case: compression-after-impact or tension-after-impact",
     )
     p.add_argument(
         "--tier",
         type=_parse_tiers,
-        default=["empirical"],
+        # A string default is run through _parse_tiers, giving ["empirical"].
+        default="empirical",
         help="Analysis fidelity tier(s). A single tier (e.g. semi_analytical) "
         "or a comma-separated list to compare in one invocation (e.g. "
-        "empirical,semi_analytical,fe3d). Choices: empirical, semi_analytical, "
-        "fe3d.",
+        f"empirical,semi_analytical,fe3d). Choices: {', '.join(_VALID_TIERS)}.",
     )
     p.add_argument(
         "--energy",
@@ -177,11 +208,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--impactor-diameter",
         type=_positive_float,
         default=16.0,
-        help="Impactor diameter in mm (default 16.0)",
+        help="Impactor diameter in mm",
     )
-    p.add_argument(
-        "--mass", type=_positive_float, default=5.5, help="Impactor mass in kg (default 5.5)"
-    )
+    p.add_argument("--mass", type=_positive_float, default=5.5, help="Impactor mass in kg")
     p.add_argument(
         "--quick",
         action="store_true",
@@ -218,7 +247,37 @@ def _list_materials() -> None:
     print("\nUnits: MPa. Use --material <Name> to select.")
 
 
+def _error(msg: str) -> int:
+    """Print an argparse-style error for a failure after parsing; exit code 1."""
+    sys.stderr.write(f"bvidfe: error: {msg}\n")
+    return 1
+
+
+def _is_closed_pipe(exc: OSError) -> bool:
+    """True when writing failed because the reader closed the pipe. Windows
+    reports that as ``EINVAL`` rather than ``EPIPE`` (as ``subprocess``
+    also assumes for a child's stdin)."""
+    return isinstance(exc, BrokenPipeError) or (os.name == "nt" and exc.errno == errno.EINVAL)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except OSError as exc:
+        if not _is_closed_pipe(exc):
+            raise
+        # The reader went away (``bvidfe ... | head``). Point stdout at
+        # devnull so the interpreter's final flush does not raise again; see
+        # the "Note on SIGPIPE" in the Python ``signal`` docs.
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        except (OSError, ValueError):
+            pass
+        return 1
+
+
+def _main(argv: Sequence[str] | None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.list_materials:
@@ -245,41 +304,52 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"has {len(args.layup)} plies; they must match."
         )
 
-    if args.energy is not None:
-        cfg = AnalysisConfig(
-            material=args.material,
-            layup_deg=args.layup,
-            ply_thickness_mm=args.thickness,
-            panel=args.panel,
-            loading=args.loading,
-            tier=args.tier[0],
-            impact=ImpactEvent(
-                energy_J=args.energy,
-                impactor=ImpactorGeometry(diameter_mm=args.impactor_diameter),
-                mass_kg=args.mass,
-            ),
-        )
-    else:
-        from bvidfe.damage.io import load_cscan_json
-
-        # args.cscan is already a validated Path (see _existing_path).
-        damage = load_cscan_json(args.cscan)
-        cfg = AnalysisConfig(
-            material=args.material,
-            layup_deg=args.layup,
-            ply_thickness_mm=args.thickness,
-            panel=args.panel,
-            loading=args.loading,
-            tier=args.tier[0],
-            damage=damage,
-        )
     if args.quick and args.quick_json:
         parser.error("--quick and --quick-json are mutually exclusive")
+
+    damage = None
+    if args.cscan is not None:
+        from bvidfe.damage.io import CScanSchemaError, load_cscan_json
+
+        # args.cscan is already a validated Path (see _existing_path).
+        try:
+            damage = load_cscan_json(args.cscan)
+        except CScanSchemaError as exc:
+            parser.error(f"--cscan {args.cscan}: invalid C-scan file: {exc}")
+        except (OSError, UnicodeDecodeError) as exc:
+            parser.error(f"--cscan {args.cscan}: cannot read file: {exc}")
+    try:
+        cfg = AnalysisConfig(
+            material=args.material,
+            layup_deg=args.layup,
+            ply_thickness_mm=args.thickness,
+            panel=args.panel,
+            loading=args.loading,
+            tier=args.tier[0],
+            impact=(
+                None
+                if args.energy is None
+                else ImpactEvent(
+                    energy_J=args.energy,
+                    impactor=ImpactorGeometry(diameter_mm=args.impactor_diameter),
+                    mass_kg=args.mass,
+                )
+            ),
+            damage=damage,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    # fe3d stage logs go to stderr (the library itself only has a NullHandler).
+    enable_stderr_logging()
 
     # One result per requested tier. Single-tier output is byte-identical to
     # the pre-multi-tier behaviour; multiple tiers switch to a comparison
     # shape (JSON array / NDJSON / TSV) keyed by tier_used.
-    results = [BvidAnalysis(replace(cfg, tier=t)).run() for t in args.tier]
+    try:
+        results = [BvidAnalysis(replace(cfg, tier=t)).run() for t in args.tier]
+    except FE3DSizeError as exc:
+        return _error(str(exc))
     multi = len(results) > 1
 
     if args.quick_json:
@@ -306,6 +376,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             json.dump(results[0].to_dict(), sys.stdout, indent=2, default=str)
         sys.stdout.write("\n")
+    # Flush here so a closed pipe raises inside main()'s BrokenPipeError guard.
+    sys.stdout.flush()
     return 0
 
 
