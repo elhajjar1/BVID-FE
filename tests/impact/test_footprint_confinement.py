@@ -54,8 +54,9 @@ def test_a_window_too_small_for_the_area_warns_and_saturates():
 def test_no_window_is_the_unconfined_template():
     a = distribute_damage(_HARD, 3000.0, 0.3, 0.0, (0.0, 0.0))
     b = distribute_damage(_HARD, 3000.0, 0.3, 0.0, (0.0, 0.0), max_half_extent_mm=(1e6, 1e6))
-    assert [(e.major_mm, e.minor_mm) for e in a] == pytest.approx(
-        [(e.major_mm, e.minor_mm) for e in b]
+    # Flattened: pytest >= 9.2 rejects nested sequences in approx().
+    assert [v for e in a for v in (e.major_mm, e.minor_mm)] == pytest.approx(
+        [v for e in b for v in (e.major_mm, e.minor_mm)]
     )
 
 
