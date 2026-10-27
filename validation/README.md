@@ -34,8 +34,9 @@ things the gate does not show:
 - **TAI is not validated.** The only measured tension data are one
   impact condition (`korbelin_m21_t800s_tai`, five coupons), and
   `tai_notch_fraction` is fitted to it; nothing out of sample tests the
-  closed-form TAI model. fe3d, which fits nothing to it, scores 9.0%
-  there (`--tier=fe3d`, not run in CI).
+  closed-form TAI model. fe3d scores 3.6% there (`--tier=fe3d`, not run
+  in CI), also partly in-sample: its fibre-damage hole is the closed-form
+  one.
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
 (2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
@@ -420,22 +421,20 @@ one layup and one thickness, and with the footprint fixed by the window
 it constrains only `f · w / d₀`. The previous TAI model, a hole of the
 whole damage area in an infinite plate, gave 0.380 here (MAE 57.2%).
 
-The fe3d tier gives 0.965 here (1008.6 MPa against 884–1014 MPa, MAE
-9.0%, 5 mm mesh). This is out of sample for fe3d: its damage-zone factor
-is fitted on CAI coupons only, and the tension model adds no constant.
-In tension the zone keeps its fibre-direction stiffness and strength
-(delaminations and matrix cracks cut no fibres) and loses only its
-matrix-dominated moduli; first-ply failure is the 90° plies' matrix
-cracking in both the damaged and the undamaged run, so the knockdown is
-the strain concentration of the matrix-cracked zone. It does not model
-the fibre breakage that sets most of the measured loss, so it is high
-(0.965 against 0.889; the closed-form hole is 1.5 mm across here, below
-fe3d's mesh resolution). Before the zone kept its fibres, it was
-softened in every direction in tension too and failed as if its fibres
-were cut: 0.335 (MAE 62.2%), about one third of the closed-form TAI on
-150 × 100 mm IM7/8552 panels at 15–30 J. fe3d TAI is now above the
-closed-form TAI from about 15 J and nearly flat in energy (see
-`docs/physics_models.md`, *Limitations*).
+The fe3d tier gives 0.870 here (909.0 MPa against 884–1014 MPa, MAE
+3.6%, 5 mm mesh). In tension its damage zone keeps its fibre-direction
+stiffness and strength (delaminations and matrix cracks cut no fibres)
+and loses only its matrix-dominated moduli, and the broken fibres are
+the closed-form equivalent hole (1.5 mm across here, below the mesh),
+applied as a Whitney-Nuismer notch on the stress of the elements under
+it. The result is therefore partly in-sample: the hole size uses
+`tai_notch_fraction`, fitted to these coupons; only the zone around it
+(fitted on CAI) is out of sample, and it costs little here (0.870
+against the closed form's 0.875). Without the hole fe3d gave 0.965 (MAE
+9.0%): the zone's matrix cracking alone, nearly flat in energy. Before
+the zone kept its fibres, it was softened in every direction in tension
+too and failed as if its fibres were cut: 0.335 (MAE 62.2%). See
+`docs/physics_models.md`, *Limitations*.
 
 Other TAI sources looked at and not used: NASA TP-2981 (Nettles 1990)
 tests eight-ply coupons punctured over a 10.3 mm hole with a 4.2 mm tup,

@@ -10,7 +10,7 @@ from typing import Union
 
 from bvidfe._types import LoadingMode
 from bvidfe.analysis.config import AnalysisConfig
-from bvidfe.analysis.fe_tier import fe3d_cai, fe3d_cai_buckling, fe3d_tai
+from bvidfe.analysis.fe_tier import fe3d_cai, fe3d_cai_buckling, fe3d_tai, tai_fibre_damage_hole
 from bvidfe.analysis.results import AnalysisResults
 from bvidfe.analysis.semi_analytical import (
     SemiAnalyticalResult,
@@ -276,6 +276,14 @@ class BvidAnalysis:
             f"pristine_strength_MPa"
         ]
         if self.config.loading != "compression":
+            hole = tai_fibre_damage_hole(self.config, damage, lam)
+            if hole is not None:
+                notes.append(
+                    f"fe3d TAI: fibre damage as the closed-form equivalent hole "
+                    f"({2 * hole[0]:.2f} mm across, below the mesh), a Whitney-Nuismer "
+                    f"notch x{1 / hole[1]:.3f} on the stress of the elements under it"
+                )
+                notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
             return sigma_0 * knockdown, None, None, notes
 
         panel = self.config.panel

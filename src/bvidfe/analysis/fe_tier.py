@@ -7,7 +7,9 @@ The CAI residual is the minimum of two channels:
   delamination (delegated to :mod:`bvidfe.analysis.semi_analytical`).
 
 The TAI residual is first-ply failure alone, Tsai-Wu, with the damage
-zone's fibre-direction stiffness intact (see below).
+zone's fibre-direction stiffness intact (see below) and the broken fibres
+under the impactor as the closed-form tiers' equivalent hole, a notch on
+the stress of the elements under it (``_tai_fibre_damage_notch``).
 
 First-ply failure: one linear static solve of the structured hex mesh
 (:mod:`bvidfe.analysis.fe_mesh`) at a reference end strain along x, scaled
@@ -55,12 +57,18 @@ from bvidfe.analysis.fe_mesh import (
     build_fe_mesh,
     element_grid_shape,
     estimate_fe_mesh_size,
+    fibre_damage_hole_elements,
 )
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
 from bvidfe.elements.hex8 import Hex8Element, _T_sigma_z, build_geometry_table
 from bvidfe.failure.larc05 import larc05_index, larc05_index_batch
 from bvidfe.failure.puck import puck_index, puck_index_batch
+from bvidfe.failure.soutis_openhole import (
+    fibre_damage_tai,
+    lekhnitskii_kt_infinity,
+    tai_hole_radius_mm,
+)
 from bvidfe.failure.tsai_wu import tsai_wu_index, tsai_wu_index_batch
 from bvidfe.analysis.semi_analytical import (
     find_critical_interface,
@@ -470,6 +478,7 @@ def _critical_strain_multiplier(
     u_ref: np.ndarray,
     criterion: CriterionName,
     averaging_radius_mm: float | None = FPF_AVERAGING_RADIUS_MM,
+    notch: np.ndarray | None = None,
 ) -> float:
     """Smallest multiplier ``c`` on ``u_ref`` at which the failure index
     reaches 1 (``inf`` when nothing is loaded towards failure). See
@@ -479,8 +488,15 @@ def _critical_strain_multiplier(
     index is averaged over each element's Gauss points and then over a disk
     of that radius in the same through-thickness layer, each element
     weighted by the fraction of its area inside the disk
-    (``_disk_kernel``); ``None`` checks every Gauss point on its own."""
+    (``_disk_kernel``); ``None`` checks every Gauss point on its own.
+
+    ``notch`` (per element, >= 1) multiplies the averaged stress of each
+    element before the check: the sub-mesh fibre-damage hole of fe3d TAI
+    (``_tai_fibre_damage_notch``). The failure index at stress ``K sigma``
+    is ``K a c + K^2 b c^2``. It needs the averaged check."""
     if averaging_radius_mm is None:
+        if notch is not None:
+            raise ValueError("notch needs averaging_radius_mm")
         return _critical_strain_multiplier_pointwise(cfg, mesh, elements, u_ref, criterion)
     a, b = _index_coefficients(cfg, mesh, elements, u_ref, criterion)
     nz, ny, nx = element_grid_shape(cfg)
@@ -495,7 +511,10 @@ def _critical_strain_multiplier(
     b_avg = np.stack(
         [convolve(layer, kernel, mode="constant") / weight for layer in b.reshape(nz, ny, nx)]
     )
-    return float(_smallest_positive_root(a_avg.ravel(), b_avg.ravel()).min())
+    if notch is None:
+        return float(_smallest_positive_root(a_avg.ravel(), b_avg.ravel()).min())
+    K = np.asarray(notch, dtype=float)
+    return float(_smallest_positive_root(K * a_avg.ravel(), K * K * b_avg.ravel()).min())
 
 
 def _disk_kernel(hx: float, hy: float, radius_mm: float, samples: int = 16) -> np.ndarray:
@@ -656,10 +675,11 @@ def _first_ply_failure_stress(
     strain_sign: int,
     criterion: CriterionName,
     strain_cap: float = 0.05,
+    notch: np.ndarray | None = None,
 ) -> float:
     """Far-field stress (MPa) at first-ply failure: the reaction force on
     the loaded edge at the failure strain over the gross section
-    ``Ly * h``.
+    ``Ly * h``. ``notch``: see ``_critical_strain_multiplier``.
 
     Multiplying the failure strain by the pristine CLT modulus credited a
     softened (damaged) panel with load it cannot carry: a panel softened
@@ -669,7 +689,7 @@ def _first_ply_failure_stress(
     """
     _require_known_criterion(criterion)
     u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
-    c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion)
+    c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion, notch=notch)
     if not np.isfinite(c_crit) or c_crit <= 0:
         c_crit = 1.0  # nothing failed up to strain_cap
     c_crit = min(c_crit, 1.0)
@@ -873,10 +893,65 @@ def fe3d_tai(
     loaded-edge reaction force over the gross section, capped at
     ``sigma_pristine_MPa``. The damage zone keeps its fibre-direction
     stiffness and fibre tension strength (delaminations and matrix cracks
-    cut no fibres; only the fiber-break core, off in every preset, breaks
-    them), and loses its matrix-dominated stiffness and strengths. Raises
+    cut no fibres), and loses its matrix-dominated stiffness and
+    strengths. The broken fibres under the impactor are the closed-form
+    tiers' equivalent hole, a Whitney-Nuismer notch on the stress at the
+    impact site (``_tai_fibre_damage_notch``), unless the damage state
+    carries its own fibre-break core, which is meshed. Raises
     :class:`FE3DSizeError` above the size cap.
     """
     mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
-    sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu")
+    notch = _tai_fibre_damage_notch(cfg, damage, lam, mesh)
+    sigma = _first_ply_failure_stress(
+        cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu", notch=notch
+    )
     return min(sigma, sigma_pristine_MPa)
+
+
+def tai_fibre_damage_hole(
+    cfg: AnalysisConfig, damage: DamageState, lam: Laminate
+) -> tuple[float, float] | None:
+    """``(radius_mm, knockdown)`` of fe3d TAI's fibre-damage hole: the
+    closed-form equivalent hole (:func:`~bvidfe.failure.soutis_openhole.tai_hole_radius_mm`)
+    and its Whitney-Nuismer knockdown, finite-width corrected for the panel
+    width ``Ly`` (:func:`~bvidfe.failure.soutis_openhole.fibre_damage_tai`).
+    ``None`` without delaminations, and when the damage state carries a
+    fibre-break core (``fiber_break_radius_mm > 0``), which the mesh models
+    instead (``fe_mesh.apply_damage``)."""
+    if not damage.delaminations or damage.fiber_break_radius_mm > 0:
+        return None
+    width = cfg.panel.Ly_mm
+    R = tai_hole_radius_mm(lam.material, damage, width)
+    if R <= 0:
+        return None
+    kd = fibre_damage_tai(lam.material, damage, 1.0, lekhnitskii_kt_infinity(lam), width)
+    return R, kd
+
+
+def _tai_fibre_damage_notch(
+    cfg: AnalysisConfig, damage: DamageState, lam: Laminate, mesh: FeMesh
+) -> np.ndarray | None:
+    """Per-element stress multiplier for the broken fibres of fe3d TAI.
+
+    Tension strength after impact is set by the fibres broken under the
+    impactor. fe3d takes them to be the closed-form tiers' equivalent hole
+    (``tai_fibre_damage_hole``), so both share one fibre-damage size and
+    notch law and no constant is added. The hole (about 1-4 mm across at
+    BVID energies) is far below the mesh: elements of 2-5 mm, an index
+    averaged over ``FPF_AVERAGING_RADIUS_MM`` (2.5 mm), against the
+    Whitney-Nuismer distance ``wn_d0_mm`` (1 mm) that sets its strength.
+    Meshed as a soft or empty core it was either missed (no element centre
+    inside it at 5 mm) or smeared into the elements around it, and the
+    knockdown did not converge (8-ply QI 30 J: 0.86 / 0.74 at 5 / 2.5 mm).
+    It is instead a notch on the resolved field: the elements under it
+    (``fe_mesh.fibre_damage_hole_elements``, every ply) see their averaged
+    stress multiplied by ``1 / knockdown``, so the hole sits in the strain
+    field of the delaminations and matrix cracks around it.
+
+    ``None`` when there is no hole (see ``tai_fibre_damage_hole``).
+    """
+    hole = tai_fibre_damage_hole(cfg, damage, lam)
+    if hole is None:
+        return None
+    R, kd = hole
+    return np.where(fibre_damage_hole_elements(mesh, damage, R), 1.0 / kd, 1.0)

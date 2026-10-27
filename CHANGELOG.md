@@ -188,9 +188,10 @@ TAI, against the one measured TAI condition (`korbelin_m21_t800s_tai`,
 five M21/T800S coupons at 25 J, not gated): 3.5% for both closed-form
 tiers, in-sample (`tai_notch_fraction` is fitted to it), against 57.2%
 for the previous whole-footprint hole on the same damage mapping
-(knockdown 0.380 against 0.889 measured). fe3d scores 9.0% on it
-(knockdown 0.965), out of sample, since its damage zone now keeps its
-fibres in tension (62.2% and 0.335 before; see *Fixed*).
+(knockdown 0.380 against 0.889 measured). fe3d scores 3.6% on it
+(knockdown 0.870), partly in-sample, since its damage zone now keeps its
+fibres in tension and its broken fibres are the closed-form hole (62.2%
+and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
@@ -336,17 +337,46 @@ fibres in tension (62.2% and 0.335 before; see *Fixed*).
   | 8-ply cross-ply [0/90]2s | 0.288 / 0.156 / 0.129 | 0.907 / 0.917 / 0.938 | 0.886 / 0.802 / 0.733 |
 
   On Körbelin et al.'s coupons (25 J, measured 0.889) 0.335 -> 0.965,
-  MAE 62.2% -> 9.0%, out of sample. fe3d TAI now counts the
-  delaminations and matrix cracks but not fibre breakage, so it sits
-  above the closed-form TAI from about 15 J and barely falls with energy;
-  first-ply failure is the 90° plies' matrix cracking in both the damaged
-  and the undamaged run. The closed-form fibre-damage hole (0.8-4.3 mm
-  across on these panels) is below fe3d's mesh resolution and is not
-  added; the optional fibre-break core (off in every preset) still lowers
-  `E11` in tension. 8-ply 15 J at 5 / 2.5 mm: QI 0.912 / 0.930 (was
-  0.242 / 0.273), cross-ply 0.917 / 0.954 (was 0.156 / 0.168).
-  `FeMesh` gains `fiber_tension_factors`, and
+  MAE 62.2% -> 9.0%. With the zone alone fe3d TAI counted the
+  delaminations and matrix cracks but not fibre breakage, so it sat
+  above the closed-form TAI from about 15 J and barely fell with energy;
+  the next item adds the broken fibres. The optional fibre-break core
+  (off in every preset) still lowers `E11` in tension. 8-ply 15 J at
+  5 / 2.5 mm: QI 0.912 / 0.930 (was 0.242 / 0.273), cross-ply 0.917 /
+  0.954 (was 0.156 / 0.168). `FeMesh` gains `fiber_tension_factors`, and
   `fe_tier._build_elements` / `_fe3d_preflight` a `tension` flag.
+- **fe3d TAI did not see broken fibres.** With the damage zone's fibres
+  intact (above) and the fibre-break core off in every preset, nothing in
+  fe3d broke a fibre, so fe3d TAI was nearly flat in energy and above the
+  closed-form TAI from about 15 J. The broken fibres are now the
+  closed-form tiers' equivalent hole (`tai_hole_radius_mm`), with the
+  same Whitney-Nuismer knockdown `k_h`: the two tiers share one
+  fibre-damage size and no constant is added. The hole (0.8-4.3 mm across
+  on these panels) is below the mesh, and meshed as a soft or empty core
+  it was missed at 5 mm or smeared into the elements around it (8-ply QI
+  30 J, near-empty core weighted by area: 0.864 / 0.737 at 5 / 2.5 mm),
+  so it is a notch instead: the elements under it see their averaged
+  stress times `1 / k_h` (`fe_tier._tai_fibre_damage_notch`,
+  `fe_mesh.fibre_damage_hole_elements`). A damage state with its own
+  `fiber_break_radius_mm` keeps its meshed core and gets no hole.
+  Compression is unchanged, bit for bit (calibration coupons -20.6% /
+  +1.2% / +0.3%). fe3d TAI on 150 x 100 mm IM7/8552 panels (5 mm mesh)
+  at 5 / 15 / 30 J:
+
+  | Laminate | Zone only | Zone + hole | Closed form |
+  |---|---|---|---|
+  | 8-ply QI [0/45/-45/90]s | 0.928 / 0.912 / 0.894 | 0.834 / 0.714 / 0.629 | 0.892 / 0.771 / 0.684 |
+  | 16-ply QI [0/45/-45/90]4 | 0.940 / 0.915 / 0.892 | 0.895 / 0.759 / 0.665 | 0.952 / 0.813 / 0.718 |
+  | 8-ply cross-ply [0/90]2s | 0.907 / 0.917 / 0.938 | 0.860 / 0.782 / 0.715 | 0.886 / 0.802 / 0.733 |
+
+  It now falls with energy, 2-8% below the closed form (the matrix-cracked
+  zone around the hole). 8-ply 15 J at 5 / 2.5 mm: QI 0.714 / 0.720,
+  cross-ply 0.782 / 0.783. On Körbelin et al.'s coupons 0.965 -> 0.870,
+  MAE 9.0% -> 3.6%, partly in-sample: the hole size uses
+  `tai_notch_fraction`, fitted to those coupons. fe3d tension runs add
+  the closed-form TAI note and an `fe3d TAI: fibre damage ...` note to
+  `AnalysisResults.notes`; `fe_tier.tai_fibre_damage_hole` returns the
+  hole's radius and knockdown.
 - **The dent depth sat on its `h / 2` cap.** The uncalibrated law
   `d = h * 0.05 * ((E - E_onset) * 1e3 / (G_Ic h^2)) ** 0.5` reduces to
   `0.05 sqrt((E - E_onset) * 1e3 / G_Ic)`, about 3 mm x sqrt(E - E_onset)
