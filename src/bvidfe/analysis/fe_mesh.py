@@ -34,6 +34,17 @@ to the 6x6 elasticity matrix in the global Voigt frame
                                      `fiber_break_radius_mm` of any
                                      delamination centroid).
 
+  - `fiber_tension_factors[e]`     — factor in (0, 1] on the fibre-
+                                     direction modulus E11 (ply frame)
+                                     when fe3d loads the panel in
+                                     tension. 1 in the damage zone,
+                                     whose delaminations and matrix
+                                     cracks cut no fibres, and
+                                     DAMAGE_FIBER_BREAK_INPLANE_FACTOR in
+                                     the fiber-break core. Compression
+                                     ignores it: there the whole in-plane
+                                     sub-block takes the in-plane factor.
+
 The two factors separate the interlaminar and in-plane effects of impact
 damage. A delaminated interface loses its bond, so through-thickness
 coupling (E33, G13, G23, and the E1-E3 / E2-E3 Poisson terms) drops
@@ -46,6 +57,18 @@ under in-plane load was the same with and without damage, and fe3d
 first-ply failure could not see the impact. Inside the fiber-break core
 under the impact site, fibers are broken in addition to interlaminar
 separation (Camanho & Davila 2007; Maimi et al. 2007).
+
+The zone's in-plane factor depends on the sign of the fibre load. In
+compression it scales every in-plane term: delaminated sublaminates
+buckle and matrix-cracked plies lose the lateral support that keeps the
+fibres from kinking, and the factor is fitted to measured CAI. In tension
+the fibres of the zone are intact and carry load as before, so only its
+matrix-dominated moduli E22 and G12 take the factor (applied to the ply
+compliance, Poisson terms kept) and E11 keeps its pristine value, as in
+continuum damage models that give fibre tension its own damage variable,
+set only by fibre failure (Matzenmiller, Lubliner & Taylor 1995; Maimi et
+al. 2007), and in ply-discount analysis (E11 kept, E22 and G12
+discounted). See fe_tier._build_elements.
 
 The previous unified `DAMAGE_STIFFNESS_FACTOR = 0.30` (applied uniformly
 to every entry of `_C_global` in `fe_tier._build_elements`) over-penalised
@@ -78,7 +101,10 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 
 # In-plane stiffness fraction of the damage zone (soft inclusion over the
 # projected damage area, every ply). Its strengths drop with it (strain
-# equivalence, see fe_tier._failure_stress_material). Fitted to three
+# equivalence, see fe_tier._failure_stress_material). Under tension it
+# scales only the matrix-dominated terms: the fibre-direction stiffness,
+# and so the fibre tension strength, stay intact (fiber_tension_factors).
+# Fitted to three
 # measured CAI coupons with the delaminations kept inside the ASTM D7136
 # impact window: the first NCAMP AS4/8552 [45/0/-45/90]3s coupon, the first
 # Lovejoy & Scotti IM7/8552 [45/0/-45/90]4s coupon and their 40-ply hard
@@ -129,6 +155,9 @@ class FeMesh:
     ply_angles_deg: np.ndarray  # (n_elements,) float
     damage_factors: np.ndarray  # (n_elements,) out-of-plane factor in (0, 1]
     in_plane_damage_factors: np.ndarray  # (n_elements,) in-plane factor in (0, 1]
+    # (n_elements,) factor on the ply-frame fibre-direction stiffness under
+    # tension, in (0, 1]: 1 except in the fiber-break core
+    fiber_tension_factors: np.ndarray
     n_nodes: int = field(init=False)
     n_elements: int = field(init=False)
     n_dof: int = field(init=False)
@@ -342,8 +371,9 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     interface and its centroid lies in the ellipse; in-plane reduction of
     every element overlapping any ellipse (the damage zone, all plies),
     interpolated by the fraction of its area inside the zone; then
-    fiber-break-core reduction (both factors) within
-    ``fiber_break_radius_mm`` of any delamination centroid.
+    fiber-break-core reduction (both factors, and the fibre-direction
+    tension factor) within ``fiber_break_radius_mm`` of any delamination
+    centroid.
     """
     n_elem = skeleton.element_connectivity.shape[0]
     cx = skeleton.centroid_x
@@ -354,6 +384,9 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
 
     damage_factors = np.ones(n_elem, dtype=float)
     in_plane_damage_factors = np.ones(n_elem, dtype=float)
+    # Delaminations and matrix cracks cut no fibres: under tension the
+    # zone keeps its fibre-direction stiffness. Only broken fibres lower it.
+    fiber_tension_factors = np.ones(n_elem, dtype=float)
 
     # OOP: first ellipse (in order) whose interface the element straddles
     # and whose footprint contains the centroid sets the OOP factor. The
@@ -384,6 +417,7 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
             fb_hit |= np.sqrt(dx * dx + dy * dy) <= r
         damage_factors[fb_hit] = DAMAGE_OOP_FACTOR
         in_plane_damage_factors[fb_hit] = DAMAGE_FIBER_BREAK_INPLANE_FACTOR
+        fiber_tension_factors[fb_hit] = DAMAGE_FIBER_BREAK_INPLANE_FACTOR
 
     return FeMesh(
         node_coords=skeleton.node_coords,
@@ -393,6 +427,7 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
         ply_angles_deg=skeleton.ply_angles_deg,
         damage_factors=damage_factors,
         in_plane_damage_factors=in_plane_damage_factors,
+        fiber_tension_factors=fiber_tension_factors,
     )
 
 

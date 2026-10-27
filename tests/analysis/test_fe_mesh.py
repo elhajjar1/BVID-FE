@@ -46,6 +46,7 @@ def test_mesh_damage_factor_defaults_to_one_for_pristine():
     mesh = build_fe_mesh(cfg, DamageState([], dent_depth_mm=0.0))
     assert np.all(mesh.damage_factors == 1.0)
     assert np.all(mesh.in_plane_damage_factors == 1.0)
+    assert np.all(mesh.fiber_tension_factors == 1.0)
 
 
 def test_mesh_damage_factor_reduced_inside_ellipse():
@@ -83,6 +84,9 @@ def test_mesh_delamination_only_softens_damage_zone_in_plane():
     assert np.all(mesh.in_plane_damage_factors >= DAMAGE_ZONE_INPLANE_FACTOR - 1e-12)
     assert np.isclose(mesh.in_plane_damage_factors, DAMAGE_ZONE_INPLANE_FACTOR).any()
     assert not softened.all(), "elements outside the footprint keep full in-plane stiffness"
+    # Delaminations and matrix cracks cut no fibres: under tension the zone
+    # keeps its fibre-direction stiffness.
+    assert np.all(mesh.fiber_tension_factors == 1.0)
 
 
 def test_mesh_fiber_break_core_reduces_in_plane_factor():
@@ -109,6 +113,11 @@ def test_mesh_fiber_break_core_reduces_in_plane_factor():
     )
     # Fiber-break-core elements must also have OOP reduced
     assert np.all(mesh.damage_factors[fiber_break] == DAMAGE_OOP_FACTOR)
+    # Broken fibres: the core alone loses fibre-direction stiffness in tension.
+    np.testing.assert_array_equal(
+        mesh.fiber_tension_factors,
+        np.where(fiber_break, DAMAGE_FIBER_BREAK_INPLANE_FACTOR, 1.0),
+    )
 
 
 def test_mesh_element_dof_maps_cover_24_dofs_each():

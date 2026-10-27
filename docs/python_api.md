@@ -182,7 +182,7 @@ C-scan layout; the CLI prints it).
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 8.8% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 22% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated: `tai_notch_fraction` is fitted to one measured condition (3.5% MAE in-sample). | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 1.2%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI not recommended or validated:** about one third of the closed-form TAI at 15–30 J, and 62% low on the one measured TAI dataset (0.335 against 0.889), because the damage zone's strain-equivalent strength reduction acts in every in-plane direction, as if fibres were cut | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
+| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 1.2%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), so fe3d counts the delaminations and matrix cracks but not fibre breakage: 0.965 against 0.889 on the one measured TAI dataset (MAE 9.0%, out of sample), above the closed-form TAI from about 15 J and nearly flat in energy (it was 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
 
 ## Knockdown semantics
 
@@ -202,7 +202,8 @@ three tiers** — only the residual-strength numerator differs:
   First-ply failure runs on a mesh whose damage zone (the delamination
   footprints, every ply) is softened in-plane ×0.15 with strain-equivalent
   strengths, an element partly inside the zone softened by its area
-  fraction. The failure index is averaged over a 2.5 mm disk in each layer,
+  fraction; in tension only its matrix-dominated moduli and strengths
+  are, its fibres staying intact. The failure index is averaged over a 2.5 mm disk in each layer,
   each element weighted by its overlap with the disk, before it is checked, and the stress is the reaction force at failure
   over the gross section. Buckling onset (Rayleigh-Ritz closed form, issue #129) is
   reported in `result.buckling_eigenvalues` but does not set the strength;
@@ -215,8 +216,9 @@ Cross-tier expectations:
   (the growth stress only lowers the residual). `fe3d` is independent
   and can sit above or below `empirical`.
 - For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly;
-  `fe3d` differs and is far more conservative (about a third of the
-  closed-form TAI at 15–30 J; not recommended, see the tier table).
+  `fe3d` differs: it models delaminations and matrix cracks but not
+  fibre breakage, so it sits above the closed-form TAI from about 15 J
+  and barely falls with energy (see the tier table).
 - All three are on the same scale and qualitatively comparable, but
   numerical agreement is not guaranteed.
 
@@ -284,7 +286,9 @@ mesh_damage_figure(mesh).write_html("damage_3d.html")
 
 The colour is `1 − damage_factor`, where `damage_factor` is each element's
 out-of-plane stiffness factor (0.05 at delaminated interfaces). The
-in-plane damage-zone factor is in `mesh.in_plane_damage_factors`;
+in-plane damage-zone factor is in `mesh.in_plane_damage_factors`, and
+the factor on the fibre-direction modulus in tension (1 except in a
+fibre-break core) in `mesh.fiber_tension_factors`;
 `stress_field_figure(mesh, element_scalar, label=...)` renders any
 per-element array.
 
