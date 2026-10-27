@@ -127,6 +127,13 @@ A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
   {"impact_energy_J": 30.0, "impactor_diameter_mm": 15.875, "impactor_mass_kg": 5.5}
   ```
 
+**Dependencies**
+
+- The `[app]` and `dev` extras and `requirements.txt` need
+  `streamlit>=1.51,<2` (was `>=1.32`): 1.51 is the first release whose
+  `st.plotly_chart` takes `width="stretch"`. Upgrade with
+  `pip install -U "bvidfe[app]"`.
+
 ### Results change
 
 Closed-form knockdowns, IM7/8552 with 0.152 mm plies on a simply
@@ -251,6 +258,9 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 - **CI** gates the semi-analytical tier on the measured datasets as well
   as the empirical tier; the fe3d step is a smoke run on three synthetic
   cases, not a gate.
+- **Streamlit app** uses `width="stretch"` / `width="content"` in place of
+  the deprecated `use_container_width`, so it no longer logs a
+  deprecation warning for every button, table and chart.
 
 ### Fixed
 
