@@ -92,6 +92,11 @@ constants are in [`validation/README.md`](validation/README.md).
 - The Soutis CAI knockdown is `1 / (1 + k_s (DPA / A_ref)^m)` with the
   fixed `A_ref` above, instead of the analysed panel's `Lx * Ly`, which
   sent the knockdown to 1 as the panel grew.
+- The dent depth is `dent_beta (E - E_onset) ** dent_gamma` (mm, E in J)
+  times an impactor-shape factor (8.5 conical, 0.03 flat), capped at
+  `h / 2`; it was `h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
+  dent_gamma`. A custom material that sets `dent_beta` / `dent_gamma`
+  gets the new meaning. No strength uses the dent.
 - `semi_analytical` and `fe3d` CAI strength is the far-field stress at
   which the weakest buckled sublaminate grows its delamination, not the
   stress at which it buckles. `buckling_eigenvalues` still reports
@@ -112,6 +117,7 @@ constants are in [`validation/README.md`](validation/README.md).
 | Impactor diameter exponent on the damage area | 0.3 | 0.2 (not applied to cones) |
 | IM7/8552 `Xt` | 2560 MPa | 2238 MPa (NCAMP cross-ply back-out) |
 | fe3d `DAMAGE_ZONE_INPLANE_FACTOR` | (no damage zone) | 0.15 |
+| `OrthotropicMaterial.dent_beta`, `dent_gamma` | 0.05, 0.5 (`G_Ic`, thickness form) | 0.044 mm/J^0.57, 0.57 |
 
 A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
 `olsson_alpha` defaults should set them explicitly, or be recalibrated
@@ -254,6 +260,23 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 
 ### Fixed
 
+- **The dent depth sat on its `h / 2` cap.** The uncalibrated law
+  `d = h * 0.05 * ((E - E_onset) * 1e3 / (G_Ic h^2)) ** 0.5` reduces to
+  `0.05 sqrt((E - E_onset) * 1e3 / G_Ic)`, about 3 mm x sqrt(E - E_onset)
+  for 8552, and reached `h / 2` about 0.2 J above onset on a 2.4 mm
+  laminate. The units were consistent (no J / mJ slip); the constants had
+  never been fitted. 345 of the 351 measured dents were predicted at the
+  cap: median predicted / measured 8.2x (7.5-8.8x) on Lovejoy & Scotti's 8
+  IM7/8552 coupons and 9.0x on the 308 Hasebe et al. T800S/3900-2B
+  specimens with a positive dent. The dent is now a power law of the
+  energy above onset, `0.044 (E - E_onset) ** 0.57` mm for a
+  hemispherical impactor (x8.5 for the 60 deg cone, x0.03 flat-ended),
+  fitted to those dents (`validation/README.md`, *Dent depth*): median
+  1.00 (0.95-1.10) and 0.96 (10-90%: 0.48-1.42), with the cap binding on
+  none of them. Fitted on either dataset it predicts the other at 1.15x /
+  0.83x. The README example (16-ply IM7/8552, 20 J) goes 1.216 -> 0.193 mm.
+  The validator prints the median dent ratio per dataset (not gated).
+  `dent_depth_mm` takes the impactor `shape` (default hemispherical).
 - **The delamination threshold load was 3.5x too low.** `threshold_load`
   computed `pi sqrt(8 G_IIc sqrt(D11 D22) / 9)`: Davies' isotropic
   formula with the bending stiffness `D` put in place of

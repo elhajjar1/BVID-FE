@@ -59,8 +59,8 @@ LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
 Each case carries the measured thickness, dent depth and C-scan damage area.
 The areas and dents are recorded, not scored. The predicted areas
 (about 5,270 and 6,530 mm²) are in-sample, since `olsson_alpha` is fitted
-to their median. The predicted dent is on the model's `h / 2` cap in every
-case, 7.5–8.8× the measured dent (see `docs/physics_models.md`).
+to their median. The predicted dents (0.40 and 0.45 mm) are 0.95–1.10×
+the measured ones, also in-sample (see *Dent depth* below).
 The impactor is not described, so the ASTM D7136 standard is assumed.
 Like the NCAMP cases, each is impacted on the ASTM D7136 125 × 75 mm
 support window (`impact_panel_*`), which also confines the predicted
@@ -318,8 +318,8 @@ corrected onset energy is a median 2.5 J here (up to 5.9 J): three
 below it and are predicted undamaged, against 62–72 mm² measured.
 These area checks are in-sample: `olsson_alpha` and the impactor shape
 and diameter factors are fitted to the same specimens. The predicted
-dent is on the model's `h / 2` cap for 337 of the 343 specimens, a median
-9.0× the measured dent over the 308 with a positive one.
+dent is a median 0.96× the measured dent over the 308 with a positive one
+(in-sample, see *Dent depth* below).
 
 Why the model misses: the damage area is right, but the knockdown map is
 not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
@@ -349,6 +349,69 @@ exercises the harness end-to-end and gates regressions in the empirical
 pipeline. Regenerate it when the empirical tier changes on purpose; there
 is no generator script, so rerun each case through the empirical tier and
 write the predicted residual strength into `measured_strength_MPa`.
+
+### Dent depth
+
+The validator prints, for each dataset that records `measured_dent_mm`,
+the median predicted / measured dent (and its 10–90% band) over the cases
+with a positive measured dent. It is reported, not gated.
+
+The dent law `d = dent_beta (E − E_onset)^dent_gamma · S_shape`
+(`src/bvidfe/impact/dent_model.py`, `docs/physics_models.md`) is fitted
+as follows:
+
+1. Take every Lovejoy & Scotti and Hasebe et al. case with a measured dent
+   (351; 316 positive, 34 of the 40 flat-ended Hasebe dents and one
+   hemispherical one are recorded as 0). Compute `E_onset` with the code
+   (`bvidfe.impact.olsson.onset_energy` on the case's impact panel,
+   boundary and impactor, at the panel centre), so a later onset change
+   is refitted by rerunning the fit.
+2. `dent_beta`, `dent_gamma`: least squares on
+   `log d = log dent_beta + dent_gamma log(E − E_onset)` over the
+   hemispherical cases with a positive dent above onset (8 Lovejoy &
+   Scotti, 210 Hasebe), each dataset weighted equally (weight
+   1 / n_dataset). Result 0.0441 mm/J^0.569, used as 0.044 and 0.57.
+   Unweighted: 0.0416, 0.609.
+3. Shape factors (Hasebe only), relative to the hemispherical law: the 60°
+   cone's median measured / predicted (8.57, used as 8.5), and the
+   flat-ended impactor's mean measured over mean predicted (0.027, used as
+   0.03; most of its dents are 0, so a median or log fit is undefined).
+4. Score: median predicted / measured and log-sd per dataset, material,
+   impactor and layup; fit on one dataset and predict the other; refit
+   with `E_onset` scaled by 0.5 and 1.5.
+
+Results with the constants as used:
+
+| Cases | n | Median pred / meas | 10–90% | log-sd |
+|---|---|---|---|---|
+| Lovejoy & Scotti, IM7/8552, hemispherical | 8 | 1.00 | 0.95–1.10 | 0.06 |
+| Hasebe et al., T800S/3900-2B, all positive dents | 308 | 0.96 | 0.48–1.42 | 0.56 |
+| Hasebe, 12.7 / 25.4 / 31.8 mm hemisphere | 98 / 95 / 17 | 0.75 / 1.07 / 1.42 | | 0.46 / 0.47 / 0.60 |
+| Hasebe, 60° cone | 92 | 0.98 | 0.42–1.20 | 0.46 |
+| Hasebe, flat-ended (positive dents only) | 6 | 0.18 | | |
+
+Per Hasebe layup (hemispherical) the median is 0.71 (q8) to 1.07 (q16).
+The mean flat-ended dent is 0.0038 mm predicted against 0.0034 mm
+measured. Cross-dataset: fitted on Hasebe alone (0.0404, 0.627) the law
+predicts Lovejoy & Scotti at 1.15×; fitted on Lovejoy & Scotti with
+Hasebe's exponent (0.0345), Hasebe's hemispherical dents at 0.83×
+(Lovejoy & Scotti's two energies alone give an exponent of 0.82 and
+Hasebe at 0.57×). The earlier form scaled by `G_Ic` and thickness,
+`d / h = β ((E − E_onset) / (G_Ic h²))^γ`, refitted the same way, gives
+1.69× on Lovejoy & Scotti from Hasebe, so neither is in the law and one
+pair serves both materials. With `E_onset` halved the refit is (0.035,
+0.62) and the constants as used score 1.04 / 1.09 (Lovejoy & Scotti /
+Hasebe); with it 1.5× higher, (0.061, 0.49) and 0.96 / 0.81. The `h / 2`
+cap binds on none of the 351 cases (three 8-ply cone specimens at 5.2 J
+reach 0.9998 of it); 18 thin-laminate cone dents exceed `h / 2`.
+
+Before the fit the law was `h · 0.05 · ((E − E_onset) · 10³ / (G_Ic h²))^0.5`,
+on the `h / 2` cap for 345 of the 351 cases (the other six were three
+below onset and three 4.6 mm cross-ply specimens at 0.95 of the cap):
+median 8.2× (7.5–8.8×) on Lovejoy & Scotti and 9.0× on Hasebe. Its units
+were consistent (J → N·mm against `G_Ic` in N/mm); the constants had never
+been fitted, and uncapped it was 33× (Hasebe) and 51× (Lovejoy & Scotti)
+the measured dents.
 
 CI gates the empirical tier on every dataset and the semi-analytical tier on
 the measured ones, at 1.25x each dataset's target. A dataset may set

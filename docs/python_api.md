@@ -415,8 +415,8 @@ my_mat = OrthotropicMaterial(
     soutis_k_s=4.8,       # Soutis CAI constant (calibrated on measured CAI data)
     soutis_m=0.5,         # Soutis exponent
     wn_d0_mm=1.0,         # Whitney-Nuismer characteristic distance
-    dent_beta=0.05,       # Dent-depth prefactor
-    dent_gamma=0.5,       # Dent-depth exponent
+    dent_beta=0.044,      # Dent depth d = dent_beta (E - E_onset)^dent_gamma, mm (E in J)
+    dent_gamma=0.57,      # Dent-depth exponent (both fitted to measured dents)
 )
 
 config = AnalysisConfig(
