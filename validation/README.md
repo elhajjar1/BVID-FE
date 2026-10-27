@@ -46,8 +46,8 @@ energy. The report does not give the impactor mass or tup, so the ASTM
 D7136 standard values (5.5 kg, 0.625 in hemispherical) are used, and the
 plate is impacted on the standard's 125 × 75 mm support window
 (`impact_panel_*`), which also confines the predicted delaminations. It
-reports no dent depth or damage area. The fe3d tier gives 144.5 MPa on
-the first coupon (18.7% low; it is one of the three coupons the
+reports no dent depth or damage area. The fe3d tier gives 141.0 MPa on
+the first coupon (20.6% low; it is one of the three coupons the
 damage-zone factor is fitted to, see below). At about 40 s per coupon it
 is not run in CI.
 
@@ -61,7 +61,7 @@ LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
 
 Each case carries the measured thickness, dent depth and C-scan damage area.
 The areas and dents are recorded, not scored. The predicted areas
-(about 5,270 and 6,530 mm²) are in-sample, since `olsson_alpha` is fitted
+(about 5,270 and 6,540 mm²) are in-sample, since `olsson_alpha` is fitted
 to their median. The predicted dents (0.40 and 0.45 mm) are 0.95–1.10×
 the measured ones, also in-sample (see *Dent depth* below).
 The impactor is not described, so the ASTM D7136 standard is assumed.
@@ -127,32 +127,32 @@ between plies of the same direction): 156.3 MPa (−12.0%), 174.6 MPa
 `ν23 = E22 / (2 G23) − 1` instead of `ν21` for the 2-3 coupling:
 152.1 MPa (−14.4%), 162.6 MPa (+10.8%) and 261.2 MPa (+10.8%), a mean
 error of 12.0%. The NCAMP coupon now wants a stiffer zone and both
-Lovejoy & Scotti coupons a softer one. With the corrected Olsson threshold
-as well (coupon damage areas 2,773, 5,274 and 6,529 mm²) the factor was
-swept again (5 mm mesh):
+Lovejoy & Scotti coupons a softer one. With the corrected Olsson
+threshold, the membrane stiffening in the onset energy and the
+mid-surface `u_z` restraint as well (the final code; coupon damage areas
+2,783, 5,269 and 6,542 mm²) the factor was swept again (5 mm mesh):
 
-| Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 |
-|---|---|---|---|
-| 0.13 | −24.9% | −4.8% | −5.6% |
-| 0.15 (default) | −18.7% | +3.3% | +2.8% |
-| 0.17 | −12.5% | +11.3% | +11.1% |
-| 0.20 | −3.5% | +23.0% | +13.5% |
-| 0.23 | +5.4% | +34.6% | +13.5% |
+| Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 | Mean error |
+|---|---|---|---|---|
+| 0.13 | −26.7% | −6.8% | −7.9% | 13.8% |
+| 0.15 (default) | −20.6% | +1.2% | +0.3% | 7.4% |
+| 0.17 | −14.6% | +9.0% | +7.9% | 10.5% |
+| 0.20 | −5.6% | +20.6% | +11.1% | 12.4% |
 
-0.15 has the lowest mean error, 8.3%: 144.5 MPa (177.7 measured),
-151.7 MPa (146.8) and 242.3 MPa (235.7). No single factor fits both
-families within 5%: NCAMP wants about 0.21 and Lovejoy & Scotti about
-0.145, and any factor that moves one family towards its measured
+0.15 is kept, with the lowest mean error, 7.4%: 141.0 MPa (177.7
+measured), 148.6 MPa (146.8) and 236.4 MPa (235.7). No single factor fits
+both families within 5%: NCAMP wants about 0.22 and Lovejoy & Scotti
+about 0.15, and any factor that moves one family towards its measured
 strength moves the other away. The earlier fit of all three within 5%
 (0.17: −3.2%, −1.2%, +4.7%) rested on the old template, whose ply
 mismatch was not wrapped modulo 180° and whose −45/90 interfaces were
 elongated ellipses at 22.5°; with the near-round footprints of the
 corrected template the two families part. Which part of the model
-separates them (material, thickness, energy or damage area: 2,773 mm² on
-the NCAMP coupon against 5,274 and 6,529 mm²) is not established, and
+separates them (material, thickness, energy or damage area: 2,783 mm² on
+the NCAMP coupon against 5,269 and 6,542 mm²) is not established, and
 with fe3d run on a single NCAMP coupon the factor cannot be split by
 family without over-fitting. The fit is in-sample on three coupons:
-Lovejoy & Scotti within about 3%, NCAMP about 19% low. Treat fe3d
+Lovejoy & Scotti within about 1%, NCAMP about 21% low. Treat fe3d
 strengths as qualitative. fe3d takes about 40 s on the 24-ply NCAMP
 coupon and about 80 s on the 40-ply hard laminate (5 mm mesh).
 
@@ -419,6 +419,14 @@ one layup and one thickness, and with the footprint fixed by the window
 it constrains only `f · w / d₀`. The previous TAI model, a hole of the
 whole damage area in an infinite plate, gave 0.380 here (MAE 57.2%).
 
+The fe3d tier gives 0.335 here (MAE 62.2%). fe3d TAI is not validated
+and not recommended: its damage zone's strain-equivalent strength
+reduction applies in every in-plane direction, so in tension the soft
+zone fails as if its fibres were cut, while delaminations cut none, and
+its damage-zone factor is fitted on CAI coupons only. On 150 × 100 mm
+IM7/8552 panels its tension knockdown is about one third of the
+closed-form TAI at 15–30 J.
+
 Other TAI sources looked at and not used: NASA TP-2981 (Nettles 1990)
 tests eight-ply coupons punctured over a 10.3 mm hole with a 4.2 mm tup,
 reports its results only as plots and uses no preset material; Lovejoy &
@@ -514,7 +522,7 @@ the measured ones, at 1.25x each dataset's target. A dataset may set
 `"gate": false` with a `gate_note` for a known miss: it is still run and its
 error printed, but it cannot fail the gate. `hasebe_t800s_3900_2b_cai` does. The fe3d tier
 is run on the first three synthetic cases as a smoke run, not a gate: the
-synthetic set is empirical-tier output, so its error there (17.0%) measures
+synthetic set is empirical-tier output, so its error there (29.2%) measures
 the difference between the tiers, not fe3d's accuracy.
 
 ## Unnotched (pristine) strength

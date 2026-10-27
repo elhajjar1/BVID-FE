@@ -188,7 +188,9 @@ TAI, against the one measured TAI condition (`korbelin_m21_t800s_tai`,
 five M21/T800S coupons at 25 J, not gated): 3.5% for both closed-form
 tiers, in-sample (`tai_notch_fraction` is fitted to it), against 57.2%
 for the previous whole-footprint hole on the same damage mapping
-(knockdown 0.380 against 0.889 measured).
+(knockdown 0.380 against 0.889 measured). fe3d scores 62.2% on it
+(knockdown 0.335): fe3d TAI is not recommended (see the fe3d entry under
+*Changed*).
 
 ### Added
 
@@ -287,7 +289,7 @@ for the previous whole-footprint hole on the same damage mapping
 - **fe3d**: the damage zone (every ply under the delamination footprints)
   is a soft inclusion with in-plane stiffness x`DAMAGE_ZONE_INPLANE_FACTOR`
   = 0.15, fitted in-sample to three measured CAI coupons (Lovejoy & Scotti
-  within 3%, NCAMP 19% low; see *Fixed*). Its elements fail at the
+  within 1.2%, NCAMP 21% low; see *Fixed*). Its elements fail at the
   strain intact material would, and the failure stress is the loaded-edge
   reaction force over the gross section. CAI is
   `min(delamination growth, first-ply failure)`, normalised by an
@@ -297,7 +299,15 @@ for the previous whole-footprint hole on the same damage mapping
   under-predicted it (0.20 against 12.6 MPa on an 8-ply 200 x 150 mm
   panel; issues #98, #129). Whole-panel buckling is left out of the
   knockdown (CAI fixtures carry anti-buckling guides); its stress is in
-  `AnalysisResults.notes`.
+  `AnalysisResults.notes`. fe3d TAI is far more conservative than the
+  closed-form TAI (about one third of it at 15-30 J on 150 x 100 mm
+  IM7/8552 panels, e.g. 16-ply QI 0.282 / 0.253 against 0.813 / 0.718 at
+  15 / 30 J) and 62% low on the one measured TAI dataset (0.335 against
+  0.889): the damage zone's strain-equivalent strength reduction applies
+  in every in-plane direction, so in tension the soft zone fails as if
+  its fibres were cut, while delaminations cut none, and the damage-zone
+  factor is fitted on CAI coupons only. It is a known limitation; fe3d
+  TAI is not validated or recommended.
 - **CI** gates the semi-analytical tier on the measured datasets as well
   as the empirical tier; the fe3d step is a smoke run on three synthetic
   cases, not a gate.
@@ -413,16 +423,18 @@ for the previous whole-footprint hole on the same damage mapping
   Lovejoy & Scotti QI #0 +18.9% -> +10.8%, hard #4 +12.7% -> +10.8% (on
   the old template alone: -3.2% -> -5.9%, -1.2% -> -3.6%, +4.7% ->
   +3.5%). With both fixes and the corrected Olsson threshold,
-  `DAMAGE_ZONE_INPLANE_FACTOR` is refitted 0.17 -> 0.15, the lowest mean
-  error on the three coupons (8.3%): NCAMP #0 -18.7% (144.5 against
-  177.7 MPa), Lovejoy & Scotti QI #0 +3.3% (151.7 against 146.8 MPa),
-  hard #4 +2.8% (242.3 against 235.7 MPa); 0.17 now gives -12.5% /
-  +11.3% / +11.1%. The coupons no longer share a factor (NCAMP wants about
-  0.21, Lovejoy & Scotti about 0.145), so the fe3d calibration is
+  `DAMAGE_ZONE_INPLANE_FACTOR` is refitted 0.17 -> 0.15. Swept again on
+  the final code (with the membrane onset above and the boundary
+  conditions of the next entry), 0.15 still has the lowest mean error on
+  the three coupons (7.4%): NCAMP #0 -20.6% (141.0 against 177.7 MPa),
+  Lovejoy & Scotti QI #0 +1.2% (148.6 against 146.8 MPa), hard #4 +0.3%
+  (236.4 against 235.7 MPa); 0.13 / 0.17 / 0.20 give mean errors of
+  13.8% / 10.5% / 12.4%. The coupons do not share a factor (NCAMP wants
+  about 0.22, Lovejoy & Scotti about 0.15), so the fe3d calibration is
   in-sample and qualitative; the sweep is in `validation/README.md`. The
   fe3d tension knockdown at 30 J (IM7/8552, 150 x 100 mm, 5 mm mesh) is
-  0.298 for 16-ply QI and 0.314 for 24-ply QI (0.333 and 0.312 before
-  these fixes; empirical now 0.67-0.73, depending on the stacking). With the realistic `nu23` the
+  0.253 for 16-ply QI and 0.246 for 24-ply QI (empirical 0.718 and
+  0.731). With the realistic `nu23` the
   boundary conditions of the time blocked the plies' through-thickness
   Poisson expansion; see the next entry.
 - **fe3d's boundary conditions blocked the plies' Poisson expansion.**
@@ -454,18 +466,15 @@ for the previous whole-footprint hole on the same damage mapping
   mid-surface lines and letting the panel bend changed the knockdowns
   below by under 1% and made the solves 2-4x slower (on the 40-ply coupon
   the ILU-preconditioned CG and GMRES no longer converge), so it was not
-  adopted. fe3d at the 5 mm mesh, `DAMAGE_ZONE_INPLANE_FACTOR` still 0.15
-  (not refitted): NCAMP #0 -18.7% -> -21.0% (140.4 against 177.7 MPa),
-  Lovejoy & Scotti QI #0 +3.3% -> +0.9% (148.1 against 146.8 MPa), hard
-  #4 +2.8% -> +0.3% (236.4 against 235.7 MPa), mean error 8.3% -> 7.4%.
-  8-ply IM7/8552 150 x 100 mm panels at 15 J (5 / 2.5 mm): QI compression
-  0.309 / 0.296 -> 0.303 / 0.290, QI tension 0.340 / 0.325 -> 0.293 /
-  0.286, cross-ply compression 0.217 / 0.185 -> 0.217 / 0.185, cross-ply
-  tension 0.239 / 0.207 -> 0.203 / 0.182. QI tension at 5 mm (ply
-  0.152 mm): 16-ply 0.341 -> 0.297 at 15 J and 0.211 -> 0.182 at 30 J,
-  24-ply 0.200 -> 0.171 at 30 J; the tension knockdowns fall because the
-  undamaged strength the damaged one is divided by rises (QI 434.5 ->
-  494.3 MPa, 16-ply).
+  adopted. Measured before the membrane onset change, the new restraints
+  moved the 8-ply 15 J compression knockdowns by under 2.5% and lowered
+  the tension knockdowns by 12-15%, because the undamaged strength the
+  damaged one is divided by rises (8-ply QI 439.0 -> 494.5 MPa); the
+  calibration coupons' mean error went 8.3% -> 7.4% with the factor
+  unchanged at 0.15. On the final code, at the 5 mm mesh, the undamaged
+  16-ply QI panel reaches 593.7 / 492.3 MPa (compression / tension), and
+  the coupon errors and the factor sweep are those of the previous
+  entry.
 - **fe3d first-ply failure depended on the mesh.** The damage zone took or
   left whole elements by their centroid, and failure was checked at
   single Gauss points, where the stress at the re-entrant corners of the
@@ -478,12 +487,16 @@ for the previous whole-footprint hole on the same damage mapping
   Counting whole elements by their centres, the disk covered only the
   element and its four neighbours at 2-2.5 mm and shrank with the mesh
   (cross-ply compression 0.186 / 0.165 at 2.5 / 2.0 mm, still falling).
-  The fine meshes now converge (cross-ply compression 0.185 / 0.170 /
-  0.174 at 2.5 / 2.0 / 1.67 mm, QI compression 0.296 / 0.292 at 2.5 /
-  2.0 mm), but the default 5 mm mesh under-resolves a damage zone only a
-  few elements across (about 710-855 mm^2 here): 0.217 cross-ply and
-  0.309 QI compression, about 25% and 6% above the converged values. Use
-  2.5 mm or finer for damage areas below about 1,500 mm^2; the
+  The fine meshes now converge. On the final code (damage area about
+  1,533 mm^2 QI, 1,538 mm^2 cross-ply at 15 J) the knockdown at 5 / 2.5 /
+  2.0 mm is 0.256 / 0.274 / 0.268 for QI compression, 0.242 / 0.273 /
+  0.269 for QI tension, 0.167 / 0.168 / 0.163 for cross-ply compression
+  and 0.156 / 0.168 / 0.162 for cross-ply tension: 2.5 to 2.0 mm within
+  2-4%, and the 5 mm default within 3-10% of the 2.0 mm value. A damage
+  zone only a few elements across is under-resolved at 5 mm: before the
+  membrane onset change these impacts gave about 710-855 mm^2, and the
+  5 mm cross-ply compression knockdown was about 25% above its converged
+  value. Use 2.5 mm or finer for damage areas below about 1,000 mm^2; the
   calibration coupons' areas (2,800-6,500 mm^2) are resolved at 5 mm.
 - **Inputs that gave silent or deep errors**: NaN/inf geometry, ply
   thickness and angles; `ImpactEvent(location_xy_mm=[0, 0])` from JSON

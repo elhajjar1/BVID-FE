@@ -182,7 +182,7 @@ C-scan layout; the CLI prints it).
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 8.8% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 22% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated: `tai_notch_fraction` is fitted to one measured condition (3.5% MAE in-sample). | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 3%, NCAMP 19% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,500 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high). |
+| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 1.2%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI not recommended or validated:** about one third of the closed-form TAI at 15–30 J, and 62% low on the one measured TAI dataset (0.335 against 0.889), because the damage zone's strain-equivalent strength reduction acts in every in-plane direction, as if fibres were cut | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
 
 ## Knockdown semantics
 
@@ -215,7 +215,8 @@ Cross-tier expectations:
   (the growth stress only lowers the residual). `fe3d` is independent
   and can sit above or below `empirical`.
 - For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly;
-  `fe3d` differs.
+  `fe3d` differs and is far more conservative (about a third of the
+  closed-form TAI at 15–30 J; not recommended, see the tier table).
 - All three are on the same scale and qualitatively comparable, but
   numerical agreement is not guaranteed.
 

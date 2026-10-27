@@ -82,9 +82,10 @@ _log.addHandler(logging.NullHandler())
 # knockdown 0.175 / 0.223 / 0.211 at 5 / 2.5 / 2 mm, old damage template).
 # Averaged over 2.5 mm, with the zone weighted by element area fraction and
 # the disk by element overlap (_disk_kernel), the 8-ply cross-ply 15 J CAI
-# knockdown is 0.217 / 0.185 / 0.170 / 0.174 at 5 / 2.5 / 2 / 1.67 mm: the
-# fine meshes converge, but 5 mm under-resolves a zone this small (about
-# 710 mm^2, a few elements across). 2.5 mm is about the characteristic
+# knockdown is 0.167 / 0.168 / 0.163 at 5 / 2.5 / 2 mm (damage area about
+# 1,540 mm^2): the fine meshes converge. A zone only a few elements across
+# is under-resolved at 5 mm (about 25% high at about 710 mm^2 with earlier
+# code), so use 2.5 mm or finer below about 1,000 mm^2. 2.5 mm is about the characteristic
 # distance of CFRP notched strength (1-4 mm); at a 5 mm mesh the disk holds
 # only the element itself.
 FPF_AVERAGING_RADIUS_MM = 2.5
@@ -444,9 +445,10 @@ def _disk_kernel(hx: float, hy: float, radius_mm: float, samples: int = 16) -> n
     element. Counting whole elements whose centres lie inside the disk
     averaged over only the element and its four neighbours at 2-2.5 mm
     meshes, an area that shrank with the mesh, and the cross-ply 15 J
-    knockdown kept falling with it (0.186 / 0.165 at 2.5 / 2 mm); weighted
-    by overlap the disk keeps its area and the knockdown settles (0.185 /
-    0.170 / 0.174 at 2.5 / 2 / 1.67 mm). At 5 mm the disk fits inside the
+    knockdown kept falling with it (0.186 / 0.165 at 2.5 / 2 mm, on the
+    damage mapping of the time); weighted by overlap the disk keeps its area
+    and the knockdown settles (0.168 / 0.163 at 2.5 / 2 mm on the current
+    mapping). At 5 mm the disk fits inside the
     element, so the kernel is the element alone."""
     rx = int(np.ceil(radius_mm / hx + 0.5))
     ry = int(np.ceil(radius_mm / hy + 0.5))

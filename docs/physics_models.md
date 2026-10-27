@@ -756,14 +756,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - They are **not** numerically interchangeable: each tier captures
   different failure mechanisms.
     - For **TAI**, `empirical` and `semi_analytical` are mathematically
-      identical; `fe3d` differs.
+      identical; `fe3d` differs and is far more conservative (about one
+      third of the closed-form TAI at 15–30 J; not recommended, see
+      [Limitations](#limitations)).
     - For **CAI**, `semi_analytical ≤ empirical` always (the growth stress
       only lowers the residual). `fe3d` divides by its own undamaged
       strength (first-ply failure, typically below σ₀), so for the same
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension at 30 J: 0.298 against empirical 0.67–0.72, see
+  zone (16-ply QI tension at 30 J: 0.253 against empirical 0.718; fe3d
+  tension is far more conservative than the closed-form TAI, see
   [Limitations](#limitations)), but its damage-zone stiffness is fitted to
   only three CAI coupons. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
@@ -789,9 +792,10 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   calls the rest generic values. AS4/3501-6, T700/2510 and T800/epoxy
   have no cited source.
 - Validation covers CAI, apart from one TAI condition, and fe3d is not
-  run on the measured datasets in CI (it gives 144.5 MPa against the
-  measured 177.7 MPa, 18.7% low, on the first NCAMP coupon, one of the
-  three coupons its damage-zone factor is fitted to, `validation/README.md`).
+  run on the measured datasets in CI (it gives 141.0 MPa against the
+  measured 177.7 MPa, 20.6% low, on the first NCAMP coupon, one of the
+  three coupons its damage-zone factor is fitted to, `validation/README.md`;
+  on the measured TAI dataset it is 62% low, see the fe3d TAI item below).
 - **The TAI model is not validated.** Its one constant,
   `tai_notch_fraction` (0.05), is fitted in-sample to a single measured
   condition: five M21/T800S quasi-isotropic coupons at 25 J (Körbelin et
@@ -829,9 +833,10 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   0.15, is fitted in-sample to three measured CAI coupons, with the
   delaminations kept inside the ASTM D7136 impact window: it puts the first
   Lovejoy & Scotti IM7/8552 quasi-isotropic coupon and their first 40-ply
-  hard laminate 3.3% and 2.8% high and the first NCAMP AS4/8552 coupon
-  18.7% low, the lowest mean error (8.3%) of the factors tried. The NCAMP
-  coupon wants about 0.21 and the Lovejoy & Scotti coupons about 0.145, so
+  hard laminate 1.2% and 0.3% high and the first NCAMP AS4/8552 coupon
+  20.6% low, the lowest mean error (7.4%) of the factors tried (0.13 /
+  0.17 / 0.20 give 13.8% / 10.5% / 12.4%). The NCAMP coupon wants about
+  0.22 and the Lovejoy & Scotti coupons about 0.15, so
   no single factor fits both families within 5%; fe3d strengths are
   qualitative. (With the template before it took ply angles modulo 180°,
   step 5, and the ply stiffness before it used `ν23`, 0.17 fitted all
@@ -839,13 +844,22 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   confined, the hard laminate's template footprint was 108 × 108 mm on a
   102 mm wide coupon: the soft zone spanned the whole section, the 0°
   fibres failed at the coupon's side edge, and no single factor fitted
-  both families (0.20 left the hard laminate 47% low). On
-  150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  far below the empirical tier's (16-ply QI 0.298 against 0.67–0.72,
-  24-ply QI 0.314 against 0.67–0.73, the range spanning the symmetric
-  [0/45/−45/90]ns and the repeated [0/45/−45/90]2n stacking); the damage area
-  there (about 2,640–2,900 mm²) is far below its 80%-of-panel cap. A damage area
-  at the cap would put the soft zone across the loaded edges.
+  both families (0.20 left the hard laminate 47% low). A damage area at
+  the 80%-of-panel cap would put the soft zone across the loaded edges.
+- **`fe3d` TAI is not recommended and not validated.** On 150 × 100 mm
+  IM7/8552 panels the fe3d tension knockdown is about one third of the
+  closed-form TAI at 15–30 J on quasi-isotropic laminates and about one
+  fifth on cross-ply (16-ply QI [0/45/−45/90]4 0.422 / 0.282 /
+  0.253 at 5 / 15 / 30 J against 0.952 / 0.813 / 0.718; 24-ply QI 0.246
+  against 0.731 at 30 J, damage area 2,649 mm²; 8-ply cross-ply 0.288 /
+  0.156 / 0.129 against 0.886 / 0.802 / 0.733). On the one measured TAI
+  dataset (`korbelin_m21_t800s_tai`, M21/T800S at 25 J) it gives 0.335
+  against the measured 0.889, an MAE of 62.2% (the closed-form tiers
+  3.5%, in-sample). The damage zone's strain-equivalent strength
+  reduction applies in every in-plane direction, so in tension the soft
+  zone fails as if its fibres were cut, while delaminations cut none; the
+  damage-zone factor is fitted on CAI coupons only. Use the closed-form
+  tiers for TAI.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
   (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances
@@ -859,27 +873,24 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   are left to a future release.
 - **At the default 5 mm mesh a small `fe3d` damage zone is
   under-resolved.** On 8-ply IM7/8552 150 × 100 mm panels at 15 J (damage
-  area about 710 mm² cross-ply, 855 mm² QI) the knockdown is:
+  area about 1,533 mm² QI, 1,538 mm² cross-ply) the knockdown is:
 
-    | Case | 5 mm | 2.5 mm | 2.0 mm* |
+    | Case | 5 mm | 2.5 mm | 2.0 mm |
     |---|---|---|---|
-    | QI [0/45/−45/90]s, tension | 0.293 | 0.286 | – |
-    | QI, compression | 0.303 | 0.290 | 0.292 |
-    | Cross-ply [0/90/0/90]s, tension | 0.203 | 0.182 | – |
-    | Cross-ply, compression | 0.217 | 0.185 | 0.170 (1.67 mm: 0.174) |
+    | QI [0/45/−45/90]s, tension | 0.242 | 0.273 | 0.269 |
+    | QI, compression | 0.256 | 0.274 | 0.268 |
+    | Cross-ply [0/90/0/90]s, tension | 0.156 | 0.168 | 0.162 |
+    | Cross-ply, compression | 0.167 | 0.168 | 0.163 |
 
-    \* With the previous boundary conditions (whole edge faces held at
-    `u_z = 0`, see the fe3d model above), not rerun. Those gave, in the
-    order of the table, 0.340 / 0.309 / 0.239 / 0.217 at 5 mm and
-    0.325 / 0.296 / 0.207 / 0.185 at 2.5 mm, so the change moved the
-    compression cases by under 2.5% and the tension cases by 12-15%. The
-    fine meshes converged (2.0 to 1.67 mm within 2.4%), but at 5 mm,
-    where the zone is a few elements across, the cross-ply compression
-    knockdown is about 25% above its converged value and the QI one about
-    4%. The
+    At these damage areas 2.5 to 2.0 mm is within about 2–4%, and the
+    5 mm default within about 3–10% of the 2.0 mm value (mostly below
+    it). Smaller zones, only a few elements across at 5 mm, are less well
+    resolved: with earlier code, at damage areas of about 710–855 mm²,
+    the 5 mm cross-ply compression knockdown was about 25% above its
+    converged value. The
     calibration coupons' damage areas (2,800–6,500 mm²) are well resolved
     at 5 mm. Use 2.5 mm or finer when the damage area is below about
-    1,500 mm² (about 35 s for an 8-ply 150 × 100 mm panel);
+    1,000 mm² (about 35 s for an 8-ply 150 × 100 mm panel);
     `FE3D_MAX_DOF` (150,000) admits such a panel down to about 1.67 mm.
     Before the averaging disk was weighted by element overlap it counted
     whole elements by their centres and shrank with the mesh, and the
@@ -906,7 +917,14 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   to 30 J it goes from 0.57 to 0.47 on 16-ply QI [0/45/−45/90]4 (0.60 at
   15 J; the weakest interface moves from 0 to 11), from 0.51 to 0.46 on
   8-ply QI [0/45/−45/90]s and from 0.56 to 0.39 on [0/90]2s (0.39 from
-  15 J).
+  15 J). In `fe3d` the first-ply failure of the softened damage zone falls
+  with energy as well: at 5 / 15 / 30 J (5 mm mesh, every energy above the
+  onset) the fe3d CAI knockdown is 0.430 / 0.302 / 0.263 on 16-ply QI
+  [0/45/−45/90]4 (damage area 187 / 1,270 / 2,893 mm²; empirical 0.651 /
+  0.417 / 0.322), 0.333 / 0.256 / 0.225 on 8-ply QI (450 / 1,533 /
+  3,156 mm²; empirical 0.546 / 0.395 / 0.312) and 0.307 / 0.167 / 0.134
+  on [0/90]2s (456 / 1,538 / 3,162 mm²; empirical 0.544 / 0.394 /
+  0.312).
 - `fe3d` CAI ignores whole-panel buckling (CAI fixtures carry anti-buckling
   guides). A slender panel without guides can buckle well below the
   reported residual.
