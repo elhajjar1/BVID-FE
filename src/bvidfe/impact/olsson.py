@@ -5,10 +5,21 @@ Closed-form threshold load from plate bending + delamination fracture balance
 
     Pc = pi * sqrt(32 * D* * G_IIc / 3)
     D* = sqrt(D11 * D22 * (A + 1) / 2),   A = (D12 + 2 * D66) / sqrt(D11 * D22)
-    E_onset = Pc^2 / (2 * k_cb)
-    k_cb = 1 / (1/k_bending + 1/k_contact_linearized_at_Pc)
 
-The bending stiffness ``k_bending`` depends on the plate edge boundary condition
+The onset energy is the energy the plate and the contact store when the
+load reaches Pc. The plate follows the single-term large-deflection
+(von Karman) relation of a centrally loaded plate, the contact a power law:
+
+    P = k_b * w + k_m * w^3                  (plate, deflection w)
+    P = K_c * delta^n                        (contact, indentation delta)
+    E_onset = k_b w_c^2 / 2 + k_m w_c^4 / 4 + Pc * delta_c / (n + 1)
+
+with ``w_c`` the real root of ``k_b w + k_m w^3 = Pc`` and ``delta_c`` the
+indentation at Pc. For ``k_m = 0`` and a linear contact this is
+``Pc^2 / (2 k_cb)``, ``k_cb = 1 / (1/k_b + 1/k_c)``, the model used up to the
+membrane correction.
+
+The bending stiffness ``k_b`` depends on the plate edge boundary condition
 (simply-supported / clamped / free). We compute a Navier-series point-load
 compliance for the simply-supported case and apply a closed-form boundary
 multiplier for the other cases — this is a first-order correction that keeps
@@ -18,11 +29,19 @@ the same dimensions (Timoshenko & Woinowsky-Krieger §4.4); a "free" plate has
 only inertial resistance to a point load, so we treat it as a soft pseudo-
 support and emit a warning.
 
-The contact stiffness ``k_contact`` depends on the impactor tip shape:
-- hemispherical: Hertzian sphere-on-flat (the baseline).
-- flat (cylindrical punch): linear force-displacement, k = 2 * E_eff * R.
-- conical: P = (2 * E_eff * tan(alpha) / pi) * delta^2 (Love's solution),
-  linearized at P.
+The membrane stiffness ``k_m`` (``_k_membrane``) is the single-term
+stress-function Galerkin solution of the von Karman plate equations for an
+orthotropic rectangular plate deflected in its fundamental mode (Levy 1942
+for the isotropic simply supported plate; Chia 1980 for orthotropic
+laminates): ``sin(pi x/a) sin(pi y/b)`` with in-plane movable, straight
+edges for ``simply_supported``, ``sin^2(pi x/a) sin^2(pi y/b)`` with
+in-plane immovable edges for ``clamped``, and none for ``free``.
+
+The contact law depends on the impactor tip shape (Johnson 1985):
+- hemispherical: Hertz sphere-on-flat, P = (4/3) E_eff sqrt(R) delta^1.5.
+- flat (cylindrical punch): P = 2 E_eff R delta.
+- conical: P = (2 E_eff tan(alpha) / pi) delta^2 (Love's cone).
+Its energy at Pc is ``Pc delta_c / (n + 1)``: ``2 Pc delta_c / 5`` for Hertz.
 
 References:
 - Davies & Robinson (1992); Davies & Zhang (1995), Int. J. Impact Eng. 16,
@@ -35,8 +54,16 @@ References:
 - Gonzalez et al. (2011), Compos. Sci. Technol. 71, 805, Eq. (8);
   Salvetti et al. (2016), Procedia Eng. 167, 2, Eq. (4).
 - Olsson (2010), Int. J. Solids Struct., 47(21).
-- Timoshenko & Woinowsky-Krieger, Theory of Plates and Shells, §4.
-- Johnson (1985), Contact Mechanics, §3.4 (flat punch), §3.5 (cone).
+- Timoshenko & Woinowsky-Krieger, Theory of Plates and Shells, §4 and
+  ch. 13 (large deflections).
+- Levy (1942), NACA Report 737, Bending of rectangular plates with large
+  deflections.
+- Chia (1980), Nonlinear Analysis of Plates, McGraw-Hill (orthotropic and
+  laminated rectangular plates, single-term solutions).
+- Shivakumar, Elber & Illg (1985), J. Appl. Mech. 52, 674 (the same
+  ``k_b w + k_m w^3`` plate law for circular laminates under impact).
+- Johnson (1985), Contact Mechanics, §3.4 (flat punch), §3.5 (cone),
+  §4.2 (Hertz).
 """
 
 from __future__ import annotations
@@ -70,6 +97,55 @@ _BOUNDARY_BENDING_FACTOR: dict[str, float] = {
 # Typical conical drop-weight tip half-angle (measured from the cone axis).
 # A 60-degree included angle gives a 30-degree half-angle.
 _CONICAL_HALF_ANGLE_DEG: float = 30.0
+
+# Single-term membrane solution per edge condition: the assumed mode, the
+# Fourier terms of its compatibility source and its edge shortening.
+#
+# For w = W phi(x, y) the von Karman compatibility equation
+#   a22 F,xxxx + (2 a12 + a66) F,xxyy + a11 F,yyyy = w,xy^2 - w,xx w,yy
+# (a = A^-1, the laminate membrane compliance) has a source
+#   W^2 alpha^2 beta^2 * sum r cos(p alpha x) cos(q beta y),
+# alpha = pi / a, beta = pi / b, with the (p, q, r) below. Its stress
+# function F is the same sum with each term divided by
+#   Delta_pq = a22 (p alpha)^4 + (2 a12 + a66) (p alpha)^2 (q beta)^2 + a11 (q beta)^4,
+# which leaves no shear on the edges, no mean normal force and straight
+# edges that shorten by c W^2 alpha^2 a (and c W^2 beta^2 b). Galerkin on the
+# equilibrium equation (equivalently, the membrane energy of F) adds
+#   K_mov = 2 a b alpha^4 beta^4 sum eps_pq r^2 / Delta_pq
+# to P phi0 / W^3, eps_pq = 1/4 if p, q > 0 and 1/2 otherwise. Holding the
+# edges in place (immovable) adds the uniform edge forces N0 = A (e_x, e_y),
+# e = c W^2 (alpha^2, beta^2), which cancel the shortening:
+#   K_imm = K_mov + 2 a b c^2 (A11 alpha^4 + 2 A12 alpha^2 beta^2 + A22 beta^4).
+# For the sine mode this is Levy's (1942) single-term solution, orthotropic
+# as in Chia (1980): K_mov = (a b / 64) (alpha^4 / a11 + beta^4 / a22).
+_MEMBRANE_MODES: dict[str, tuple[tuple[tuple[int, int, float], ...], float]] = {
+    # phi = sin(alpha x) sin(beta y)
+    "sine": (((2, 0, 0.5), (0, 2, 0.5)), 1.0 / 8.0),
+    # phi = sin^2(alpha x) sin^2(beta y)
+    "clamped": (
+        (
+            (2, 0, 0.5),
+            (0, 2, 0.5),
+            (4, 0, -0.5),
+            (0, 4, -0.5),
+            (2, 2, -1.0),
+            (2, 4, 0.5),
+            (4, 2, 0.5),
+        ),
+        3.0 / 32.0,
+    ),
+}
+
+# Edge condition -> (mode, in-plane immovable). A simply supported panel
+# (an ASTM D7136 coupon resting on its support window under four toggle
+# clamps) is free to slide in-plane: movable edges, the lower membrane
+# stiffness. A clamped panel (gripped between two plates) is held in-plane.
+# A free panel has no edge to stretch against.
+_MEMBRANE_EDGE: dict[str, tuple[str, bool] | None] = {
+    "simply_supported": ("sine", False),
+    "clamped": ("clamped", True),
+    "free": None,
+}
 
 
 @lru_cache(maxsize=64)
@@ -158,42 +234,98 @@ def _k_bending(
     return k_ss * factor
 
 
-def _k_contact_hemispherical(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
-    """Linear-equivalent Hertzian sphere-on-flat contact stiffness at load P (N).
+def _k_membrane_single_term(A: np.ndarray, a: float, b: float, mode: str, immovable: bool) -> float:
+    """Single-term membrane coefficient ``K`` (N/mm^3) of an ``a x b`` plate.
 
-    Nonlinear Hertz: P = k_nl * delta^(3/2), k_nl = (4/3) * sqrt(R) * E_eff.
-    Linearized secant stiffness at P:
-        delta = (P / k_nl)^(2/3);   k_lin = P / delta = k_nl^(2/3) * P^(1/3).
+    ``P = k1 W + K W^3`` for a central point load ``P`` and mode amplitude
+    ``W`` (the deflection under the load). ``A`` is the 3x3 CLT extensional
+    stiffness (N/mm); its shear-extension terms A16, A26 are ignored, as
+    D16, D26 are in ``k_b``. See ``_MEMBRANE_MODES`` for the derivation.
     """
+    terms, c = _MEMBRANE_MODES[mode]
+    A = np.asarray(A, dtype=float)
+    A11, A12, A22, A66 = A[0, 0], A[0, 1], A[1, 1], A[2, 2]
+    # Membrane compliance of the orthotropic part of A (A16 = A26 = 0).
+    det = A11 * A22 - A12**2
+    s11, s22, s12, s66 = A22 / det, A11 / det, -A12 / det, 1.0 / A66
+    al, be = math.pi / a, math.pi / b
+    total = 0.0
+    for p, q, r in terms:
+        pa, qb = p * al, q * be
+        delta = s22 * pa**4 + (2.0 * s12 + s66) * pa**2 * qb**2 + s11 * qb**4
+        eps = 0.25 if (p > 0 and q > 0) else 0.5
+        total += eps * r**2 / delta
+    K = 2.0 * a * b * al**4 * be**4 * total
+    if immovable:
+        K += 2.0 * a * b * c**2 * (A11 * al**4 + 2.0 * A12 * al**2 * be**2 + A22 * be**4)
+    return float(K)
+
+
+def _k_membrane(lam: Laminate, pan: PanelGeometry) -> float:
+    """Membrane (large-deflection) stiffness ``k_m`` (N/mm^3) of the panel.
+
+    The single-term coefficient of ``_k_membrane_single_term`` for the
+    panel's edge condition (``_MEMBRANE_EDGE``); 0 for a ``"free"`` panel.
+    It is the value for a central load and is used at every impact point:
+    one assumed mode cannot represent a deflection concentrated near an
+    edge, where ``K / phi(x0, y0)^4`` would grow without bound.
+    """
+    edge = _MEMBRANE_EDGE.get(pan.boundary)
+    if edge is None:
+        return 0.0
+    mode, immovable = edge
+    A, _, _ = lam.abd_matrices()
+    return _k_membrane_single_term(A, pan.Lx_mm, pan.Ly_mm, mode, immovable)
+
+
+def plate_deflection(k_b: float, k_m: float, P: float) -> float:
+    """Deflection ``w`` (mm) at which ``k_b w + k_m w^3 = P``.
+
+    ``k_b > 0`` (N/mm), ``k_m >= 0`` (N/mm^3), ``P >= 0`` (N). The cubic has
+    one real root for ``k_m > 0``; it is evaluated in the hyperbolic form
+    ``w = 2 sqrt(k_b / (3 k_m)) sinh(asinh(3 P / (2 k_b) sqrt(3 k_m / k_b)) / 3)``,
+    which tends to ``P / k_b`` as ``k_m -> 0`` without cancellation.
+    """
+    if k_b <= 0.0 or k_m < 0.0 or P < 0.0:
+        raise ValueError(f"need k_b > 0, k_m >= 0, P >= 0 (got {k_b}, {k_m}, {P})")
+    if k_m == 0.0:
+        return P / k_b
+    s = math.sqrt(k_b / (3.0 * k_m))
+    return 2.0 * s * math.sinh(math.asinh(1.5 * P / (k_b * s)) / 3.0)
+
+
+def _contact_law(lam: Laminate, imp: ImpactorGeometry) -> tuple[float, float]:
+    """Shape-aware contact law ``P = K_c * delta^n``; returns ``(K_c, n)``.
+
+    - hemispherical: Hertz, ``K_c = (4/3) E_eff sqrt(R)``, ``n = 1.5``.
+    - flat: cylindrical punch, ``K_c = 2 E_eff R``, ``n = 1`` (Johnson §3.4).
+    - conical: Love's cone, ``K_c = 2 E_eff tan(alpha) / pi``, ``n = 2``
+      (Johnson §3.5), ``alpha`` the half-angle from the cone axis.
+    ``R`` = diameter / 2 (mm), ``K_c`` in N/mm^n.
+    """
+    E_eff = _contact_E_eff(lam)
     R = imp.diameter_mm / 2.0
-    E_eff = _contact_E_eff(lam)
-    k_nl = (4.0 / 3.0) * math.sqrt(R) * E_eff
-    return (k_nl ** (2.0 / 3.0)) * (P ** (1.0 / 3.0))
+    if imp.shape == "hemispherical":
+        return (4.0 / 3.0) * math.sqrt(R) * E_eff, 1.5
+    if imp.shape == "flat":
+        return 2.0 * E_eff * R, 1.0
+    if imp.shape == "conical":
+        tan_alpha = math.tan(math.radians(_CONICAL_HALF_ANGLE_DEG))
+        return 2.0 * E_eff * tan_alpha / math.pi, 2.0
+    raise ValueError(f"impactor shape {imp.shape!r} not recognized")
 
 
-def _k_contact_flat(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
-    """Flat-ended cylindrical-punch contact stiffness (N/mm).
-
-    Johnson (1985) §3.4: P = 2 * E_eff * R * delta (linear in delta).
-    So the secant stiffness is constant, independent of load.
-    """
-    R = imp.diameter_mm / 2.0
-    E_eff = _contact_E_eff(lam)
-    return 2.0 * E_eff * R
+def _contact_indentation(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
+    """Contact indentation ``delta`` (mm) at load ``P`` (N)."""
+    K_c, n = _contact_law(lam, imp)
+    return (P / K_c) ** (1.0 / n)
 
 
-def _k_contact_conical(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
-    """Conical-tip contact stiffness at load P (N), linearized (N/mm).
-
-    Johnson (1985) §3.5: P = (2 * E_eff * tan(alpha) / pi) * delta^2
-    where alpha is the half-angle from the cone axis. Linearizing:
-        k_lin = dP/d(delta)|_P = 2 * (2 E_eff tan(alpha) / pi) * delta
-        delta_at_P = sqrt(P * pi / (2 E_eff tan(alpha)))
-    -> k_lin = sqrt(8 * E_eff * tan(alpha) * P / pi)
-    """
-    E_eff = _contact_E_eff(lam)
-    tan_alpha = math.tan(math.radians(_CONICAL_HALF_ANGLE_DEG))
-    return math.sqrt(8.0 * E_eff * tan_alpha * P / math.pi)
+def _contact_energy(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
+    """Energy (N*mm) stored in the contact at load ``P``: ``P delta / (n + 1)``
+    for ``P = K_c delta^n`` (``2 P delta / 5`` for Hertz)."""
+    _, n = _contact_law(lam, imp)
+    return P * _contact_indentation(lam, imp, P) / (n + 1.0)
 
 
 def _contact_E_eff(lam: Laminate) -> float:
@@ -204,17 +336,6 @@ def _contact_E_eff(lam: Laminate) -> float:
     nu_plate = 0.3
     inv_E = (1 - nu_steel**2) / E_steel + (1 - nu_plate**2) / E_plate
     return 1.0 / inv_E
-
-
-def _k_contact(lam: Laminate, imp: ImpactorGeometry, P: float) -> float:
-    """Shape-aware linear-equivalent contact stiffness (N/mm)."""
-    if imp.shape == "hemispherical":
-        return _k_contact_hemispherical(lam, imp, P)
-    if imp.shape == "flat":
-        return _k_contact_flat(lam, imp, P)
-    if imp.shape == "conical":
-        return _k_contact_conical(lam, imp, P)
-    raise ValueError(f"impactor shape {imp.shape!r} not recognized")
 
 
 def _olsson_D_star(lam: Laminate) -> float:
@@ -295,21 +416,26 @@ def onset_energy(
 ) -> float:
     """Impact energy (J) at which BVID damage onsets.
 
-    Depends on panel boundary condition (via k_bending) and impactor shape
-    (via k_contact). See module docstring for the full set of formulas.
+    The energy stored in the plate and the contact when the load reaches
+    the threshold load ``Pc`` (``threshold_load``)::
 
-    ``k_bending`` is the *linear* (small-deflection) plate stiffness. At Pc a
-    thin plate can deflect by about its own thickness (e.g. an 8-ply coupon
-    on a 60 mm clamped window), where membrane stretching stiffens it; the
-    linear stiffness then overestimates the onset energy of very thin plates.
-    Olsson's membrane term (``k_m w^3``) is not modelled.
+        E_onset = k_b w_c^2 / 2 + k_m w_c^4 / 4 + Pc delta_c / (n + 1)
+
+    ``w_c`` solves ``k_b w + k_m w^3 = Pc`` (``plate_deflection``): ``k_b``
+    is the boundary-aware Navier bending stiffness at the impact point and
+    ``k_m`` the single-term membrane stiffness of the panel (``_k_membrane``),
+    which stiffens a plate that deflects by more than about its thickness
+    before ``Pc`` (thin or large panels). ``delta_c`` is the indentation of
+    the shape-aware contact law ``P = K_c delta^n`` at ``Pc``
+    (``_contact_law``). See the module docstring for the formulas.
     """
     if location_xy_mm is None:
         location_xy_mm = (pan.Lx_mm / 2, pan.Ly_mm / 2)
     x0, y0 = location_xy_mm
     Pc = threshold_load(lam, pan, imp)  # N
     k_b = _k_bending(lam, pan, x0, y0, n_modes=NAVIER_N)  # N/mm (boundary-aware)
-    k_c = _k_contact(lam, imp, P=Pc)  # N/mm (shape-aware, linearized at Pc)
-    k_cb = 1.0 / (1.0 / k_b + 1.0 / k_c)  # N/mm
-    E_mJ = Pc**2 / (2.0 * k_cb)  # N*mm = mJ
-    return E_mJ * 1e-3  # J
+    k_m = _k_membrane(lam, pan)  # N/mm^3 (0 for a free panel)
+    w_c = plate_deflection(k_b, k_m, Pc)  # mm
+    E_plate = 0.5 * k_b * w_c**2 + 0.25 * k_m * w_c**4  # N*mm
+    E_contact = _contact_energy(lam, imp, Pc)  # N*mm
+    return (E_plate + E_contact) * 1e-3  # J

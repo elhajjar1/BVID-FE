@@ -50,8 +50,8 @@ class OrthotropicMaterial:
         impactor-to-plate mass ratio.
     olsson_alpha : float
         Fraction of the impact energy above onset that delaminates:
-        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.0865
-        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.0648 for
+        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.0855
+        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.0605 for
         T800S/3900-2B.
     dent_beta, dent_gamma : float
         Dent depth ``d = h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
@@ -105,9 +105,10 @@ class OrthotropicMaterial:
     # olsson_alpha: fraction of the impact energy above onset that goes into
     # mode-II delamination, DPA = alpha (E - E_onset) / G_IIc. Fitted to the
     # C-scan areas of Lovejoy & Scotti's eight IM7/8552 CAI coupons (median),
-    # with the corrected Olsson threshold load (0.078 while the onset energy
-    # was ~10x too low).
-    olsson_alpha: float = 0.0865
+    # with the corrected Olsson threshold load and the membrane-stiffened
+    # onset energy (0.0865 with the linear plate, 0.078 while the onset
+    # energy was ~10x too low).
+    olsson_alpha: float = 0.0855
     dent_beta: float = 0.05
     dent_gamma: float = 0.5
     fiber_break_eta: float = 0.0
@@ -116,8 +117,9 @@ class OrthotropicMaterial:
     # AS4/8552, Lovejoy & Scotti IM7/8552), with the damage area scaled by the
     # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.8 is
     # the pooled optimum of both tiers (4.7 with the onset energy ~10x too
-    # low). Fitted on NCAMP alone (4.8) it predicts Lovejoy & Scotti at 8.7%;
-    # on Lovejoy & Scotti alone (5.2), NCAMP at 4.9%.
+    # low; unchanged by the membrane-stiffened onset). Fitted on NCAMP alone
+    # (4.8) it predicts Lovejoy & Scotti at 8.8%; on Lovejoy & Scotti alone
+    # (5.2), NCAMP at 5.0%.
     soutis_k_s: float = 4.8
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
@@ -355,9 +357,9 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # (nu23 = 0.45; LaRC03 from Yc). olsson_alpha is fitted to the projected
     # delamination areas Hasebe et al. measured on their quasi-isotropic
     # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
-    # the default 0.0865 overpredicts them about 1.3x (interlayer-toughened).
+    # the default 0.0855 overpredicts them about 1.4x (interlayer-toughened).
     # Over the 329 specimens in validation/datasets with a measured area it
-    # predicts the area at a median 1.01x (0.78-1.13x per layup).
+    # predicts the area at a median 1.03x (0.77-1.26x per layup).
     "T800S/3900-2B": OrthotropicMaterial(
         name="T800S/3900-2B",
         E11=153000,
@@ -375,7 +377,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_Ic=0.54,
         G_IIc=1.64,
         rho=1.54e-6,
-        olsson_alpha=0.0648,
+        olsson_alpha=0.0605,
     ),
     "T800/epoxy": OrthotropicMaterial(
         name="T800/epoxy",

@@ -26,13 +26,12 @@ LAYUP = [0, 45, -45, 90, 90, -45, 45, 0]
 PLY_T = 0.152
 
 
-# Use a *larger* panel (300x200) so DPA stays well under the 80% cap —
-# otherwise every config saturates and variable sensitivity becomes
-# invisible. The onset energy of this thin, simply supported panel is
-# about 29 J (11.5 J clamped), so the energies sit above it: 40 J here and
-# 50 J in the impactor tests (about 1,200 and 2,300 mm^2 of damage).
+# Use a *larger* panel (300x200) + moderate energy (10 J) so DPA stays
+# well under the 80% cap — otherwise every config saturates and variable
+# sensitivity becomes invisible. The onset energy of this thin panel is
+# about 1.2 J (0.9 J clamped).
 TEST_PANEL = PanelGeometry(300, 200)
-TEST_ENERGY_J = 40.0
+TEST_ENERGY_J = 10.0
 
 
 def _cfg(**overrides):
@@ -64,12 +63,14 @@ def _run_kd(cfg) -> float:
 
 
 def test_boundary_changes_onset_energy():
-    """Per Olsson's formula E_onset = Pc^2 / (2 * k_cb), a STIFFER plate
-    (clamped) reaches the fracture threshold load Pc at a LOWER absorbed
+    """E_onset is the energy stored when the load reaches the threshold
+    load Pc, so a STIFFER plate (clamped: higher bending stiffness, edges
+    held in-plane for the membrane term) reaches Pc at a LOWER absorbed
     energy because it deflects less. Counterintuitive but correct.
 
     Soft-support ("free") has the opposite trend — higher E_onset because
-    the soft plate can deflect further and absorb more energy before Pc.
+    the soft plate, with no edge to stretch against, can deflect further
+    and absorb more energy before Pc.
     """
     lam = Laminate(MATERIAL_LIBRARY[MAT], LAYUP, PLY_T)
     imp = ImpactorGeometry()
@@ -106,7 +107,7 @@ def test_shape_changes_dpa_and_knockdown():
     much less delamination than a hemisphere, and a cone more."""
 
     def make(shape):
-        return _cfg(impact=ImpactEvent(50.0, ImpactorGeometry(16.0, shape=shape), mass_kg=5.5))
+        return _cfg(impact=ImpactEvent(20.0, ImpactorGeometry(16.0, shape=shape), mass_kg=5.5))
 
     kd_hemi = _run_kd(make("hemispherical"))
     kd_flat = _run_kd(make("flat"))
@@ -126,7 +127,7 @@ def test_mass_changes_dpa_centered_on_reference():
     give slightly less."""
 
     def make(mass):
-        return _cfg(impact=ImpactEvent(50.0, ImpactorGeometry(), mass_kg=mass))
+        return _cfg(impact=ImpactEvent(20.0, ImpactorGeometry(), mass_kg=mass))
 
     kd_ref = _run_kd(make(5.5))
     kd_light = _run_kd(make(1.0))
@@ -142,7 +143,7 @@ def test_diameter_changes_dpa_via_spread_factor():
     """Smaller impactors concentrate damage → larger DPA → lower KD."""
 
     def make(d):
-        return _cfg(impact=ImpactEvent(50.0, ImpactorGeometry(diameter_mm=d), mass_kg=5.5))
+        return _cfg(impact=ImpactEvent(20.0, ImpactorGeometry(diameter_mm=d), mass_kg=5.5))
 
     kd_8 = _run_kd(make(8.0))
     kd_16 = _run_kd(make(16.0))
@@ -194,9 +195,9 @@ def test_fe3d_first_ply_failure_decreases_with_energy():
             damage = impact_to_damage(cfg.impact, lam, cfg.panel)
             return _fe3d_cai_first_ply_failure(cfg, damage, lam, math.inf)
 
-    # Onset is about 7.2 J on this panel: about 300 and 2,200 mm^2 of damage.
-    fpf_low = fpf_at(10.0)
-    fpf_high = fpf_at(27.0)
+    # Onset is about 0.8 J on this panel.
+    fpf_low = fpf_at(3.0)
+    fpf_high = fpf_at(20.0)
     # Low energy (less damage) should give a higher first-ply-failure stress
     assert fpf_low > fpf_high, (fpf_low, fpf_high)
 
