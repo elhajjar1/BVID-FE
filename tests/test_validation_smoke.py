@@ -223,3 +223,29 @@ def test_astm_datasets_impact_on_the_d7136_window(dataset):
     for c in cases:
         assert (c.impact_panel_Lx_mm, c.impact_panel_Ly_mm) == (125.0, 75.0)
         assert c.impact_boundary == "simply_supported"
+
+
+def test_dent_summary_is_reported_not_gated(capsys):
+    """The validator reports the median predicted / measured dent over the
+    cases with a positive measured dent; it does not enter the gate."""
+    import pandas as pd
+
+    v = _load_validator()
+    df = pd.DataFrame(
+        {
+            "predicted_dent_mm": [0.2, 0.3, 0.4, 0.1],
+            "measured_dent_mm": [0.1, 0.3, 0.8, 0.0],
+        }
+    )
+    s = v.dent_summary(df)
+    assert (s["n"], s["n_nonpositive"]) == (3, 1)
+    assert s["median"] == pytest.approx(1.0)
+    no_dent = pd.DataFrame({"predicted_dent_mm": [0.2], "measured_dent_mm": [None]})
+    assert v.dent_summary(no_dent) is None
+
+    row = v.run_case(v.case_from_dict({**_CASE, "measured_dent_mm": 0.25}), "empirical")
+    assert row["measured_dent_mm"] == 0.25 and row["predicted_dent_mm"] >= 0.0
+
+    assert v.main(["--dataset", "lovejoy_scotti_im7_8552_cai", "--gate"]) == 0
+    out = capsys.readouterr().out
+    assert "dent (reported, not gated): median predicted / measured = 1.00" in out

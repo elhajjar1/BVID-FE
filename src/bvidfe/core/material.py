@@ -44,7 +44,7 @@ class OrthotropicMaterial:
         Mode I and mode II interlaminar fracture toughness (N/mm). G_IIc
         sets the impact onset load and the damage area; both set the
         delamination-growth toughness (Benzeggagh-Kenane) of the
-        semi-analytical and fe3d CAI; G_Ic sets the dent depth.
+        semi-analytical and fe3d CAI.
     rho : float
         Density (kg/mm^3), ``1e-7 <= rho <= 1e-5``; used for the
         impactor-to-plate mass ratio.
@@ -54,9 +54,12 @@ class OrthotropicMaterial:
         (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.0648 for
         T800S/3900-2B.
     dent_beta, dent_gamma : float
-        Dent depth ``d = h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
-        dent_gamma``, capped at ``h / 2`` (h the laminate thickness).
-        Defaults 0.05 and 0.5. The dent does not enter any strength.
+        Dent depth ``d = dent_beta * (E - E_onset) ** dent_gamma`` (mm, E in
+        J) for a hemispherical impactor, times an impactor-shape factor
+        (8.5 conical, 0.03 flat), capped at ``h / 2`` (h the laminate
+        thickness). Defaults 0.044 mm/J^0.57 and 0.57, fitted to the
+        measured dents of Lovejoy & Scotti (IM7/8552) and Hasebe et al.
+        (T800S/3900-2B). The dent does not enter any strength.
     fiber_break_eta, fiber_break_E_threshold : float
         Fibre-break core radius ``r = fiber_break_eta * sqrt(E -
         fiber_break_E_threshold)`` (mm, E in J), used only by fe3d. Off by
@@ -108,8 +111,17 @@ class OrthotropicMaterial:
     # with the corrected Olsson threshold load (0.078 while the onset energy
     # was ~10x too low).
     olsson_alpha: float = 0.0865
-    dent_beta: float = 0.05
-    dent_gamma: float = 0.5
+    # Dent depth d = dent_beta (E - E_onset) ** dent_gamma (mm, J), hemispherical
+    # impactor. Log least squares on the positive measured dents of the 8
+    # Lovejoy & Scotti IM7/8552 coupons and the 210 hemispherical Hasebe et al.
+    # T800S/3900-2B specimens, each dataset weighted equally (0.0441, 0.569):
+    # median predicted / measured 1.00 and 0.96. One value serves both
+    # materials: fitted on Hasebe alone (0.040, 0.63) it predicts Lovejoy &
+    # Scotti at 1.15x; scaling by G_Ic (the earlier form) made that 1.7x.
+    # (Was h * 0.05 * ((E - E_onset) / (G_Ic h^2)) ** 0.5, on its h / 2 cap,
+    # 8-9x the measured dents.)
+    dent_beta: float = 0.044
+    dent_gamma: float = 0.57
     fiber_break_eta: float = 0.0
     fiber_break_E_threshold: float = 1e9  # disabled unless explicitly overridden
     # Calibrated on the measured CAI datasets in validation/datasets (NCAMP

@@ -6,27 +6,38 @@ import math
 
 from bvidfe.core.material import OrthotropicMaterial
 
+# Dent depth of a flat-ended or 60 deg conical impactor relative to a
+# hemispherical one at the same energy above onset. Fitted to Hasebe et al.
+# (2025), T800S/3900-2B: the cone's median measured / hemispherical-law ratio
+# is 8.6 (92 specimens); 34 of the 40 flat-ended dents are recorded as 0, and
+# 0.03 matches their mean (0.0034 mm).
+_DENT_SHAPE_FACTOR = {"hemispherical": 1.0, "conical": 8.5, "flat": 0.03}
+
 
 def dent_depth_mm(
     m: OrthotropicMaterial,
     E_impact_J: float,
     E_onset_J: float,
     h_mm: float,
+    shape: str = "hemispherical",
 ) -> float:
     """Residual dent depth on the impact face, mm.
 
-    d / h = beta * ((E_impact - E_onset) / (G_Ic * h^2))^gamma
+    d = dent_beta * (E_impact - E_onset) ** dent_gamma * S_shape, E in J,
 
-    Zero at or below the damage-onset energy. `G_Ic` is in N/mm; energy inputs
-    are in J; multiply (E_impact - E_onset) by 1e3 to get N*mm before the division.
+    capped at ``h / 2`` and zero at or below the damage-onset energy.
+    ``S_shape`` is 1 for a hemispherical impactor, 8.5 for the 60 deg cone
+    and 0.03 for a flat-ended one (``_DENT_SHAPE_FACTOR``). The default
+    constants (0.044 mm/J^0.57, 0.57) are fitted to the measured dents of
+    Lovejoy & Scotti (IM7/8552) and Hasebe et al. (T800S/3900-2B); see
+    ``docs/physics_models.md`` and ``validation/README.md``.
     """
     if E_impact_J <= E_onset_J:
         return 0.0
-    numerator = (E_impact_J - E_onset_J) * 1e3  # N*mm
-    denom = m.G_Ic * h_mm**2  # N*mm
-    raw = h_mm * m.dent_beta * (numerator / denom) ** m.dent_gamma
-    # Physical cap: dent cannot exceed 50% of laminate thickness
-    # (beyond that it's perforation, not BVID)
+    raw = m.dent_beta * (E_impact_J - E_onset_J) ** m.dent_gamma
+    raw *= _DENT_SHAPE_FACTOR.get(shape, 1.0)
+    # Safety bound: a dent deeper than half the laminate is perforation, not
+    # BVID. It does not bind on any measured case with the fitted constants.
     return min(raw, 0.5 * h_mm)
 
 

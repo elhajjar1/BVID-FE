@@ -260,7 +260,7 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
         )
         dpa_target = A_cap
 
-    dent = dent_depth_mm(material, event.energy_J, E_onset, h)
+    dent = dent_depth_mm(material, event.energy_J, E_onset, h, shape=event.impactor.shape)
     r_fb = fiber_break_radius_mm(material, event.energy_J)
 
     # Centroid for distribute_damage is the event location on the panel. The

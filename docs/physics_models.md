@@ -154,19 +154,44 @@ also bounds the delamination footprint (step 5).
     a `SmallMassQuasiStaticWarning` is raised when the impactor is lighter
     than it.
 
-3. **Dent depth**: `d = h · β · ((E − E_onset) · 10³ / (G_Ic h²))^γ`,
-   capped at `h / 2`, with `β = dent_beta` (0.05) and `γ = dent_gamma`
-   (0.5). Both constants are uncalibrated. With `γ = 0.5` the thickness
-   cancels, `d = β √((E − E_onset) · 10³ / G_Ic)`, which is about
-   3 mm × √(E − E_onset) for the 8552 presets (`G_Ic` = 0.28 N/mm), so
-   the cap `h / 2` is reached about 0.2 J above onset on a 2.4 mm
-   laminate. Almost every case in the measured datasets is on the cap
-   (all but six of Hasebe et al.'s 343 specimens: three 4.6 mm cross-ply
-   specimens 1 J above onset reach 0.95 of it, and three are below
-   onset): the predicted dent
-   is 7.5–8.8× (median 8.2×) the measured dent on Lovejoy & Scotti's 8
-   coupons and a median 9.0× on the 308 Hasebe et al. specimens with a
-   positive measured dent. The model does not predict dent depth.
+3. **Dent depth**: `d = β (E − E_onset)^γ · S_shape` (mm, energies in J),
+   zero at or below onset and capped at `h / 2`, with `β = dent_beta`
+   (0.044 mm/J^0.57), `γ = dent_gamma` (0.57) and `S_shape` 1 for a
+   hemispherical impactor, 8.5 for the 60° cone and 0.03 for a flat-ended
+   one. A power law of the impact energy is the usual empirical
+   indentation law; Caprino & Lopresto (Compos. Sci. Technol. 60, 2000)
+   found theirs scarcely affected by fibre type, orientation or matrix,
+   and the measured dents here agree: one `(β, γ)` serves the untoughened
+   IM7/8552 and the interlayer-toughened T800S/3900-2B, and neither
+   thickness nor `G_Ic` is in the law. On a 16-ply (2.4 mm) IM7/8552
+   panel at 20 J (6.6 J onset) the dent is 0.19 mm; on Lovejoy & Scotti's
+   6.1 and 7.6 mm coupons at 54 and 68 J, 0.40 and 0.45 mm (measured
+   0.36–0.41 and 0.43–0.48 mm).
+   The constants are a log least-squares fit to the positive measured
+   dents of the hemispherical cases (8 Lovejoy & Scotti coupons, 210
+   Hasebe et al. specimens, each dataset weighted equally), with `E_onset`
+   computed by the code (`validation/README.md`, *Dent depth*). Median
+   predicted / measured is 1.00 on Lovejoy & Scotti (0.95–1.10) and 0.96
+   on the 308 Hasebe et al. specimens with a positive dent (10–90%:
+   0.48–1.42; hemispherical 0.96, cone 0.98). Fitted on Hasebe et al.
+   alone, the law predicts Lovejoy & Scotti at 1.15×; fitted on Lovejoy &
+   Scotti (with Hasebe's exponent), Hasebe at 0.83×. The scatter within
+   Hasebe et al. is a factor of about 1.7 (log-sd 0.53), and the law does
+   not carry the impactor diameter: the 12.7, 25.4 and 31.8 mm
+   hemispheres are predicted at 0.75, 1.07 and 1.42× their dents. The
+   cap binds on none of the measured cases (the cone on the 1.5 mm 8-ply
+   laminates at 5.2 J reaches it to within 0.1%); 18 of those cone
+   dents exceed `h / 2` (up to 1.2 h), so on thin laminates struck by a
+   sharp impactor the cap under-predicts. The dent is the
+   as-measured depth: dents relax with time, moisture and temperature
+   (by up to 3× in some studies), and certification criteria for "barely
+   visible" (about 0.3–0.5 mm, often after relaxation) refer to the
+   relaxed dent. Before this fit the law was
+   `d = h · 0.05 · ((E − E_onset) · 10³ / (G_Ic h²))^0.5` (dimensionally
+   consistent, but never calibrated): about 3 mm × √(E − E_onset) for
+   8552, on its `h / 2` cap for 345 of the 351 measured cases and
+   7.5–8.8× the measured dents (uncapped, a median 33× on Hasebe et al.
+   and 51× on Lovejoy & Scotti).
 
 4. **Fibre-break radius**: `r_fb = η √max(0, E − E_fb)` with
    `η = fiber_break_eta` and `E_fb = fiber_break_E_threshold`. `η` is 0 in
@@ -215,8 +240,7 @@ also bounds the delamination footprint (step 5).
    which is where the damage stays.
 
 The dent depth is carried in `DamageState` and reported, but no tier uses
-it in the residual-strength calculation (and it is not a usable
-prediction, see step 3).
+it in the residual-strength calculation.
 
 ## Empirical tier
 
@@ -613,9 +637,9 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   errors of that order on a new material or layup. The default
   `olsson_alpha` (0.0865) is fitted to Lovejoy & Scotti's C-scan areas, the
   T800S/3900-2B value (0.0648) and the impactor shape and diameter factors
-  to Hasebe et al.'s. The other calibration constants (`soutis_m`,
-  `wn_d0_mm`, `dent_beta`, `dent_gamma`, the impactor mass factor, the
-  boundary factors, the mixed-mode phase angle and B-K exponent, and the
+  to Hasebe et al.'s, and `dent_beta` and `dent_gamma` to both datasets'
+  measured dents. The other calibration constants (`soutis_m`,
+  `wn_d0_mm`, the impactor mass factor, the boundary factors, the mixed-mode phase angle and B-K exponent, and the
   fe3d out-of-plane and fibre-break factors) are uncalibrated defaults
   chosen for typical CFRP systems. Precise values need calibration against
   material-specific coupon test data before use in certification.
@@ -638,9 +662,12 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   et al.'s set, where growth governs 225 of 343 coupons, it raises the
   error (25.0% against 21.9% on those coupons); see
   [Semi-analytical tier](#semi-analytical-tier).
-- **The dent depth is not a prediction.** The model is on its `h / 2` cap
-  for every measured case, 8–9× the measured dents (step 3 of the
-  [impact mapping](#impact-to-damage-mapping)); no tier uses it.
+- **The dent depth is an empirical fit with a factor-of-1.7 scatter.**
+  `dent_beta` and `dent_gamma` are fitted to two datasets (IM7/8552 and
+  T800S/3900-2B; median predicted / measured 1.00 and 0.96), the shape
+  factors to Hasebe et al. alone, and the impactor diameter is not in the
+  law (step 3 of the [impact mapping](#impact-to-damage-mapping)). It is
+  the as-measured dent, before relaxation; no tier uses it.
 - **"LaRC05" is a quadratic Hashin-type index**, not LaRC05: no
   fibre-kinking analysis (fibre compression is maximum stress on Xc), no
   matrix fracture-plane search or friction term, no in-situ strengths,
