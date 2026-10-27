@@ -91,3 +91,20 @@ def test_averaging_lowers_the_peak_index():
 def test_smallest_positive_root(a, b, expected):
     c = ft._smallest_positive_root(np.array([a]), np.array([b]))
     assert c[0] == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("h", [2.5, 2.0, 1.25, 1.0, 0.5])
+def test_disk_kernel_keeps_the_disk_area(h):
+    """Weighted by overlap the averaging disk keeps its area on any mesh;
+    counting whole elements by their centres shrank it from 31 to 20 mm^2
+    between 2.5 and 2 mm."""
+    k = ft._disk_kernel(h, h, 2.5)
+    assert k.sum() * h * h == pytest.approx(np.pi * 2.5**2, rel=0.03)
+    assert k[k.shape[0] // 2, k.shape[1] // 2] == 1.0
+
+
+def test_disk_kernel_at_the_default_mesh_is_the_element_alone():
+    """At 5 mm the 2.5 mm disk fits inside its element, so the default-mesh
+    results (and the damage-zone factor fitted on them) do not move."""
+    k = ft._disk_kernel(5.0, 5.0, 2.5)
+    assert np.count_nonzero(k) == 1 and k[1, 1] > 0

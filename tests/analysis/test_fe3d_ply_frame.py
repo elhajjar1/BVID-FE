@@ -28,13 +28,13 @@ from bvidfe.impact.mapping import ImpactEvent
 _MATERIAL = MATERIAL_LIBRARY["IM7/8552"]
 
 
-def _pristine_setup(ply_angle: float):
+def _pristine_setup(ply_angle: float, boundary: str = "simply_supported"):
     layup = [ply_angle] * 4
     cfg = AnalysisConfig(
         material="IM7/8552",
         layup_deg=layup,
         ply_thickness_mm=0.2,
-        panel=PanelGeometry(20.0, 10.0),
+        panel=PanelGeometry(20.0, 10.0, boundary=boundary),
         loading="compression",
         tier="fe3d",
         impact=ImpactEvent(5.0, ImpactorGeometry(), mass_kg=5.5),
@@ -45,9 +45,13 @@ def _pristine_setup(ply_angle: float):
     return cfg, mesh, _build_elements(mesh, lam)
 
 
+# Free loaded edges: the simply-supported u_z = 0 restraint on the whole
+# loaded face blocks the 90 deg ply's through-thickness Poisson expansion
+# (nu23 = 0.5 for IM7/8552), which raises s2 next to the loaded edges and
+# fails the coupon 3-4% early. With the old nu23 = nu21 = 0.02 it did not.
 @pytest.mark.parametrize("criterion", ["tsai_wu", "larc05", "puck"])
 def test_ninety_degree_laminate_fails_at_transverse_compressive_strength(criterion):
-    cfg, mesh, elements = _pristine_setup(90.0)
+    cfg, mesh, elements = _pristine_setup(90.0, boundary="free")
     eps = _solve_failure_strain_analytic(cfg, mesh, elements, strain_sign=-1, criterion=criterion)
     assert eps < 0.05, "never failed below the strain cap: transverse stress checked against Xc"
     assert eps == pytest.approx(_MATERIAL.Yc / _MATERIAL.E22, rel=0.01)

@@ -78,17 +78,18 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 
 # In-plane stiffness fraction of the damage zone (soft inclusion over the
 # projected damage area, every ply). Its strengths drop with it (strain
-# equivalence, see fe_tier._failure_stress_material). Fitted to the measured
-# CAI coupons on the energy-balance damage area, with the delaminations kept
-# inside the ASTM D7136 impact window: 0.17 puts the first NCAMP AS4/8552
-# [45/0/-45/90]3s coupon at -3.5%, the first Lovejoy & Scotti IM7/8552
-# [45/0/-45/90]4s coupon at -4.4% and their 40-ply hard laminate at +1.9%
-# (0.20: +4.7%, +6.6%, +12.4%; 0.15: -9.0%, -11.7%). Before the window
-# confinement the hard laminate's damage band spanned the coupon and no
-# single factor fitted both families (0.20 left it at -47%). With the zone
-# weighted by element area fraction and the failure index averaged over
-# fe_tier.FPF_AVERAGING_RADIUS_MM, 0.17 gives -3.2%, -1.2% and +4.7%.
-DAMAGE_ZONE_INPLANE_FACTOR = 0.17
+# equivalence, see fe_tier._failure_stress_material). Fitted to three
+# measured CAI coupons with the delaminations kept inside the ASTM D7136
+# impact window: the first NCAMP AS4/8552 [45/0/-45/90]3s coupon, the first
+# Lovejoy & Scotti IM7/8552 [45/0/-45/90]4s coupon and their 40-ply hard
+# laminate. Error of the fe3d strength against the measured CAI (5 mm mesh):
+#   0.13: -24.9%, -4.8%, -5.6%     0.15: -18.7%, +3.3%, +2.8%
+#   0.17: -12.5%, +11.3%, +11.1%   0.20: -3.5%, +23.0%, +13.5%
+# 0.15 has the lowest mean error (8.3%). No single factor fits both
+# families: NCAMP wants about 0.21, Lovejoy & Scotti about 0.145. With the
+# old template (ply mismatch not wrapped modulo 180 deg) 0.17 fitted all
+# three within 5%.
+DAMAGE_ZONE_INPLANE_FACTOR = 0.15
 
 # Sub-sampling grid (per side) for the fraction of an element's area inside
 # the damage zone. A binary centroid test moved whole elements in or out of

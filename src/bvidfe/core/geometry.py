@@ -49,8 +49,9 @@ class ImpactorGeometry:
         D7136 default). It changes the onset energy and scales the damage
         area by ``(16 / diameter_mm) ** 0.2``; not used for ``conical``.
     shape: 'hemispherical' (standard), 'flat' (cylindrical punch), or
-        'conical' (60 deg included angle). Relative to a hemisphere the
-        damage area is x0.2 for flat and x1.3 for conical.
+        'conical' (60 deg included angle). The shape changes the onset
+        energy (contact stiffness) and, relative to a hemisphere, scales
+        the damage area by x0.2 for flat and x1.5 for conical.
 
     Raises ``ValueError`` for a non-positive diameter or an unknown shape.
     """

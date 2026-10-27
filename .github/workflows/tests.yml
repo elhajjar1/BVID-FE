@@ -55,6 +55,6 @@ jobs:
         # gate: synthetic_selfcheck is empirical-tier output, so comparing
         # fe3d to it measures the difference between the tiers, not fe3d's
         # accuracy. About 30 s per 16-ply synthetic case on a GitHub runner;
-        # a 24-ply NCAMP coupon takes minutes, so measured data is not run.
+        # a 24-ply NCAMP coupon takes about 40 s, so measured data is not run.
         run: python validation/validate_bvid_public.py --tier=fe3d --dataset=synthetic_selfcheck --max-cases=3
         continue-on-error: true

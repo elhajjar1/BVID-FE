@@ -116,7 +116,7 @@ class BvidAnalysis:
     ... )
     >>> result = BvidAnalysis(cfg).run()
     >>> round(result.knockdown, 2)
-    0.46
+    0.59
     """
 
     def __init__(self, config: AnalysisConfig) -> None:

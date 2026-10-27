@@ -1019,9 +1019,11 @@ with st.sidebar:
             "error when fitted on one dataset and checked on the other. TAI "
             "is not validated against measured data.\n\n"
             "**fe3d** — 3D hex FE, first-ply failure (LaRC05 for CAI, "
-            "Tsai-Wu for TAI) with a softened damage zone; mesh-converged. "
-            "Qualitative: the damage-zone stiffness is fitted to three "
-            "measured CAI coupons. About 15-30 s at the 5 mm default mesh "
+            "Tsai-Wu for TAI) with a softened damage zone. Qualitative: the "
+            "damage-zone stiffness is fitted in-sample to three measured CAI "
+            "coupons (Lovejoy & Scotti within 3%, NCAMP 19% low). About 5 s "
+            "for an 8-ply 150 x 100 mm panel at the 5 mm default mesh, longer "
+            "for thick laminates "
             f"(solves damaged and undamaged panels); capped at {FE3D_MAX_DOF:,} "
             "DOF."
         ),
@@ -1049,9 +1051,14 @@ with st.sidebar:
                 help=(
                     "Target in-plane element edge length. Smaller values = "
                     "finer mesh, quadratically more elements, memory and "
-                    "time; the 5 mm default is mesh-converged to within a "
-                    "few percent of 2.5 mm. On Streamlit Community Cloud "
-                    "(1 GB RAM) keep this >= 5 mm."
+                    "time. The 5 mm default resolves damage areas above "
+                    "about 1,500 mm²; a smaller damage zone is only a few "
+                    "elements across and its knockdown can be ~25% high, so "
+                    "use 2.5 mm or finer (an 8-ply 150 x 100 mm panel takes "
+                    "~35 s at 2.5 mm). An 8-ply 150 x 100 mm panel "
+                    "peaks at ~0.2 GB at 5 mm and ~0.5 GB at 2.5 mm (more if "
+                    "the solver falls back to a direct factorisation). On "
+                    "Streamlit Community Cloud (1 GB RAM) keep this >= 5 mm."
                 ),
             )
             mesh_params = MeshParams(

@@ -530,7 +530,7 @@ def semi_analytical_cai(
     >>> lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
     >>> r = semi_analytical_cai(lam, load_cscan_json("examples/sample_cscan.json"), 601.3)
     >>> round(r.residual_strength_MPa), r.critical_interface_index
-    (269, 4)
+    (266, 4)
     """
     if not damage.delaminations:
         return SemiAnalyticalResult(

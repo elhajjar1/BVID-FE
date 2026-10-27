@@ -71,9 +71,9 @@ This prints:
 BVID Analysis Results
   tier_used              : semi_analytical
   pristine_strength_MPa  : 601.3
-  residual_strength_MPa  : 224.3
-  knockdown              : 0.373
-  dpa_mm2                : 1918.5
+  residual_strength_MPa  : 240.6
+  knockdown              : 0.400
+  dpa_mm2                : 1463.6
   dent_depth_mm          : 1.216
   n_delaminations        : 15
 ```
@@ -81,16 +81,17 @@ BVID Analysis Results
 `knockdown` is `residual_strength_MPa / pristine_strength_MPa`, and
 `dpa_mm2` is the projected damage area. The pristine strength is the
 unnotched laminate strength from classical lamination theory. In this case
-the Soutis bound (224.3 MPa) is below the delamination growth stress, so
-the semi-analytical result equals the empirical one.
+the Soutis bound (240.6 MPa) is below the delamination growth stress, so
+the semi-analytical result equals the empirical one. Below the onset
+energy (about 6.6 J here) no damage is predicted and the knockdown is 1.
 
 ### Which tier?
 
 | Tier | Runtime | Validation status | Use it for |
 |---|---|---|---|
-| `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.5% and 9.0%, about 6–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated against data. | Screening, energy sweeps, design trade studies |
+| `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.6% and 8.7%, about 5–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated against data. | Screening, energy sweeps, design trade studies |
 | `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical`, not validated against data. | Checking whether delamination growth governs (low energy, cross-ply laminates) |
-| `fe3d` | About 15–30 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves); minutes for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted to three measured CAI coupons; not run on the measured datasets in CI | Stress-field context and damage through the thickness; not for allowables |
+| `fe3d` | About 5 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves), about 35 s at 2.5 mm; longer for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted in-sample to three measured CAI coupons (Lovejoy & Scotti within 3%, NCAMP 19% low); not run on the measured datasets in CI. Use a 2.5 mm mesh or finer for damage areas below about 1,500 mm² | Stress-field context and damage through the thickness; not for allowables |
 
 See [Python API → Tier choice](python_api.md#tier-choice) and
 [Physics Models](physics_models.md) for what each tier solves.
@@ -141,10 +142,10 @@ self-check) and prints each prediction next to the test result:
 python validation/validate_bvid_public.py --tier empirical
 ```
 
-The empirical tier's mean absolute error is 1.5% on the NCAMP AS4/8552
-coupons and 9.0% on the Lovejoy & Scotti IM7/8552 coupons. Both datasets
+The empirical tier's mean absolute error is 1.6% on the NCAMP AS4/8552
+coupons and 8.7% on the Lovejoy & Scotti IM7/8552 coupons. Both datasets
 were used to fit `soutis_k_s` (and Lovejoy & Scotti's C-scan areas to fit
-the default `olsson_alpha`), so expect errors of about 6–9% on a material
+the default `olsson_alpha`), so expect errors of about 5–9% on a material
 or layup outside them. See
 [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
 

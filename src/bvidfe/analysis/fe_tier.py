@@ -15,10 +15,11 @@ zone (every ply under the union of the delamination footprints) is softened
 in-plane by ``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``, each element weighted by
 the fraction of its area inside the zone, and its elements see the effective
 stress of strain equivalence. The failure index, in each ply's material
-frame, is averaged over each element's Gauss points and then over the
-elements of the same through-thickness layer within
-``FPF_AVERAGING_RADIUS_MM`` (2.5 mm) of it before it is checked against 1;
-at the default 5 mm mesh that disk holds only the element itself. The
+frame, is averaged over each element's Gauss points and then over a disk
+of ``FPF_AVERAGING_RADIUS_MM`` (2.5 mm) in the same through-thickness
+layer, each element weighted by its area inside the disk, before it is
+checked against 1; at the default 5 mm mesh that disk holds only the
+element itself. The
 failure stress is the reaction force on the loaded edge over the gross
 section. ``BvidAnalysis`` divides the damaged result by the same quantity
 on the undamaged mesh and applies the ratio to the pristine strength.
@@ -26,7 +27,7 @@ on the undamaged mesh and applies the ratio to the pristine strength.
 Buckling onset (whole panel and sublaminate, Rayleigh-Ritz closed form) is
 reported by :func:`fe3d_cai_buckling` but does not enter the residual.
 
-Problems above ``FE3D_MAX_DOF`` degrees of freedom (500,000, or the
+Problems above ``FE3D_MAX_DOF`` degrees of freedom (150,000, or the
 ``BVIDFE_FE3D_MAX_DOF`` environment variable) raise :class:`FE3DSizeError`.
 Stage timings go to stderr on the ``bvidfe.fe3d`` logger, at the level set
 by ``BVIDFE_LOG_LEVEL`` (default ``INFO``).
@@ -77,11 +78,15 @@ _log.addHandler(logging.NullHandler())
 # before first-ply failure is checked (average-stress criterion, Whitney &
 # Nuismer 1974). A pointwise check has no length scale: at the re-entrant
 # corners of the damage-zone footprint the stress is singular, so the
-# pointwise failure load kept falling as the mesh was refined (cross-ply
-# knockdown 0.175 / 0.223 / 0.211 at 5 / 2.5 / 2 mm). Averaged over 2.5 mm,
-# with the zone weighted by element area fraction, it is 0.249 / 0.249 /
-# 0.238. 2.5 mm is about the characteristic distance of CFRP notched
-# strength (1-4 mm); at a 5 mm mesh the disk holds only the element itself.
+# pointwise failure load kept moving as the mesh was refined (cross-ply
+# knockdown 0.175 / 0.223 / 0.211 at 5 / 2.5 / 2 mm, old damage template).
+# Averaged over 2.5 mm, with the zone weighted by element area fraction and
+# the disk by element overlap (_disk_kernel), the 8-ply cross-ply 15 J CAI
+# knockdown is 0.217 / 0.185 / 0.170 / 0.174 at 5 / 2.5 / 2 / 1.67 mm: the
+# fine meshes converge, but 5 mm under-resolves a zone this small (about
+# 710 mm^2, a few elements across). 2.5 mm is about the characteristic
+# distance of CFRP notched strength (1-4 mm); at a 5 mm mesh the disk holds
+# only the element itself.
 FPF_AVERAGING_RADIUS_MM = 2.5
 
 
@@ -103,7 +108,7 @@ def _resolve_log_level(default: str = "INFO") -> int:
     return logging.getLevelName(default)
 
 
-def _resolve_max_dof(default: int = 500000) -> int:
+def _resolve_max_dof(default: int = 150000) -> int:
     """Resolve BVIDFE_FE3D_MAX_DOF → positive int, falling back to ``default``
     with a stderr warning when the value is not a positive integer."""
     raw = os.environ.get("BVIDFE_FE3D_MAX_DOF")
@@ -159,13 +164,22 @@ def _t(msg: str, t0: float) -> None:
     _log.info("%s (%.2fs)", msg, time.time() - t0)
 
 
-# Hard cap on fe3d problem size. Beyond ~500k DOFs the pure-Python assembler
-# + scipy sparse LU factorization start risking memory exhaustion and native-
-# code crashes (scipy calls into BLAS/SuiteSparse which cannot be caught by
-# Python exception handling — an OOM there is a SIGSEGV in the parent process).
-# Override via BVIDFE_FE3D_MAX_DOF env var at your own risk; an invalid
-# value falls back to the default with a stderr warning instead of raising
-# at import time.
+# Hard cap on fe3d problem size, so an oversized mesh raises FE3DSizeError
+# instead of exhausting memory inside SuperLU (native code: an OOM there
+# kills the process rather than raising). Peak RSS of a whole fe3d CAI run
+# (two solves) on an 8-ply 150 x 100 mm panel, OMP_NUM_THREADS=1:
+#   mesh    DOFs   ILU-CG (default)  direct LU fallback  old penalty + spsolve
+#   5 mm    17.6k  0.20 GB           0.33 GB             0.55 GB
+#   2.5 mm  67.5k  0.46 GB           1.3 GB              3.0 GB
+#   1.25mm  265k   -                 -                   killed (OOM, 15 GB)
+# ILU-CG memory grows about linearly (~1 GB at 150k DOFs); the direct LU,
+# used only when ILU-CG and ILU-GMRES both fail, grows as ~n^1.4 in fill
+# (113M factor entries at 63k free DOFs on a cross-ply panel), so ~4-8 GB
+# at 150k. The cap keeps that worst case within a workstation's memory; it
+# admits 8-ply 150 x 100 mm panels down to ~1.7 mm and 16-ply ones at
+# 2.5 mm. Override via the BVIDFE_FE3D_MAX_DOF env var at your own risk; an
+# invalid value falls back to the default with a stderr warning instead of
+# raising at import time.
 FE3D_MAX_DOF: int = _resolve_max_dof()
 
 
@@ -401,20 +415,17 @@ def _critical_strain_multiplier(
     ``_solve_failure_strain_analytic`` for the scaling.
 
     With ``averaging_radius_mm`` (default ``FPF_AVERAGING_RADIUS_MM``) the
-    index is averaged over each element's Gauss points and then over the
-    elements of the same through-thickness layer whose centroids lie within
-    that radius; ``None`` checks every Gauss point on its own."""
+    index is averaged over each element's Gauss points and then over a disk
+    of that radius in the same through-thickness layer, each element
+    weighted by the fraction of its area inside the disk
+    (``_disk_kernel``); ``None`` checks every Gauss point on its own."""
     if averaging_radius_mm is None:
         return _critical_strain_multiplier_pointwise(cfg, mesh, elements, u_ref, criterion)
     a, b = _index_coefficients(cfg, mesh, elements, u_ref, criterion)
     nz, ny, nx = element_grid_shape(cfg)
     if a.size != nz * ny * nx:
         raise ValueError(f"mesh has {a.size} elements, expected a {nz}x{ny}x{nx} grid")
-    hx, hy = cfg.panel.Lx_mm / nx, cfg.panel.Ly_mm / ny
-    rx, ry = int(averaging_radius_mm // hx) + 1, int(averaging_radius_mm // hy) + 1
-    jj, ii = np.meshgrid(np.arange(-ry, ry + 1), np.arange(-rx, rx + 1), indexing="ij")
-    r2 = averaging_radius_mm**2 * (1 + 1e-9)
-    kernel = ((ii * hx) ** 2 + (jj * hy) ** 2 <= r2).astype(float)
+    kernel = _disk_kernel(cfg.panel.Lx_mm / nx, cfg.panel.Ly_mm / ny, averaging_radius_mm)
     # Near the panel edge the disk is clipped: average over what is inside.
     weight = convolve(np.ones((ny, nx)), kernel, mode="constant")
     a_avg = np.stack(
@@ -424,6 +435,26 @@ def _critical_strain_multiplier(
         [convolve(layer, kernel, mode="constant") / weight for layer in b.reshape(nz, ny, nx)]
     )
     return float(_smallest_positive_root(a_avg.ravel(), b_avg.ravel()).min())
+
+
+def _disk_kernel(hx: float, hy: float, radius_mm: float, samples: int = 16) -> np.ndarray:
+    """Weights of the elements of an ``hx`` x ``hy`` grid around one at the
+    origin: the fraction of each element's area inside a disk of
+    ``radius_mm`` centred on it, from ``samples`` x ``samples`` points per
+    element. Counting whole elements whose centres lie inside the disk
+    averaged over only the element and its four neighbours at 2-2.5 mm
+    meshes, an area that shrank with the mesh, and the cross-ply 15 J
+    knockdown kept falling with it (0.186 / 0.165 at 2.5 / 2 mm); weighted
+    by overlap the disk keeps its area and the knockdown settles (0.185 /
+    0.170 / 0.174 at 2.5 / 2 / 1.67 mm). At 5 mm the disk fits inside the
+    element, so the kernel is the element alone."""
+    rx = int(np.ceil(radius_mm / hx + 0.5))
+    ry = int(np.ceil(radius_mm / hy + 0.5))
+    t = (np.arange(samples) + 0.5) / samples - 0.5
+    x = (np.arange(-rx, rx + 1)[:, None] + t[None, :]) * hx  # (2rx+1, samples)
+    y = (np.arange(-ry, ry + 1)[:, None] + t[None, :]) * hy  # (2ry+1, samples)
+    inside = x[None, :, None, :] ** 2 + y[:, None, :, None] ** 2 <= radius_mm**2
+    return inside.mean(axis=(2, 3))  # (2ry+1, 2rx+1)
 
 
 def _index_coefficients(
