@@ -156,14 +156,15 @@ def test_external_force_with_elimination():
 
 
 def test_duplicate_bcs_are_merged():
-    """uniaxial_x_bcs repeats u_z = 0 on the loaded-edge bottom nodes; the
-    duplicates must collapse to one constraint, not shift the solution."""
-    mesh, elements, bcs = _small_panel_model()
+    """A DOF listed twice with the same value (as the builder once listed the
+    loaded-edge bottom nodes' u_z = 0) collapses to one constraint and does
+    not shift the solution."""
+    mesh, elements, unique = _small_panel_model()
+    bcs = unique + unique[::7]
     dofs, values = dirichlet_dofs_and_values(bcs, mesh.n_dof)
     assert len(bcs) > len(dofs) == len({bc.dof for bc in bcs})
     assert np.all(np.diff(dofs) > 0)
     u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
-    unique = list({bc.dof: bc for bc in bcs}.values())
     u_unique = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, unique)
     np.testing.assert_array_equal(u, u_unique)
 

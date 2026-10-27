@@ -44,19 +44,22 @@ class OrthotropicMaterial:
         Mode I and mode II interlaminar fracture toughness (N/mm). G_IIc
         sets the impact onset load and the damage area; both set the
         delamination-growth toughness (Benzeggagh-Kenane) of the
-        semi-analytical and fe3d CAI; G_Ic sets the dent depth.
+        semi-analytical and fe3d CAI.
     rho : float
         Density (kg/mm^3), ``1e-7 <= rho <= 1e-5``; used for the
         impactor-to-plate mass ratio.
     olsson_alpha : float
         Fraction of the impact energy above onset that delaminates:
-        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.0865
-        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.0648 for
+        ``DPA = olsson_alpha * (E - E_onset) / G_IIc``. Default 0.0855
+        (fitted to Lovejoy & Scotti's IM7/8552 C-scan areas); 0.0605 for
         T800S/3900-2B.
     dent_beta, dent_gamma : float
-        Dent depth ``d = h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
-        dent_gamma``, capped at ``h / 2`` (h the laminate thickness).
-        Defaults 0.05 and 0.5. The dent does not enter any strength.
+        Dent depth ``d = dent_beta * (E - E_onset) ** dent_gamma`` (mm, E in
+        J) for a hemispherical impactor, times an impactor-shape factor
+        (8.5 conical, 0.03 flat), capped at ``h / 2`` (h the laminate
+        thickness). Defaults 0.044 mm/J^0.57 and 0.57, fitted to the
+        measured dents of Lovejoy & Scotti (IM7/8552) and Hasebe et al.
+        (T800S/3900-2B). The dent does not enter any strength.
     fiber_break_eta, fiber_break_E_threshold : float
         Fibre-break core radius ``r = fiber_break_eta * sqrt(E -
         fiber_break_E_threshold)`` (mm, E in J), used only by fe3d. Off by
@@ -69,6 +72,12 @@ class OrthotropicMaterial:
     wn_d0_mm : float
         Whitney-Nuismer characteristic distance (mm) of the TAI model;
         default 1.0.
+    tai_notch_fraction : float
+        TAI equivalent-hole diameter as a fraction of the delamination
+        footprint width across the load, ``0 < f <= 1``, see
+        :func:`bvidfe.failure.soutis_openhole.fibre_damage_tai`. Default
+        0.05, fitted (with ``wn_d0_mm`` = 1.0) to one measured TAI
+        condition (Körbelin et al. 2020, M21/T800S).
     nu23 : float, optional
         Transverse (2-3) Poisson's ratio of the 3D compliance; ``None``
         resolves (``nu23_resolved``) to ``E22 / (2 G23) - 1``, the value G23
@@ -81,8 +90,8 @@ class OrthotropicMaterial:
 
     Raises ``ValueError`` for a non-positive modulus, strength, toughness or
     density, ``nu12`` outside ``(-1, 0.5)``, ``rho`` outside
-    ``[1e-7, 1e-5]``, a non-positive ``Zt`` / ``Zc`` / ``S13``, or a
-    negative Puck parameter.
+    ``[1e-7, 1e-5]``, a non-positive ``Zt`` / ``Zc`` / ``S13``, a
+    negative Puck parameter, or ``tai_notch_fraction`` outside ``(0, 1]``.
     """
 
     name: str
@@ -105,22 +114,44 @@ class OrthotropicMaterial:
     # olsson_alpha: fraction of the impact energy above onset that goes into
     # mode-II delamination, DPA = alpha (E - E_onset) / G_IIc. Fitted to the
     # C-scan areas of Lovejoy & Scotti's eight IM7/8552 CAI coupons (median),
-    # with the corrected Olsson threshold load (0.078 while the onset energy
-    # was ~10x too low).
-    olsson_alpha: float = 0.0865
-    dent_beta: float = 0.05
-    dent_gamma: float = 0.5
+    # with the corrected Olsson threshold load and the membrane-stiffened
+    # onset energy (0.0865 with the linear plate, 0.078 while the onset
+    # energy was ~10x too low).
+    olsson_alpha: float = 0.0855
+    # Dent depth d = dent_beta (E - E_onset) ** dent_gamma (mm, J), hemispherical
+    # impactor. Log least squares on the positive measured dents of the 8
+    # Lovejoy & Scotti IM7/8552 coupons and the 210 hemispherical Hasebe et al.
+    # T800S/3900-2B specimens, each dataset weighted equally (0.0441, 0.569
+    # with the linear-plate onset energy; 0.0390, 0.601 with the
+    # membrane-stiffened one, within 6% of the constants kept): median
+    # predicted / measured 1.01 and 0.94. One value serves both materials:
+    # fitted on Hasebe alone (0.031, 0.73) it predicts Lovejoy & Scotti at
+    # 1.38x; scaling by G_Ic (the earlier form) made that 1.54x.
+    # (Was h * 0.05 * ((E - E_onset) / (G_Ic h^2)) ** 0.5, on its h / 2 cap,
+    # 8-9x the measured dents.)
+    dent_beta: float = 0.044
+    dent_gamma: float = 0.57
     fiber_break_eta: float = 0.0
     fiber_break_E_threshold: float = 1e9  # disabled unless explicitly overridden
     # Calibrated on the measured CAI datasets in validation/datasets (NCAMP
     # AS4/8552, Lovejoy & Scotti IM7/8552), with the damage area scaled by the
     # fixed ASTM D7137 coupon area and predicted by the energy balance: 4.8 is
     # the pooled optimum of both tiers (4.7 with the onset energy ~10x too
-    # low). Fitted on NCAMP alone (4.8) it predicts Lovejoy & Scotti at 8.7%;
-    # on Lovejoy & Scotti alone (5.2), NCAMP at 4.9%.
+    # low; unchanged by the membrane-stiffened onset). Fitted on NCAMP alone
+    # (4.8) it predicts Lovejoy & Scotti at 8.8%; on Lovejoy & Scotti alone
+    # (5.2), NCAMP at 5.0%.
     soutis_k_s: float = 4.8
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
+    # TAI equivalent hole: diameter = tai_notch_fraction x the delamination
+    # footprint width across the load. Delaminations cut no fibres, so the
+    # hole stands for the fibre damage under the impactor, a small part of
+    # the footprint. Fitted with wn_d0_mm = 1.0 to Korbelin, Dreiner &
+    # Fiedler (Compos Part C 3, 2020, 100074): five M21/T800S [45/0/-45/90]2s
+    # coupons impacted at 25 J keep 0.889 of their tension strength (0.046
+    # fits the mean; rounded to 0.05). One condition, in-sample: see
+    # validation/datasets/korbelin_m21_t800s_tai.json.
+    tai_notch_fraction: float = 0.05
     # Through-thickness strengths and 1-3 shear (None = transverse-isotropy
     # fallback to Yt / Yc / S12 via the *_resolved properties below).
     Zt: Optional[float] = None
@@ -166,6 +197,10 @@ class OrthotropicMaterial:
             v = getattr(self, k)
             if v < 0:
                 raise ValueError(f"{k} must be >= 0 (got {v})")
+        if not 0.0 < self.tai_notch_fraction <= 1.0:
+            raise ValueError(
+                f"tai_notch_fraction must be in (0, 1] (got {self.tai_notch_fraction})"
+            )
         if not -1.0 < self.nu12 < 0.5:
             raise ValueError(f"nu12 out of physical range (got {self.nu12})")
         nu23 = self.nu23_resolved
@@ -355,9 +390,9 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # (nu23 = 0.45; LaRC03 from Yc). olsson_alpha is fitted to the projected
     # delamination areas Hasebe et al. measured on their quasi-isotropic
     # laminates struck by the 12.7 mm hemisphere (median of 38 specimens);
-    # the default 0.0865 overpredicts them about 1.3x (interlayer-toughened).
+    # the default 0.0855 overpredicts them about 1.4x (interlayer-toughened).
     # Over the 329 specimens in validation/datasets with a measured area it
-    # predicts the area at a median 1.01x (0.78-1.13x per layup).
+    # predicts the area at a median 1.03x (0.77-1.26x per layup).
     "T800S/3900-2B": OrthotropicMaterial(
         name="T800S/3900-2B",
         E11=153000,
@@ -375,7 +410,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_Ic=0.54,
         G_IIc=1.64,
         rho=1.54e-6,
-        olsson_alpha=0.0648,
+        olsson_alpha=0.0605,
     ),
     "T800/epoxy": OrthotropicMaterial(
         name="T800/epoxy",

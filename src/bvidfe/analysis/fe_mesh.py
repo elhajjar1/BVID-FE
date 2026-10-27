@@ -83,10 +83,10 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # impact window: the first NCAMP AS4/8552 [45/0/-45/90]3s coupon, the first
 # Lovejoy & Scotti IM7/8552 [45/0/-45/90]4s coupon and their 40-ply hard
 # laminate. Error of the fe3d strength against the measured CAI (5 mm mesh):
-#   0.13: -24.9%, -4.8%, -5.6%     0.15: -18.7%, +3.3%, +2.8%
-#   0.17: -12.5%, +11.3%, +11.1%   0.20: -3.5%, +23.0%, +13.5%
-# 0.15 has the lowest mean error (8.3%). No single factor fits both
-# families: NCAMP wants about 0.21, Lovejoy & Scotti about 0.145. With the
+#   0.13: -26.7%, -6.8%, -7.9%     0.15: -20.6%, +1.2%, +0.3%
+#   0.17: -14.6%, +9.0%, +7.9%     0.20: -5.6%, +20.6%, +11.1%
+# 0.15 has the lowest mean error (7.4%). No single factor fits both
+# families: NCAMP wants about 0.22, Lovejoy & Scotti about 0.15. With the
 # old template (ply mismatch not wrapped modulo 180 deg) 0.17 fitted all
 # three within 5%.
 DAMAGE_ZONE_INPLANE_FACTOR = 0.15

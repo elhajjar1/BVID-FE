@@ -13,7 +13,7 @@ runs Streamlit API calls at module top level (``st.set_page_config``,
 "bare mode" (just a noisy warning) and do not raise.
 
 If Streamlit is somehow unavailable in the runtime environment the test
-is skipped rather than errored — the package depends on ``streamlit>=1.32``
+is skipped rather than errored — the package depends on ``streamlit>=1.51``
 but defensive skipping keeps this smoke test useful in stripped-down
 environments.
 """
@@ -21,6 +21,7 @@ environments.
 from __future__ import annotations
 
 import importlib
+import logging
 import sys
 from pathlib import Path
 
@@ -92,3 +93,47 @@ def test_config_from_dict_round_trips_ply_thickness(monkeypatch, thickness) -> N
     assert cfg.ply_thickness_mm == thickness
     assert cfg.impact.location_xy_mm == (0.0, 0.0)
     assert "mm" in app_module._format_ply_thickness(cfg.ply_thickness_mm)
+
+
+def test_app_does_not_use_deprecated_use_container_width() -> None:
+    """Streamlit deprecated ``use_container_width`` (removal after 2025-12-31);
+    ``app.py`` must use ``width="stretch"`` / ``width="content"`` instead.
+    A static check, because ``st.button`` / ``st.download_button`` accept the
+    old argument without logging a warning, so the run test below misses them."""
+    source = (REPO_ROOT / "app.py").read_text(encoding="utf-8")
+    hits = [i for i, line in enumerate(source.splitlines(), 1) if "use_container_width" in line]
+    assert not hits, f"app.py uses deprecated use_container_width on line(s) {hits}"
+
+
+class _RecordHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+def test_app_run_emits_no_streamlit_deprecation_warnings(monkeypatch) -> None:
+    """Run the page headless on its defaults (empirical tier), click
+    "Run analysis", and check that nothing raised and that Streamlit logged
+    no deprecation warning. Streamlit routes those through the
+    ``streamlit.deprecation_util`` logger, which does not propagate."""
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setenv("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
+    handler = _RecordHandler()
+    logger = logging.getLogger("streamlit.deprecation_util")
+    logger.addHandler(handler)
+    try:
+        at = AppTest.from_file(str(REPO_ROOT / "app.py"), default_timeout=120).run()
+        assert not at.exception, [e.value for e in at.exception]
+        (run_button,) = [b for b in at.button if b.label == "Run analysis"]
+        run_button.click().run()
+        assert not at.exception, [e.value for e in at.exception]
+    finally:
+        logger.removeHandler(handler)
+    deprecations = [r.getMessage() for r in handler.records]
+    assert not deprecations, deprecations
+    # The run actually produced results (not just an idle page).
+    assert any(m.label == "Knockdown" for m in at.metric)

@@ -10,6 +10,10 @@ All three sweep entry points (`sweep_energies`, `sweep_layups`,
     containing the exception message, and the sweep continues; partial
     results still reach the DataFrame and the CSV. ``"warn"`` is identical
     to ``"skip"`` but additionally emits a ``UserWarning`` per failure.
+    A point whose config fails validation (e.g. a per-ply thickness list
+    that does not match a swept layup, or a negative energy) is a failed
+    point like any other. An unknown ``on_error`` raises ``ValueError``
+    before any point runs, even for an empty sweep.
 
   * ``progress_callback`` — optional callable invoked once per iteration
     to report progress. Two signatures are accepted (introspected at
@@ -132,13 +136,21 @@ def _nan_row() -> dict:
     }
 
 
-def _try_run_one(cfg: AnalysisConfig, on_error: str, label: str) -> dict:
-    """Invoke ``_run_one`` and translate any exception to a NaN-filled row
-    according to ``on_error``. ``label`` is used in the warning text."""
+def _check_on_error(on_error: str) -> None:
+    """Reject an unknown ``on_error`` before the sweep starts, so a typo is
+    caught even when the sweep list is empty or every point succeeds."""
     if on_error not in _ON_ERROR_VALUES:
         raise ValueError(f"on_error must be one of {_ON_ERROR_VALUES} (got {on_error!r})")
+
+
+def _try_run_one(build_cfg: Callable[[], AnalysisConfig], on_error: str, label: str) -> dict:
+    """Build the point's config with ``build_cfg()`` and run it, translating
+    any exception from either step to a NaN-filled row according to
+    ``on_error``. Building inside the handler means a point that fails
+    ``AnalysisConfig`` / ``ImpactEvent`` validation is recorded like a
+    run-time failure. ``label`` is used in the warning text."""
     try:
-        return _run_one(cfg)
+        return _run_one(build_cfg())
     except Exception as exc:  # noqa: BLE001
         if on_error == "raise":
             raise
@@ -246,10 +258,12 @@ def sweep_energies(
     ...                      impact=ImpactEvent(energy_J=10.0))
     >>> df = sweep_energies(cfg, [5, 10, 20])
     >>> df["knockdown"].round(2).tolist()
-    [1.0, 0.59, 0.41]
+    [0.55, 0.45, 0.36]
     """
+    _check_on_error(on_error)
     if base_cfg.impact is None:
         raise ValueError("sweep_energies requires base_cfg.impact to be set")
+    impact = base_cfg.impact
     rows: List[dict] = []
     n = len(energies_J)
     # Only the impact energy (→ damage) varies here; the mesh-defining inputs
@@ -257,12 +271,15 @@ def sweep_energies(
     # iterations and only re-derives the per-element damage factors (#23).
     with _dedupe_impact_warnings():
         for i, E in enumerate(energies_J):
-            new_impact = replace(base_cfg.impact, energy_J=float(E))
-            cfg = replace(base_cfg, impact=new_impact)
-            row = _try_run_one(cfg, on_error, f"energy_J={float(E):g}")
-            row["energy_J"] = float(E)
+            E = float(E)
+
+            def _build(E: float = E) -> AnalysisConfig:
+                return replace(base_cfg, impact=replace(impact, energy_J=E))
+
+            row = _try_run_one(_build, on_error, f"energy_J={E:g}")
+            row["energy_J"] = E
             rows.append(row)
-            _emit_progress(progress_callback, i + 1, n, {"energy_J": float(E)})
+            _emit_progress(progress_callback, i + 1, n, {"energy_J": E})
     df = _finalize(rows, "energy_J")
     _write_csv(df, Path(csv_path) if csv_path else None)
     return df
@@ -281,16 +298,22 @@ def sweep_layups(
     Each point is ``base_cfg`` with ``layup_deg`` replaced; the ``layup``
     column holds it as a ``"0/45/-45/90"`` string. A per-ply
     ``ply_thickness_mm`` list in ``base_cfg`` must match every layup's
-    length. See the module docstring for the columns, ``csv_path``,
+    length (as must a given damage state's interface indices); a layup
+    that does not is a failed point under ``on_error``. See the module docstring for the columns, ``csv_path``,
     ``on_error`` and ``progress_callback``.
     """
+    _check_on_error(on_error)
     rows: List[dict] = []
     n = len(layups)
     with _dedupe_impact_warnings():
         for i, layup in enumerate(layups):
-            cfg = replace(base_cfg, layup_deg=list(layup))
+            layup = list(layup)
             layup_str = "/".join(f"{a:g}" for a in layup)
-            row = _try_run_one(cfg, on_error, f"layup={layup_str}")
+
+            def _build(layup: List[float] = layup) -> AnalysisConfig:
+                return replace(base_cfg, layup_deg=layup)
+
+            row = _try_run_one(_build, on_error, f"layup={layup_str}")
             row["layup"] = layup_str
             rows.append(row)
             _emit_progress(progress_callback, i + 1, n, {"layup": layup_str})
@@ -314,15 +337,20 @@ def sweep_thicknesses(
     docstring for the columns, ``csv_path``, ``on_error`` and
     ``progress_callback``.
     """
+    _check_on_error(on_error)
     rows: List[dict] = []
     n = len(ply_thicknesses_mm)
     with _dedupe_impact_warnings():
         for i, t in enumerate(ply_thicknesses_mm):
-            cfg = replace(base_cfg, ply_thickness_mm=float(t))
-            row = _try_run_one(cfg, on_error, f"ply_thickness_mm={float(t):g}")
-            row["ply_thickness_mm"] = float(t)
+            t = float(t)
+
+            def _build(t: float = t) -> AnalysisConfig:
+                return replace(base_cfg, ply_thickness_mm=t)
+
+            row = _try_run_one(_build, on_error, f"ply_thickness_mm={t:g}")
+            row["ply_thickness_mm"] = t
             rows.append(row)
-            _emit_progress(progress_callback, i + 1, n, {"ply_thickness_mm": float(t)})
+            _emit_progress(progress_callback, i + 1, n, {"ply_thickness_mm": t})
     df = _finalize(rows, "ply_thickness_mm")
     _write_csv(df, Path(csv_path) if csv_path else None)
     return df

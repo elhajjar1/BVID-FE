@@ -32,10 +32,10 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | Module | Submodule | Role |
 |--------|-----------|------|
 | `_types.py` | — | Shared `Literal` aliases `TierName`, `LoadingMode`, `CriterionName` and their runtime-validation frozensets (`_TIER_NAMES`, `_LOADING_MODES`, `_CRITERION_NAMES`). Each alias and its frozenset change together. |
-| `core/` | `material.py` | `OrthotropicMaterial` dataclass (moduli, strengths, toughnesses, density in kg/mm^3, impact-mapping and knockdown calibration constants such as `soutis_k_s` = 4.8 and `olsson_alpha` = 0.0865) + the `MATERIAL_LIBRARY` dict with six presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy). Ported from WrinkleFE. |
+| `core/` | `material.py` | `OrthotropicMaterial` dataclass (moduli, strengths, toughnesses, density in kg/mm^3, impact-mapping and knockdown calibration constants such as `soutis_k_s` = 4.8 and `olsson_alpha` = 0.0855) + the `MATERIAL_LIBRARY` dict with six presets (AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy). Ported from WrinkleFE. |
 | | `laminate.py` | `Laminate`: Classical Lamination Theory ABD matrices, effective engineering constants, flexural rigidity; uniform or per-ply thicknesses. Ported from WrinkleFE. |
 | | `geometry.py` | `PanelGeometry`, `ImpactorGeometry`, `BoundaryKind` (`clamped` / `simply_supported` / `free`), `ImpactorShape` (`hemispherical` / `flat` / `conical`). |
-| `impact/` | `olsson.py` | Quasi-static delamination threshold load (`threshold_load`, `π √(32 D* G_IIc / 3)` with Olsson's orthotropic `D*`) and onset energy (`onset_energy`) from plate bending + contact stiffness; boundary- and impactor-shape-aware. |
+| `impact/` | `olsson.py` | Quasi-static delamination threshold load (`threshold_load`, `π √(32 D* G_IIc / 3)` with Olsson's orthotropic `D*`) and onset energy (`onset_energy`): the energy stored at `P_c` by the plate (large-deflection law `k_b w + k_m w³`, Navier bending plus single-term membrane stiffness) and the contact (Hertz, flat punch or cone); boundary- and impactor-shape-aware. |
 | | `shape_templates.py` | Layup-dependent per-interface "peanut" templates that distribute the total DPA into per-interface elliptical delaminations (`distribute_damage`). With `max_half_extent_mm` each ellipse is shrunk, aspect ratio kept, to fit a window about the impact point, and the union is re-solved for the same area. |
 | | `dent_model.py` | Thickness-normalized empirical dent depth (`dent_depth_mm`) and fiber-break core radius (`fiber_break_radius_mm`) from impact energy. |
 | | `mapping.py` | `ImpactEvent` and `impact_to_damage`: `ImpactEvent` → `DamageState`. The DPA is an energy balance, `olsson_alpha (E − E_onset) / G_IIc`, with impactor-mass, shape and diameter corrections and an 80%-of-panel cap. The delaminations are kept inside the impacted panel (`impact_panel`, else `panel`; for an ASTM D7136 coupon the 125 × 75 mm support window), measured from the impact point. |
@@ -53,7 +53,7 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | | `larc05.py` | Minimal LaRC05 composite failure criterion (Hashin-3D reduction); scalar + batch index. |
 | | `tsai_wu.py` | Full 3D Tsai-Wu failure criterion with interaction terms; scalar + batch index. |
 | | `puck.py` | Puck action-plane inter-fiber failure + max-stress fiber failure; scalar + batch index. |
-| | `soutis_openhole.py` | Soutis CAI knockdown (`soutis_cai`; DPA scaled by the fixed 150 × 100 mm ASTM D7137 coupon area `SOUTIS_REFERENCE_AREA_MM2`), Whitney-Nuismer point-stress TAI (`whitney_nuismer_tai`) and Lekhnitskii `Kt_inf` (`lekhnitskii_kt_infinity`). |
+| | `soutis_openhole.py` | Soutis CAI knockdown (`soutis_cai`; DPA scaled by the fixed 150 × 100 mm ASTM D7137 coupon area `SOUTIS_REFERENCE_AREA_MM2`), Whitney-Nuismer point-stress TAI on an equivalent hole for the fibre damage with Tan's finite-width correction (`fibre_damage_tai`; the earlier whole-footprint `whitney_nuismer_tai` is kept) and Lekhnitskii `Kt_inf` (`lekhnitskii_kt_infinity`). |
 | | `evaluator.py` | `FailureEvaluator`: applies a registered criterion across an (element, Gauss point) stress field; produces `LaminateFailureReport`. Standalone utility; the `fe3d` tier calls the criterion functions directly. |
 | `analysis/` | `config.py` | `AnalysisConfig` + `MeshParams` dataclasses (material, layup, panel, loading, tier, impact or damage; mesh resolution for fe3d). `MeshParams` validates positive `elements_per_ply` / `in_plane_size_mm` / `cohesive_zone_factor` at construction. |
 | | `bvid.py` | `BvidAnalysis(AnalysisConfig).run()`: main orchestrator. Resolves the material and damage, computes the pristine strength (`unnotched_strength`), dispatches to the tier, and sets `knockdown = residual / pristine`. For fe3d it runs the tier twice (damaged and undamaged) and applies the ratio to the pristine strength. |
@@ -97,7 +97,7 @@ from bvidfe.damage.io import load_cscan_json, save_cscan_json
 # Lower-level access (advanced use)
 from bvidfe.impact.olsson import threshold_load, onset_energy
 from bvidfe.failure.laminate_strength import unnotched_strength
-from bvidfe.failure.soutis_openhole import soutis_cai, whitney_nuismer_tai
+from bvidfe.failure.soutis_openhole import soutis_cai, fibre_damage_tai
 from bvidfe.failure.evaluator import FailureEvaluator
 from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_thicknesses
 ```
@@ -169,8 +169,9 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
 - **T800S/3900-2B preset** and the Hasebe et al. CAI dataset (reported, not gated); impactor shape and diameter factors fitted to it.
 - **Energy-balance damage area** (`DPA = olsson_alpha (E − E_onset) / G_IIc`, default `olsson_alpha` 0.078 fitted to Lovejoy & Scotti's C-scans) and a **fixed reference area** in the Soutis knockdown; `soutis_k_s` 4.7.
 - **Corrected Olsson threshold load** (`π √(32 D* G_IIc / 3)`; it was 3.5× too low), with `olsson_alpha` refitted to 0.0865 (0.0648 for T800S/3900-2B), the conical shape factor to 1.5 and `soutis_k_s` to 4.8.
+- **Membrane stiffening in the onset energy**: the plate follows `P = k_b w + k_m w³` (single-term von Kármán membrane stiffness for the panel's edge condition) and the contact energy is integrated exactly; `olsson_alpha` refitted to 0.0855 (0.0605 for T800S/3900-2B) and the conical shape factor to 1.9.
 - **Delaminations confined to the impacted panel** (`distribute_damage(max_half_extent_mm=...)`); the NCAMP and Lovejoy & Scotti cases are impacted on the ASTM D7136 125 × 75 mm window.
-- **fe3d damage-zone in-plane factor** 0.30 -> 0.20 -> 0.17 -> 0.15, fitted to the first NCAMP, Lovejoy & Scotti quasi-isotropic and Lovejoy & Scotti hard CAI coupons. 0.15 followed the axial damage template (ply angles modulo 180°), `ν23` in the 3D ply compliance and the corrected Olsson threshold; it has the lowest mean error (8.3%) but no longer fits both families (Lovejoy & Scotti +3.3% / +2.8%, NCAMP −18.7%).
+- **fe3d damage-zone in-plane factor** 0.30 -> 0.20 -> 0.17 -> 0.15, fitted to the first NCAMP, Lovejoy & Scotti quasi-isotropic and Lovejoy & Scotti hard CAI coupons. 0.15 followed the axial damage template (ply angles modulo 180°), `ν23` in the 3D ply compliance and the corrected Olsson threshold, and was kept after the membrane onset and the mid-surface `u_z` restraint; it has the lowest mean error (7.4%) but no longer fits both families (Lovejoy & Scotti +1.2% / +0.3%, NCAMP −20.6%). It is fitted on CAI only: fe3d TAI is about a third of the closed-form TAI and 62% low on the one measured TAI dataset.
 - **fe3d failure-index averaging disk weighted by element overlap** (`_disk_kernel`), so it keeps its area as the mesh is refined.
 - CI checks the generated JSON schemas (`scripts/generate_schemas.py --check`) and gates the semi-analytical tier on the measured datasets.
 
@@ -178,5 +179,5 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
 - **True cohesive surfaces**: replace the stiffness-reduction approximation with a bilinear traction-separation law in the `fe3d` tier, which would also give fe3d first-ply failure a characteristic length.
 - **3D buckling FE path** with proper load-introduction BCs and plate/shell elements (DKQ or MITC4), so buckling onset can capture damage-zone heterogeneity beyond the closed form (#129).
 - **More validated datasets**: the candidates and what each needs are listed in `validation/README.md` ("Next datasets").
-- **Calibrated material constants**: `dent_beta` and related parameters against material test data (`soutis_k_s`, the default `olsson_alpha`, the impactor shape and diameter factors and the fe3d `DAMAGE_ZONE_INPLANE_FACTOR` are done; the last is in-sample on three coupons and leaves the NCAMP coupon 19% low), with held-out data to check them.
+- **Calibrated material constants**: `dent_beta` and related parameters against material test data (`soutis_k_s`, the default `olsson_alpha`, the impactor shape and diameter factors and the fe3d `DAMAGE_ZONE_INPLANE_FACTOR` are done; the last is in-sample on three coupons and leaves the NCAMP coupon 21% low), with held-out data to check them.
 - **fe3d on measured data in CI**: CI runs fe3d on three synthetic cases as an ungated smoke run, because each measured coupon takes 40-80 s.

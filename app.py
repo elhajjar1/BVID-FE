@@ -314,7 +314,7 @@ def _sync_query_params() -> None:
 def _show_df(df: pd.DataFrame) -> None:
     """Render a results DataFrame with sane float formatting."""
     fmt = {c: f for c, f in _DF_FORMATS.items() if c in df.columns}
-    st.dataframe(df.style.format(fmt, na_rep="—"), use_container_width=True)
+    st.dataframe(df.style.format(fmt, na_rep="—"), width="stretch")
 
 
 def _parse_layup(text: str) -> list[float]:
@@ -843,8 +843,9 @@ with st.sidebar:
                 "Panel edge support. Scales the plate bending stiffness in "
                 "the Olsson onset model (clamped 2.5×, free 0.4× simply "
                 "supported) and the sublaminate and panel buckling loads "
-                "(clamped 1.9×, free 0.5×), and sets the out-of-plane edge "
-                "restraint in fe3d. The Soutis and Whitney-Nuismer "
+                "(clamped 1.9×, free 0.5×), and so the delamination growth "
+                "stress in semi_analytical and fe3d; it does not change "
+                "fe3d's first-ply-failure solve. The Soutis and Whitney-Nuismer "
                 "knockdowns see it only through the damage area. 'free' is "
                 "a crude approximation — interpret qualitatively."
             ),
@@ -1021,7 +1022,9 @@ with st.sidebar:
             "**fe3d** — 3D hex FE, first-ply failure (LaRC05 for CAI, "
             "Tsai-Wu for TAI) with a softened damage zone. Qualitative: the "
             "damage-zone stiffness is fitted in-sample to three measured CAI "
-            "coupons (Lovejoy & Scotti within 3%, NCAMP 19% low). About 5 s "
+            "coupons (Lovejoy & Scotti within 1.2%, NCAMP 21% low). TAI is "
+            "not recommended: it is far more conservative than the closed-form "
+            "TAI (62% low on the one measured TAI dataset). About 5 s "
             "for an 8-ply 150 x 100 mm panel at the 5 mm default mesh, longer "
             "for thick laminates "
             f"(solves damaged and undamaged panels); capped at {FE3D_MAX_DOF:,} "
@@ -1052,7 +1055,8 @@ with st.sidebar:
                     "Target in-plane element edge length. Smaller values = "
                     "finer mesh, quadratically more elements, memory and "
                     "time. The 5 mm default resolves damage areas above "
-                    "about 1,500 mm²; a smaller damage zone is only a few "
+                    "about 1,000 mm² (at ~1,500 mm² it is within ~3-10% of a "
+                    "2 mm mesh); a smaller damage zone is only a few "
                     "elements across and its knockdown can be ~25% high, so "
                     "use 2.5 mm or finer (an 8-ply 150 x 100 mm panel takes "
                     "~35 s at 2.5 mm). An 8-ply 150 x 100 mm panel "
@@ -1066,7 +1070,7 @@ with st.sidebar:
                 in_plane_size_mm=float(in_plane_size_mm),
             )
 
-    run_clicked = st.button("Run analysis", type="primary", use_container_width=True)
+    run_clicked = st.button("Run analysis", type="primary", width="stretch")
 
 
 # Sync the live sidebar config into the URL so the page link is shareable.
@@ -1288,7 +1292,7 @@ with tabs[1]:
         try:
             cfg = payload["config"]
             fig = plot_damage_map(payload["damage"], cfg.panel)
-            st.pyplot(fig, use_container_width=False)
+            st.pyplot(fig, width="content")
         except Exception as exc:
             st.error(f"Could not render the damage map: {exc}")
 
@@ -1322,7 +1326,7 @@ with tabs[2]:
                 ok["knockdown"].tolist(),
                 tier_label="empirical",
             )
-            st.pyplot(fig, use_container_width=False)
+            st.pyplot(fig, width="content")
             _show_df(df)
         except Exception as exc:
             st.error(f"Could not compute the knockdown curve: {exc}")
@@ -1342,7 +1346,7 @@ with tabs[3]:
             try:
                 st.plotly_chart(
                     mesh_damage_figure(mesh, title="Out-of-plane stiffness loss (0 = pristine)"),
-                    use_container_width=True,
+                    width="stretch",
                 )
                 st.caption(
                     f"Mesh: {mesh.n_elements:,} elements, {mesh.n_nodes:,} nodes. "
@@ -1393,7 +1397,7 @@ with tabs[4]:
             st.bar_chart(df_eigs.set_index("mode"))
             st.dataframe(
                 df_eigs.style.format({col_label: "{:.4g}"}),
-                use_container_width=True,
+                width="stretch",
             )
 
 
@@ -1433,7 +1437,7 @@ with tabs[5]:
                 ax.set_aspect("equal")
                 fig.colorbar(im, ax=ax, label="Stacked OOP loss")
                 fig.tight_layout()
-                st.pyplot(fig, use_container_width=False)
+                st.pyplot(fig, width="content")
             except Exception as exc:
                 st.error(f"Could not render the damage-severity heatmap: {exc}")
 
@@ -1536,7 +1540,7 @@ with tabs[6]:
                         if not failed_df.empty:
                             st.dataframe(
                                 failed_df[["energy_J", "error"]],
-                                use_container_width=True,
+                                width="stretch",
                             )
                     else:
                         if not failed_df.empty:
@@ -1546,7 +1550,7 @@ with tabs[6]:
                             ]
                             st.dataframe(
                                 failed_df[cols_to_show],
-                                use_container_width=True,
+                                width="stretch",
                             )
                         _show_df(df)
                         ok = df.dropna(subset=["knockdown"])
@@ -1555,7 +1559,7 @@ with tabs[6]:
                             ok["knockdown"].tolist(),
                             tier_label=sweep_tier,
                         )
-                        st.pyplot(fig, use_container_width=False)
+                        st.pyplot(fig, width="content")
                         csv_buf = io.StringIO()
                         df.to_csv(csv_buf, index=False)
                         st.download_button(
@@ -1703,7 +1707,7 @@ with tabs[7]:
                 data=ncr_md,
                 file_name=f"{safe_id}.md",
                 mime="text/markdown",
-                use_container_width=True,
+                width="stretch",
             )
         with dl2:
             st.download_button(
@@ -1711,5 +1715,5 @@ with tabs[7]:
                 data=json.dumps(ncr_dict, indent=2),
                 file_name=f"{safe_id}.json",
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
             )

@@ -25,9 +25,11 @@ from bvidfe.damage.state import DamageState
 from bvidfe.failure.laminate_strength import unnotched_strength
 from bvidfe.failure.soutis_openhole import (
     SOUTIS_REFERENCE_AREA_MM2,
+    fibre_damage_tai,
     lekhnitskii_kt_infinity,
     soutis_cai,
-    whitney_nuismer_tai,
+    tai_hole_radius_mm,
+    transverse_damage_width_mm,
 )
 from bvidfe.impact.mapping import impact_to_damage
 
@@ -86,6 +88,23 @@ def _pristine_strength(lam: Laminate, loading: LoadingMode) -> float:
     return unnotched_strength(lam, loading)
 
 
+def _tai_note(lam: Laminate, damage: DamageState, panel_width_mm: float) -> str:
+    """``AnalysisResults.notes`` entry for a closed-form TAI run: the
+    equivalent hole and how little the TAI model is validated."""
+    mat = lam.material
+    width = transverse_damage_width_mm(damage, panel_width_mm)
+    R = tai_hole_radius_mm(mat, damage, panel_width_mm)
+    return (
+        f"TAI: equivalent hole {2 * R:.2f} mm across (tai_notch_fraction "
+        f"{mat.tai_notch_fraction:g} x {width:.1f} mm footprint width across the load), "
+        f"Whitney-Nuismer point stress at d0 = {mat.wn_d0_mm:g} mm, Kt_inf = "
+        f"{lekhnitskii_kt_infinity(lam):.2f}, finite-width corrected for a "
+        f"{panel_width_mm:g} mm wide panel. The TAI model is not validated: "
+        f"tai_notch_fraction is fitted in-sample to one measured condition "
+        f"(Korbelin et al. 2020, M21/T800S quasi-isotropic, 25 J)."
+    )
+
+
 def _config_snapshot_dict(cfg: AnalysisConfig) -> dict:
     """Serialise an AnalysisConfig for provenance, handling the material union."""
     d = {}
@@ -116,7 +135,7 @@ class BvidAnalysis:
     ... )
     >>> result = BvidAnalysis(cfg).run()
     >>> round(result.knockdown, 2)
-    0.59
+    0.45
     """
 
     def __init__(self, config: AnalysisConfig) -> None:
@@ -198,6 +217,8 @@ class BvidAnalysis:
             field_results = None
         else:
             raise NotImplementedError(f"tier '{self.config.tier}' is not recognized")
+        if self.config.loading == "tension" and self.config.tier != "fe3d":
+            notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
 
         return AnalysisResults(
             residual_strength_MPa=sigma,
@@ -307,7 +328,7 @@ class BvidAnalysis:
             return semi_analytical_cai(lam, damage, sigma_0, boundary=self.config.panel.boundary)
         # tension: no sublaminate buckling channel — wrap the scalar result
         # so callers consume a uniform ``SemiAnalyticalResult`` shape.
-        sigma = semi_analytical_tai(lam, damage, sigma_0)
+        sigma = semi_analytical_tai(lam, damage, sigma_0, self.config.panel.Ly_mm)
         return SemiAnalyticalResult(
             residual_strength_MPa=sigma,
             critical_interface_index=None,
@@ -320,4 +341,4 @@ class BvidAnalysis:
         if self.config.loading == "compression":
             return soutis_cai(mat, dpa, SOUTIS_REFERENCE_AREA_MM2, sigma_0)
         Kt_inf = lekhnitskii_kt_infinity(lam)
-        return whitney_nuismer_tai(mat, dpa, sigma_0, Kt_inf)
+        return fibre_damage_tai(mat, damage, sigma_0, Kt_inf, self.config.panel.Ly_mm)

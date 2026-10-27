@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-app = ["streamlit>=1.32"]
+app = ["streamlit>=1.51,<2"]
 # streamlit is in dev so CI runs the app tests (tests/test_streamlit_app.py).
 dev = [
     "pytest>=7,<10",
@@ -55,7 +55,7 @@ dev = [
     "ruff>=0.5,<1",
     "black>=24,<27",
     "pre-commit>=3,<5",
-    "streamlit>=1.32",
+    "streamlit>=1.51,<2",
 ]
 docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
 

@@ -150,12 +150,32 @@ def run_case(case: DatasetCase, tier: str) -> dict:
         "error_pct": err_pct,
         "predicted_knockdown": result.knockdown,
         "predicted_dpa_mm2": result.dpa_mm2,
+        "predicted_dent_mm": result.damage.dent_depth_mm,
+        "measured_dent_mm": case.measured_dent_mm,
         "note": case.note,
     }
 
 
 def run_dataset(cases: List[DatasetCase], tier: str) -> pd.DataFrame:
     return pd.DataFrame([run_case(c, tier) for c in cases])
+
+
+def dent_summary(df: pd.DataFrame) -> Optional[dict]:
+    """Predicted / measured dent depth over the cases with a positive measured
+    dent: ``{"n", "n_nonpositive", "median", "p10", "p90"}``, or None when the
+    dataset records no dent. Reported only; the dent is not gated."""
+    if "measured_dent_mm" not in df or df["measured_dent_mm"].isna().all():
+        return None
+    measured = pd.to_numeric(df["measured_dent_mm"], errors="coerce")
+    pos = measured > 0
+    ratio = df.loc[pos, "predicted_dent_mm"] / measured[pos]
+    return {
+        "n": int(pos.sum()),
+        "n_nonpositive": int((measured <= 0).sum()),
+        "median": float(ratio.median()) if len(ratio) else float("nan"),
+        "p10": float(ratio.quantile(0.1)) if len(ratio) else float("nan"),
+        "p90": float(ratio.quantile(0.9)) if len(ratio) else float("nan"),
+    }
 
 
 def _discover_datasets() -> List[Path]:
@@ -229,6 +249,14 @@ def main(argv: list[str] | None = None) -> int:
             f"MAE = {mae:.2f}%   max error = {max_err:.2f}%   "
             f"target = {target:.1f}%   gate-multiplier = {multiplier:g}"
         )
+        dent = dent_summary(df)
+        if dent is not None:
+            print(
+                f"dent (reported, not gated): median predicted / measured = "
+                f"{dent['median']:.2f} (10-90%: {dent['p10']:.2f}-{dent['p90']:.2f}) "
+                f"over {dent['n']} cases with a positive measured dent"
+                + (f"; {dent['n_nonpositive']} measured <= 0" if dent["n_nonpositive"] else "")
+            )
         if not meta["gate"]:
             print(f"ADVISORY: {name} is not gated. {meta['gate_note']}".rstrip())
         elif args.gate and mae > multiplier * target:

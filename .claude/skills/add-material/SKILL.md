@@ -50,10 +50,10 @@ Optional (leave as `None` for transverse-isotropic fallback):
 
 Optional calibration fields (`olsson_alpha`, `dent_beta`, `dent_gamma`,
 `fiber_break_eta`, `fiber_break_E_threshold`, `soutis_k_s`, `soutis_m`,
-`wn_d0_mm`, `puck_p_nt_plus`, `puck_p_nt_minus`) keep their defaults
+`wn_d0_mm`, `tai_notch_fraction`, `puck_p_nt_plus`, `puck_p_nt_minus`) keep their defaults
 unless the user has material-specific calibration data. The
 `soutis_k_s` default (4.8) is calibrated on the measured CAI datasets in
-`validation/datasets/`, and the `olsson_alpha` default (0.0865) on Lovejoy &
+`validation/datasets/`, and the `olsson_alpha` default (0.0855) on Lovejoy &
 Scotti's IM7/8552 C-scan areas; do not override either per material
 without measured data for that material (CAI strengths for `soutis_k_s`,
 C-scan damage areas for `olsson_alpha`, as for T800S/3900-2B), and check

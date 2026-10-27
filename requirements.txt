@@ -14,5 +14,5 @@ shapely>=2.0,<3
 pandas>=2.0,<3
 
 # --- Web app ---
-streamlit>=1.32
+streamlit>=1.51,<2
 plotly>=5.18
