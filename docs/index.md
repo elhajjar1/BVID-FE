@@ -82,15 +82,15 @@ the first two (ASTM D7136/D7137) are gated in CI:
 
 | Dataset | Material | Coupons | Empirical MAE | Semi-analytical MAE |
 | --- | --- | --- | --- | --- |
-| NCAMP CAM-RP-2010-002 | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 1.6% | 1.6% |
-| Lovejoy & Scotti (NASA LaRC 2019) | IM7/8552 quasi-isotropic at 54 J and hard laminate at 68 J | 8 | 8.7% | 8.7% |
-| Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.2% | 23.2% |
+| NCAMP CAM-RP-2010-002 | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 1.5% | 1.5% |
+| Lovejoy & Scotti (NASA LaRC 2019) | IM7/8552 quasi-isotropic at 54 J and hard laminate at 68 J | 8 | 8.8% | 8.8% |
+| Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 23.3% |
 
 MAE is the mean absolute error between predicted and measured CAI strength.
 These errors are in-sample: the Soutis constant `soutis_k_s` = 4.8 and the
-default damage-area constant `olsson_alpha` = 0.0865 were fitted to these two
+default damage-area constant `olsson_alpha` = 0.0855 were fitted to these two
 datasets. Fitted on one dataset alone, `soutis_k_s` predicts the other with
-an MAE of 4.9–8.7%, which is the error to expect on a new material or
+an MAE of 5.0–8.8%, which is the error to expect on a new material or
 layup. On the Hasebe coupons the predicted damage area matches the C-scans,
 but the tiers beat a constant knockdown (30.3%) only by 7–9 points: the
 damage-area-based knockdown misses the strong effect of layup. TAI is not

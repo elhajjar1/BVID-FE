@@ -10,9 +10,9 @@ buckled sublaminate grows its delamination (thin-film energy release rate
 against a mixed-mode toughness).
 
 On this 8-ply panel both tiers give 1.0 below the onset energy (about
-7 J), and they agree from about 13 J up (the Soutis bound governs); just
+0.8 J), and they agree from about 7 J up (the Soutis bound governs); just
 above onset the delamination growth stress is lower and semi_analytical
-gives the smaller knockdown (about 0.52 against 0.61 at 9.7 J).
+gives the smaller knockdown (about 0.53 against 0.63 at 3 J).
 
 fe3d is excluded because each energy point takes about 5 s at the
 default 5 mm mesh (it solves the damaged and the undamaged panel), and

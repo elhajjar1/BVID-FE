@@ -62,42 +62,111 @@ also bounds the delamination footprint (step 5).
    lower the measured load (González's 2- and 4-ply clusters: 7.6 and
    5.5 kN, predicted 1.11× and 1.51×), which the single-delamination
    formula does not see. `P_c` does not depend on the panel or the
-   impactor. The onset energy is `E_onset = P_c² / (2 k_cb)`, where `k_cb = 1 / (1/k_b + 1/k_c)`:
+   impactor.
+
+   The onset energy is the energy the plate and the contact store when
+   the load reaches `P_c` (`impact/olsson.py:onset_energy`):
+
+    ```text
+    P = k_b w + k_m w³        plate: deflection w under the impactor
+    P = K_c δⁿ                contact: indentation δ
+    E_onset = k_b w_c² / 2 + k_m w_c⁴ / 4 + P_c δ_c / (n + 1)
+    ```
+
+   where `w_c` is the real root of `k_b w + k_m w³ = P_c` and `δ_c` the
+   indentation at `P_c`. Both energies are the exact integrals `∫ P dw`
+   and `∫ P dδ`.
     - `k_b` is the point-load bending stiffness of the simply supported
       panel at the impact site (Navier series, 11 × 11 modes, using D11,
       D12, D22 and D66 only: D16, D26 and the coupling matrix B are
       ignored), times 1.0 (`simply_supported`), 2.5 (`clamped`) or 0.4
       (`free`, with a `UserWarning`). The 2.5 and 0.4 are uncalibrated
       round numbers, not solutions for those edges.
-    - `k_c` is a linear contact stiffness at `P_c`: the secant `P_c / δ`
-      of Hertz sphere-on-flat contact, `P = (4/3) E* √R δ^1.5`, for
-      `hemispherical` (`R` = diameter / 2); the constant `2 E* R` of a
-      flat punch for `flat`; and the tangent `dP/dδ` of Love's cone,
+    - `k_m` is the membrane (large-deflection) stiffness: the single-term
+      solution of the von Kármán plate equations for the panel deflected
+      in an assumed mode, with the stress function solved exactly for
+      that mode and the equilibrium equation satisfied in the Galerkin
+      sense (Levy 1942 for the isotropic simply supported plate; Chia 1980
+      for orthotropic laminates). Shivakumar, Elber & Illg (1985) and
+      Olsson use the same `k_b w + k_m w³` law for impacted plates. With
+      `a = A⁻¹` the membrane compliance, `α = π/Lx` and `β = π/Ly`:
+      - `simply_supported`: mode `sin(αx) sin(βy)`, edges free to move
+        in-plane but kept straight (an ASTM D7136 coupon lies on its
+        support window under four toggle clamps):
+        `k_m = (Lx Ly / 64) (α⁴ / a11 + β⁴ / a22)`. For an isotropic
+        square plate of side `L` this is `π⁴ E h / (32 L²)`.
+      - `clamped`: mode `sin²(αx) sin²(βy)`, edges held in-plane (gripped
+        between plates): a sum over the seven Fourier terms of the
+        mode's stress function plus the edge forces that cancel the edge
+        shortening, `(9 Lx Ly / 512) (A11 α⁴ + 2 A12 α² β² + A22 β⁴)`
+        (the formula is in `olsson.py`).
+      - `free`: `k_m` = 0.
+
+      An independent Ritz minimisation of the membrane energy over the
+      in-plane displacements gives the same coefficients
+      (`tests/impact/test_olsson_membrane.py`). Approximations: one
+      assumed mode (a point load deflects the plate more locally, and the
+      shape changes as membrane action grows); the membrane part uses the
+      mode while the bending part keeps the Navier `k_b`; A16, A26 and B
+      are ignored; the central-load value is used at every impact point
+      (one mode cannot represent a deflection concentrated near an edge);
+      and `P_c` is the small-deflection threshold load.
+    - The contact law is Hertz sphere-on-flat,
+      `P = (4/3) E* √R δ^1.5`, for `hemispherical` (`R` = diameter / 2),
+      a flat punch, `P = 2 E* R δ`, for `flat`, and Love's cone,
       `P = (2 E* tan α / π) δ²` with `α` = 30° from the axis, for
-      `conical`. `E*` combines a steel impactor (200 GPa, ν = 0.3) with
-      the ply's `E22` (ν = 0.3). With the secant, the Hertz contact energy
-      is `P_c δ / 2` rather than the exact `2 P_c δ / 5`.
+      `conical` (Johnson 1985). `E*` combines a steel impactor (200 GPa,
+      ν = 0.3) with the ply's `E22` (ν = 0.3). The contact energy
+      `P_c δ_c / (n + 1)` is `2 P_c δ_c / 5` for Hertz, `P_c δ_c / 2` for
+      the punch and `P_c δ_c / 3` for the cone.
 
-    Below `E_onset` the damage state is empty. On a simply supported
-    150 × 100 mm IM7/8552 panel struck by the 16 mm hemisphere `E_onset`
-    is about 7 J for 8- to 24-ply quasi-isotropic laminates (7.2 J for 8
-    plies, 6.6–6.9 J for 16, 7.4 J for 24) and 8.5 J on [0/90]2s (it was
-    0.6–0.9 J up to 0.2.0). Where bending dominates, `P_c² ∝ h³` and
-    `k_b ∝ h³`, so `E_onset` hardly changes with thickness. On the ASTM
-    D7136 125 × 75 mm window it is 4.7 J on NCAMP's 4.5 mm AS4/8552
-    coupons, and 6.1 and 8.3 J on Lovejoy & Scotti's 6.1 and 7.6 mm
-    IM7/8552 coupons (11–16% of the test energy); on Hasebe et al.'s clamped
-    60 × 60 mm window a median 2.5 J (up to 5.9 J).
+    Below `E_onset` the damage state is empty. Until the membrane term was
+    added the plate was linear, `E_onset = P_c² / (2 k_cb)` with
+    `k_cb = 1 / (1/k_b + 1/k_c)` and a contact stiffness linearised at
+    `P_c` (the Hertz secant, which stores `P_c δ / 2` instead of
+    `2 P_c δ / 5`, and the cone's tangent, `P_c δ / 4` instead of
+    `P_c δ / 3`). A thin or large plate deflects many times its thickness
+    before `P_c` on the linear law, where membrane stretching carries most
+    of the load, so the linear onset grew with the panel area. IM7/8552,
+    16 mm hemisphere, simply supported unless noted (`w_c / h` is the
+    deflection at `P_c` over the thickness, linear law in brackets):
 
-    `k_b` is the linear (small-deflection) plate stiffness. At `P_c` a
-    thin plate deflects by about its own thickness (8-ply coupons on the
-    60 mm window), where membrane stretching stiffens it, so the model
-    overestimates `E_onset` on thin plates; Olsson's membrane term
-    (`k_m w³`) is not modelled. The linearised cone contact also gives a
-    cone a higher onset than a hemisphere: three of Hasebe et al.'s 24-ply
-    cross-ply specimens struck by the 60° cone at 1.1 J/mm (5.0 J, against
-    an onset of 5.7–5.8 J) show 62–72 mm² of damage where the model
-    predicts none.
+    | Laminate, panel | `w_c / h` | `E_onset` linear | Now |
+    |---|---|---|---|
+    | 8-ply QI [0/45/−45/90]s, 150 × 100 mm | 2.6 (13.9) | 7.2 J | 0.84 J |
+    | 8-ply [0/90]2s, 150 × 100 mm | 2.4 (15.8) | 8.5 J | 0.79 J |
+    | 16-ply QI [0/45/−45/90]4, 150 × 100 mm | 1.2 (2.0) | 6.6 J | 3.3 J |
+    | 24-ply QI [0/45/−45/90]3s, 150 × 100 mm | 0.64 (0.77) | 7.4 J | 5.7 J |
+    | 16-ply QI, 150 × 100 mm, clamped | 0.66 (0.80) | 2.8 J | 2.1 J |
+    | 8-ply QI, 300 × 200 mm | 4.4 (56) | 29 J | 1.2 J |
+    | 16-ply QI, 500 × 500 mm | 4.4 (38) | 122 J | 8.1 J |
+    | NCAMP AS4/8552 coupons, 125 × 75 mm window (median) | | 4.65 J | 4.27 J |
+    | Lovejoy & Scotti IM7/8552 coupons, same window (median) | | 7.2 J | 6.5 J |
+    | Hasebe et al. T800S/3900-2B, 60 × 60 mm clamped window (median) | | 2.5 J | 2.3 J |
+
+    The onset now grows with thickness (`P_c² ∝ h³` while the membrane
+    stiffness grows only as `h`) and only slowly with the panel size. The
+    validation coupons are thick for their windows (`w_c / h` = 0.28 on
+    NCAMP's, 0.10–0.12 on Lovejoy & Scotti's, a median 0.16 on Hasebe
+    et al.'s), so their onset falls by 5–10%, mostly from the exact Hertz
+    energy: of the median drop, the membrane term is 0.21 of 0.38 J
+    (NCAMP), 0.03 of 0.67 J (Lovejoy & Scotti) and 0.02 of 0.23 J (Hasebe
+    et al.). Up to 0.2.0, with `P_c` 3.5× too low, the onset was
+    0.6–0.9 J on 150 × 100 mm panels.
+
+    The cone's contact is the softest, and with the exact contact energy
+    its onset is now further above the hemisphere's: 7.0 J against 5.7 J
+    before on the 24-ply Hasebe et al. cross-ply specimens, where the
+    elastic cone indents 1.7 mm at `P_c` and the contact stores 5.2 J.
+    Three of those specimens struck by the 60° cone at 1.1 J/mm (5.0 J)
+    show 62–72 mm² of damage where the model predicts none, as it did
+    before (the membrane term is negligible there, `w_c / h` = 0.09). The
+    data have no specimen near the predicted onset to check it against:
+    Hasebe et al.'s lowest level is 1.1 J/mm (24-ply only), and their 14
+    undamaged specimens (11 struck by the flat-ended impactor, 3 by the
+    25.4 mm hemisphere) were struck at 2.2–5.9× the predicted onset (the
+    model predicts damage for all of them, as it did with the linear
+    plate).
 
 2. **Damage area.** The target projected damage area is
 
@@ -107,15 +176,17 @@ also bounds the delamination footprint (step 5).
 
     in mm². It is an energy balance: a fraction `α = olsson_alpha` of the
     impact energy above onset goes into mode-II delamination. The default
-    0.0865 is fitted to the median of Lovejoy & Scotti's eight IM7/8552
-    C-scan areas. T800S/3900-2B (interlayer-toughened) has 0.0648, fitted
+    0.0855 is fitted to the median of Lovejoy & Scotti's eight IM7/8552
+    C-scan areas. T800S/3900-2B (interlayer-toughened) has 0.0605, fitted
     to Hasebe et al.'s quasi-isotropic laminates struck by the 12.7 mm
     hemisphere; over the 329 of their 343 specimens with a measured area
-    the median predicted / measured area is 1.01× (per-layup medians
-    0.78–1.13×). Both were refitted when the threshold load of step 1 was
-    corrected (they were 0.078 and 0.047 with an onset energy about 10×
-    too low; most test energies are 5–20× the onset, so `α` absorbed most
-    of the error). The fit and the check share data: only the 291 specimens
+    the median predicted / measured area is 1.03× (per-layup medians
+    0.77–1.26×, the highest on the thinnest cross-ply, c8). Both were
+    refitted when the threshold load of step 1 was corrected (they were
+    0.078 and 0.047 with an onset energy about 10× too low; most test
+    energies are 5–20× the onset, so `α` absorbed most of the error), and
+    again when the membrane term and the exact contact energy were added
+    to the onset (0.0865 and 0.0648 with the linear plate). The fit and the check share data: only the 291 specimens
     outside the 38 used for `α` are out of sample, and the same specimens
     set the impactor factors below.
 
@@ -129,27 +200,31 @@ also bounds the delamination footprint (step 5).
 
     `m` is the impactor mass (kg), `D` its diameter (mm; the diameter
     factor is 1 for a cone, whose contact is set by its angle) and
-    `f_shape` = 1.0 (hemispherical), 0.2 (flat) or 1.5 (conical). `f_shape`
+    `f_shape` = 1.0 (hemispherical), 0.2 (flat) or 1.9 (conical). `f_shape`
     and the exponent 0.2 are fitted to Hasebe et al. (2025), the only open
     data that vary the impactor on one material: over same-layup,
     same-energy groups a 15.9 mm flat-ended impactor left 0.20× and a 60°
     cone 1.20× the C-scan area of a 12.7 mm hemisphere, and 25.4 and
     31.8 mm hemispheres 0.88× and 0.87×. The tip also sets the onset
-    energy through `k_c` (the cone's is the highest), so the factors are
-    fitted to make the model's predicted / measured area for each tip match
-    the 12.7 mm hemisphere's in the same groups: 0.21 → 0.2 (flat), 1.54 →
-    1.5 (cone); the diameter ratios moved by under 5% with the corrected
-    onset, so the exponent stays 0.2. The per-impactor median predicted /
-    measured area is then 0.96–1.05×. At the ASTM D7136 reference
+    energy through the contact energy (the cone's is the highest), so the
+    factors are fitted to make the model's predicted / measured area for
+    each tip match the 12.7 mm hemisphere's in the same groups: 0.22 → 0.2
+    (flat), 1.86 → 1.9 (cone; 1.54 → 1.5 with the linearised contact,
+    whose cone stored a quarter of `P_c δ` rather than a third); the
+    diameter ratios moved by under 5% with the corrected onset (1.03 and
+    1.26 for the 25.4 and 31.8 mm hemispheres now), so the exponent stays
+    0.2. The per-impactor median predicted / measured area is then
+    0.94–1.07×. At the ASTM D7136 reference
     (5.5 kg, 16 mm, hemispherical) the three correction factors are 1. DPA
     is capped at 80% of the panel area (`DPACapClipWarning`). On a
     150 × 100 mm IM7/8552 panel the area grows by about 110 mm² per joule
-    above onset (none at 5 J, 290–370 mm² at 10 J and 2,500 mm² at 30 J on
-    8- to 24-ply quasi-isotropic laminates). The footprint confinement of
-    step 5 then caps it below the 12,000 mm² limit, at a value set by the
-    layup: about 11,200–11,300 mm² from 109–111 J on symmetric
-    quasi-isotropic laminates, 9,990 mm² from about 98 J on
-    [0/45/−45/90]4 and 8,560 mm² from about 87 J on [0/90]2s. The
+    above onset (on 8- to 24-ply quasi-isotropic laminates 0–450 mm² at
+    5 J, 470–990 mm² at 10 J and 2,640–3,160 mm² at 30 J, the thinnest
+    the largest). The footprint confinement of step 5 then caps it below
+    the 12,000 mm² limit, at a value set by the layup: about 11,500 mm²
+    from 107–112 J on symmetric quasi-isotropic laminates, 10,410 mm²
+    from about 99 J on [0/45/−45/90]4 and 6,490 mm² from about 61 J on
+    [0/90]2s. The
     mass factor uses the impacted panel's mass (`rho · Lx · Ly · h`), and
     a `SmallMassQuasiStaticWarning` is raised when the impactor is lighter
     than it.
@@ -164,23 +239,26 @@ also bounds the delamination footprint (step 5).
    and the measured dents here agree: one `(β, γ)` serves the untoughened
    IM7/8552 and the interlayer-toughened T800S/3900-2B, and neither
    thickness nor `G_Ic` is in the law. On a 16-ply (2.4 mm) IM7/8552
-   panel at 20 J (6.6 J onset) the dent is 0.19 mm; on Lovejoy & Scotti's
-   6.1 and 7.6 mm coupons at 54 and 68 J, 0.40 and 0.45 mm (measured
+   panel at 20 J (3.3 J onset) the dent is 0.22 mm; on Lovejoy & Scotti's
+   6.1 and 7.6 mm coupons at 54 and 68 J, 0.40 and 0.46 mm (measured
    0.36–0.41 and 0.43–0.48 mm).
    The constants are a log least-squares fit to the positive measured
    dents of the hemispherical cases (8 Lovejoy & Scotti coupons, 210
    Hasebe et al. specimens, each dataset weighted equally), with `E_onset`
-   computed by the code (`validation/README.md`, *Dent depth*). Median
-   predicted / measured is 1.00 on Lovejoy & Scotti (0.95–1.10) and 0.96
+   computed by the code (`validation/README.md`, *Dent depth*); they were
+   fitted with the linear-plate onset energy and kept with the
+   membrane-stiffened one, which moves the fit to 0.039 mm/J^0.60 but the
+   medians below by under 3%. Median
+   predicted / measured is 1.01 on Lovejoy & Scotti (0.96–1.10) and 0.94
    on the 308 Hasebe et al. specimens with a positive dent (10–90%:
-   0.48–1.42; hemispherical 0.96, cone 0.98). Fitted on Hasebe et al.
-   alone, the law predicts Lovejoy & Scotti at 1.15×; fitted on Lovejoy &
-   Scotti (with Hasebe's exponent), Hasebe at 0.83×. The scatter within
-   Hasebe et al. is a factor of about 1.7 (log-sd 0.53), and the law does
+   0.52–1.44; hemispherical 0.99, cone 0.91). Fitted on Hasebe et al.
+   alone, the law predicts Lovejoy & Scotti at 1.38×; fitted on Lovejoy &
+   Scotti (with Hasebe's exponent), Hasebe at 0.71×. The scatter within
+   Hasebe et al. is a factor of about 1.7 (log-sd 0.54), and the law does
    not carry the impactor diameter: the 12.7, 25.4 and 31.8 mm
-   hemispheres are predicted at 0.75, 1.07 and 1.42× their dents. The
-   cap binds on none of the measured cases (the cone on the 1.5 mm 8-ply
-   laminates at 5.2 J reaches it to within 0.1%); 18 of those cone
+   hemispheres are predicted at 0.78, 1.12 and 1.44× their dents. The
+   cap binds on seven of the measured cases (the cone on the 1.5 mm 8-ply
+   laminates at 5.2 J, up to 1.04× the cap uncapped); 18 of those cone
    dents exceed `h / 2` (up to 1.2 h), so on thin laminates struck by a
    sharp impactor the cap under-predicts. The dent is the
    as-measured depth: dents relax with time, moisture and temperature
@@ -328,16 +406,17 @@ validated, and `AnalysisResults.notes` says so on every closed-form TAI
 run.
 
 On 150 × 100 mm IM7/8552 panels (0.152 mm plies, 16 mm hemisphere,
-5.5 kg; below the onset energy, about 7 J here, both knockdowns are 1):
+5.5 kg; below the onset energy, 0.8 J on the 8-ply and 3.2 J on the
+16-ply laminates here, both knockdowns are 1):
 
-| Laminate | Loading | 10 J | 15 J | 30 J |
-|---|---|---|---|---|
-| 8-ply QI [0/45/−45/90]s | TAI | 0.918 | 0.835 | 0.712 |
-| | CAI | 0.593 | 0.466 | 0.338 |
-| 16-ply QI [0/45/−45/90]2s | TAI | 0.903 | 0.812 | 0.687 |
-| | CAI | 0.589 | 0.465 | 0.337 |
-| 8-ply cross-ply [0/90]2s | TAI | 0.940 | 0.858 | 0.764 |
-| | CAI | 0.667 | 0.489 | 0.345 |
+| Laminate | Loading | 5 J | 10 J | 15 J | 30 J |
+|---|---|---|---|---|---|
+| 8-ply QI [0/45/−45/90]s | TAI | 0.892 | 0.819 | 0.771 | 0.684 |
+| | CAI | 0.546 | 0.448 | 0.395 | 0.312 |
+| 16-ply QI [0/45/−45/90]2s | TAI | 0.932 | 0.829 | 0.768 | 0.669 |
+| | CAI | 0.646 | 0.485 | 0.417 | 0.321 |
+| 8-ply cross-ply [0/90]2s | TAI | 0.886 | 0.835 | 0.802 | 0.733 |
+| | CAI | 0.544 | 0.447 | 0.394 | 0.312 |
 
 TAI now falls with energy and stays above CAI, the usual test trend. The
 earlier model sized the hole from the whole footprint (`R = √(DPA / π)`,
@@ -346,8 +425,8 @@ its knockdown sat near the large-hole limit `1 / K_T∞` at every BVID
 energy (QI 0.41 at 10 J, 0.36 at 30 J; cross-ply 0.40 and 0.24), below
 the CAI knockdown, and it scored 57% against the Körbelin coupons. The
 point-stress form also makes the higher-`K_T∞` cross-ply laminate keep
-more strength than the quasi-isotropic one at these small holes: its
-stress concentration decays faster from the hole edge.
+more strength than the quasi-isotropic one from 10 J, at these small
+holes: its stress concentration decays faster from the hole edge.
 
 ## Semi-analytical tier
 
@@ -428,27 +507,28 @@ With an empty damage state the tier returns `σ₀`.
 With the calibrated `soutis_k_s`, the Soutis bound governs on many
 configurations. On 150 × 100 mm IM7/8552 panels (8-ply QI
 [0/45/−45/90]s, 16-ply QI [0/45/−45/90]4 as in the synthetic dataset,
-and 8-ply cross-ply [0/90]2s; 0.152 mm plies, 10–30 J; below about 7 J
-there is no damage) the growth knockdown is 0.39–0.60 and the Soutis
-knockdown 0.34–0.67. Growth governs on the 8-ply QI panel at 10 J (0.508
-against 0.593), on the 16-ply QI panel at 10 J (0.566 against 0.571) and
-on the cross-ply panel at 10–20 J (0.39–0.56 against 0.42–0.67); Soutis
-governs elsewhere. (On the symmetric 16-ply [0/45/−45/90]2s growth also
-governs at 10 J, 0.505 against 0.581.)
+and 8-ply cross-ply [0/90]2s; 0.152 mm plies, 10–30 J; the onset energy
+is 0.8 J on the 8-ply and 3.3 J on the 16-ply panels) the growth
+knockdown is 0.39–0.60 and the Soutis knockdown 0.31–0.49. Growth
+governs only on the cross-ply panel at 10–15 J (0.389 and 0.388 against
+0.447 and 0.394); Soutis governs elsewhere. Closer to onset, at 5 J,
+growth governs all three (8-ply QI 0.500 against 0.546, 16-ply QI 0.556
+against 0.651, cross-ply 0.424 against 0.544; the symmetric 16-ply
+[0/45/−45/90]2s 0.555 against 0.650).
 
 **The growth channel is effectively unvalidated.** On the NCAMP and
 Lovejoy & Scotti validation cases (`validation/datasets/`), the two
 gated measured datasets, Soutis governs every coupon (growth stress
-221–223 MPa against a 176 MPa Soutis bound on NCAMP, 234–236 against
-158 MPa on the Lovejoy & Scotti quasi-isotropic coupons, and 252
-against 226 MPa on their 40-ply hard laminate), so the two tiers give
+222–224 MPa against a 176–177 MPa Soutis bound on NCAMP, 218–219
+against 156 MPa on the Lovejoy & Scotti quasi-isotropic coupons, and 251–252
+against 224 MPa on their 40-ply hard laminate), so the two tiers give
 the same CAI strengths there and the gate never exercises the growth
-stress. Growth governs on 225 of Hasebe et al.'s 343 coupons (every
-cross-ply and hard-laminate r0 coupon, and 41 of the 132
+stress. Growth governs on 238 of Hasebe et al.'s 343 coupons (153 of the
+157 cross-ply coupons, every hard-laminate r0 coupon, and 58 of the 132
 quasi-isotropic ones; no soft r45 coupon), and there it makes the prediction worse: on
-those 225 the MAE is 25.0% against 21.9% for the empirical tier (on the
-other 118 both are 20.1%), so the semi-analytical tier scores 23.3%
-against 21.3% over the whole set.
+those 238 the MAE is 24.9% against 22.3% for the empirical tier (on the
+other 105 both are 19.8%), so the semi-analytical tier scores 23.3%
+against 21.5% over the whole set.
 
 ## 3D FE tier
 
@@ -660,7 +740,7 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension at 30 J: 0.298 against empirical 0.69–0.73, see
+  zone (16-ply QI tension at 30 J: 0.298 against empirical 0.67–0.72, see
   [Limitations](#limitations)), but its damage-zone stiffness is fitted to
   only three CAI coupons. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
@@ -671,10 +751,10 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 
 - `soutis_k_s` (4.8) is calibrated on two measured CAI datasets (AS4/8552 and
   IM7/8552, both on the 8552 matrix; see `validation/README.md`). Fitted on
-  either dataset alone it predicts the other within 4.9–8.7%, so expect
+  either dataset alone it predicts the other within 5.0–8.8%, so expect
   errors of that order on a new material or layup. The default
-  `olsson_alpha` (0.0865) is fitted to Lovejoy & Scotti's C-scan areas, the
-  T800S/3900-2B value (0.0648) and the impactor shape and diameter factors
+  `olsson_alpha` (0.0855) is fitted to Lovejoy & Scotti's C-scan areas, the
+  T800S/3900-2B value (0.0605) and the impactor shape and diameter factors
   to Hasebe et al.'s, and `dent_beta` and `dent_gamma` to both datasets'
   measured dents. The other calibration constants (`soutis_m`,
   `wn_d0_mm`, the impactor mass factor, the boundary factors, the mixed-mode phase angle and B-K exponent, and the
@@ -704,12 +784,12 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   sensitive to `d₀`. See [Empirical tier](#empirical-tier).
 - **The CAI delamination-growth channel is effectively unvalidated.**
   Soutis governs every coupon of the two gated measured datasets, and on Hasebe
-  et al.'s set, where growth governs 225 of 343 coupons, it raises the
-  error (25.0% against 21.9% on those coupons); see
+  et al.'s set, where growth governs 238 of 343 coupons, it raises the
+  error (24.9% against 22.3% on those coupons); see
   [Semi-analytical tier](#semi-analytical-tier).
 - **The dent depth is an empirical fit with a factor-of-1.7 scatter.**
   `dent_beta` and `dent_gamma` are fitted to two datasets (IM7/8552 and
-  T800S/3900-2B; median predicted / measured 1.00 and 0.96), the shape
+  T800S/3900-2B; median predicted / measured 1.01 and 0.94), the shape
   factors to Hasebe et al. alone, and the impactor diameter is not in the
   law (step 3 of the [impact mapping](#impact-to-damage-mapping)). It is
   the as-measured dent, before relaxation; no tier uses it.
@@ -738,10 +818,10 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  far below the empirical tier's (16-ply QI 0.298 against 0.69–0.73,
-  24-ply QI 0.314 against 0.68–0.74, the range spanning the symmetric
+  far below the empirical tier's (16-ply QI 0.298 against 0.67–0.72,
+  24-ply QI 0.314 against 0.67–0.73, the range spanning the symmetric
   [0/45/−45/90]ns and the repeated [0/45/−45/90]2n stacking); the damage area
-  there (about 2,500–2,570 mm²) is far below its 80%-of-panel cap. A damage area
+  there (about 2,640–2,900 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
@@ -826,6 +906,12 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   Manes, A. & Giglio, M. (2016). Analytical model to describe damage in
   CFRP specimen when subjected to low velocity impacts. *Procedia
   Engineering*, 167, 2-9.
+- Levy, S. (1942). Bending of rectangular plates with large deflections.
+  NACA Report 737.
+- Chia, C.Y. (1980). *Nonlinear Analysis of Plates*. McGraw-Hill.
+- Shivakumar, K.N., Elber, W. & Illg, W. (1985). Prediction of impact
+  force and duration due to low-velocity impact on circular composite
+  laminates. *Journal of Applied Mechanics*, 52(3), 674-680.
 - Soutis, C. (1996). Compressive strength of unidirectional composites:
   measurement and prediction. *ASTM STP*, 1242, 168-176.
 - Whitney, J.M. & Nuismer, R.J. (1974). Stress fracture criteria for

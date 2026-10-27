@@ -73,16 +73,19 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # (7824 -> 1855 mm^2) with soutis_k_s = 4.7 and the fixed
             # reference area: 0.377. Corrected Olsson threshold load (onset
             # 1.2 -> 14.3 J on this panel; DPA 1855 -> 628 mm^2) with
-            # olsson_alpha 0.0865 and soutis_k_s 4.8: 0.505.
-            "knockdown": 0.5045652386609865,
-            "residual_strength_MPa": 303.38835202806507,
+            # olsson_alpha 0.0865 and soutis_k_s 4.8: 0.505. Membrane
+            # stiffening in the onset energy and the exact Hertz contact
+            # energy (onset 14.3 -> 4.2 J; DPA 628 -> 1706 mm^2) with
+            # olsson_alpha 0.0855: 0.382.
+            "knockdown": 0.3818772887019627,
+            "residual_strength_MPa": 229.61772317826598,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 627.6927028441303,
+            "dpa_mm2": 1705.7309324242271,
             "tier_used": "empirical",
         },
     ),
     (
-        "semi_analytical_quasi_iso_quad_22J",
+        "semi_analytical_quasi_iso_quad_10J",
         [
             "--tier",
             "semi_analytical",
@@ -97,7 +100,7 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             "--loading",
             "compression",
             "--energy",
-            "22",
+            "10",
         ],
         {
             # Recaptured when the sublaminate channel changed from buckling
@@ -111,11 +114,12 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # 0.469. With the corrected Olsson threshold load the onset is
             # 14.3 J on this panel and 10 J leaves no damage, so the case
             # moved to 22 J (DPA 847 mm^2, close to the 868 mm^2 at 10 J
-            # before): 0.467.
-            "knockdown": 0.46720340120844095,
-            "residual_strength_MPa": 280.92317721033606,
+            # before): 0.467. With membrane stiffening in the onset energy
+            # (onset 4.2 J) it is back at 10 J (DPA 623 mm^2): 0.503.
+            "knockdown": 0.5034915393489804,
+            "residual_strength_MPa": 302.74275094443186,
             "pristine_strength_MPa": 601.2866697539372,
-            "dpa_mm2": 846.6807392998476,
+            "dpa_mm2": 623.454803186882,
             "tier_used": "semi_analytical",
         },
     ),
@@ -148,11 +152,14 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # the Brent tolerance (knockdown +8e-6). Then the TAI hole became
             # the fibre damage (0.05 x the 40.2 mm footprint width, 2.0 mm)
             # instead of the whole footprint (30.0 mm), with the finite-width
-            # correction: 0.290 -> 0.859 (DPA unchanged).
-            "knockdown": 0.8586916182735396,
-            "residual_strength_MPa": 961.3624673776544,
+            # correction: 0.290 -> 0.859 (DPA unchanged). Membrane stiffening
+            # in the onset energy (onset 8.6 -> 1.3 J; DPA 706 -> 1483 mm^2)
+            # and olsson_alpha 0.0855 widen the footprint to 58.2 mm (2.9 mm
+            # hole): 0.805.
+            "knockdown": 0.8053419922369562,
+            "residual_strength_MPa": 901.6340072078395,
             "pristine_strength_MPa": 1119.566613810138,
-            "dpa_mm2": 705.904180099177,
+            "dpa_mm2": 1483.099134369824,
             "tier_used": "empirical",
         },
     ),

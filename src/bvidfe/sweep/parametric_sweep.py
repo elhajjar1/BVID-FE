@@ -258,7 +258,7 @@ def sweep_energies(
     ...                      impact=ImpactEvent(energy_J=10.0))
     >>> df = sweep_energies(cfg, [5, 10, 20])
     >>> df["knockdown"].round(2).tolist()
-    [1.0, 0.59, 0.41]
+    [0.55, 0.45, 0.36]
     """
     _check_on_error(on_error)
     if base_cfg.impact is None:

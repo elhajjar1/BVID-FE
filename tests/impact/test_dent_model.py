@@ -155,7 +155,7 @@ def _predicted_dents(stem):
 
 def test_dent_fit_lovejoy_scotti():
     """Median predicted / measured dent on the 8 IM7/8552 coupons (fitted:
-    1.00; 8.2 with the old law). The band leaves room for onset-energy
+    1.01; 8.2 with the old law). The band leaves room for onset-energy
     changes: the law is fitted on E - E_onset, and halving the onset moves
     this median by under 4%."""
     rows = _predicted_dents("lovejoy_scotti_im7_8552_cai")
@@ -168,8 +168,8 @@ def test_dent_fit_lovejoy_scotti():
 
 def test_dent_fit_hasebe():
     """Median predicted / measured dent over the 308 Hasebe et al. specimens
-    with a positive measured dent (fitted: 0.96 overall, 0.96 hemispherical,
-    0.98 conical; 9.0 with the old law); 0.81-1.09 for onset energies 0.5-1.5x
+    with a positive measured dent (fitted: 0.94 overall, 0.99 hemispherical,
+    0.91 conical; 9.0 with the old law); 0.77-1.09 for onset energies 0.5-1.5x
     the current one."""
     rows = _predicted_dents("hasebe_t800s_3900_2b_cai")
     assert len(rows) == 308
@@ -178,5 +178,9 @@ def test_dent_fit_hasebe():
     for shape in ("hemispherical", "conical"):
         r = [p / m for p, m, _, s in rows if s == shape]
         assert 0.8 < statistics.median(r) < 1.2, shape
-    # The h / 2 cap binds on none of them.
-    assert all(p < 0.5 * h for p, _, h, _ in rows)
+    # The h / 2 cap binds only on thin laminates struck by the cone (seven
+    # 8-ply specimens at 5.2 J), whose measured dents exceed h / 2 as well.
+    capped = [(p, m, h) for p, m, h, s in rows if p >= 0.5 * h]
+    assert len(capped) <= 10
+    assert all(s == "conical" for p, _, h, s in rows if p >= 0.5 * h)
+    assert all(m > 0.5 * h for _, m, h in capped)

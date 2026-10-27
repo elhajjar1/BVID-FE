@@ -264,4 +264,4 @@ def test_dent_summary_is_reported_not_gated(capsys):
 
     assert v.main(["--dataset", "lovejoy_scotti_im7_8552_cai", "--gate"]) == 0
     out = capsys.readouterr().out
-    assert "dent (reported, not gated): median predicted / measured = 1.00" in out
+    assert "dent (reported, not gated): median predicted / measured = 1.01" in out

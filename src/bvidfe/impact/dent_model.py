@@ -9,8 +9,9 @@ from bvidfe.core.material import OrthotropicMaterial
 # Dent depth of a flat-ended or 60 deg conical impactor relative to a
 # hemispherical one at the same energy above onset. Fitted to Hasebe et al.
 # (2025), T800S/3900-2B: the cone's median measured / hemispherical-law ratio
-# is 8.6 (92 specimens); 34 of the 40 flat-ended dents are recorded as 0, and
-# 0.03 matches their mean (0.0034 mm).
+# is 8.6 (92 specimens; with the membrane-stiffened onset energy the law as
+# used predicts the cone dents at a median 0.91x); 34 of the 40 flat-ended
+# dents are recorded as 0, and 0.03 matches their mean (0.0034 mm).
 _DENT_SHAPE_FACTOR = {"hemispherical": 1.0, "conical": 8.5, "flat": 0.03}
 
 
@@ -37,7 +38,8 @@ def dent_depth_mm(
     raw = m.dent_beta * (E_impact_J - E_onset_J) ** m.dent_gamma
     raw *= _DENT_SHAPE_FACTOR.get(shape, 1.0)
     # Safety bound: a dent deeper than half the laminate is perforation, not
-    # BVID. It does not bind on any measured case with the fitted constants.
+    # BVID. Of the measured cases it binds only on seven 8-ply laminates
+    # struck by the cone at 5.2 J, whose measured dents exceed h / 2 too.
     return min(raw, 0.5 * h_mm)
 
 
