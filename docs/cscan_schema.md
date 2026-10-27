@@ -44,7 +44,7 @@ Each delamination object (all five fields required):
 The file has no field for the impacted face; the convention comes from
 the layup order. Ply 0 is the first entry of `layup_deg`. It lies at
 `z = −h/2` in the classical-lamination stack and at `z = 0` in the fe3d
-mesh (where the whole `z = 0` face is held at `u_z = 0`). The impact
+mesh. The impact
 model (`impact_to_damage`) treats ply 0 as the impact face: its
 delaminations grow from interface 0 (smallest) to interface `n − 2`
 (largest, back face). So list `layup_deg` starting from the impacted
