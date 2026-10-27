@@ -843,8 +843,9 @@ with st.sidebar:
                 "Panel edge support. Scales the plate bending stiffness in "
                 "the Olsson onset model (clamped 2.5×, free 0.4× simply "
                 "supported) and the sublaminate and panel buckling loads "
-                "(clamped 1.9×, free 0.5×), and sets the out-of-plane edge "
-                "restraint in fe3d. The Soutis and Whitney-Nuismer "
+                "(clamped 1.9×, free 0.5×), and so the delamination growth "
+                "stress in semi_analytical and fe3d; it does not change "
+                "fe3d's first-ply-failure solve. The Soutis and Whitney-Nuismer "
                 "knockdowns see it only through the damage area. 'free' is "
                 "a crude approximation — interpret qualitatively."
             ),
