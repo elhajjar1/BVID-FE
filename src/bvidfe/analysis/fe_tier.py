@@ -6,7 +6,8 @@ The CAI residual is the minimum of two channels:
 - the far-field stress at which the weakest buckled sublaminate grows its
   delamination (delegated to :mod:`bvidfe.analysis.semi_analytical`).
 
-The TAI residual is first-ply failure alone, Tsai-Wu.
+The TAI residual is first-ply failure alone, Tsai-Wu, with the damage
+zone's fibre-direction stiffness intact (see below).
 
 First-ply failure: one linear static solve of the structured hex mesh
 (:mod:`bvidfe.analysis.fe_mesh`) at a reference end strain along x, scaled
@@ -14,7 +15,10 @@ analytically to the load at which the failure index reaches 1. The damage
 zone (every ply under the union of the delamination footprints) is softened
 in-plane by ``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``, each element weighted by
 the fraction of its area inside the zone, and its elements see the effective
-stress of strain equivalence. The failure index, in each ply's material
+stress of strain equivalence. In compression the factor scales the whole
+in-plane stiffness; in tension only its matrix-dominated terms, since
+delaminations and matrix cracks cut no fibres, so the zone's fibres keep
+their stiffness and tension strength. The failure index, in each ply's material
 frame, is averaged over each element's Gauss points and then over a disk
 of ``FPF_AVERAGING_RADIUS_MM`` (2.5 mm) in the same through-thickness
 layer, each element weighted by its area inside the disk, before it is
@@ -54,7 +58,7 @@ from bvidfe.analysis.fe_mesh import (
 )
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
-from bvidfe.elements.hex8 import Hex8Element, build_geometry_table
+from bvidfe.elements.hex8 import Hex8Element, _T_sigma_z, build_geometry_table
 from bvidfe.failure.larc05 import larc05_index, larc05_index_batch
 from bvidfe.failure.puck import puck_index, puck_index_batch
 from bvidfe.failure.tsai_wu import tsai_wu_index, tsai_wu_index_batch
@@ -215,12 +219,29 @@ def _guard_problem_size(cfg: AnalysisConfig) -> None:
 _INPLANE_VOIGT = np.array([0, 1, 5])
 
 
-def _build_elements(mesh: FeMesh, lam: Laminate) -> List[Hex8Element]:
+def _build_elements(mesh: FeMesh, lam: Laminate, tension: bool = False) -> List[Hex8Element]:
     """Build a Hex8Element for each mesh element with component-wise damage scaling.
 
     Two factors are applied to the 6x6 elasticity matrix:
       - `mesh.damage_factors[e]` scales OOP and in-plane/OOP cross terms
       - `mesh.in_plane_damage_factors[e]` scales the in-plane sub-block
+
+    Without ``tension`` (compression, the default) the in-plane sub-block is
+    scaled uniformly in the global frame. With ``tension`` an element with
+    in-plane damage is softened in its ply frame, on the compliance as in
+    continuum damage models (Matzenmiller, Lubliner & Taylor 1995; Maimi
+    et al. 2007): the transverse and in-plane shear compliances S22 and S66
+    are divided by the in-plane factor and the fibre compliance S11 by
+    ``mesh.fiber_tension_factors[e]`` (1 outside the fiber-break core),
+    S33, S44 and S55 by the out-of-plane factor, with the Poisson terms
+    kept. The damage zone thus keeps its fibre-direction stiffness and
+    Poisson contraction, and a [0] ply pulled along its fibres in it sees
+    the strain, and so the stress, of an intact one. Masking the stiffness
+    terms instead (as compression does) left the in-plane /
+    through-thickness Poisson coupling unsoftened and loaded the matrix of
+    such a ply: a [0]_4 coupon inside the zone failed in tension at 0.70
+    of its intact load. Such elements also get ``effective_stress_divisors``
+    (see ``_failure_stress_material``).
     """
     elements: List[Hex8Element] = []
     # On the regular cuboid grid produced by build_fe_mesh, every element of a
@@ -229,6 +250,7 @@ def _build_elements(mesh: FeMesh, lam: Laminate) -> List[Hex8Element]:
     # ply index AND element geometry — the latter keeps mixed-thickness plies,
     # issue #5/PR#13, correct) and share it across that ply's elements.
     geom_cache: dict[tuple, object] = {}
+    compliance = lam.material.get_compliance_matrix() if tension else None
     for eidx in range(mesh.n_elements):
         node_ids = mesh.element_connectivity[eidx]
         node_coords = mesh.node_coords[node_ids]
@@ -254,9 +276,33 @@ def _build_elements(mesh: FeMesh, lam: Laminate) -> List[Hex8Element]:
         # in-plane sub-block on rows/cols {0, 1, 5} with f_ip.
         mask = np.full((6, 6), f_oop)
         mask[np.ix_(_INPLANE_VOIGT, _INPLANE_VOIGT)] = f_ip
-        elem._C_global = elem._C_global * mask
+        f_fibre = float(mesh.fiber_tension_factors[eidx])
+        if not tension or (f_ip >= 1.0 and f_fibre >= 1.0):
+            # A uniform in-plane factor commutes with the rotation about z,
+            # so the mask applies in the global frame.
+            elem._C_global = elem._C_global * mask
+        else:
+            elem._C_global = _tension_damaged_stiffness(compliance, ply_angle, f_fibre, f_ip, f_oop)
+            # Read by _failure_stress_material: effective stress = ply-frame
+            # stress / (1 - d) componentwise.
+            elem.effective_stress_divisors = np.array([f_fibre, f_ip, 1.0, 1.0, 1.0, f_ip])
         elements.append(elem)
     return elements
+
+
+def _tension_damaged_stiffness(
+    compliance: np.ndarray, ply_angle_deg: float, f_fibre: float, f_ip: float, f_oop: float
+) -> np.ndarray:
+    """Global-frame stiffness of a damaged element under tension (see
+    ``_build_elements``): ply-frame compliance ``compliance`` with S11
+    divided by ``f_fibre``, S22 and S66 by ``f_ip`` and S33, S44, S55 by
+    ``f_oop`` (the off-diagonal Poisson terms kept), inverted and rotated
+    by ``ply_angle_deg`` as in ``Hex8Element._compute_global_stiffness``."""
+    S = compliance.copy()
+    S[np.diag_indices(6)] /= np.array([f_fibre, f_ip, f_oop, f_oop, f_oop, f_ip])
+    C_ply = np.linalg.inv(S)
+    T_inv = _T_sigma_z(-np.radians(ply_angle_deg))
+    return T_inv @ C_ply @ T_inv.T
 
 
 def _resolve_material(cfg: AnalysisConfig):
@@ -273,6 +319,7 @@ def _fe3d_preflight(
     lam: Laminate,
     *,
     label: str = "fe3d",
+    tension: bool = False,
 ) -> tuple[FeMesh, List[Hex8Element], float]:
     """Run the size guard, build the damaged mesh, and build elements.
 
@@ -280,6 +327,8 @@ def _fe3d_preflight(
     point (``fe3d_cai_buckling``, ``_fe3d_cai_first_ply_failure``,
     ``fe3d_tai``). The ``label`` differentiates the per-stage log line so
     a stderr trace still distinguishes "fe3d FPF" from "fe3d buckling".
+    ``tension`` builds the damage zone's tension stiffness (see
+    ``_build_elements``).
 
     Returns
     -------
@@ -292,7 +341,7 @@ def _fe3d_preflight(
     _log.info("%s: mesh build start", label)
     mesh = build_fe_mesh(cfg, damage)
     _t(f"mesh build done: {mesh.n_elements} elements, {mesh.n_dof} DOFs", t0)
-    elements = _build_elements(mesh, lam)
+    elements = _build_elements(mesh, lam, tension=tension)
     _t("elements built", t0)
     return mesh, elements, t0
 
@@ -395,7 +444,18 @@ def _failure_stress_material(
     element's actual strain; the out-of-plane rows keep the actual (damaged)
     tractions. Dividing the in-plane stress by the factor instead would also
     scale the through-thickness Poisson term in those rows.
+
+    An element built for tension (``_build_elements(..., tension=True)``)
+    carries ``effective_stress_divisors`` and gets the continuum-damage
+    effective stress that goes with its damaged compliance instead: each
+    ply-frame component divided by its factor (fibre factor on s1, the
+    in-plane factor on s2 and t12, 1 on the out-of-plane tractions). The
+    zone's fibres are intact there (fibre factor 1), so they fail at the
+    intact Xt, and only the matrix-dominated strengths drop.
     """
+    divisors = getattr(elem, "effective_stress_divisors", None)
+    if divisors is not None:
+        return elem.stress_at_gauss_points_material(u_elem) / divisors
     if in_plane_factor >= 1.0:
         return elem.stress_at_gauss_points_material(u_elem)
     C_eff = elem._C_global.copy()
@@ -811,8 +871,12 @@ def fe3d_tai(
 
     First-ply failure (Tsai-Wu) on the damaged mesh in tension, as the
     loaded-edge reaction force over the gross section, capped at
-    ``sigma_pristine_MPa``. Raises :class:`FE3DSizeError` above the size cap.
+    ``sigma_pristine_MPa``. The damage zone keeps its fibre-direction
+    stiffness and fibre tension strength (delaminations and matrix cracks
+    cut no fibres; only the fiber-break core, off in every preset, breaks
+    them), and loses its matrix-dominated stiffness and strengths. Raises
+    :class:`FE3DSizeError` above the size cap.
     """
-    mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI")
+    mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
     sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu")
     return min(sigma, sigma_pristine_MPa)

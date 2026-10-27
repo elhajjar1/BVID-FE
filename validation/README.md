@@ -34,7 +34,8 @@ things the gate does not show:
 - **TAI is not validated.** The only measured tension data are one
   impact condition (`korbelin_m21_t800s_tai`, five coupons), and
   `tai_notch_fraction` is fitted to it; nothing out of sample tests the
-  TAI model.
+  closed-form TAI model. fe3d, which fits nothing to it, scores 9.0%
+  there (`--tier=fe3d`, not run in CI).
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
 (2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
@@ -419,13 +420,22 @@ one layup and one thickness, and with the footprint fixed by the window
 it constrains only `f · w / d₀`. The previous TAI model, a hole of the
 whole damage area in an infinite plate, gave 0.380 here (MAE 57.2%).
 
-The fe3d tier gives 0.335 here (MAE 62.2%). fe3d TAI is not validated
-and not recommended: its damage zone's strain-equivalent strength
-reduction applies in every in-plane direction, so in tension the soft
-zone fails as if its fibres were cut, while delaminations cut none, and
-its damage-zone factor is fitted on CAI coupons only. On 150 × 100 mm
-IM7/8552 panels its tension knockdown is about one third of the
-closed-form TAI at 15–30 J.
+The fe3d tier gives 0.965 here (1008.6 MPa against 884–1014 MPa, MAE
+9.0%, 5 mm mesh). This is out of sample for fe3d: its damage-zone factor
+is fitted on CAI coupons only, and the tension model adds no constant.
+In tension the zone keeps its fibre-direction stiffness and strength
+(delaminations and matrix cracks cut no fibres) and loses only its
+matrix-dominated moduli; first-ply failure is the 90° plies' matrix
+cracking in both the damaged and the undamaged run, so the knockdown is
+the strain concentration of the matrix-cracked zone. It does not model
+the fibre breakage that sets most of the measured loss, so it is high
+(0.965 against 0.889; the closed-form hole is 1.5 mm across here, below
+fe3d's mesh resolution). Before the zone kept its fibres, it was
+softened in every direction in tension too and failed as if its fibres
+were cut: 0.335 (MAE 62.2%), about one third of the closed-form TAI on
+150 × 100 mm IM7/8552 panels at 15–30 J. fe3d TAI is now above the
+closed-form TAI from about 15 J and nearly flat in energy (see
+`docs/physics_models.md`, *Limitations*).
 
 Other TAI sources looked at and not used: NASA TP-2981 (Nettles 1990)
 tests eight-ply coupons punctured over a 10.3 mm hole with a 4.2 mm tup,

@@ -188,9 +188,9 @@ TAI, against the one measured TAI condition (`korbelin_m21_t800s_tai`,
 five M21/T800S coupons at 25 J, not gated): 3.5% for both closed-form
 tiers, in-sample (`tai_notch_fraction` is fitted to it), against 57.2%
 for the previous whole-footprint hole on the same damage mapping
-(knockdown 0.380 against 0.889 measured). fe3d scores 62.2% on it
-(knockdown 0.335): fe3d TAI is not recommended (see the fe3d entry under
-*Changed*).
+(knockdown 0.380 against 0.889 measured). fe3d scores 9.0% on it
+(knockdown 0.965), out of sample, since its damage zone now keeps its
+fibres in tension (62.2% and 0.335 before; see *Fixed*).
 
 ### Added
 
@@ -299,15 +299,8 @@ for the previous whole-footprint hole on the same damage mapping
   under-predicted it (0.20 against 12.6 MPa on an 8-ply 200 x 150 mm
   panel; issues #98, #129). Whole-panel buckling is left out of the
   knockdown (CAI fixtures carry anti-buckling guides); its stress is in
-  `AnalysisResults.notes`. fe3d TAI is far more conservative than the
-  closed-form TAI (about one third of it at 15-30 J on 150 x 100 mm
-  IM7/8552 panels, e.g. 16-ply QI 0.282 / 0.253 against 0.813 / 0.718 at
-  15 / 30 J) and 62% low on the one measured TAI dataset (0.335 against
-  0.889): the damage zone's strain-equivalent strength reduction applies
-  in every in-plane direction, so in tension the soft zone fails as if
-  its fibres were cut, while delaminations cut none, and the damage-zone
-  factor is fitted on CAI coupons only. It is a known limitation; fe3d
-  TAI is not validated or recommended.
+  `AnalysisResults.notes`. In tension the zone keeps its fibres (see
+  *Fixed*).
 - **CI** gates the semi-analytical tier on the measured datasets as well
   as the empirical tier; the fe3d step is a smoke run on three synthetic
   cases, not a gate.
@@ -317,6 +310,43 @@ for the previous whole-footprint hole on the same damage mapping
 
 ### Fixed
 
+- **fe3d TAI treated the damage zone as if its fibres were cut.** The
+  zone's in-plane factor (0.15) scaled every in-plane stiffness term in
+  tension as in compression, and strain equivalence lowered its fibre
+  tension strength with it, although delaminations and matrix cracks cut
+  no fibres: the zone took about three times the far-field strain and
+  its 90° plies cracked at a third of the load. In tension the zone now
+  keeps its fibre-direction stiffness and strength and loses only its
+  matrix-dominated moduli, in the compliance form of continuum damage
+  models (Matzenmiller, Lubliner & Taylor 1995; Maimí et al. 2007): in
+  each ply's frame `S22` and `S66` are divided by the in-plane factor,
+  `S33`, `S44` and `S55` by the out-of-plane factor, Poisson terms kept,
+  and the criterion sees each component over its factor. No constant is
+  added; compression (CAI) is unchanged, bit for bit (the three
+  calibration coupons stay at -20.6% / +1.2% / +0.3%, 8-ply QI and
+  cross-ply 15 J CAI at 0.256 / 0.167). A `[0]_4` coupon inside the zone
+  now fails at its intact tension load (about 0.15 of it before). fe3d
+  TAI on 150 x 100 mm IM7/8552 panels (5 mm mesh) at 5 / 15 / 30 J,
+  closed form in brackets:
+
+  | Laminate | Before | Now | Closed form |
+  |---|---|---|---|
+  | 8-ply QI [0/45/-45/90]s | 0.319 / 0.242 / 0.220 | 0.928 / 0.912 / 0.894 | 0.892 / 0.771 / 0.684 |
+  | 16-ply QI [0/45/-45/90]4 | 0.422 / 0.282 / 0.253 | 0.940 / 0.915 / 0.892 | 0.952 / 0.813 / 0.718 |
+  | 8-ply cross-ply [0/90]2s | 0.288 / 0.156 / 0.129 | 0.907 / 0.917 / 0.938 | 0.886 / 0.802 / 0.733 |
+
+  On Körbelin et al.'s coupons (25 J, measured 0.889) 0.335 -> 0.965,
+  MAE 62.2% -> 9.0%, out of sample. fe3d TAI now counts the
+  delaminations and matrix cracks but not fibre breakage, so it sits
+  above the closed-form TAI from about 15 J and barely falls with energy;
+  first-ply failure is the 90° plies' matrix cracking in both the damaged
+  and the undamaged run. The closed-form fibre-damage hole (0.8-4.3 mm
+  across on these panels) is below fe3d's mesh resolution and is not
+  added; the optional fibre-break core (off in every preset) still lowers
+  `E11` in tension. 8-ply 15 J at 5 / 2.5 mm: QI 0.912 / 0.930 (was
+  0.242 / 0.273), cross-ply 0.917 / 0.954 (was 0.156 / 0.168).
+  `FeMesh` gains `fiber_tension_factors`, and
+  `fe_tier._build_elements` / `_fe3d_preflight` a `tension` flag.
 - **The dent depth sat on its `h / 2` cap.** The uncalibrated law
   `d = h * 0.05 * ((E - E_onset) * 1e3 / (G_Ic h^2)) ** 0.5` reduces to
   `0.05 sqrt((E - E_onset) * 1e3 / G_Ic)`, about 3 mm x sqrt(E - E_onset)

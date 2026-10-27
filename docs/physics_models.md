@@ -562,10 +562,31 @@ release):
   zone's edge takes the factor weighted by the fraction of its area inside
   the zone (sampled on a 6 × 6 grid), so the zone does not move in
   element-sized steps as the mesh changes.
+- The zone's in-plane softening depends on the sign of the fibre load.
+  In compression (CAI) the factor scales the whole in-plane stiffness:
+  delaminated sublaminates buckle, and matrix cracks take away the
+  lateral support that keeps the fibres from kinking; the factor is
+  fitted to that case. In tension (TAI) the zone's fibres are intact,
+  since delaminations and matrix cracks cut none, so only its
+  matrix-dominated moduli `E22` and `G12` take the factor and `E11` keeps
+  its pristine value. The damage acts on the ply compliance, as in
+  continuum damage models with a fibre-tension damage variable set only
+  by fibre failure (Matzenmiller, Lubliner & Taylor 1995; Maimí et al.
+  2007): in each ply's material frame `S22` and `S66` are divided by the
+  in-plane factor, `S33`, `S44` and `S55` by the out-of-plane factor, and
+  the Poisson compliances are kept. This is the ply-discount picture
+  (`E11` kept, `E22` and `G12` discounted) that the unnotched pristine
+  strength already uses. Until this release the zone was softened in
+  every in-plane direction in tension too, so it failed as if its fibres
+  were cut (see [Limitations](#limitations)).
 - The optional fibre-break core (elements within `fiber_break_radius_mm`
   of any delamination centroid; off in every preset) gets both factors:
   out-of-plane ×0.05 and in-plane ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR`
-  (0.30).
+  (0.30), and in tension its fibre-direction modulus `E11` takes 0.30 as
+  well (broken fibres). The impact mapping sets the core radius to
+  `fiber_break_eta · √(E − fiber_break_E_threshold)`, zero for every
+  preset, so only a damage state that gives `fiber_break_radius_mm` (a
+  C-scan file, or a custom material card) has one.
 
 The panel is loaded by a prescribed x displacement between rigid,
 frictionless platens: `u_x = 0` on every node of the `x = 0` face and
@@ -631,6 +652,15 @@ expose a criterion choice, and an unknown criterion name raises
   the actual (damaged) out-of-plane tractions. Their strength therefore
   drops with their stiffness; with full strengths, a zone spanning most of
   the panel lost its stress concentration and made the panel look stronger.
+  In tension the effective stress is the continuum-damage one that goes
+  with the compliance above, each ply-frame component divided by its
+  factor (`σ₂₂ / f`, `τ₁₂ / f`, `σ₁₁` by the fibre factor, 1 outside the
+  fibre-break core; the out-of-plane tractions as they are). The zone's
+  fibres therefore fail at the intact `Xt`: a `[0]₄` coupon inside the
+  zone fails in tension at the load of the intact one, where it carried
+  0.15 of it before. Only the matrix-dominated strengths drop. In
+  compression the effective stress is still the pristine in-plane
+  stiffness times the strain, unchanged.
 - The failure stress is the reaction force on the loaded edge at failure
   over the gross section `Ly · h`, so a softened panel is not credited with
   load it cannot carry.
@@ -756,19 +786,20 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - They are **not** numerically interchangeable: each tier captures
   different failure mechanisms.
     - For **TAI**, `empirical` and `semi_analytical` are mathematically
-      identical; `fe3d` differs and is far more conservative (about one
-      third of the closed-form TAI at 15–30 J; not recommended, see
+      identical; `fe3d` differs: it models the delaminations and matrix
+      cracks but not fibre breakage, so it sits above the closed-form TAI
+      from about 15 J and barely falls with energy (0.89–0.94 on 8- and
+      16-ply 150 × 100 mm IM7/8552 panels at 5–30 J; see
       [Limitations](#limitations)).
     - For **CAI**, `semi_analytical ≤ empirical` always (the growth stress
       only lowers the residual). `fe3d` divides by its own undamaged
       strength (first-ply failure, typically below σ₀), so for the same
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
-  DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension at 30 J: 0.253 against empirical 0.718; fe3d
-  tension is far more conservative than the closed-form TAI, see
+  DPA). `fe3d` CAI also falls with damage area, through its softened
+  damage zone (16-ply QI at 5 / 15 / 30 J: 0.430 / 0.302 / 0.263, see
   [Limitations](#limitations)), but its damage-zone stiffness is fitted to
-  only three CAI coupons. Where the delamination growth stress
+  only three CAI coupons; fe3d TAI is nearly flat in energy. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
   stress changes little with delamination size once the sublaminate
   buckles well below it.
@@ -795,7 +826,8 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   run on the measured datasets in CI (it gives 141.0 MPa against the
   measured 177.7 MPa, 20.6% low, on the first NCAMP coupon, one of the
   three coupons its damage-zone factor is fitted to, `validation/README.md`;
-  on the measured TAI dataset it is 62% low, see the fe3d TAI item below).
+  on the measured TAI dataset it is 9.0% off, out of sample, see the
+  fe3d TAI item below).
 - **The TAI model is not validated.** Its one constant,
   `tai_notch_fraction` (0.05), is fitted in-sample to a single measured
   condition: five M21/T800S quasi-isotropic coupons at 25 J (Körbelin et
@@ -846,20 +878,47 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). A damage area at
   the 80%-of-panel cap would put the soft zone across the loaded edges.
-- **`fe3d` TAI is not recommended and not validated.** On 150 × 100 mm
-  IM7/8552 panels the fe3d tension knockdown is about one third of the
-  closed-form TAI at 15–30 J on quasi-isotropic laminates and about one
-  fifth on cross-ply (16-ply QI [0/45/−45/90]4 0.422 / 0.282 /
-  0.253 at 5 / 15 / 30 J against 0.952 / 0.813 / 0.718; 24-ply QI 0.246
-  against 0.731 at 30 J, damage area 2,649 mm²; 8-ply cross-ply 0.288 /
-  0.156 / 0.129 against 0.886 / 0.802 / 0.733). On the one measured TAI
-  dataset (`korbelin_m21_t800s_tai`, M21/T800S at 25 J) it gives 0.335
-  against the measured 0.889, an MAE of 62.2% (the closed-form tiers
-  3.5%, in-sample). The damage zone's strain-equivalent strength
-  reduction applies in every in-plane direction, so in tension the soft
-  zone fails as if its fibres were cut, while delaminations cut none; the
-  damage-zone factor is fitted on CAI coupons only. Use the closed-form
-  tiers for TAI.
+- **`fe3d` TAI sees the delaminations and matrix cracks, not fibre
+  breakage, and is validated on one condition only.** Tension strength
+  after impact is set by the broken fibres under the impactor (Cantwell &
+  Morton 1991); delaminations and matrix splits cut no fibres, and in
+  notched tension they relieve the stress concentration rather than
+  weaken the laminate (Hallett et al. 2009). fe3d's damage zone therefore
+  keeps its fibres in tension, and the knockdown is the strain
+  concentration that the matrix-cracked zone causes in the 90° plies,
+  whose matrix cracking sets first-ply failure in both the damaged and
+  the undamaged run. On the one measured TAI dataset
+  (`korbelin_m21_t800s_tai`, M21/T800S at 25 J) fe3d gives 0.965 against
+  the measured 0.889, an MAE of 9.0% (the closed-form tiers 3.5%,
+  in-sample; fe3d's damage-zone factor is fitted on CAI only, so this is
+  out of sample for fe3d). Until this release the zone was softened in
+  every in-plane direction in tension too, so it failed as if its fibres
+  were cut: 0.335 there (MAE 62.2%). On 150 × 100 mm IM7/8552 panels
+  (5 mm mesh) the fe3d tension knockdown at 5 / 15 / 30 J is:
+
+    | Laminate | Before | Now | Closed form |
+    |---|---|---|---|
+    | 8-ply QI [0/45/−45/90]s | 0.319 / 0.242 / 0.220 | 0.928 / 0.912 / 0.894 | 0.892 / 0.771 / 0.684 |
+    | 16-ply QI [0/45/−45/90]4 | 0.422 / 0.282 / 0.253 | 0.940 / 0.915 / 0.892 | 0.952 / 0.813 / 0.718 |
+    | 8-ply cross-ply [0/90]2s | 0.288 / 0.156 / 0.129 | 0.907 / 0.917 / 0.938 | 0.886 / 0.802 / 0.733 |
+
+    It is above the closed-form TAI from about 15 J and nearly flat in
+    energy: the zone's strain concentration depends on its shape, not its
+    size, and no fibre damage grows with the energy. At 5 mm the
+    cross-ply value even rises a little, the governing 90° elements
+    sitting just outside the zone. fe3d TAI is thus an
+    estimate of what the delaminations and matrix cracks alone cost, an
+    upper bound when fibres break. The closed-form tiers' fibre-damage hole
+    (`tai_notch_fraction` × the footprint width, 0.8–4.3 mm across in
+    these cases, 1.5 mm on Körbelin et al.'s coupons) is not added to
+    fe3d: it is no larger than a 5 mm element or the 2.5 mm averaging
+    disk, and the fibre-break core, which takes elements by their centroid,
+    would catch none of it at 5 mm (the impact point is a mesh node, 3.5 mm
+    from the nearest element centres) and only the four central elements
+    at 2.5 mm once its radius passes 1.8 mm, so its effect would jump with
+    the mesh. A measured fibre-break radius
+    (`DamageState.fiber_break_radius_mm`) does enter. Use the closed-form
+    tiers for TAI design values.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
   (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances
@@ -877,14 +936,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 
     | Case | 5 mm | 2.5 mm | 2.0 mm |
     |---|---|---|---|
-    | QI [0/45/−45/90]s, tension | 0.242 | 0.273 | 0.269 |
+    | QI [0/45/−45/90]s, tension | 0.912 | 0.930 | not run |
     | QI, compression | 0.256 | 0.274 | 0.268 |
-    | Cross-ply [0/90/0/90]s, tension | 0.156 | 0.168 | 0.162 |
+    | Cross-ply [0/90/0/90]s, tension | 0.917 | 0.954 | not run |
     | Cross-ply, compression | 0.167 | 0.168 | 0.163 |
 
-    At these damage areas 2.5 to 2.0 mm is within about 2–4%, and the
-    5 mm default within about 3–10% of the 2.0 mm value (mostly below
-    it). Smaller zones, only a few elements across at 5 mm, are less well
+    In compression 2.5 to 2.0 mm is within about 2–4%, and the 5 mm
+    default within about 3–10% of the 2.0 mm value (mostly below it). In
+    tension the 5 mm value is 2% (QI) and 4% (cross-ply) below the 2.5 mm
+    one. Before the damage zone kept its fibres in tension the tension
+    rows were 0.242 / 0.273 / 0.269 (QI) and 0.156 / 0.168 / 0.162
+    (cross-ply). Smaller zones, only a few elements across at 5 mm, are less well
     resolved: with earlier code, at damage areas of about 710–855 mm²,
     the 5 mm cross-ply compression knockdown was about 25% above its
     converged value. The
@@ -989,6 +1051,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - Hutchinson, J.W. & Suo, Z. (1992). Mixed mode cracking in layered
   materials. *Advances in Applied Mechanics*, 29, 63-191.
 - Lemaitre, J. (1992). *A Course on Damage Mechanics*. Springer.
+- Matzenmiller, A., Lubliner, J. & Taylor, R.L. (1995). A constitutive
+  model for anisotropic damage in fiber-composites. *Mechanics of
+  Materials*, 20(2), 125-152.
+- Maimí, P., Camanho, P.P., Mayugo, J.A. & Dávila, C.G. (2007). A
+  continuum damage model for composite laminates: Part I – Constitutive
+  model. *Mechanics of Materials*, 39(10), 897-908.
+- Cantwell, W.J. & Morton, J. (1991). The impact resistance of composite
+  materials – a review. *Composites*, 22(5), 347-362.
+- Hallett, S.R., Green, B.G., Jiang, W.G. & Wisnom, M.R. (2009). An
+  experimental and numerical investigation into the damage mechanisms in
+  notched composites. *Composites Part A*, 40(5), 613-624.
 - Liu, D. (1988). Impact-induced delamination — a view of bending stiffness
   mismatching. *Journal of Composite Materials*, 22(7), 674-692.
 - Abrate, S. (1991). Impact on laminated composite materials. *Applied
