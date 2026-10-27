@@ -220,9 +220,10 @@ prediction, see step 3).
 
 ## Empirical tier
 
-Both models are closed-form and run in milliseconds. They see the damage
+Both models are closed-form and run in milliseconds. CAI sees the damage
 only through its projected area `DPA` (the union of all ellipse
-footprints).
+footprints), TAI only through the width of that footprint across the
+load.
 
 **CAI** (after Soutis & Curtis 1996):
 
@@ -250,11 +251,22 @@ form `1 / (1 + k_s (DPA/A_ref)^m)` and both constants are BVID-FE's
 own, fitted to the measured datasets.
 
 **TAI**: Whitney-Nuismer point-stress criterion on an equivalent circular
-hole of radius `R = √(DPA / π)`:
+hole that stands for the fibre damage, with a finite-width correction
+(`fibre_damage_tai` in `bvidfe.failure.soutis_openhole`):
 
 ```text
-σ_TAI / σ₀ = 2 / (2 + ξ² + 3ξ⁴ − (K_T∞ − 3)(5ξ⁶ − 7ξ⁸)),   ξ = R / (R + d₀)
+2R = f · w
+σ_TAI / σ₀ = 2 / (2 + ξ² + 3ξ⁴ − (K_T∞ − 3)(5ξ⁶ − 7ξ⁸)) · (K_T∞ / K_T)(2R / W),   ξ = R / (R + d₀)
 ```
+
+Tension strength after impact is controlled by the broken fibres, which
+sit in a small region under the impactor; the delaminations around it cut
+no fibres, and the delaminated plies still carry tension. The hole is
+therefore a fraction of the damage, not the whole footprint: `w` is the
+width of the delamination footprint across the load (the y extent of the
+union of the ellipses, at most the panel width `W = Ly`) and
+`f = tai_notch_fraction` (default 0.05). A damage state with a fibre-break
+core (`fiber_break_radius_mm > 0`) sets a minimum `R`.
 
 `d₀ = wn_d0_mm` (default 1.0 mm) is the characteristic distance, and
 `K_T∞ = 1 + √(2(√(Ex/Ey) − ν_xy) + Ex/Gxy)` is Lekhnitskii's
@@ -266,31 +278,57 @@ ratio is capped at 1 with a `UserWarning`. The built-in presets stay below
 `K_T∞ ≈ 7.8` (the highest is an all-0° T800S/3900-2B laminate; 5.2 for
 IM7/8552 [0/90]2s).
 
-The TAI model is the Whitney-Nuismer infinite-plate formula applied
-unchanged, and it is not validated: no measured TAI data are in
-`validation/datasets/`. Three things to know before using it:
+`K_T∞ / K_T` is Tan's (1988) finite-width correction for a central hole
+in an orthotropic strip, with `x = 2R / W`:
 
-- The hole is sized from the whole delamination footprint. Delaminated
-  plies still carry tension, and the fibre damage that controls tension
-  strength is usually far smaller than the delaminated area, so the
-  knockdown is likely conservative. On 150 × 100 mm IM7/8552 panels
-  (0.152 mm plies, 16 mm hemisphere, 5.5 kg) the empirical TAI knockdown
-  is below the CAI knockdown at low energy: 0.40–0.41 against 0.57–0.59 at
-  10 J and 0.38 against 0.46–0.47 at 15 J on [0/45/−45/90]s or
-  [0/45/−45/90]4, and 0.40 against 0.67 at 10 J on [0/90]2s. Below the
-  onset energy (about 7 J here) both are 1.
-- There is no finite-width correction. At 30 J the equivalent hole on
-  those panels is 55–57 mm across on a 100 mm wide panel; a finite-width
-  factor would lower the strength there.
-- Once `R ≫ d₀` (`ξ → 1`) the ratio tends to `1 / K_T∞`, the
-  large-hole limit of the point-stress criterion, so with `d₀` = 1 mm the knockdown
-  barely moves with energy over the BVID range (quasi-isotropic: 0.40 at
-  10 J, 0.36 at 30 J, limit 0.33).
+```text
+K_T∞ / K_T = 3(1 − x) / (2 + (1 − x)³) + ½ (xM)⁶ (K_T∞ − 3)(1 − (xM)²)
+M² = (√(1 − 8(3(1 − x) / (2 + (1 − x)³) − 1)) − 1) / (2x²)
+```
+
+For a quasi-isotropic laminate it is the isotropic factor
+`3(1 − x) / (2 + (1 − x)³)`, the inverse of `[2 + (1 − 2R/W)³] / [3(1 − 2R/W)]`.
+It tends to 1 for a small hole and to 0 as the hole fills the panel. With
+`f` = 0.05 the hole stays below 5% of the panel width, so the correction
+is below 0.5% unless `f` is raised.
+
+`f` is fitted, with `d₀` = 1 mm, to the one measured TAI condition in
+`validation/datasets/`: Körbelin, Dreiner & Fiedler (2020), five
+M21/T800S [45/0/−45/90]2s coupons 60 mm wide impacted at 25 J on a
+50 × 30 mm window, which keep 0.889 of their tension strength
+(0.85–0.97). The predicted footprint fills the 30 mm window, so the
+required hole is about 1.4 mm (`f` = 0.046 fits the mean; 0.05 is
+adopted, knockdown 0.875). The fit is in-sample, on one energy and one
+layup, and only `f · w / d₀` is constrained: the TAI model is not
+validated, and `AnalysisResults.notes` says so on every closed-form TAI
+run.
+
+On 150 × 100 mm IM7/8552 panels (0.152 mm plies, 16 mm hemisphere,
+5.5 kg; below the onset energy, about 7 J here, both knockdowns are 1):
+
+| Laminate | Loading | 10 J | 15 J | 30 J |
+|---|---|---|---|---|
+| 8-ply QI [0/45/−45/90]s | TAI | 0.918 | 0.835 | 0.712 |
+| | CAI | 0.593 | 0.466 | 0.338 |
+| 16-ply QI [0/45/−45/90]2s | TAI | 0.903 | 0.812 | 0.687 |
+| | CAI | 0.589 | 0.465 | 0.337 |
+| 8-ply cross-ply [0/90]2s | TAI | 0.940 | 0.858 | 0.764 |
+| | CAI | 0.667 | 0.489 | 0.345 |
+
+TAI now falls with energy and stays above CAI, the usual test trend. The
+earlier model sized the hole from the whole footprint (`R = √(DPA / π)`,
+infinite plate; still available as `whitney_nuismer_tai`). With `R ≫ d₀`
+its knockdown sat near the large-hole limit `1 / K_T∞` at every BVID
+energy (QI 0.41 at 10 J, 0.36 at 30 J; cross-ply 0.40 and 0.24), below
+the CAI knockdown, and it scored 57% against the Körbelin coupons. The
+point-stress form also makes the higher-`K_T∞` cross-ply laminate keep
+more strength than the quasi-isotropic one at these small holes: its
+stress concentration decays faster from the hole edge.
 
 ## Semi-analytical tier
 
-For TAI this tier calls the same Whitney-Nuismer model as the empirical
-tier, so its tension results are identical. For CAI it adds a
+For TAI this tier calls the same fibre-damage open-hole model as the
+empirical tier, so its tension results are identical. For CAI it adds a
 delamination growth bound.
 
 At each delaminated interface the thinner sublaminate (by thickness; on
@@ -574,8 +612,8 @@ cannot move these in opposite directions.
 
 | Tier | CAI residual stress | TAI residual stress |
 | --- | --- | --- |
-| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point-stress on equivalent hole |
-| `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to Whitney-Nuismer (identical to `empirical`) |
+| `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point stress on a hole of diameter `tai_notch_fraction` × footprint width, finite-width corrected |
+| `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to the empirical TAI model (identical to `empirical`) |
 | `fe3d` | `σ₀ × min(1, D/U)` with `D`, `U` = `min(σ_growth, FPF_LaRC05)` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged / undamaged |
 
 fe3d's own failure stresses are not the same kind of quantity as σ₀, so
@@ -598,7 +636,7 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       growth stress its knockdown is higher than `semi_analytical`'s.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` also falls with damage area, through its softened damage
-  zone (16-ply QI tension at 30 J: 0.298 against empirical 0.361, see
+  zone (16-ply QI tension at 30 J: 0.298 against empirical 0.69–0.73, see
   [Limitations](#limitations)), but its damage-zone stiffness is fitted to
   only three CAI coupons. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
@@ -623,16 +661,23 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   `src/bvidfe/core/material.py`; IM7/8552 cites NCAMP for Xt only and
   calls the rest generic values. AS4/3501-6, T700/2510 and T800/epoxy
   have no cited source.
-- Validation covers CAI only. TAI has no measured dataset, and fe3d is not
+- Validation covers CAI, apart from one TAI condition, and fe3d is not
   run on the measured datasets in CI (it gives 144.5 MPa against the
   measured 177.7 MPa, 18.7% low, on the first NCAMP coupon, one of the
   three coupons its damage-zone factor is fitted to, `validation/README.md`).
-- **The TAI model is unvalidated and likely conservative.** It sizes the
-  equivalent hole from the whole delamination footprint, has no
-  finite-width correction, and at BVID sizes sits near its large-hole
-  limit `1 / K_T∞`. On 150 × 100 mm IM7/8552 quasi-isotropic panels its
-  knockdown is below the CAI knockdown up to about 25 J (0.41 against
-  0.59 at 10 J); see [Empirical tier](#empirical-tier).
+- **The TAI model is not validated.** Its one constant,
+  `tai_notch_fraction` (0.05), is fitted in-sample to a single measured
+  condition: five M21/T800S quasi-isotropic coupons at 25 J (Körbelin et
+  al. 2020), run with the T800S/3900-2B card, whose footprint fills the
+  impact window. Nothing tests its energy, layup or thickness
+  dependence, or the cross-ply result that a higher `K_T∞` keeps more
+  strength. The hole stands for fibre damage that BVID-FE does not
+  predict: a fixed fraction of the footprint width cannot follow the
+  fibre failure that impacts at elevated temperature, sharper impactors
+  or energies near penetration cause (Körbelin et al.'s coupons impacted
+  at 80 °C lost 0.19 instead of 0.11). With `d₀` = 1 mm the 1–4 mm holes
+  are within a few `d₀` of the edge, where the point-stress strength is
+  sensitive to `d₀`. See [Empirical tier](#empirical-tier).
 - **The CAI delamination-growth channel is effectively unvalidated.**
   Soutis governs every coupon of the two gated measured datasets, and on Hasebe
   et al.'s set, where growth governs 225 of 343 coupons, it raises the
@@ -666,8 +711,9 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). On
   150 × 100 mm IM7/8552 panels in tension at 30 J the fe3d knockdown is
-  below the empirical tier's (16-ply QI 0.298 against 0.361, 24-ply QI
-  0.314 against 0.361); the damage area
+  far below the empirical tier's (16-ply QI 0.298 against 0.69–0.73,
+  24-ply QI 0.314 against 0.68–0.74, the range spanning the symmetric
+  [0/45/−45/90]ns and the repeated [0/45/−45/90]2n stacking); the damage area
   there (about 2,500–2,570 mm²) is far below its 80%-of-panel cap. A damage area
   at the cap would put the soft zone across the loaded edges.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
@@ -758,6 +804,12 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - Whitney, J.M. & Nuismer, R.J. (1974). Stress fracture criteria for
   laminated composites containing stress concentrations.
   *Journal of Composite Materials*, 8(3), 253-265.
+- Tan, S.C. (1988). Finite-width correction factors for anisotropic plate
+  containing a central opening. *Journal of Composite Materials*, 22(11),
+  1080-1097.
+- Körbelin, J., Dreiner, C. & Fiedler, B. (2020). Impact of temperature on
+  LVI-damage and tensile and compressive residual strength of CFRP.
+  *Composites Part C: Open Access*, 3, 100074 (CC BY 4.0).
 - Tsai, S.W. & Wu, E.M. (1971). A general theory of strength for anisotropic
   materials. *Journal of Composite Materials*, 5(1), 58-80.
 - Davila, C.G., Camanho, P.P., & Rose, C.A. (2005). Failure criteria for FRP

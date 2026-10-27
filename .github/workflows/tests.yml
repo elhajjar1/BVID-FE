@@ -49,7 +49,7 @@ jobs:
         # Measured datasets only: synthetic_selfcheck is generated from the
         # empirical tier, so scoring another tier on it measures the gap
         # between the tiers, not accuracy.
-        run: python validation/validate_bvid_public.py --gate --tier=semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
+        run: python validation/validate_bvid_public.py --gate --tier=semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai korbelin_m21_t800s_tai
       - name: "Validation: fe3d tier (smoke run; first 3 cases)"
         # Exercises the fe3d path end to end and prints its errors. Not a
         # gate: synthetic_selfcheck is empirical-tier output, so comparing

@@ -10,6 +10,7 @@ composite-after-impact test data.
 | `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.6% | 1.6% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.7% | 8.7% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
 | `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.2% | 23.2% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
+| `korbelin_m21_t800s_tai` (not gated) | M21/T800S (T800S/3900-2B card) | TAI | 5 | 15% | 3.5% | 3.5% | In-sample for `tai_notch_fraction` (the only TAI fit) |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 0.0% (not gated) | Tautological (empirical-tier output) |
 
 These are the MAEs `validate_bvid_public.py` prints (rounded). Three
@@ -30,8 +31,10 @@ things the gate does not show:
   and on those 205 the semi-analytical MAE is 23.6% against 20.3%
   empirical (both 22.5% on the other 138). The growth channel is therefore unvalidated, and
   where it acts it makes the prediction worse.
-- **TAI is not validated.** The only tension cases are the synthetic
-  self-check.
+- **TAI is not validated.** The only measured tension data are one
+  impact condition (`korbelin_m21_t800s_tai`, five coupons), and
+  `tai_notch_fraction` is fitted to it; nothing out of sample tests the
+  TAI model.
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
 (2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
@@ -340,6 +343,52 @@ A layup factor from Lekhnitskii's `Kt_inf` was tried and helps little
 the soft r45 laminate, so no layup term was added. Replicate scatter alone
 accounts for about 6–9%.
 
+**`korbelin_m21_t800s_tai`** is measured TAI data: Körbelin, Dreiner &
+Fiedler, *Composites Part C: Open Access* 3 (2020) 100074
+(doi:10.1016/j.jcomc.2020.100074, CC BY 4.0; TUHH Open Research
+hdl 11420/8990). Hexcel M21/T800S [45/0/−45/90]2s, 4.08 mm (16 plies of
+0.255 mm). The tension coupons are 250 × 60 mm, impacted on a 40%
+scaled-down ASTM D7136 support (a 50 × 30 mm window, `impact_panel_*`)
+by a 5.34 kg, 12 mm hemispherical impactor at 25 J (Table 2; the text
+says 12.5 mm), and tested at 20 °C in a jig that clamps 5 mm of each
+edge against free-edge delamination. The five coupons impacted at 20 °C
+are scored; each strength, and the mean of the five unimpacted coupons
+(1045.3 MPa, `measured_pristine_MPa`), is read from the coordinates of
+the vector markers of the article's Fig. 17, with the y axis set by its
+700–1100 MPa tick labels. The digitized means reproduce the reductions
+the text states (11.1% at 20 °C, 18.58% at 80 °C, and 25.01% for the
+three lowest 80 °C coupons). The mean C-scan area (1,199 mm², Fig. 8)
+and dent (0.151 mm, Fig. 7) are recorded on every case, not scored. The
+five coupons impacted at 80 °C, three with fibre failure on the impacted
+face (736.8–958.5 MPa), are left out, because the model has no impact
+temperature.
+
+There is no M21/T800S preset, so the T800S/3900-2B card stands in (same
+fibre, also interlayer-toughened). The cases are scored on knockdown ×
+`measured_pristine_MPa`, so the card enters only through the damage
+mapping and `K_T∞` (3.0, quasi-isotropic), and the predicted footprint
+(926 mm², against the measured 1,199) fills the 30 mm window either way:
+with `G_IIc` = 1.0 N/mm and the default `olsson_alpha` the area is
+1,119 mm² and the width and knockdown do not change.
+
+The coupons keep 0.889 of their strength on average (0.85–0.97).
+`tai_notch_fraction` is fitted to that mean: with `wn_d0_mm` = 1 mm the
+30 mm footprint needs a 1.4 mm hole, `f` = 0.046; 0.05 is adopted,
+knockdown 0.875, MAE 3.5% for both closed-form tiers (the coupons'
+scatter about their mean is 3.7%). The fit is in-sample on one energy,
+one layup and one thickness, and with the footprint fixed by the window
+it constrains only `f · w / d₀`. The previous TAI model, a hole of the
+whole damage area in an infinite plate, gave 0.378 here (MAE 57.3%).
+
+Other TAI sources looked at and not used: NASA TP-2981 (Nettles 1990)
+tests eight-ply coupons punctured over a 10.3 mm hole with a 4.2 mm tup,
+reports its results only as plots and uses no preset material; Lovejoy &
+Scotti 2019 has no TAI tests; Kötter's 2021 TUHH thesis has fatigue after
+impact at one energy only; Itakura et al. 2022 (JSME) is gas-gun
+penetration; Poe's NASA reports cover thick filament-wound rocket motor cases;
+Körbelin's 2022 TUHH thesis ("Damage tolerance of high-performance
+composites", Band 41) was not located online.
+
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction.
 The semi-analytical tier also scores 0.0% on it (Soutis governs every
@@ -395,7 +444,6 @@ needs the inputs listed before it can be scored.
 |---|---|---|---|
 | Sánchez-Sáez et al. 2008 (UC3M open manuscript) | AS4/3501-6 | CAI | Thin, stability-limited 78 mm coupons |
 | NASA TP-3102, drop-weight point | T800/3900-2 | CAI | Single point |
-| Körbelin 2022, TU Hamburg thesis | M21/T800S | TAI | M21/T800S preset; separate support frame and tension coupon |
 | González et al. 2011 and Falcó et al. 2014 (Girona) | AS4/8552 | CAI | Ready now that the AS4/8552 preset exists |
 
 The v0.2.0 roadmap this table replaces named four sources that cannot be
@@ -425,7 +473,7 @@ window the plate was impacted on, when it is not the test panel), and
 python validation/validate_bvid_public.py              # empirical tier, all datasets, print table
 python validation/validate_bvid_public.py --gate       # exit non-zero if a gated MAE exceeds 1.25 * target
 python validation/validate_bvid_public.py --dataset synthetic_selfcheck
-python validation/validate_bvid_public.py --tier semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
+python validation/validate_bvid_public.py --tier semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai korbelin_m21_t800s_tai
 python validation/validate_bvid_public.py --tier fe3d --dataset synthetic_selfcheck --max-cases 3
 ```
 

@@ -216,6 +216,22 @@ def test_hasebe_dataset_is_advisory_and_runs():
     assert df["error_pct"].notna().all()
 
 
+def test_korbelin_tai_dataset_is_advisory_and_fits():
+    """The one measured TAI condition, on which tai_notch_fraction is fitted
+    (in-sample): both closed-form tiers within 5% MAE, and the predicted
+    footprint fills the 30 mm wide impact window."""
+    v = _load_validator()
+    _, cases, meta = v.load_dataset(v.DATASET_DIR / "korbelin_m21_t800s_tai.json")
+    assert not meta["gate"] and meta["gate_note"]
+    assert len(cases) == 5
+    assert {c.loading for c in cases} == {"tension"}
+    assert all(c.measured_pristine_MPa == 1045.3 for c in cases)
+    for tier in ("empirical", "semi_analytical"):
+        df = v.run_dataset(cases, tier)
+        assert df["error_pct"].mean() < 5.0
+        assert df["predicted_knockdown"].iloc[0] == pytest.approx(0.875, abs=0.005)
+
+
 @pytest.mark.parametrize("dataset", ["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
 def test_astm_datasets_impact_on_the_d7136_window(dataset):
     v = _load_validator()

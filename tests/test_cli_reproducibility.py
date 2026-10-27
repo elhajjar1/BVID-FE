@@ -145,9 +145,12 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # (onset 0.9 -> 8.6 J; DPA 1389 -> 706 mm^2) and olsson_alpha 0.0865:
             # 0.290. Then the axial (mod-180) template without the 90/90
             # mid-plane delamination: the union area lands 4.5e-5 lower on
-            # the Brent tolerance (knockdown +8e-6).
-            "knockdown": 0.2897725258141808,
-            "residual_strength_MPa": 324.41964550099317,
+            # the Brent tolerance (knockdown +8e-6). Then the TAI hole became
+            # the fibre damage (0.05 x the 40.2 mm footprint width, 2.0 mm)
+            # instead of the whole footprint (30.0 mm), with the finite-width
+            # correction: 0.290 -> 0.859 (DPA unchanged).
+            "knockdown": 0.8586916182735396,
+            "residual_strength_MPa": 961.3624673776544,
             "pristine_strength_MPa": 1119.566613810138,
             "dpa_mm2": 705.904180099177,
             "tier_used": "empirical",

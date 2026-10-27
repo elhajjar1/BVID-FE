@@ -32,12 +32,12 @@ documentation conventions.
     - *Inspection-driven*: C-scan JSON import per the documented schema
       (see [C-Scan Schema](cscan_schema.md))
 - **Three modeling tiers** for residual strength after BVID:
-    - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI (tens of
-      milliseconds)
+    - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI on an
+      equivalent hole for the fibre damage (tens of milliseconds)
     - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz
       sublaminate buckling + thin-film energy release rate +
       Benzeggagh-Kenane mixed-mode toughness, weakest interface governs),
-      capped by Soutis; Whitney-Nuismer for TAI (tens of milliseconds)
+      capped by Soutis; the empirical TAI model (tens of milliseconds)
     - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
       modelled as a soft inclusion, normalised by an undamaged fe3d run;
       LaRC05 for CAI, Tsai-Wu for TAI (about 5 s for an 8-ply
@@ -93,7 +93,9 @@ datasets. Fitted on one dataset alone, `soutis_k_s` predicts the other with
 an MAE of 4.9–8.7%, which is the error to expect on a new material or
 layup. On the Hasebe coupons the predicted damage area matches the C-scans,
 but the tiers beat a constant knockdown (30.3%) only by 7–9 points: the
-damage-area-based knockdown misses the strong effect of layup. There is no measured TAI validation yet. See
+damage-area-based knockdown misses the strong effect of layup. TAI is not
+validated: its one constant is fitted in-sample to a single measured
+condition (Körbelin et al. 2020, M21/T800S at 25 J). See
 [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md)
 for the data sources and the calibration.
 

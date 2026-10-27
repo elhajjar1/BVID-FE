@@ -169,8 +169,8 @@ datasets, the case fields and the calibration history; read its
   - Empirical tier on every dataset, `--gate` (hard gate).
   - Semi-analytical tier on the measured datasets
     (`ncamp_as4_8552_cai`, `lovejoy_scotti_im7_8552_cai`,
-    `hasebe_t800s_3900_2b_cai`), `--gate` (hard gate; the Hasebe set is
-    reported only, `"gate": false`). `synthetic_selfcheck` is generated from the empirical tier, so
+    `hasebe_t800s_3900_2b_cai`, `korbelin_m21_t800s_tai`), `--gate` (hard
+    gate; the Hasebe and Körbelin sets are reported only, `"gate": false`). `synthetic_selfcheck` is generated from the empirical tier, so
     other tiers cannot match it.
   - fe3d tier on the first 3 cases of `synthetic_selfcheck` only, as a
     smoke run without `--gate` (`continue-on-error`).
@@ -183,7 +183,7 @@ datasets, the case fields and the calibration history; read its
 python scripts/generate_schemas.py --check
 python validation/validate_bvid_public.py --gate
 python validation/validate_bvid_public.py --gate --tier=semi_analytical \
-    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai
+    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai korbelin_m21_t800s_tai
 python validation/validate_bvid_public.py --tier=fe3d --dataset=synthetic_selfcheck --max-cases=3
 ```
 

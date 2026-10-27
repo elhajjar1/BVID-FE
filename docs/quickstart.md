@@ -31,7 +31,7 @@ The fastest tour of the physics is
 - the Olsson quasi-static damage threshold,
 - the peanut-template DPA distribution across ply interfaces,
 - the Soutis CAI knockdown formula,
-- the Whitney-Nuismer TAI point-stress criterion,
+- the Whitney-Nuismer TAI point-stress criterion on an equivalent hole for the fibre damage,
 
 with LaTeX derivations and inline Plotly damage map / knockdown sweep / 3D
 damage mesh visualisations.
@@ -89,8 +89,8 @@ energy (about 6.6 J here) no damage is predicted and the knockdown is 1.
 
 | Tier | Runtime | Validation status | Use it for |
 |---|---|---|---|
-| `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.6% and 8.7%, about 5–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated against data. | Screening, energy sweeps, design trade studies |
-| `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical`, not validated against data. | Checking whether delamination growth governs (low energy, cross-ply laminates) |
+| `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.6% and 8.7%, about 5–9% cross-dataset). 21% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated: its one constant is fitted to a single measured condition (3.5% MAE in-sample). | Screening, energy sweeps, design trade studies |
+| `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical` (not validated). | Checking whether delamination growth governs (low energy, cross-ply laminates) |
 | `fe3d` | About 5 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves), about 35 s at 2.5 mm; longer for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted in-sample to three measured CAI coupons (Lovejoy & Scotti within 3%, NCAMP 19% low); not run on the measured datasets in CI. Use a 2.5 mm mesh or finer for damage areas below about 1,500 mm² | Stress-field context and damage through the thickness; not for allowables |
 
 See [Python API → Tier choice](python_api.md#tier-choice) and

@@ -137,7 +137,7 @@ with the 0.2.0 code):
 |---|---|---|
 | 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 1.000 | 0.007 -> 1.000 |
 | same, 20 J, CAI | 0.353 -> 0.400 | 0.002 -> 0.400 |
-| same, 20 J, TAI | 0.349 -> 0.369 | 0.349 -> 0.369 |
+| same, 20 J, TAI | 0.349 -> 0.798 | 0.349 -> 0.798 |
 | same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 1.000 | 0.003 -> 1.000 |
 | 8-ply QI [0/45/-45/90]s, 150 x 100 mm, 10 J, CAI | 0.356 -> 0.593 | 0.010 -> 0.508 |
 | 8-ply cross-ply [0/90]2s, 150 x 100 mm, 10 J, CAI | 0.360 -> 0.667 | 0.001 -> 0.562 |
@@ -167,6 +167,12 @@ so these errors are in-sample. Fitted on one dataset alone, `soutis_k_s`
 predicts the other at 4.9-8.7%, the error to expect on a new material or
 layup. On the Hasebe set a constant knockdown scores 30.3%.
 
+TAI, against the one measured TAI condition (`korbelin_m21_t800s_tai`,
+five M21/T800S coupons at 25 J, not gated): 3.5% for both closed-form
+tiers, in-sample (`tai_notch_fraction` is fitted to it), against 57.3%
+for the previous whole-footprint hole on the same damage mapping
+(knockdown 0.378 against 0.889 measured).
+
 ### Added
 
 - `AS4/8552` (NCAMP CAM-RP-2010-002 RTD means) and `T800S/3900-2B`
@@ -178,6 +184,18 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 - Three measured CAI datasets: `ncamp_as4_8552_cai` and
   `lovejoy_scotti_im7_8552_cai`, gated in CI for both closed-form tiers,
   and `hasebe_t800s_3900_2b_cai`, reported but not gated.
+- A measured TAI dataset, `korbelin_m21_t800s_tai` (Körbelin, Dreiner &
+  Fiedler 2020, CC BY 4.0): five M21/T800S [45/0/-45/90]2s tension
+  coupons impacted at 25 J, digitized from the article's vector figure,
+  with T800S/3900-2B standing in for the missing M21/T800S preset. Not
+  gated: it is one condition and `tai_notch_fraction` is fitted to it.
+- `OrthotropicMaterial.tai_notch_fraction` (default 0.05, `0 < f <= 1`),
+  and in `bvidfe.failure.soutis_openhole` `fibre_damage_tai`,
+  `finite_width_factor` (Tan 1988), `transverse_damage_width_mm` and
+  `tai_hole_radius_mm`. `semi_analytical_tai` takes an optional
+  `panel_width_mm`. Closed-form TAI runs add a note to
+  `AnalysisResults.notes` with the equivalent hole and the validation
+  status.
 - Validation harness: case fields `boundary`, `impactor_shape`,
   `measured_pristine_MPa`, `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and
   `impact_boundary`; `"gate": false` with a `gate_note` for a known miss;
@@ -220,6 +238,21 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 - **Soutis CAI knockdown**: fixed reference area and `soutis_k_s` = 4.8,
   the pooled optimum of both closed-form tiers on NCAMP and Lovejoy &
   Scotti.
+- **TAI (empirical and semi-analytical) sizes the equivalent hole from
+  the fibre damage, not the whole delamination footprint**, and corrects
+  it for the panel width. The hole diameter is `tai_notch_fraction`
+  (0.05) x the footprint width across the load, its strength the
+  Whitney-Nuismer point-stress value (`wn_d0_mm` = 1 mm) times Tan's
+  (1988) orthotropic finite-width factor. Delaminations cut no fibres:
+  the old hole of radius `sqrt(DPA / pi)` sat near its large-hole limit
+  `1 / Kt_inf` at every BVID energy, below the CAI knockdown (8-ply QI
+  IM7/8552 150 x 100 mm at 10 J: TAI 0.41 against CAI 0.59), and barely
+  fell with energy (0.41 at 10 J, 0.36 at 30 J). It now falls with
+  energy and stays above CAI: 0.92 / 0.84 / 0.71 at 10 / 15 / 30 J on
+  that panel (CAI 0.59 / 0.47 / 0.34), 0.94 / 0.86 / 0.76 on [0/90]2s
+  (old 0.40 / 0.29 / 0.24). The fraction is fitted to one measured
+  condition; the TAI model is otherwise unvalidated. The old function,
+  `whitney_nuismer_tai`, is kept unchanged but no tier uses it.
 - **Impactor shape and diameter factors** are fitted to Hasebe et al.
   2025, the only open data that vary the impactor on one material:
   flat-ended impacts now predict about 7x less damage, conical about 2.1x

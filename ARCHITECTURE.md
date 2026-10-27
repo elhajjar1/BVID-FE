@@ -53,7 +53,7 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | | `larc05.py` | Minimal LaRC05 composite failure criterion (Hashin-3D reduction); scalar + batch index. |
 | | `tsai_wu.py` | Full 3D Tsai-Wu failure criterion with interaction terms; scalar + batch index. |
 | | `puck.py` | Puck action-plane inter-fiber failure + max-stress fiber failure; scalar + batch index. |
-| | `soutis_openhole.py` | Soutis CAI knockdown (`soutis_cai`; DPA scaled by the fixed 150 × 100 mm ASTM D7137 coupon area `SOUTIS_REFERENCE_AREA_MM2`), Whitney-Nuismer point-stress TAI (`whitney_nuismer_tai`) and Lekhnitskii `Kt_inf` (`lekhnitskii_kt_infinity`). |
+| | `soutis_openhole.py` | Soutis CAI knockdown (`soutis_cai`; DPA scaled by the fixed 150 × 100 mm ASTM D7137 coupon area `SOUTIS_REFERENCE_AREA_MM2`), Whitney-Nuismer point-stress TAI on an equivalent hole for the fibre damage with Tan's finite-width correction (`fibre_damage_tai`; the earlier whole-footprint `whitney_nuismer_tai` is kept) and Lekhnitskii `Kt_inf` (`lekhnitskii_kt_infinity`). |
 | | `evaluator.py` | `FailureEvaluator`: applies a registered criterion across an (element, Gauss point) stress field; produces `LaminateFailureReport`. Standalone utility; the `fe3d` tier calls the criterion functions directly. |
 | `analysis/` | `config.py` | `AnalysisConfig` + `MeshParams` dataclasses (material, layup, panel, loading, tier, impact or damage; mesh resolution for fe3d). `MeshParams` validates positive `elements_per_ply` / `in_plane_size_mm` / `cohesive_zone_factor` at construction. |
 | | `bvid.py` | `BvidAnalysis(AnalysisConfig).run()`: main orchestrator. Resolves the material and damage, computes the pristine strength (`unnotched_strength`), dispatches to the tier, and sets `knockdown = residual / pristine`. For fe3d it runs the tier twice (damaged and undamaged) and applies the ratio to the pristine strength. |
@@ -97,7 +97,7 @@ from bvidfe.damage.io import load_cscan_json, save_cscan_json
 # Lower-level access (advanced use)
 from bvidfe.impact.olsson import threshold_load, onset_energy
 from bvidfe.failure.laminate_strength import unnotched_strength
-from bvidfe.failure.soutis_openhole import soutis_cai, whitney_nuismer_tai
+from bvidfe.failure.soutis_openhole import soutis_cai, fibre_damage_tai
 from bvidfe.failure.evaluator import FailureEvaluator
 from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_thicknesses
 ```
