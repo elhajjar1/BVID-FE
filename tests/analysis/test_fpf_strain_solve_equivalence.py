@@ -117,15 +117,18 @@ def test_vectorised_tension_path_also_matches_scalar_reference():
     assert eps_vec == pytest.approx(eps_ref, rel=1e-10, abs=1e-12)
 
 
-def test_panel_boundary_changes_fpf_strain():
-    """Issue #32: the FPF/TAI BC builder must honour ``panel.boundary``.
+def test_fpf_strain_does_not_depend_on_panel_boundary():
+    """The membrane solve holds the mid-surface at u_z = 0 whatever
+    ``panel.boundary`` is (see ``uniaxial_x_bcs``): out-of-plane edge
+    supports carry no load in a linear in-plane solve of a flat panel, and
+    ``boundary`` acts through the closed-form buckling and delamination
+    growth instead.
 
-    Previously uniaxial_x_bcs ignored it, so the fe3d FPF/TAI residual was
-    identical for clamped/simply_supported/free (silent no-op). Now the same
-    u_z edge restraint the buckling path uses is applied, so the three
-    boundary conditions must give measurably different — and physically
-    ordered — failure strains: more out-of-plane edge restraint (clamped)
-    is stiffer and fails sooner than the unrestrained (free) case.
+    Issue #32 had the builder ignore ``boundary`` silently; it then held
+    ``u_z = 0`` on whole edge faces, which gave clamped < simply_supported
+    < free here (0.952 / 0.956 / 0.958%) only because more restrained faces
+    blocked more of the plies' through-thickness Poisson expansion. Even
+    this unsymmetric layup, which would bend if it could, gives one value.
     """
     damage = DamageState(delaminations=[], dent_depth_mm=0.0)
     cfg, mesh, elements = _build_setup(damage)
@@ -138,14 +141,8 @@ def test_panel_boundary_changes_fpf_strain():
         )
 
     eps_ss = eps_for("simply_supported")
-    eps_cl = eps_for("clamped")
-    eps_fr = eps_for("free")
-
-    assert eps_cl != eps_ss
-    assert eps_fr != eps_ss
-    # Monotone: clamped (most u_z edge restraint) < simply_supported
-    #           < free (no extra restraint).
-    assert eps_cl < eps_ss < eps_fr, (eps_cl, eps_ss, eps_fr)
+    assert eps_for("clamped") == eps_ss
+    assert eps_for("free") == eps_ss
 
 
 # ---------------------------------------------------------------------------

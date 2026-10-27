@@ -325,11 +325,50 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
   in-sample and qualitative; the sweep is in `validation/README.md`. The
   fe3d tension knockdown at 30 J (IM7/8552, 150 x 100 mm, 5 mm mesh) is
   0.298 for 16-ply QI and 0.314 for 24-ply QI (0.333 and 0.312 before
-  these fixes; empirical 0.361). A `[90]_4`
-  coupon in compression with simply-supported loaded edges now fails
-  3-4% below `Yc / E22`: the `u_z = 0` restraint on the whole loaded face
-  blocks the ply's through-thickness Poisson expansion (the ply-frame test
-  now uses free edges for that case).
+  these fixes; empirical 0.361). With the realistic `nu23` the
+  boundary conditions of the time blocked the plies' through-thickness
+  Poisson expansion; see the next entry.
+- **fe3d's boundary conditions blocked the plies' Poisson expansion.**
+  `uniaxial_x_bcs` held `u_z = 0` on every node of the `z = 0` face and
+  of the loaded faces (of all four edge faces for `clamped`), and
+  `u_y = 0` on the whole `y = 0` face. With the realistic `nu23` the edge
+  faces pinned the through-thickness expansion and raised the stress next
+  to them: a `[90]_4` IM7/8552 coupon failed 2.9-3.8% below `Yc / E22` in
+  compression (10.7% under `clamped` with LaRC05) and 6.5% below
+  `Yt / E22` in tension, `[0]_4` up to 1.7% below `Xc / E11` (Tsai-Wu),
+  and the undamaged 8-ply 150 x 100 mm panels reached 439.0 MPa (QI) and
+  640.6 MPa (cross-ply) in tension against CLT first-ply failure at 502.5
+  and 754.8 MPa. The loaded faces are now rigid, frictionless platens
+  (`u_x` only), with `u_z = 0` on the mid-surface node layer and
+  `u_y = 0` at one node. Unidirectional coupons fail at their ply
+  strengths under every `boundary` and criterion, and the undamaged
+  panels at 599.3 / 494.5 MPa (QI, compression / tension; CLT 601.3 /
+  502.5) and 835.0 / 754.6 MPa (cross-ply; CLT 835.0 / 754.8), the
+  remainder being free-edge stress. `z = 0` (the impact face) is not a
+  symmetry plane; the mid-plane is one for a symmetric laminate and
+  damage, so the new restraint carries no load there, and an
+  unsymmetric layup is held flat, as before. `panel.boundary` no longer
+  changes the first-ply-failure solve: out-of-plane edge supports carry no
+  load in this membrane solve, and the clamped < simply supported < free
+  ordering of the failure strain (#32) came only from how many faces were
+  blocked, since the `z = 0` face already held the panel flat (and a face
+  at `u_z = 0` does not fix the edge rotation). `boundary` still enters
+  fe3d CAI through delamination growth. Supporting only the edges'
+  mid-surface lines and letting the panel bend changed the knockdowns
+  below by under 1% and made the solves 2-4x slower (on the 40-ply coupon
+  the ILU-preconditioned CG and GMRES no longer converge), so it was not
+  adopted. fe3d at the 5 mm mesh, `DAMAGE_ZONE_INPLANE_FACTOR` still 0.15
+  (not refitted): NCAMP #0 -18.7% -> -21.0% (140.4 against 177.7 MPa),
+  Lovejoy & Scotti QI #0 +3.3% -> +0.9% (148.1 against 146.8 MPa), hard
+  #4 +2.8% -> +0.3% (236.4 against 235.7 MPa), mean error 8.3% -> 7.4%.
+  8-ply IM7/8552 150 x 100 mm panels at 15 J (5 / 2.5 mm): QI compression
+  0.309 / 0.296 -> 0.303 / 0.290, QI tension 0.340 / 0.325 -> 0.293 /
+  0.286, cross-ply compression 0.217 / 0.185 -> 0.217 / 0.185, cross-ply
+  tension 0.239 / 0.207 -> 0.203 / 0.182. QI tension at 5 mm (ply
+  0.152 mm): 16-ply 0.341 -> 0.297 at 15 J and 0.211 -> 0.182 at 30 J,
+  24-ply 0.200 -> 0.171 at 30 J; the tension knockdowns fall because the
+  undamaged strength the damaged one is divided by rises (QI 434.5 ->
+  494.3 MPa, 16-ply).
 - **fe3d first-ply failure depended on the mesh.** The damage zone took or
   left whole elements by their centroid, and failure was checked at
   single Gauss points, where the stress at the re-entrant corners of the

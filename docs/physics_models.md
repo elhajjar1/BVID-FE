@@ -425,14 +425,37 @@ release):
   out-of-plane ×0.05 and in-plane ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR`
   (0.30).
 
-The panel is loaded by a prescribed x displacement: `u_x = 0` on the
-`x = 0` face and `u_x = ε · Lx` on the `x = Lx` face, with symmetry
-restraints `u_y = 0` on `y = 0` and `u_z = 0` on `z = 0`. The mesh holds
-the full thickness, so `z = 0` is not a symmetry plane: the restraint
-holds the whole ply-0 face flat, and the panel cannot bend out of plane
-in the static solve. The panel
-`boundary` adds a `u_z = 0` restraint on the two loaded edges
-(`simply_supported`), on all four edges (`clamped`) or nowhere (`free`).
+The panel is loaded by a prescribed x displacement between rigid,
+frictionless platens: `u_x = 0` on every node of the `x = 0` face and
+`u_x = ε · Lx` on every node of the `x = Lx` face, with `u_y` and `u_z`
+free there. The remaining rigid-body modes are removed by `u_z = 0` on
+the mid-surface node layer and `u_y = 0` at one node (on the `x = 0` face,
+mid-surface, nearest `y = Ly / 2`). The plies can therefore expand freely
+by Poisson in y and through the thickness: an undamaged unidirectional
+coupon fails at exactly its ply strength (`Xc / E11`, `Yc / E22`, and in
+tension `Xt / E11`, `Yt / E22`), and an undamaged laminate at its CLT
+first-ply failure load less the free-edge stresses at `y = 0` and
+`y = Ly` (8-ply QI IM7/8552, 150 × 100 mm, 5 mm mesh: 599.3 against
+601.3 MPa in compression, 494.5 against 502.5 MPa in tension). For a
+laminate and damage symmetric about the mid-plane (the soft zone covers
+every ply), the exact solution has `u_z = 0` on the mid-plane, so that
+restraint is a symmetry condition and carries no load; an unsymmetric
+layup is held flat instead of bending (with an odd number of element
+layers the restrained layer is the one half an element below the
+mid-plane). The solve is a membrane, pre-buckling state: bending is left
+to the closed-form sublaminate growth and panel buckling, which use the
+panel `boundary`, and `boundary` does not change these restraints, since
+out-of-plane edge supports carry no load in it. Supporting only the
+mid-surface lines of the edges and leaving the panel free to bend
+changed the knockdowns below by under 1% and made the solves 2–4 times
+slower (the ILU-preconditioned Krylov solve no longer converges on a
+40-ply coupon), and the bending of fully integrated bricks this thin
+would be locked. Until this release `u_z = 0` was held on the whole
+`z = 0` face, on the whole loaded faces (`simply_supported`; all four
+edge faces for `clamped`) and `u_y = 0` on the whole `y = 0` face; the
+edge faces blocked the plies' through-thickness Poisson expansion
+(`ν23` = 0.3–0.7), which lowered the undamaged 8-ply QI tension strength
+12.6% (439.0 MPa) and made a `[90]_4` coupon fail 3–4% early.
 One linear static solve at a reference strain of 5% gives the stress field;
 because the response is linear, the load multiplier at which the failure
 index first reaches 1 follows analytically (Tsai-Wu: root of a quadratic;
@@ -685,16 +708,22 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   under-resolved.** On 8-ply IM7/8552 150 × 100 mm panels at 15 J (damage
   area about 710 mm² cross-ply, 855 mm² QI) the knockdown is:
 
-    | Case | 5 mm | 2.5 mm | 2.0 mm |
+    | Case | 5 mm | 2.5 mm | 2.0 mm* |
     |---|---|---|---|
-    | QI [0/45/−45/90]s, tension | 0.340 | 0.325 | – |
-    | QI, compression | 0.309 | 0.296 | 0.292 |
-    | Cross-ply [0/90/0/90]s, tension | 0.239 | 0.207 | – |
+    | QI [0/45/−45/90]s, tension | 0.293 | 0.286 | – |
+    | QI, compression | 0.303 | 0.290 | 0.292 |
+    | Cross-ply [0/90/0/90]s, tension | 0.203 | 0.182 | – |
     | Cross-ply, compression | 0.217 | 0.185 | 0.170 (1.67 mm: 0.174) |
 
-    The fine meshes converge (2.0 to 1.67 mm within 2.4%), but at 5 mm,
-    where the zone is a few elements across, the cross-ply knockdown is
-    about 25% above its converged value and the QI one about 6%. The
+    \* With the previous boundary conditions (whole edge faces held at
+    `u_z = 0`, see the fe3d model above), not rerun. Those gave, in the
+    order of the table, 0.340 / 0.309 / 0.239 / 0.217 at 5 mm and
+    0.325 / 0.296 / 0.207 / 0.185 at 2.5 mm, so the change moved the
+    compression cases by under 2.5% and the tension cases by 12-15%. The
+    fine meshes converged (2.0 to 1.67 mm within 2.4%), but at 5 mm,
+    where the zone is a few elements across, the cross-ply compression
+    knockdown is about 25% above its converged value and the QI one about
+    4%. The
     calibration coupons' damage areas (2,800–6,500 mm²) are well resolved
     at 5 mm. Use 2.5 mm or finer when the damage area is below about
     1,500 mm² (about 35 s for an 8-ply 150 × 100 mm panel);

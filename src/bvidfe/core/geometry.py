@@ -22,9 +22,11 @@ class PanelGeometry:
         ``"clamped"`` or ``"free"``. It sets the plate bending stiffness in
         the impact-onset model (x2.5 clamped, x0.4 free, with a
         ``UserWarning`` for free), the sublaminate and panel buckling
-        factors (x1.9 clamped, x0.5 free), and the fe3d out-of-plane edge
-        restraint. It does not enter the empirical tier's strength
-        formulas, only its predicted damage.
+        factors (x1.9 clamped, x0.5 free), and through them the
+        delamination growth stress. It does not enter the empirical tier's
+        strength formulas, only its predicted damage, nor fe3d's
+        first-ply-failure solve, a membrane state whose out-of-plane edge
+        supports carry no load (``bvidfe.solver.boundary.uniaxial_x_bcs``).
 
     Raises ``ValueError`` for a non-positive dimension or an unknown
     ``boundary``.
