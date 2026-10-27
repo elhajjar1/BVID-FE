@@ -243,7 +243,9 @@ put `layup` or `ply_thickness_mm` in the first column instead. All three
 take `csv_path=` to write the CSV directly (no index column), `on_error=`
 (`"raise"` (default), `"skip"` or `"warn"`; a failed point keeps its input,
 NaN numbers, `n_delaminations=0`, `tier_used=""` and the message in
-`error`, which is NaN on success), and `progress_callback=` (called as
+`error`, which is NaN on success; a point whose config fails validation,
+such as a layup that does not match a per-ply thickness list, fails the
+same way), and `progress_callback=` (called as
 `cb(i, n)` or `cb(i, n, inputs)`, where `inputs` is e.g.
 `{"energy_J": 10.0}`). `sweep_thicknesses` sets a uniform thickness, so it
 replaces a per-ply list. Each impact warning category is shown once per

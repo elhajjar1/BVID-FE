@@ -1,9 +1,11 @@
 import warnings
 
 import pandas as pd
+import pytest
 
 from bvidfe.analysis import AnalysisConfig
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
+from bvidfe.damage.state import DamageState, DelaminationEllipse
 from bvidfe.impact.mapping import DPACapClipWarning, ImpactEvent
 from bvidfe.sweep.parametric_sweep import (
     sweep_energies,
@@ -265,3 +267,105 @@ def test_sweep_dedupes_dpa_cap_warning_to_once_per_sweep():
     dpa_warnings = [w for w in caught if issubclass(w.category, DPACapClipWarning)]
     # Without per-category dedup this equals len(energies) (one per point).
     assert len(dpa_warnings) == 1
+
+
+# --- Invalid sweep points honour on_error ---------------------------------
+# A point whose config fails AnalysisConfig / ImpactEvent validation used to
+# raise from the sweep loop itself, before on_error was consulted.
+
+_RESULT_NUMERIC = ["knockdown", "residual_MPa", "pristine_MPa", "dpa_mm2", "dent_mm"]
+
+
+def _assert_failed_row(row, match):
+    import math
+
+    for col in _RESULT_NUMERIC:
+        assert math.isnan(row[col])
+    assert row["n_delaminations"] == 0
+    assert row["tier_used"] == ""
+    assert str(row["error"]).startswith("ValueError: ")
+    assert match in str(row["error"])
+
+
+def _assert_good_rows(df):
+    assert df["error"].isna().all()
+    assert all(0.0 < kd <= 1.0 for kd in df["knockdown"])
+
+
+@pytest.mark.parametrize("on_error", ["skip", "warn"])
+def test_sweep_energies_invalid_point_becomes_failed_row(on_error):
+    cfg = _base_impact_cfg()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        df = sweep_energies(cfg, energies_J=[5, -1, 20], on_error=on_error)
+    assert df["energy_J"].tolist() == [5.0, -1.0, 20.0]
+    _assert_failed_row(df.iloc[1], "energy_J")
+    _assert_good_rows(df.iloc[[0, 2]])
+    failures = [w for w in caught if "sweep iteration energy_J=-1 failed" in str(w.message)]
+    assert len(failures) == (1 if on_error == "warn" else 0)
+
+
+def test_sweep_energies_invalid_point_raises_by_default():
+    with pytest.raises(ValueError, match="energy_J"):
+        sweep_energies(_base_impact_cfg(), energies_J=[5, -1, 20])
+
+
+def test_sweep_layups_thickness_list_mismatch_skips_point(tmp_path):
+    # A 4-entry per-ply thickness list fits the 4-ply layups only.
+    cfg = _base_impact_cfg(layup_deg=[0, 45, -45, 90], ply_thickness_mm=[0.152] * 4)
+    csv_path = tmp_path / "layups.csv"
+    df = sweep_layups(
+        cfg,
+        layups=[[0, 90, 90, 0], [0, 45, -45, 90] * 2, [45, -45, -45, 45]],
+        csv_path=csv_path,
+        on_error="skip",
+    )
+    assert df["layup"].tolist() == ["0/90/90/0", "0/45/-45/90/0/45/-45/90", "45/-45/-45/45"]
+    _assert_failed_row(df.iloc[1], "ply_thickness_mm sequence length")
+    _assert_good_rows(df.iloc[[0, 2]])
+    assert len(pd.read_csv(csv_path)) == 3
+
+
+def test_sweep_layups_interface_past_shorter_layup_skips_point():
+    # A given damage state on interface 5 needs at least 7 plies.
+    damage = DamageState([DelaminationEllipse(5, (75, 50), 20, 12, 45)])
+    cfg = _base_impact_cfg(impact=None, damage=damage)
+    df = sweep_layups(
+        cfg, layups=[[0, 45, -45, 90] * 2, [0, 90, 90, 0], [0, 90] * 4], on_error="skip"
+    )
+    _assert_failed_row(df.iloc[1], "interface_index 5")
+    assert df.loc[[0, 2], "error"].isna().all()
+    assert df.loc[[0, 2], "knockdown"].notna().all()
+
+
+def test_sweep_layups_invalid_point_raises_by_default():
+    cfg = _base_impact_cfg(layup_deg=[0, 45, -45, 90], ply_thickness_mm=[0.152] * 4)
+    with pytest.raises(ValueError, match="ply_thickness_mm sequence length"):
+        sweep_layups(cfg, layups=[[0, 90, 90, 0], [0, 45, -45, 90] * 2])
+
+
+def test_sweep_thicknesses_invalid_point_becomes_failed_row():
+    df = sweep_thicknesses(
+        _base_impact_cfg(), ply_thicknesses_mm=[0.125, 0.0, 0.2], on_error="skip"
+    )
+    assert df["ply_thickness_mm"].tolist() == [0.125, 0.0, 0.2]
+    _assert_failed_row(df.iloc[1], "ply_thickness_mm")
+    _assert_good_rows(df.iloc[[0, 2]])
+
+
+def test_sweep_thicknesses_invalid_point_raises_by_default():
+    with pytest.raises(ValueError, match="ply_thickness_mm"):
+        sweep_thicknesses(_base_impact_cfg(), ply_thicknesses_mm=[0.125, 0.0])
+
+
+@pytest.mark.parametrize(
+    "sweep, kwargs",
+    [
+        (sweep_energies, {"energies_J": []}),
+        (sweep_layups, {"layups": []}),
+        (sweep_thicknesses, {"ply_thicknesses_mm": []}),
+    ],
+)
+def test_sweep_rejects_unknown_on_error_with_empty_list(sweep, kwargs):
+    with pytest.raises(ValueError, match="on_error must be one of"):
+        sweep(_base_impact_cfg(), on_error="bogus", **kwargs)

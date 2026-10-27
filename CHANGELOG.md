@@ -395,6 +395,10 @@ layup. On the Hasebe set a constant knockdown scores 30.3%.
 - **Docs**: the README sweep example crashed (it reused a config the
   C-scan example had rebound), and the `[0.2.0]` entry below overstated
   its validation (CI ran a synthetic self-check only).
+- **Sweeps raised on an invalid point even with `on_error="skip"`** (e.g.
+  a per-ply thickness list shorter than a swept layup, or a negative
+  energy); such a point is now a failed row, and an unknown `on_error` is
+  rejected even for an empty sweep.
 
 ### Removed
 
