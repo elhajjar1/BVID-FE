@@ -180,7 +180,7 @@ C-scan layout; the CLI prints it).
 
 | tier | Runtime | Validation status | Good for |
 |---|---|---|---|
-| `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.6% (NCAMP AS4/8552) and 8.7% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated. | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
+| `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.6% (NCAMP AS4/8552) and 8.7% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 21% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated: `tai_notch_fraction` is fitted to one measured condition (3.5% MAE in-sample). | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.6% and 8.7% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
 | `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 3%, NCAMP 19% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI | Stress-field context, damage-through-thickness. Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,500 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high). |
 
@@ -191,10 +191,10 @@ The pristine strength is the unnotched laminate strength (ply-discount
 last-ply failure on classical lamination theory) and is **identical for all
 three tiers** — only the residual-strength numerator differs:
 
-- `empirical`: Soutis (CAI) / Whitney-Nuismer (TAI) closed-form.
+- `empirical`: Soutis (CAI) / Whitney-Nuismer point stress on an equivalent hole for the fibre damage (TAI), closed-form.
 - `semi_analytical`: `min(Soutis, delamination growth)` for CAI, where
   delamination growth is the far-field stress at which the weakest buckled
-  sublaminate grows its delamination; delegates to Whitney-Nuismer for TAI
+  sublaminate grows its delamination; delegates to the empirical TAI model
   (so its TAI knockdown is mathematically identical to `empirical`).
 - `fe3d`: `min(delamination growth, first-ply-failure)` for CAI and
   first-ply failure for TAI, each divided by the same quantity on the
@@ -356,8 +356,14 @@ a `SemiAnalyticalResult` (`residual_strength_MPa`,
 `critical_interface_index`, `critical_buckling_load_N` in N/mm), the
 lower of that Soutis bound and the delamination growth stress; `boundary`
 scales the sublaminate buckling load (clamped ×1.9, free ×0.5).
-`whitney_nuismer_tai(m, dpa_mm2, sigma_pristine_MPa, Kt_inf)` (same
-module) is the TAI counterpart; pass `Kt_inf=lekhnitskii_kt_infinity(lam)`.
+`fibre_damage_tai(m, damage, sigma_pristine_MPa, Kt_inf, panel_width_mm)`
+(same module) is the TAI counterpart: Whitney-Nuismer point stress on a
+hole of diameter `m.tai_notch_fraction` × `transverse_damage_width_mm(damage)`,
+times Tan's finite-width factor `finite_width_factor(2R / W, Kt_inf)`; pass
+`Kt_inf=lekhnitskii_kt_infinity(lam)` and the panel width across the load
+(`panel.Ly_mm`). `whitney_nuismer_tai(m, dpa_mm2, sigma_pristine_MPa, Kt_inf)`
+is the earlier model, a hole of the whole damage area in an infinite plate;
+no tier uses it.
 
 `impact_to_damage(event, lam, panel)` (`bvidfe.impact.mapping`) is the
 impact model on its own, and `save_cscan_json(damage, path)`
@@ -417,6 +423,7 @@ my_mat = OrthotropicMaterial(
     soutis_k_s=4.8,       # Soutis CAI constant (calibrated on measured CAI data)
     soutis_m=0.5,         # Soutis exponent
     wn_d0_mm=1.0,         # Whitney-Nuismer characteristic distance
+    tai_notch_fraction=0.05,  # TAI hole diameter / footprint width (one TAI fit)
     dent_beta=0.044,      # Dent depth d = dent_beta (E - E_onset)^dent_gamma, mm (E in J)
     dent_gamma=0.57,      # Dent-depth exponent (both fitted to measured dents)
 )

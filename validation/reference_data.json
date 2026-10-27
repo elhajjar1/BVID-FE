@@ -22,6 +22,13 @@
       "gated": false
     },
     {
+      "name": "korbelin_m21_t800s_tai",
+      "reference": "Korbelin, Dreiner & Fiedler 2020, Compos Part C 3, 100074 (CC BY 4.0), Fig. 17",
+      "target_mae_pct": 15,
+      "measured": true,
+      "gated": false
+    },
+    {
       "name": "synthetic_selfcheck",
       "reference": "generated from the empirical tier",
       "target_mae_pct": 1,
@@ -38,11 +45,6 @@
       "name": "nasa_tp3102_t800_3900-2_cai",
       "reference": "NASA TP-3102, drop-weight point",
       "material": "T800/3900-2"
-    },
-    {
-      "name": "korbelin_m21_t800s_tai",
-      "reference": "Korbelin 2022, TU Hamburg thesis",
-      "material": "M21/T800S"
     },
     {
       "name": "girona_as4_8552_cai",

@@ -72,6 +72,12 @@ class OrthotropicMaterial:
     wn_d0_mm : float
         Whitney-Nuismer characteristic distance (mm) of the TAI model;
         default 1.0.
+    tai_notch_fraction : float
+        TAI equivalent-hole diameter as a fraction of the delamination
+        footprint width across the load, ``0 < f <= 1``, see
+        :func:`bvidfe.failure.soutis_openhole.fibre_damage_tai`. Default
+        0.05, fitted (with ``wn_d0_mm`` = 1.0) to one measured TAI
+        condition (Körbelin et al. 2020, M21/T800S).
     nu23 : float, optional
         Transverse (2-3) Poisson's ratio of the 3D compliance; ``None``
         resolves (``nu23_resolved``) to ``E22 / (2 G23) - 1``, the value G23
@@ -84,8 +90,8 @@ class OrthotropicMaterial:
 
     Raises ``ValueError`` for a non-positive modulus, strength, toughness or
     density, ``nu12`` outside ``(-1, 0.5)``, ``rho`` outside
-    ``[1e-7, 1e-5]``, a non-positive ``Zt`` / ``Zc`` / ``S13``, or a
-    negative Puck parameter.
+    ``[1e-7, 1e-5]``, a non-positive ``Zt`` / ``Zc`` / ``S13``, a
+    negative Puck parameter, or ``tai_notch_fraction`` outside ``(0, 1]``.
     """
 
     name: str
@@ -133,6 +139,15 @@ class OrthotropicMaterial:
     soutis_k_s: float = 4.8
     soutis_m: float = 0.5
     wn_d0_mm: float = 1.0
+    # TAI equivalent hole: diameter = tai_notch_fraction x the delamination
+    # footprint width across the load. Delaminations cut no fibres, so the
+    # hole stands for the fibre damage under the impactor, a small part of
+    # the footprint. Fitted with wn_d0_mm = 1.0 to Korbelin, Dreiner &
+    # Fiedler (Compos Part C 3, 2020, 100074): five M21/T800S [45/0/-45/90]2s
+    # coupons impacted at 25 J keep 0.889 of their tension strength (0.046
+    # fits the mean; rounded to 0.05). One condition, in-sample: see
+    # validation/datasets/korbelin_m21_t800s_tai.json.
+    tai_notch_fraction: float = 0.05
     # Through-thickness strengths and 1-3 shear (None = transverse-isotropy
     # fallback to Yt / Yc / S12 via the *_resolved properties below).
     Zt: Optional[float] = None
@@ -178,6 +193,10 @@ class OrthotropicMaterial:
             v = getattr(self, k)
             if v < 0:
                 raise ValueError(f"{k} must be >= 0 (got {v})")
+        if not 0.0 < self.tai_notch_fraction <= 1.0:
+            raise ValueError(
+                f"tai_notch_fraction must be in (0, 1] (got {self.tai_notch_fraction})"
+            )
         if not -1.0 < self.nu12 < 0.5:
             raise ValueError(f"nu12 out of physical range (got {self.nu12})")
         nu23 = self.nu23_resolved

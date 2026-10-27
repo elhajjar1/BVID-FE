@@ -232,6 +232,9 @@
         "soutis_m": {
           "type": "number"
         },
+        "tai_notch_fraction": {
+          "type": "number"
+        },
         "wn_d0_mm": {
           "type": "number"
         }

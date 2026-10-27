@@ -20,7 +20,7 @@ delamination (:func:`sublaminate_growth_stress`), minimised over the
 delaminated interfaces (:func:`weakest_sublaminate_growth`).
 :func:`semi_analytical_cai` takes the lower of that and the Soutis bound
 of the empirical tier. In tension (:func:`semi_analytical_tai`) the tier
-is the empirical Whitney-Nuismer model unchanged.
+is the empirical fibre-damage open-hole model unchanged.
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 from bvidfe.failure.soutis_openhole import (
     SOUTIS_REFERENCE_AREA_MM2,
+    fibre_damage_tai,
     lekhnitskii_kt_infinity,
     soutis_cai,
-    whitney_nuismer_tai,
 )
 
 
@@ -558,13 +558,15 @@ def semi_analytical_tai(
     lam: Laminate,
     damage: DamageState,
     sigma_pristine_MPa: float,
+    panel_width_mm: Optional[float] = None,
 ) -> float:
     """Semi-analytical tension-after-impact residual strength.
 
-    Delegates to the Whitney-Nuismer open-hole equivalent (same as the
-    empirical tier). A cohesive-zone notch model with in-situ ply strength
-    is not implemented.
+    Delegates to the empirical tier's equivalent open hole for the fibre
+    damage (:func:`~bvidfe.failure.soutis_openhole.fibre_damage_tai`) on a
+    panel ``panel_width_mm`` wide across the load (``None``: infinite
+    plate). A cohesive-zone notch model with in-situ ply strength is not
+    implemented.
     """
-    dpa = damage.projected_damage_area_mm2
     Kt_inf = lekhnitskii_kt_infinity(lam)
-    return whitney_nuismer_tai(lam.material, dpa, sigma_pristine_MPa, Kt_inf)
+    return fibre_damage_tai(lam.material, damage, sigma_pristine_MPa, Kt_inf, panel_width_mm)

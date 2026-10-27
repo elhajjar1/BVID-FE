@@ -7,8 +7,8 @@ cross-tier comparability":
   * All three tiers share the same pristine baseline (the unnotched
     laminate strength), so ``pristine_strength_MPa`` must be identical.
   * For TAI, ``empirical`` and ``semi_analytical`` delegate to the same
-    Whitney-Nuismer point-stress formula, so their knockdowns must match
-    exactly.
+    fibre-damage open-hole model (``fibre_damage_tai``), so their
+    knockdowns must match exactly.
   * For CAI, ``semi_analytical`` takes the lower of the empirical Soutis
     term and the delamination growth stress, so its residual is always <=
     the empirical residual on the same input — and therefore
@@ -53,7 +53,7 @@ def test_pristine_strength_identical_across_tiers():
 
 
 def test_tai_empirical_equals_semi_analytical():
-    """semi_analytical_tai delegates unchanged to whitney_nuismer_tai."""
+    """semi_analytical_tai delegates unchanged to fibre_damage_tai."""
     e = _run("empirical", loading="tension")
     s = _run("semi_analytical", loading="tension")
     assert e.knockdown == pytest.approx(s.knockdown, rel=1e-12)
