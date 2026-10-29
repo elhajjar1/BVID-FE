@@ -227,10 +227,12 @@ def test_compression_path_is_unchanged_by_the_tension_zone_model():
 
 def test_tension_knockdown_of_small_panel_rises_with_intact_zone_fibres():
     """0.316 when the zone failed as if its fibres were cut; 0.968 with
-    them intact, the 90 deg plies' matrix cracking governing."""
+    them intact, the 90 deg plies' matrix cracking governing; 0.964 with
+    the closed-form fibre-damage hole (0.3 mm across here) at the impact
+    site (test_fe3d_tai_fibre_damage.py)."""
     r = BvidAnalysis(_small_cfg("tension", DamageState([_SMALL_ELLIPSE], 0.3))).run()
     assert r.knockdown > _TAI_KNOCKDOWN_BEFORE
-    assert r.knockdown == pytest.approx(0.9680, abs=2e-3)
+    assert r.knockdown == pytest.approx(0.9642, abs=2e-3)
 
 
 @pytest.mark.parametrize("f_oop", [1.0, DAMAGE_OOP_FACTOR])
@@ -302,9 +304,11 @@ def _impact_cfg(loading: str, energy_J: float) -> AnalysisConfig:
 def test_fe3d_tension_knockdown_responds_to_impact_damage():
     """Was 1.000: first-ply failure sat at a panel corner in both runs.
     With the zone's fibres cut in tension too it was 0.286 on this mesh;
-    with them intact the matrix-cracked zone costs about 9%."""
+    with them intact the matrix-cracked zone cost about 9% (0.909); the
+    closed-form fibre-damage hole at the impact site brings it to 0.714
+    (closed form 0.771, see test_fe3d_tai_fibre_damage.py)."""
     r = BvidAnalysis(_impact_cfg("tension", 15.0)).run()
-    assert r.knockdown == pytest.approx(0.9092, abs=2e-3), r.notes
+    assert r.knockdown == pytest.approx(0.7144, abs=2e-3), r.notes
 
 
 def test_fe3d_tension_knockdown_falls_with_impact_energy():

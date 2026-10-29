@@ -364,6 +364,27 @@ def _zone_area_fraction(skeleton: FeMeshSkeleton, damage: DamageState) -> np.nda
     return (inside / t.size**2)[np.arange(n_elem) % n_layer]
 
 
+def fibre_damage_hole_elements(
+    mesh: FeMeshSkeleton | FeMesh, damage: DamageState, radius_mm: float
+) -> np.ndarray:
+    """Boolean mask of the elements whose x-y footprint overlaps a disk of
+    ``radius_mm`` about any delamination centroid, in every ply: the
+    elements under fe3d TAI's fibre-damage hole (see
+    ``fe_tier._tai_fibre_damage_notch``). None for ``radius_mm <= 0``."""
+    # Nodes 0 and 2 are the (x_min, y_min) and (x_max, y_max) corners.
+    lo = mesh.node_coords[mesh.element_connectivity[:, 0], :2]
+    hi = mesh.node_coords[mesh.element_connectivity[:, 2], :2]
+    hit = np.zeros(lo.shape[0], dtype=bool)
+    if radius_mm <= 0:
+        return hit
+    for ell in damage.delaminations:
+        c = np.asarray(ell.centroid_mm, dtype=float)
+        # Distance from the centroid to the nearest point of each element.
+        gap = np.clip(c, lo, hi) - c
+        hit |= np.hypot(gap[:, 0], gap[:, 1]) < radius_mm
+    return hit
+
+
 def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     """Fill per-element damage factors onto a skeleton, returning a FeMesh.
 

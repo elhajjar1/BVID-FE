@@ -587,6 +587,20 @@ release):
   `fiber_break_eta · √(E − fiber_break_E_threshold)`, zero for every
   preset, so only a damage state that gives `fiber_break_radius_mm` (a
   C-scan file, or a custom material card) has one.
+- In tension the broken fibres under the impactor are, without such a
+  core, the closed-form tiers' equivalent hole (radius
+  `tai_hole_radius_mm`, see the empirical TAI model above), with its
+  Whitney-Nuismer point-stress knockdown `k_h` (`wn_d0_mm` = 1 mm, Tan's
+  finite-width correction). The hole is about 1–4 mm across at BVID
+  energies, below the mesh (2–5 mm elements and the 2.5 mm averaging
+  disk), so it is not meshed: every element whose footprint overlaps it
+  (`fe_mesh.fibre_damage_hole_elements`, all plies) has its disk-averaged
+  stress multiplied by `1 / k_h` before the failure check (Tsai-Wu index
+  `a c / k_h + b c² / k_h²`; `fe_tier._tai_fibre_damage_notch`). The
+  hole thus sits in the strain field of the matrix-cracked zone around it,
+  and with the zone removed fe3d returns the closed-form knockdown. The
+  two tiers share one fibre-damage size and notch law, and no constant is
+  added. Compression has no hole.
 
 The panel is loaded by a prescribed x displacement between rigid,
 frictionless platens: `u_x = 0` on every node of the `x = 0` face and
@@ -771,7 +785,7 @@ cannot move these in opposite directions.
 | --- | --- | --- |
 | `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point stress on a hole of diameter `tai_notch_fraction` × footprint width, finite-width corrected |
 | `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to the empirical TAI model (identical to `empirical`) |
-| `fe3d` | `σ₀ × min(1, D/U)` with `D`, `U` = `min(σ_growth, FPF_LaRC05)` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged / undamaged |
+| `fe3d` | `σ₀ × min(1, D/U)` with `D`, `U` = `min(σ_growth, FPF_LaRC05)` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged (fibre-damage hole as a notch at the impact site) / undamaged |
 
 fe3d's own failure stresses are not the same kind of quantity as σ₀, so
 fe3d is normalised by an undamaged fe3d run of the same panel (a second FE
@@ -786,11 +800,11 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - They are **not** numerically interchangeable: each tier captures
   different failure mechanisms.
     - For **TAI**, `empirical` and `semi_analytical` are mathematically
-      identical; `fe3d` differs: it models the delaminations and matrix
-      cracks but not fibre breakage, so it sits above the closed-form TAI
-      from about 15 J and barely falls with energy (0.89–0.94 on 8- and
-      16-ply 150 × 100 mm IM7/8552 panels at 5–30 J; see
-      [Limitations](#limitations)).
+      identical; `fe3d` uses the same fibre-damage hole and adds the
+      matrix-cracked zone around it, so it falls with energy like the
+      closed form and sits 2–8% below it (8-ply QI 150 × 100 mm IM7/8552
+      at 5 / 15 / 30 J: 0.834 / 0.714 / 0.629 against 0.892 / 0.771 /
+      0.684; see [Limitations](#limitations)).
     - For **CAI**, `semi_analytical ≤ empirical` always (the growth stress
       only lowers the residual). `fe3d` divides by its own undamaged
       strength (first-ply failure, typically below σ₀), so for the same
@@ -799,7 +813,7 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   DPA). `fe3d` CAI also falls with damage area, through its softened
   damage zone (16-ply QI at 5 / 15 / 30 J: 0.430 / 0.302 / 0.263, see
   [Limitations](#limitations)), but its damage-zone stiffness is fitted to
-  only three CAI coupons; fe3d TAI is nearly flat in energy. Where the delamination growth stress
+  only three CAI coupons; fe3d TAI follows the closed-form TAI. Where the delamination growth stress
   governs `semi_analytical`, that tier is flatter in energy: the growth
   stress changes little with delamination size once the sublaminate
   buckles well below it.
@@ -826,7 +840,7 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   run on the measured datasets in CI (it gives 141.0 MPa against the
   measured 177.7 MPa, 20.6% low, on the first NCAMP coupon, one of the
   three coupons its damage-zone factor is fitted to, `validation/README.md`;
-  on the measured TAI dataset it is 9.0% off, out of sample, see the
+  on the measured TAI dataset it is 3.6% off, partly in-sample, see the
   fe3d TAI item below).
 - **The TAI model is not validated.** Its one constant,
   `tai_notch_fraction` (0.05), is fitted in-sample to a single measured
@@ -878,47 +892,53 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). A damage area at
   the 80%-of-panel cap would put the soft zone across the loaded edges.
-- **`fe3d` TAI sees the delaminations and matrix cracks, not fibre
-  breakage, and is validated on one condition only.** Tension strength
-  after impact is set by the broken fibres under the impactor (Cantwell &
-  Morton 1991); delaminations and matrix splits cut no fibres, and in
-  notched tension they relieve the stress concentration rather than
-  weaken the laminate (Hallett et al. 2009). fe3d's damage zone therefore
-  keeps its fibres in tension, and the knockdown is the strain
-  concentration that the matrix-cracked zone causes in the 90° plies,
-  whose matrix cracking sets first-ply failure in both the damaged and
-  the undamaged run. On the one measured TAI dataset
-  (`korbelin_m21_t800s_tai`, M21/T800S at 25 J) fe3d gives 0.965 against
-  the measured 0.889, an MAE of 9.0% (the closed-form tiers 3.5%,
-  in-sample; fe3d's damage-zone factor is fitted on CAI only, so this is
-  out of sample for fe3d). Until this release the zone was softened in
-  every in-plane direction in tension too, so it failed as if its fibres
-  were cut: 0.335 there (MAE 62.2%). On 150 × 100 mm IM7/8552 panels
-  (5 mm mesh) the fe3d tension knockdown at 5 / 15 / 30 J is:
+- **`fe3d` TAI takes its fibre damage from the closed form, and is
+  validated on one condition only.** Tension strength after impact is
+  set by the broken fibres under the impactor (Cantwell & Morton 1991);
+  delaminations and matrix splits cut no fibres, and in notched tension
+  they relieve the stress concentration rather than weaken the laminate
+  (Hallett et al. 2009). fe3d's damage zone therefore keeps its fibres
+  in tension, and the broken fibres are the closed-form equivalent hole,
+  applied as a sub-mesh notch at the impact site (see *3D FE*). Without
+  the hole the knockdown was only the strain concentration of the
+  matrix-cracked zone in the 90° plies: nearly flat in energy, since that
+  depends on the zone's shape rather than its size, and above the closed
+  form from about 15 J. On 150 × 100 mm IM7/8552 panels (5 mm mesh) the
+  fe3d tension knockdown at 5 / 15 / 30 J is:
 
-    | Laminate | Before | Now | Closed form |
-    |---|---|---|---|
-    | 8-ply QI [0/45/−45/90]s | 0.319 / 0.242 / 0.220 | 0.928 / 0.912 / 0.894 | 0.892 / 0.771 / 0.684 |
-    | 16-ply QI [0/45/−45/90]4 | 0.422 / 0.282 / 0.253 | 0.940 / 0.915 / 0.892 | 0.952 / 0.813 / 0.718 |
-    | 8-ply cross-ply [0/90]2s | 0.288 / 0.156 / 0.129 | 0.907 / 0.917 / 0.938 | 0.886 / 0.802 / 0.733 |
+    | Laminate | Zone cut in tension | Zone only | Now (zone + hole) | Closed form |
+    |---|---|---|---|---|
+    | 8-ply QI [0/45/−45/90]s | 0.319 / 0.242 / 0.220 | 0.928 / 0.912 / 0.894 | 0.834 / 0.714 / 0.629 | 0.892 / 0.771 / 0.684 |
+    | 16-ply QI [0/45/−45/90]4 | 0.422 / 0.282 / 0.253 | 0.940 / 0.915 / 0.892 | 0.895 / 0.759 / 0.665 | 0.952 / 0.813 / 0.718 |
+    | 8-ply cross-ply [0/90]2s | 0.288 / 0.156 / 0.129 | 0.907 / 0.917 / 0.938 | 0.860 / 0.782 / 0.715 | 0.886 / 0.802 / 0.733 |
 
-    It is above the closed-form TAI from about 15 J and nearly flat in
-    energy: the zone's strain concentration depends on its shape, not its
-    size, and no fibre damage grows with the energy. At 5 mm the
-    cross-ply value even rises a little, the governing 90° elements
-    sitting just outside the zone. fe3d TAI is thus an
-    estimate of what the delaminations and matrix cracks alone cost, an
-    upper bound when fibres break. The closed-form tiers' fibre-damage hole
-    (`tai_notch_fraction` × the footprint width, 0.8–4.3 mm across in
-    these cases, 1.5 mm on Körbelin et al.'s coupons) is not added to
-    fe3d: it is no larger than a 5 mm element or the 2.5 mm averaging
-    disk, and the fibre-break core, which takes elements by their centroid,
-    would catch none of it at 5 mm (the impact point is a mesh node, 3.5 mm
-    from the nearest element centres) and only the four central elements
-    at 2.5 mm once its radius passes 1.8 mm, so its effect would jump with
-    the mesh. A measured fibre-break radius
-    (`DamageState.fiber_break_radius_mm`) does enter. Use the closed-form
-    tiers for TAI design values.
+    fe3d now falls with energy like the closed form, 2–8% below it: at
+    the zone's centre the matrix-cracked plies are strained a little more
+    than intact ones, and the hole adds its notch on top. The hole
+    (0.8–4.3 mm across here, 1.5 mm on Körbelin et al.'s coupons) is far
+    below the mesh. Meshed, it did not work: the fibre-break core, which
+    takes elements by their centroid, caught none of it at 5 mm (the
+    impact point is a mesh node, 3.5 mm from the nearest element centres)
+    and the four central elements at 2.5 mm once its radius passed
+    1.8 mm (8-ply QI 30 J: 0.894 at 5 mm, 0.603 at 2.5 mm). Weighted by
+    area fraction as a near-empty core (stiffness ×0.01) it was smeared
+    into the elements around it and did not converge (8-ply QI 15 / 30 J:
+    0.898 / 0.864 at 5 mm, 0.852 / 0.737 at 2.5 mm; ×0.30: 0.907 / 0.882
+    and 0.881 / 0.807). As a notch on the elements under it, where the
+    resolved field is smooth, it converges (see the mesh item below). On
+    the one measured TAI dataset (`korbelin_m21_t800s_tai`, M21/T800S at
+    25 J) fe3d gives 0.870 against the measured 0.889, an MAE of 3.6%
+    (closed-form tiers 3.5%; 0.965 and 9.0% with the zone only, 0.335
+    and 62.2% with the zone cut in tension). This is partly in-sample:
+    the hole size uses `tai_notch_fraction`, fitted to the same coupons,
+    and only the zone around it is fitted elsewhere (on CAI), so fe3d TAI
+    is no better validated than the closed-form TAI. The notch scales
+    every stress component of the elements under the hole by the
+    laminate-level factor, an approximation of the ply stresses at a hole
+    edge. A damage state with its own fibre-break core
+    (`DamageState.fiber_break_radius_mm > 0`) has that core meshed
+    instead of the hole, and a core smaller than an element is missed in
+    the same way. Use the closed-form tiers for TAI design values.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
   (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances
@@ -936,16 +956,18 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 
     | Case | 5 mm | 2.5 mm | 2.0 mm |
     |---|---|---|---|
-    | QI [0/45/−45/90]s, tension | 0.912 | 0.930 | not run |
+    | QI [0/45/−45/90]s, tension | 0.714 | 0.720 | not run |
     | QI, compression | 0.256 | 0.274 | 0.268 |
-    | Cross-ply [0/90/0/90]s, tension | 0.917 | 0.954 | not run |
+    | Cross-ply [0/90/0/90]s, tension | 0.782 | 0.783 | not run |
     | Cross-ply, compression | 0.167 | 0.168 | 0.163 |
 
     In compression 2.5 to 2.0 mm is within about 2–4%, and the 5 mm
     default within about 3–10% of the 2.0 mm value (mostly below it). In
-    tension the 5 mm value is 2% (QI) and 4% (cross-ply) below the 2.5 mm
-    one. Before the damage zone kept its fibres in tension the tension
-    rows were 0.242 / 0.273 / 0.269 (QI) and 0.156 / 0.168 / 0.162
+    tension the fibre-damage hole sets the knockdown at the zone's smooth
+    centre, and 5 mm is within 1% of 2.5 mm; with the zone only the
+    tension rows were 0.912 / 0.930 (QI) and 0.917 / 0.954 (cross-ply),
+    5 mm 2–4% below 2.5 mm. Before the damage zone kept its fibres in
+    tension they were 0.242 / 0.273 / 0.269 (QI) and 0.156 / 0.168 / 0.162
     (cross-ply). Smaller zones, only a few elements across at 5 mm, are less well
     resolved: with earlier code, at damage areas of about 710–855 mm²,
     the 5 mm cross-ply compression knockdown was about 25% above its
