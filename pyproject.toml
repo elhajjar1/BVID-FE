@@ -56,6 +56,7 @@ dev = [
     "black>=24,<27",
     "pre-commit>=3,<5",
     "streamlit>=1.51,<2",
+    "pip-audit>=2.6,<3",
 ]
 docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
 

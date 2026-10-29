@@ -86,6 +86,9 @@ python -m pytest -q tests
 `tests/test_streamlit_app.py` imports `app.py`, so the suite also catches a
 broken app.
 
+If you change a dependency, `pip-audit --skip-editable` runs the CI
+known-CVE scan (`.github/workflows/audit.yml`) on your environment.
+
 ## Pull Requests
 
 1. Fork the repository

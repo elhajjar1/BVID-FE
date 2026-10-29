@@ -195,6 +195,11 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
+- CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
+  `pip-audit` on the installed runtime + dev dependencies on every PR,
+  on pushes to main and weekly; any known vulnerability fails it.
+  `pip-audit` is in the `dev` extra, so `pip-audit --skip-editable` runs
+  the same check locally.
 - `AS4/8552` (NCAMP CAM-RP-2010-002 RTD means) and `T800S/3900-2B`
   (Hasebe et al. 2025 and the Toray 3900 data sheet) material presets.
 - `AnalysisConfig.impact_panel`: the panel the impact is applied on when
