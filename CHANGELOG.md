@@ -152,7 +152,7 @@ with the 0.2.0 code):
 
 | Case | Empirical, 0.2.0 -> now | Semi-analytical, 0.2.0 -> now |
 |---|---|---|
-| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.651 | 0.007 -> 0.556 |
+| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.651 | 0.007 -> 0.557 |
 | same, 20 J, CAI | 0.353 -> 0.375 | 0.002 -> 0.375 |
 | same, 20 J, TAI | 0.349 -> 0.774 | 0.349 -> 0.774 |
 | same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 0.415 | 0.003 -> 0.415 |
@@ -177,7 +177,7 @@ mapped on the tested coupon since 0.2.0 has no `impact_panel`):
 |---|---|---|
 | `ncamp_as4_8552_cai`, 7 coupons | no AS4/8552 preset | 1.5% / 1.5% |
 | `lovejoy_scotti_im7_8552_cai`, 8 coupons | 91.6% / 82.8% | 8.8% / 8.8% |
-| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.5% / 23.3% |
+| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.5% / 23.4% |
 
 The two gated datasets were used to fit `soutis_k_s` and `olsson_alpha`,
 so these errors are in-sample. Fitted on one dataset alone, `soutis_k_s`
@@ -316,6 +316,43 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Fixed
 
+- **Sublaminate buckling ignored the delamination orientation (#165).**
+  `sublaminate_buckling_load` took the enclosing rectangle as
+  `2 * major_mm` along the load and `2 * minor_mm` across it whatever the
+  ellipse's `orientation_deg`, while the damage template lays each ellipse
+  along the back-face ply of its interface (45 / -45 / 90 deg on a
+  quasi-isotropic laminate) and both the template's window clip and the
+  TAI damage width rotate it to its x / y extents. The same ellipse fed
+  the TAI hole one way and the CAI sublaminate another. The rectangle is
+  now the rotated ellipse's bounding box, with half-extents
+  `ex = hypot(major cos θ, minor sin θ)`, `ey = hypot(major sin θ,
+  minor cos θ)` from the new `DelaminationEllipse.half_extents_mm()`
+  (`damage.state.ellipse_half_extents_mm` for arrays), which the template
+  and `transverse_damage_width_mm` now share. An ellipse along the load is
+  unchanged; one across it buckles like the unrotated ellipse with its
+  axes swapped (a 20 x 8 mm ellipse at interface 2 of the 8-ply QI
+  laminate: 78.4 N/mm along, 39.5 N/mm across, 23.4 N/mm at 45 deg, whose
+  bounding box is a 30 mm square). The delamination growth stress falls
+  wherever a back-face delamination governs, on 150 x 100 mm IM7/8552
+  panels: 8-ply QI at 5 J 300.5 -> 281.8 MPa (knockdown 0.500 -> 0.469,
+  growth governs); at 10 J the film buckling stress at the governing
+  interface 4 falls from 210 to 78 MPa but Soutis still governs (0.448);
+  15 J unchanged; 16-ply `[0/45/-45/90]4` at 5 J 0.556 -> 0.557 (the
+  governing interface moves); 16-ply `[0/45/-45/90]2s` at 5 J 0.555 ->
+  0.520 and, on 200 x 150 mm, 0.596 -> 0.500 at 5 J and 0.503 -> 0.458 at
+  10 J (growth now governs there; the CLI snapshot
+  `semi_analytical_quasi_iso_quad_10J` is recaptured); 24-ply QI at 10 J
+  0.538 -> 0.512; `[0/90]2s` unchanged at 5 / 10 J (0.424 / 0.389) and
+  0.388 -> 0.394 at 15 J. Validation (semi-analytical): NCAMP 1.54%,
+  Lovejoy & Scotti 8.78% and Körbelin 3.49% unchanged (Soutis governs
+  every coupon; the growth stresses fall to 205-206, 182 and 227-228 MPa
+  against Soutis bounds of 176-177, 156 and 224 MPa), Hasebe et al.
+  23.35% -> 23.45% (growth now governs 256 of 343 coupons, 238 before).
+  fe3d CAI takes the lower of this growth stress and first-ply failure,
+  so its CAI results move wherever growth governs there (the 8-ply QI
+  150 x 100 mm panel at 5 J on a 10 mm mesh: 0.490 -> 0.469, the growth
+  stress now below first-ply failure; 15 and 30 J unchanged; not
+  re-measured further here).
 - **fe3d TAI treated the damage zone as if its fibres were cut.** The
   zone's in-plane factor (0.15) scaled every in-plane stiffness term in
   tension as in compression, and strain equivalence lowered its fibre

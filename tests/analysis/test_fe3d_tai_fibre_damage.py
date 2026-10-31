@@ -137,8 +137,16 @@ def test_fe3d_tai_falls_with_energy_with_the_closed_form():
         assert c - 0.1 < f <= c + 1e-9, (fe3d, closed)
 
 
-# fe3d CAI on the code before the TAI fibre damage (10 mm mesh).
-_CAI_KNOCKDOWN_BEFORE = {5.0: 0.490301045563204, 15.0: 0.301015353370238, 30.0: 0.23529319659770684}
+# fe3d CAI on the code before the TAI fibre damage (10 mm mesh). The 5 J
+# value is recaptured for #165: fe3d CAI takes min(growth, FPF) and, with
+# the sublaminate buckling rectangle following the ellipse orientation, the
+# growth stress at 5 J fell from 300.5 to 281.8 MPa and now governs there
+# (0.490 -> 0.469); 15 and 30 J stay at first-ply failure.
+_CAI_KNOCKDOWN_BEFORE = {
+    5.0: 0.4691595567346301,
+    15.0: 0.301015353370238,
+    30.0: 0.23529319659770684,
+}
 
 
 @pytest.mark.parametrize("energy_J", [5.0, 15.0, 30.0])

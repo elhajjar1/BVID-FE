@@ -1,12 +1,20 @@
 """Semi-analytical tier: sublaminate buckling and delamination growth.
 
-The ellipse is approximated as a simply-supported rectangle with full side
-lengths (2 * major_mm) along x (the load direction) by (2 * minor_mm);
-``orientation_deg`` is not used. For orthotropic simply-supported
-rectangles under uniaxial compression, the sine basis is exact and the
-eigenvalue is closed-form — we minimize over integer modes (m, n) in
-[1..5] x [1..5]. The closed-form formula uses the FULL side lengths (a, b)
-as in Timoshenko & Gere §9.2 / Reddy 4.4.4, NOT the ellipse semi-axes.
+The ellipse is approximated as a simply-supported rectangle: its
+axis-aligned bounding box in the panel frame, with full side lengths
+``2 * ex`` along x (the load direction) by ``2 * ey`` along y, where
+``(ex, ey) = DelaminationEllipse.half_extents_mm()`` are the rotated
+ellipse's half-extents (``ex = hypot(major cos θ, minor sin θ)``,
+``ey = hypot(major sin θ, minor cos θ)``, θ = ``orientation_deg``). These
+are the same extents the peanut template and the TAI damage width use, so
+a delamination elongated along a ±45° or 90° ply is as wide across the
+load for sublaminate buckling as it is for the open-hole model (#165;
+before, ``a = 2 * major_mm`` was taken along x whatever the orientation).
+For orthotropic simply-supported rectangles under uniaxial compression,
+the sine basis is exact and the eigenvalue is closed-form — we minimize
+over integer modes (m, n) in [1..5] x [1..5]. The closed-form formula uses
+the FULL side lengths (a, b) as in Timoshenko & Gere §9.2 / Reddy 4.4.4,
+NOT the ellipse semi-axes.
 A boundary-dependent factor (clamped 1.9, free 0.5) scales the result
 for panels that are not simply supported.
 
@@ -187,10 +195,14 @@ def sublaminate_buckling_load(
     sublaminate at the given delamination interface.
 
     The delaminated sublaminate is approximated as an orthotropic
-    simply-supported rectangle whose full side lengths equal twice the
-    ellipse's semi-axes (the enclosing-rectangle simplification:
-    ``a = 2 * major_mm``, ``b = 2 * minor_mm``). Under uniaxial compression
-    along x, the closed-form Navier / Rayleigh-Ritz solution with a sine-
+    simply-supported rectangle: the ellipse's axis-aligned bounding box in
+    the panel frame (the enclosing-rectangle simplification), with full
+    side lengths ``a = 2 * ex`` along x and ``b = 2 * ey`` along y, where
+    ``(ex, ey) = ellipse.half_extents_mm()`` account for
+    ``orientation_deg`` (``a = 2 * major_mm``, ``b = 2 * minor_mm`` for an
+    ellipse elongated along the load; the two swap at 90 deg). Under
+    uniaxial compression along x, the closed-form Navier / Rayleigh-Ritz
+    solution with a sine-
     basis trial function ``sin(m*pi*x/a) * sin(n*pi*y/b)`` on the domain
     ``0 <= x <= a``, ``0 <= y <= b`` (Timoshenko & Gere §9.2; Reddy *Theory
     and Analysis of Elastic Plates*, Eq. 4.4.4) is
@@ -223,10 +235,12 @@ def sublaminate_buckling_load(
     ellipse : DelaminationEllipse
         Delamination at which the sublaminate forms. Its
         ``interface_index`` selects the sublaminate thickness; the
-        enclosing rectangle has full side lengths
-        ``a = 2 * ellipse.major_mm`` and ``b = 2 * ellipse.minor_mm``
-        (``major_mm`` / ``minor_mm`` are the ellipse semi-axes, per
-        ``DelaminationEllipse.area_mm2 = pi * major * minor``).
+        enclosing rectangle is its bounding box in the panel frame, with
+        full side lengths ``a = 2 * ex`` and ``b = 2 * ey`` for
+        ``(ex, ey) = ellipse.half_extents_mm()`` (``major_mm`` /
+        ``minor_mm`` are the ellipse semi-axes, per
+        ``DelaminationEllipse.area_mm2 = pi * major * minor``, and
+        ``orientation_deg`` rotates them into the panel frame).
     boundary : str
         One of ``"simply_supported"``, ``"clamped"``, ``"free"``; any other
         value is treated as ``"simply_supported"``.
@@ -253,15 +267,20 @@ def sublaminate_buckling_load(
     D = _sublaminate_D_matrix(lam.material, sub_layup, sub_thicknesses)
     D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
 
-    # Rectangle dimensions (panel frame). The Navier sine basis
+    # Rectangle dimensions (panel frame): the rotated ellipse's bounding
+    # box, the same extents the peanut template and the TAI damage width
+    # use (#165: previously a = 2 * major_mm along x whatever the
+    # orientation, so a delamination elongated across the load buckled as
+    # if it were elongated along it). The Navier sine basis
     # sin(m*pi*x/a) * sin(n*pi*y/b) used in the closed-form eigenvalue
     # vanishes at x=0,a and y=0,b, so (a, b) must be the FULL rectangle
-    # side lengths — i.e. twice the ellipse semi-axes — for the SSSS
-    # boundary conditions to be satisfied. (Issue #29: previously assigned
+    # side lengths — i.e. twice the half-extents — for the SSSS boundary
+    # conditions to be satisfied. (Issue #29: previously assigned
     # a = ellipse.major_mm directly, which used semi-axes and overpredicted
     # N_cr by ~4x because N_cr ∝ 1/a^2.)
-    a = 2.0 * ellipse.major_mm
-    b = 2.0 * ellipse.minor_mm
+    ex, ey = ellipse.half_extents_mm()
+    a = 2.0 * ex
+    b = 2.0 * ey
     if a <= 0 or b <= 0:
         return float("inf")
 
