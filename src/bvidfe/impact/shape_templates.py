@@ -59,7 +59,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from scipy.optimize import brentq
 
-from bvidfe.damage.state import DamageState, DelaminationEllipse
+from bvidfe.damage.state import DamageState, DelaminationEllipse, ellipse_half_extents_mm
 
 
 def _ply_mismatch_deg(theta_a_deg, theta_b_deg):
@@ -157,8 +157,6 @@ def distribute_damage(
     minor_factor = rel_arr
     # Native-Python orientation list (the dataclass stores it as a float).
     orient_list = orient_arr.tolist()
-    theta = np.radians(orient_arr)
-    cos_t, sin_t = np.abs(np.cos(theta)), np.abs(np.sin(theta))
 
     def _build(scalar: float) -> List[DelaminationEllipse]:
         # Vectorized ellipse-parameter computation. All semi-axes for a
@@ -167,9 +165,9 @@ def distribute_damage(
         majors = scalar * major_factor
         minors = scalar * minor_factor
         if max_half_extent_mm is not None:
-            # Half-widths of each rotated ellipse's bounding box.
-            ex = np.hypot(majors * cos_t, minors * sin_t)
-            ey = np.hypot(majors * sin_t, minors * cos_t)
+            # Half-widths of each rotated ellipse's bounding box (the same
+            # extents the TAI width and the sublaminate buckling use).
+            ex, ey = ellipse_half_extents_mm(majors, minors, orient_arr)
             hx, hy = max_half_extent_mm
             k = np.minimum(1.0, np.minimum(hx / ex, hy / ey))
             majors, minors = majors * k, minors * k
