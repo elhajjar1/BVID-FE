@@ -613,6 +613,16 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   a per-ply thickness list shorter than a swept layup, or a negative
   energy); such a point is now a failed row, and an unknown `on_error` is
   rejected even for an empty sweep.
+- **An impact a few mJ above the onset energy raised** `ValueError: f(a)
+  and f(b) must have different signs` from `distribute_damage`'s Brent
+  root-find, and it escaped `impact_to_damage`, `BvidAnalysis.run()` and
+  `sweep_energies` (issue #163): the scalar bracket was only ever widened
+  upward, so a target DPA below the union area at its default lower end
+  (about 0.1 mm², 1 mJ above onset for the 8-ply QI IM7/8552 panel) had no
+  sign change. The bracket now extends downward as well, and a target
+  below 0.01 mm² (under any C-scan's resolution) gives no delamination,
+  as an impact at or below onset does. Results above about 2 mJ over
+  onset are unchanged.
 
 ### Removed
 

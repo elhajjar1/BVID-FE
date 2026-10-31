@@ -1,13 +1,19 @@
 import warnings
 
+import pytest
+
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.impact.mapping import (
     ImpactEvent,
     SmallMassQuasiStaticWarning,
+    _diameter_dpa_factor,
+    _dynamic_amplification_factor,
+    _shape_dpa_factor,
     impact_to_damage,
 )
+from bvidfe.impact.olsson import onset_energy
 
 
 def test_below_threshold_returns_empty_damage():
@@ -38,6 +44,35 @@ def test_impact_event_location_defaults_to_panel_center():
     assert ev.location_xy_mm == (0.0, 0.0)
 
 
+@pytest.mark.parametrize("dE_J", [1e-2, 1e-3, 1e-4, 1e-6])
+def test_impact_just_above_onset_does_not_raise(dE_J):
+    """Issue #163: an impact a few mJ above the onset energy targets a DPA
+    under the union area at distribute_damage's default lower bracket end,
+    and brentq's ``f(a) and f(b) must have different signs`` escaped from
+    impact_to_damage. The damage is now either met within 1% or, below the
+    0.01 mm^2 resolution floor, empty."""
+    m = MATERIAL_LIBRARY["IM7/8552"]
+    lam = Laminate(m, [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
+    pan = PanelGeometry(150, 100)
+    imp = ImpactorGeometry()
+    E_onset = onset_energy(lam, pan, imp)
+    ds = impact_to_damage(ImpactEvent(energy_J=E_onset + dE_J, impactor=imp, mass_kg=5.5), lam, pan)
+    assert ds.dent_depth_mm >= 0.0
+    dpa = ds.projected_damage_area_mm2
+    assert dpa >= 0.0
+    # The energy-balance target with the same mass, shape and diameter factors
+    # impact_to_damage applies.
+    dpa_target = m.olsson_alpha * dE_J * 1e3 / m.G_IIc
+    dpa_target *= _dynamic_amplification_factor(5.5, lam, pan)[0]
+    dpa_target *= _shape_dpa_factor(imp.shape) * _diameter_dpa_factor(imp.diameter_mm, imp.shape)
+    if dpa_target >= 0.01:
+        assert ds.delaminations
+        assert abs(dpa - dpa_target) / dpa_target < 0.01  # distribute_damage's contract
+    else:
+        assert ds.delaminations == []
+        assert dpa == 0.0
+
+
 def test_dpa_conserved_after_distribution():
     """The full path: Olsson → DPA_target → distribute_damage → union area matches target."""
     import warnings
@@ -52,8 +87,6 @@ def test_dpa_conserved_after_distribution():
         ds = impact_to_damage(ev, lam, pan)
     # impact_to_damage caps DPA at 80% of panel area when Olsson would exceed it;
     # distribute_damage enforces union ≈ DPA_target (possibly capped) within 1%.
-    from bvidfe.impact.olsson import onset_energy
-
     E_onset = onset_energy(lam, pan, ev.impactor)
     dpa_raw = m.olsson_alpha * (ev.energy_J - E_onset) * 1e3 / m.G_IIc
     A_cap = 0.8 * pan.Lx_mm * pan.Ly_mm
