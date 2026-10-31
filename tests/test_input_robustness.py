@@ -9,6 +9,7 @@ attached a stderr log handler.
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import errno
 import json
 import logging
@@ -114,6 +115,115 @@ def test_delamination_centroid_list_becomes_tuple():
 def test_damage_state_rejects_bad_fields(kw, match):
     with pytest.raises(ValueError, match=match):
         DamageState(**kw)
+
+
+def test_damage_state_rejects_a_bare_ellipse():
+    """Issue #168: ``DamageState(ellipse)`` (not in a list) used to raise
+    ``TypeError: 'DelaminationEllipse' object is not iterable``."""
+    e = DelaminationEllipse(0, (75.0, 50.0), 10.0, 5.0, 0.0)
+    with pytest.raises(ValueError, match="delaminations must be a list"):
+        DamageState(e)
+    with pytest.raises(ValueError, match="delaminations must be a list"):
+        DamageState(delaminations=3.0)
+
+
+_MATERIAL_POSITIVE_FIELDS = (
+    "E11",
+    "E22",
+    "G12",
+    "G13",
+    "G23",
+    "Xt",
+    "Xc",
+    "Yt",
+    "Yc",
+    "S12",
+    "S23",
+    "G_Ic",
+    "G_IIc",
+    "rho",
+)
+
+
+@pytest.mark.parametrize("field_name", _MATERIAL_POSITIVE_FIELDS)
+@pytest.mark.parametrize("bad", [NAN, INF, -INF, 0.0, -1.0, "150", True])
+def test_material_rejects_bad_positive_fields(field_name, bad):
+    """Issue #168: ``NaN <= 0`` is False and ``inf <= 0`` is False, so a
+    bare ``v <= 0`` guard let non-finite moduli and strengths through, and
+    a string raised ``TypeError`` from the comparison."""
+    with pytest.raises(ValueError, match=rf"OrthotropicMaterial\.{field_name}\b"):
+        replace(MATERIAL_LIBRARY["IM7/8552"], **{field_name: bad})
+
+
+@pytest.mark.parametrize("field_name", ["Zt", "Zc", "S13"])
+@pytest.mark.parametrize("bad", [NAN, INF, 0.0, -1.0, "60", True])
+def test_material_rejects_bad_optional_strengths(field_name, bad):
+    with pytest.raises(ValueError, match=rf"OrthotropicMaterial\.{field_name}\b"):
+        replace(MATERIAL_LIBRARY["IM7/8552"], **{field_name: bad})
+
+
+@pytest.mark.parametrize("field_name", ["Zt", "Zc", "S13", "nu23"])
+def test_material_optional_fields_accept_none(field_name):
+    replace(MATERIAL_LIBRARY["IM7/8552"], **{field_name: None})
+
+
+@pytest.mark.parametrize("field_name", ["puck_p_nt_plus", "puck_p_nt_minus"])
+@pytest.mark.parametrize("bad", [NAN, INF, -0.1, "0.3", True])
+def test_material_rejects_bad_puck_parameters(field_name, bad):
+    with pytest.raises(ValueError, match=rf"OrthotropicMaterial\.{field_name}\b"):
+        replace(MATERIAL_LIBRARY["IM7/8552"], **{field_name: bad})
+
+
+@pytest.mark.parametrize("field_name", ["puck_p_nt_plus", "puck_p_nt_minus"])
+def test_material_puck_parameters_accept_zero(field_name):
+    replace(MATERIAL_LIBRARY["IM7/8552"], **{field_name: 0.0})
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "nu12",
+        "nu23",
+        "olsson_alpha",
+        "dent_beta",
+        "dent_gamma",
+        "soutis_k_s",
+        "soutis_m",
+        "wn_d0_mm",
+        "tai_notch_fraction",
+    ],
+)
+@pytest.mark.parametrize("bad", [NAN, INF, -INF, "0.3", True])
+def test_material_rejects_non_finite_calibration_fields(field_name, bad):
+    with pytest.raises(ValueError, match=rf"OrthotropicMaterial\.{field_name}\b"):
+        replace(MATERIAL_LIBRARY["IM7/8552"], **{field_name: bad})
+
+
+@pytest.mark.parametrize(
+    "kw, match",
+    [
+        ({"nu12": 0.5}, r"OrthotropicMaterial\.nu12"),
+        ({"nu12": -1.0}, r"OrthotropicMaterial\.nu12"),
+        ({"nu23": 1.0}, "nu23"),
+        ({"tai_notch_fraction": 0.0}, r"OrthotropicMaterial\.tai_notch_fraction"),
+        ({"tai_notch_fraction": 1.5}, r"OrthotropicMaterial\.tai_notch_fraction"),
+        ({"rho": 1e-2}, r"OrthotropicMaterial\.rho"),
+    ],
+)
+def test_material_keeps_its_range_checks(kw, match):
+    with pytest.raises(ValueError, match=match):
+        replace(MATERIAL_LIBRARY["IM7/8552"], **kw)
+
+
+def test_material_error_names_the_field():
+    with pytest.raises(ValueError, match=r"^OrthotropicMaterial\.E11 must be > 0"):
+        replace(MATERIAL_LIBRARY["IM7/8552"], E11=-1.0)
+
+
+@pytest.mark.parametrize("name", sorted(MATERIAL_LIBRARY))
+def test_every_material_preset_still_constructs(name):
+    m = replace(MATERIAL_LIBRARY[name])
+    assert m == MATERIAL_LIBRARY[name]
 
 
 @pytest.mark.parametrize(

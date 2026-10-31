@@ -623,6 +623,20 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   below 0.01 mm² (under any C-scan's resolution) gives no delamination,
   as an impact at or below onset does. Results above about 2 mJ over
   onset are unchanged.
+- **`OrthotropicMaterial` accepted NaN and infinite moduli, strengths and
+  calibration constants** (issue #168): its positive fields were guarded
+  by a bare `v <= 0`, which is False for NaN and +inf, and a string
+  raised `TypeError` from the comparison. Every numeric field now goes
+  through the shared `bvidfe._validation` helpers (as `PanelGeometry`,
+  `DelaminationEllipse` and `DamageState` already did): `E11` .. `rho`
+  and a given `Zt` / `Zc` / `S13` must be finite and `> 0`, the Puck
+  slopes finite and `>= 0`, and `nu12`, `nu23`, `olsson_alpha`, the
+  `dent_*`, `soutis_*`, `wn_d0_mm` and `tai_notch_fraction` finite, with
+  the existing range checks kept. Every failure is a `ValueError` naming
+  the field (`OrthotropicMaterial.E11 must be > 0 (got nan)`). All
+  library presets construct unchanged. `DamageState(ellipse)`, an
+  ellipse not in a list, raises a `ValueError` instead of
+  `TypeError: 'DelaminationEllipse' object is not iterable`.
 
 ### Removed
 

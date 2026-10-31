@@ -7,6 +7,8 @@ from typing import Optional
 
 import numpy as np
 
+from bvidfe._validation import require_finite, require_non_negative, require_positive
+
 
 @dataclass
 class OrthotropicMaterial:
@@ -169,6 +171,10 @@ class OrthotropicMaterial:
     nu23: Optional[float] = None
 
     def __post_init__(self) -> None:
+        # Every numeric field goes through bvidfe._validation so that NaN,
+        # +/-inf, bool and str raise a ValueError naming the field; a bare
+        # ``v <= 0`` is False for NaN and +inf and a TypeError for str (#168).
+        cls = type(self).__name__
         positive_fields = (
             "E11",
             "E22",
@@ -186,23 +192,32 @@ class OrthotropicMaterial:
             "rho",
         )
         for k in positive_fields:
-            v = getattr(self, k)
-            if v <= 0:
-                raise ValueError(f"{k} must be > 0 (got {v})")
+            require_positive(getattr(self, k), f"{cls}.{k}")
         for k in ("Zt", "Zc", "S13"):
             v = getattr(self, k)
-            if v is not None and v <= 0:
-                raise ValueError(f"{k} must be > 0 if provided (got {v})")
+            if v is not None:
+                require_positive(v, f"{cls}.{k}")
         for k in ("puck_p_nt_plus", "puck_p_nt_minus"):
-            v = getattr(self, k)
-            if v < 0:
-                raise ValueError(f"{k} must be >= 0 (got {v})")
+            require_non_negative(getattr(self, k), f"{cls}.{k}")
+        for k in (
+            "nu12",
+            "olsson_alpha",
+            "dent_beta",
+            "dent_gamma",
+            "soutis_k_s",
+            "soutis_m",
+            "wn_d0_mm",
+            "tai_notch_fraction",
+        ):
+            require_finite(getattr(self, k), f"{cls}.{k}")
+        if self.nu23 is not None:
+            require_finite(self.nu23, f"{cls}.nu23")
         if not 0.0 < self.tai_notch_fraction <= 1.0:
             raise ValueError(
-                f"tai_notch_fraction must be in (0, 1] (got {self.tai_notch_fraction})"
+                f"{cls}.tai_notch_fraction must be in (0, 1] (got {self.tai_notch_fraction})"
             )
         if not -1.0 < self.nu12 < 0.5:
-            raise ValueError(f"nu12 out of physical range (got {self.nu12})")
+            raise ValueError(f"{cls}.nu12 out of physical range (-1, 0.5) (got {self.nu12})")
         nu23 = self.nu23_resolved
         source = "nu23" if self.nu23 is not None else "nu23 = E22 / (2 G23) - 1"
         if not -1.0 < nu23 < 1.0:
@@ -224,7 +239,7 @@ class OrthotropicMaterial:
         # off, which silently corrupts the impact-mapping mass ratio.
         if not 1e-7 <= self.rho <= 1e-5:
             raise ValueError(
-                f"rho={self.rho} kg/mm^3 is outside the realistic range "
+                f"{cls}.rho={self.rho} kg/mm^3 is outside the realistic range "
                 f"[1e-7, 1e-5] (0.1-10 g/cm^3). Note rho is kg/mm^3, "
                 f"e.g. 1.58e-6 for CFRP."
             )

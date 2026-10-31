@@ -117,6 +117,15 @@ class DamageState:
     def __post_init__(self) -> None:
         require_non_negative(self.dent_depth_mm, "dent_depth_mm")
         require_non_negative(self.fiber_break_radius_mm, "fiber_break_radius_mm")
+        # A bare ellipse (not in a list) or any other non-iterable used to
+        # escape as ``TypeError: ... is not iterable`` (#168).
+        if isinstance(self.delaminations, (DelaminationEllipse, str, bytes)) or not hasattr(
+            self.delaminations, "__iter__"
+        ):
+            raise ValueError(
+                "delaminations must be a list of DelaminationEllipse "
+                f"(got {type(self.delaminations).__name__})"
+            )
         for i, e in enumerate(self.delaminations):
             if not isinstance(e, DelaminationEllipse):
                 raise ValueError(
