@@ -240,7 +240,8 @@ def _build_elements(mesh: FeMesh, lam: Laminate, tension: bool = False) -> List[
     continuum damage models (Matzenmiller, Lubliner & Taylor 1995; Maimi
     et al. 2007): the transverse and in-plane shear compliances S22 and S66
     are divided by the in-plane factor and the fibre compliance S11 by
-    ``mesh.fiber_tension_factors[e]`` (1 outside the fiber-break core),
+    ``mesh.fiber_tension_factors[e]`` (1 in every mesh ``apply_damage``
+    builds: the broken fibres are the TAI notch, ``_tai_fibre_damage_notch``),
     S33, S44 and S55 by the out-of-plane factor, with the Poisson terms
     kept. The damage zone thus keeps its fibre-direction stiffness and
     Poisson contraction, and a [0] ply pulled along its fibres in it sees
@@ -896,9 +897,10 @@ def fe3d_tai(
     cut no fibres), and loses its matrix-dominated stiffness and
     strengths. The broken fibres under the impactor are the closed-form
     tiers' equivalent hole, a Whitney-Nuismer notch on the stress at the
-    impact site (``_tai_fibre_damage_notch``), unless the damage state
-    carries its own fibre-break core, which is meshed. Raises
-    :class:`FE3DSizeError` above the size cap.
+    impact site (``_tai_fibre_damage_notch``); a damage state's own
+    fibre-break core (``fiber_break_radius_mm``) sets the hole's minimum
+    radius, as in the closed-form tiers. Raises :class:`FE3DSizeError`
+    above the size cap.
     """
     mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
     notch = _tai_fibre_damage_notch(cfg, damage, lam, mesh)
@@ -915,10 +917,12 @@ def tai_fibre_damage_hole(
     closed-form equivalent hole (:func:`~bvidfe.failure.soutis_openhole.tai_hole_radius_mm`)
     and its Whitney-Nuismer knockdown, finite-width corrected for the panel
     width ``Ly`` (:func:`~bvidfe.failure.soutis_openhole.fibre_damage_tai`).
-    ``None`` without delaminations, and when the damage state carries a
-    fibre-break core (``fiber_break_radius_mm > 0``), which the mesh models
-    instead (``fe_mesh.apply_damage``)."""
-    if not damage.delaminations or damage.fiber_break_radius_mm > 0:
+    The radius is at least ``damage.fiber_break_radius_mm``, so a measured
+    fibre-break core (a C-scan file) is covered by the hole whatever the
+    mesh; the meshed core does not soften the fibres as well
+    (``fe_mesh.apply_damage``, issue #164). ``None`` without
+    delaminations."""
+    if not damage.delaminations:
         return None
     width = cfg.panel.Ly_mm
     R = tai_hole_radius_mm(lam.material, damage, width)
@@ -946,7 +950,12 @@ def _tai_fibre_damage_notch(
     It is instead a notch on the resolved field: the elements under it
     (``fe_mesh.fibre_damage_hole_elements``, every ply) see their averaged
     stress multiplied by ``1 / knockdown``, so the hole sits in the strain
-    field of the delaminations and matrix cracks around it.
+    field of the delaminations and matrix cracks around it. A damage
+    state's own fibre-break core is part of the hole (its radius is at
+    least the core's) rather than a second, meshed fibre softening: the
+    meshed core took elements by their centre and held none at 5 mm for
+    cores under 3.5 mm, so a measured core switched the hole off and
+    raised fe3d TAI above the same C-scan without one (issue #164).
 
     ``None`` when there is no hole (see ``tai_fibre_damage_hole``).
     """

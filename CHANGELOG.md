@@ -353,6 +353,29 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   150 x 100 mm panel at 5 J on a 10 mm mesh: 0.490 -> 0.469, the growth
   stress now below first-ply failure; 15 and 30 J unchanged; not
   re-measured further here).
+- **fe3d TAI dropped a measured fibre-break core smaller than an element,
+  and the hole with it (#164).** A C-scan's `fiber_break_radius_mm`
+  switched fe3d TAI's fibre-damage hole off in favour of the meshed core,
+  which takes elements by their centre: at the 5 mm default mesh the
+  impact point is a node 3.54 mm from the nearest centre, so cores under
+  3.5 mm (and under 1.8 mm at 2.5 mm) softened nothing, and the same
+  C-scan with a core was *less* conservative than without one, silently.
+  8-ply QI IM7/8552, 150 x 100 mm, 5 mm mesh, 15 J footprint with a
+  0 / 1.5 / 3 / 4 mm core: 0.714 / 0.912 / 0.912 / 0.517 (closed form
+  0.771 / 0.727 / 0.567 / 0.513). The hole now covers the core, as in
+  the closed-form tiers (`tai_hole_radius_mm` = max(footprint hole,
+  core)): 0.714 / 0.673 / 0.525 / 0.484. The meshed core no longer
+  lowers `E11` in tension (`FeMesh.fiber_tension_factors` is 1
+  everywhere `apply_damage` builds), since the notch on the elements
+  under the hole already carries those broken fibres and a softened
+  core under it would count them twice; the core's compression factors
+  are as before, and fe3d CAI is unchanged bit for bit (0.2556 with a
+  0-3 mm core, 0.2583 with 4 mm, on the same panel). A core that holds
+  no element centre raises `FiberBreakCoreUnmeshedWarning`
+  (`bvidfe.analysis.fe_mesh`), recorded in `AnalysisResults.warnings`,
+  with the element size that would mesh it. Impact-driven analyses
+  (every preset has no core) are unchanged: 8-ply QI 5 / 15 / 30 J
+  0.834 / 0.714 / 0.629, Körbelin TAI MAE 3.6%.
 - **fe3d TAI treated the damage zone as if its fibres were cut.** The
   zone's in-plane factor (0.15) scaled every in-plane stiffness term in
   tension as in compression, and strain equivalence lowered its fibre
@@ -400,7 +423,8 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   so it is a notch instead: the elements under it see their averaged
   stress times `1 / k_h` (`fe_tier._tai_fibre_damage_notch`,
   `fe_mesh.fibre_damage_hole_elements`). A damage state with its own
-  `fiber_break_radius_mm` keeps its meshed core and gets no hole.
+  `fiber_break_radius_mm` has it as the hole's minimum radius (it first
+  kept its meshed core and got no hole; see #164 under *Fixed*).
   Compression is unchanged, bit for bit (calibration coupons -20.6% /
   +1.2% / +0.3%). fe3d TAI on 150 x 100 mm IM7/8552 panels (5 mm mesh)
   at 5 / 15 / 30 J:
