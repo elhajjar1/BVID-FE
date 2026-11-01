@@ -152,7 +152,7 @@ with the 0.2.0 code):
 
 | Case | Empirical, 0.2.0 -> now | Semi-analytical, 0.2.0 -> now |
 |---|---|---|
-| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.651 | 0.007 -> 0.556 |
+| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.651 | 0.007 -> 0.557 |
 | same, 20 J, CAI | 0.353 -> 0.375 | 0.002 -> 0.375 |
 | same, 20 J, TAI | 0.349 -> 0.774 | 0.349 -> 0.774 |
 | same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 0.415 | 0.003 -> 0.415 |
@@ -177,7 +177,7 @@ mapped on the tested coupon since 0.2.0 has no `impact_panel`):
 |---|---|---|
 | `ncamp_as4_8552_cai`, 7 coupons | no AS4/8552 preset | 1.5% / 1.5% |
 | `lovejoy_scotti_im7_8552_cai`, 8 coupons | 91.6% / 82.8% | 8.8% / 8.8% |
-| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.5% / 23.3% |
+| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.5% / 23.4% |
 
 The two gated datasets were used to fit `soutis_k_s` and `olsson_alpha`,
 so these errors are in-sample. Fitted on one dataset alone, `soutis_k_s`
@@ -316,6 +316,66 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Fixed
 
+- **Sublaminate buckling ignored the delamination orientation (#165).**
+  `sublaminate_buckling_load` took the enclosing rectangle as
+  `2 * major_mm` along the load and `2 * minor_mm` across it whatever the
+  ellipse's `orientation_deg`, while the damage template lays each ellipse
+  along the back-face ply of its interface (45 / -45 / 90 deg on a
+  quasi-isotropic laminate) and both the template's window clip and the
+  TAI damage width rotate it to its x / y extents. The same ellipse fed
+  the TAI hole one way and the CAI sublaminate another. The rectangle is
+  now the rotated ellipse's bounding box, with half-extents
+  `ex = hypot(major cos θ, minor sin θ)`, `ey = hypot(major sin θ,
+  minor cos θ)` from the new `DelaminationEllipse.half_extents_mm()`
+  (`damage.state.ellipse_half_extents_mm` for arrays), which the template
+  and `transverse_damage_width_mm` now share. An ellipse along the load is
+  unchanged; one across it buckles like the unrotated ellipse with its
+  axes swapped (a 20 x 8 mm ellipse at interface 2 of the 8-ply QI
+  laminate: 78.4 N/mm along, 39.5 N/mm across, 23.4 N/mm at 45 deg, whose
+  bounding box is a 30 mm square). The delamination growth stress falls
+  wherever a back-face delamination governs, on 150 x 100 mm IM7/8552
+  panels: 8-ply QI at 5 J 300.5 -> 281.8 MPa (knockdown 0.500 -> 0.469,
+  growth governs); at 10 J the film buckling stress at the governing
+  interface 4 falls from 210 to 78 MPa but Soutis still governs (0.448);
+  15 J unchanged; 16-ply `[0/45/-45/90]4` at 5 J 0.556 -> 0.557 (the
+  governing interface moves); 16-ply `[0/45/-45/90]2s` at 5 J 0.555 ->
+  0.520 and, on 200 x 150 mm, 0.596 -> 0.500 at 5 J and 0.503 -> 0.458 at
+  10 J (growth now governs there; the CLI snapshot
+  `semi_analytical_quasi_iso_quad_10J` is recaptured); 24-ply QI at 10 J
+  0.538 -> 0.512; `[0/90]2s` unchanged at 5 / 10 J (0.424 / 0.389) and
+  0.388 -> 0.394 at 15 J. Validation (semi-analytical): NCAMP 1.54%,
+  Lovejoy & Scotti 8.78% and Körbelin 3.49% unchanged (Soutis governs
+  every coupon; the growth stresses fall to 205-206, 182 and 227-228 MPa
+  against Soutis bounds of 176-177, 156 and 224 MPa), Hasebe et al.
+  23.35% -> 23.45% (growth now governs 256 of 343 coupons, 238 before).
+  fe3d CAI takes the lower of this growth stress and first-ply failure,
+  so its CAI results move wherever growth governs there (the 8-ply QI
+  150 x 100 mm panel at 5 J on a 10 mm mesh: 0.490 -> 0.469, the growth
+  stress now below first-ply failure; 15 and 30 J unchanged; not
+  re-measured further here).
+- **fe3d TAI dropped a measured fibre-break core smaller than an element,
+  and the hole with it (#164).** A C-scan's `fiber_break_radius_mm`
+  switched fe3d TAI's fibre-damage hole off in favour of the meshed core,
+  which takes elements by their centre: at the 5 mm default mesh the
+  impact point is a node 3.54 mm from the nearest centre, so cores under
+  3.5 mm (and under 1.8 mm at 2.5 mm) softened nothing, and the same
+  C-scan with a core was *less* conservative than without one, silently.
+  8-ply QI IM7/8552, 150 x 100 mm, 5 mm mesh, 15 J footprint with a
+  0 / 1.5 / 3 / 4 mm core: 0.714 / 0.912 / 0.912 / 0.517 (closed form
+  0.771 / 0.727 / 0.567 / 0.513). The hole now covers the core, as in
+  the closed-form tiers (`tai_hole_radius_mm` = max(footprint hole,
+  core)): 0.714 / 0.673 / 0.525 / 0.484. The meshed core no longer
+  lowers `E11` in tension (`FeMesh.fiber_tension_factors` is 1
+  everywhere `apply_damage` builds), since the notch on the elements
+  under the hole already carries those broken fibres and a softened
+  core under it would count them twice; the core's compression factors
+  are as before, and fe3d CAI is unchanged bit for bit (0.2556 with a
+  0-3 mm core, 0.2583 with 4 mm, on the same panel). A core that holds
+  no element centre raises `FiberBreakCoreUnmeshedWarning`
+  (`bvidfe.analysis.fe_mesh`), recorded in `AnalysisResults.warnings`,
+  with the element size that would mesh it. Impact-driven analyses
+  (every preset has no core) are unchanged: 8-ply QI 5 / 15 / 30 J
+  0.834 / 0.714 / 0.629, Körbelin TAI MAE 3.6%.
 - **fe3d TAI treated the damage zone as if its fibres were cut.** The
   zone's in-plane factor (0.15) scaled every in-plane stiffness term in
   tension as in compression, and strain equivalence lowered its fibre
@@ -363,7 +423,8 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   so it is a notch instead: the elements under it see their averaged
   stress times `1 / k_h` (`fe_tier._tai_fibre_damage_notch`,
   `fe_mesh.fibre_damage_hole_elements`). A damage state with its own
-  `fiber_break_radius_mm` keeps its meshed core and gets no hole.
+  `fiber_break_radius_mm` has it as the hole's minimum radius (it first
+  kept its meshed core and got no hole; see #164 under *Fixed*).
   Compression is unchanged, bit for bit (calibration coupons -20.6% /
   +1.2% / +0.3%). fe3d TAI on 150 x 100 mm IM7/8552 panels (5 mm mesh)
   at 5 / 15 / 30 J:
@@ -613,6 +674,30 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   a per-ply thickness list shorter than a swept layup, or a negative
   energy); such a point is now a failed row, and an unknown `on_error` is
   rejected even for an empty sweep.
+- **An impact a few mJ above the onset energy raised** `ValueError: f(a)
+  and f(b) must have different signs` from `distribute_damage`'s Brent
+  root-find, and it escaped `impact_to_damage`, `BvidAnalysis.run()` and
+  `sweep_energies` (issue #163): the scalar bracket was only ever widened
+  upward, so a target DPA below the union area at its default lower end
+  (about 0.1 mm², 1 mJ above onset for the 8-ply QI IM7/8552 panel) had no
+  sign change. The bracket now extends downward as well, and a target
+  below 0.01 mm² (under any C-scan's resolution) gives no delamination,
+  as an impact at or below onset does. Results above about 2 mJ over
+  onset are unchanged.
+- **`OrthotropicMaterial` accepted NaN and infinite moduli, strengths and
+  calibration constants** (issue #168): its positive fields were guarded
+  by a bare `v <= 0`, which is False for NaN and +inf, and a string
+  raised `TypeError` from the comparison. Every numeric field now goes
+  through the shared `bvidfe._validation` helpers (as `PanelGeometry`,
+  `DelaminationEllipse` and `DamageState` already did): `E11` .. `rho`
+  and a given `Zt` / `Zc` / `S13` must be finite and `> 0`, the Puck
+  slopes finite and `>= 0`, and `nu12`, `nu23`, `olsson_alpha`, the
+  `dent_*`, `soutis_*`, `wn_d0_mm` and `tai_notch_fraction` finite, with
+  the existing range checks kept. Every failure is a `ValueError` naming
+  the field (`OrthotropicMaterial.E11 must be > 0 (got nan)`). All
+  library presets construct unchanged. `DamageState(ellipse)`, an
+  ellipse not in a list, raises a `ValueError` instead of
+  `TypeError: 'DelaminationEllipse' object is not iterable`.
 
 ### Removed
 

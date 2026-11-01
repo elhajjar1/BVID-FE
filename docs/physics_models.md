@@ -437,8 +437,16 @@ delamination growth bound.
 At each delaminated interface the thinner sublaminate (by thickness; on
 a tie, plies 0 … i, the impact side) over the largest delamination at
 that interface is treated as a plate over the delamination's enclosing
-rectangle, `a = 2 · major_mm` along x (the load direction) and
-`b = 2 · minor_mm` along y; the ellipse's `orientation_deg` is not used.
+rectangle: the rotated ellipse's bounding box in the panel frame,
+`a = 2 · ex` along x (the load direction) and `b = 2 · ey` along y, with
+the half-extents `ex = hypot(major_mm · cos θ, minor_mm · sin θ)` and
+`ey = hypot(major_mm · sin θ, minor_mm · cos θ)` for θ = `orientation_deg`
+(`DelaminationEllipse.half_extents_mm`). These are the extents the
+[damage template](#impact-to-damage-mapping) confines and the TAI damage
+width reads, so a delamination the template elongates along a ±45° or
+90° ply is as wide across the load here as it is for the open-hole
+model (it used to be taken as `2 · major_mm` along the load whatever its
+orientation).
 The sublaminate's `Dij` are taken about its own mid-plane and its
 coupling matrix B is ignored, although a sublaminate cut from a
 symmetric laminate is in general unsymmetric. The Navier (Rayleigh-Ritz) closed form for a
@@ -463,12 +471,12 @@ Buckling alone does not fail the laminate: the sublaminate keeps
 carrying load after it buckles. The CAI strength is the far-field stress
 at which the buckled sublaminate grows its delamination. The single-ply
 sublaminate over the largest (back-face) delamination does buckle at a
-few MPa (2–34 MPa on the panels below), but it is not the one that
+few MPa (3–21 MPa on the panels below), but it is not the one that
 grows first: a thin film needs a high film stress to release `G_c`. At the governing interface the film
-buckling stress is about 70–360 MPa on 150 × 100 mm IM7/8552 panels at
-10–30 J (8-ply [0/45/−45/90]s 100–230 MPa, 16-ply [0/45/−45/90]4
-70–360 MPa, 8-ply [0/90]2s 85–210 MPa), 100–105 MPa on the NCAMP coupons
-and 110–225 MPa on Lovejoy & Scotti's (the value is in
+buckling stress is about 60–210 MPa on 150 × 100 mm IM7/8552 panels at
+10–30 J (8-ply [0/45/−45/90]s 60–125 MPa, 16-ply [0/45/−45/90]4
+105–210 MPa, 8-ply [0/90]2s 90–190 MPa), 85–87 MPa on the NCAMP coupons
+and 110–125 MPa on Lovejoy & Scotti's (the value is in
 `AnalysisResults.notes` for fe3d). The thin-film energy release rate
 (Chai, Babcock & Knauss 1981; Hutchinson & Suo 1992, straight-sided
 blister)
@@ -509,25 +517,25 @@ configurations. On 150 × 100 mm IM7/8552 panels (8-ply QI
 [0/45/−45/90]s, 16-ply QI [0/45/−45/90]4 as in the synthetic dataset,
 and 8-ply cross-ply [0/90]2s; 0.152 mm plies, 10–30 J; the onset energy
 is 0.8 J on the 8-ply and 3.3 J on the 16-ply panels) the growth
-knockdown is 0.39–0.60 and the Soutis knockdown 0.31–0.49. Growth
-governs only on the cross-ply panel at 10–15 J (0.389 and 0.388 against
+knockdown is 0.35–0.50 and the Soutis knockdown 0.31–0.49. Growth
+governs only on the cross-ply panel at 10–15 J (0.389 and 0.394 against
 0.447 and 0.394); Soutis governs elsewhere. Closer to onset, at 5 J,
-growth governs all three (8-ply QI 0.500 against 0.546, 16-ply QI 0.556
+growth governs all three (8-ply QI 0.469 against 0.546, 16-ply QI 0.557
 against 0.651, cross-ply 0.424 against 0.544; the symmetric 16-ply
-[0/45/−45/90]2s 0.555 against 0.650).
+[0/45/−45/90]2s 0.520 against 0.650).
 
 **The growth channel is effectively unvalidated.** On the NCAMP and
 Lovejoy & Scotti validation cases (`validation/datasets/`), the two
 gated measured datasets, Soutis governs every coupon (growth stress
-222–224 MPa against a 176–177 MPa Soutis bound on NCAMP, 218–219
-against 156 MPa on the Lovejoy & Scotti quasi-isotropic coupons, and 251–252
+205–206 MPa against a 176–177 MPa Soutis bound on NCAMP, 182
+against 156 MPa on the Lovejoy & Scotti quasi-isotropic coupons, and 227–228
 against 224 MPa on their 40-ply hard laminate), so the two tiers give
 the same CAI strengths there and the gate never exercises the growth
-stress. Growth governs on 238 of Hasebe et al.'s 343 coupons (153 of the
-157 cross-ply coupons, every hard-laminate r0 coupon, and 58 of the 132
+stress. Growth governs on 256 of Hasebe et al.'s 343 coupons (154 of the
+157 cross-ply coupons, every hard-laminate r0 coupon, and 75 of the 132
 quasi-isotropic ones; no soft r45 coupon), and there it makes the prediction worse: on
-those 238 the MAE is 24.9% against 22.3% for the empirical tier (on the
-other 105 both are 19.8%), so the semi-analytical tier scores 23.3%
+those 256 the MAE is 25.6% against 23.0% for the empirical tier (on the
+other 87 both are 17.2%), so the semi-analytical tier scores 23.4%
 against 21.5% over the whole set.
 
 ## 3D FE tier
@@ -579,17 +587,23 @@ release):
   strength already uses. Until this release the zone was softened in
   every in-plane direction in tension too, so it failed as if its fibres
   were cut (see [Limitations](#limitations)).
-- The optional fibre-break core (elements within `fiber_break_radius_mm`
-  of any delamination centroid; off in every preset) gets both factors:
-  out-of-plane ×0.05 and in-plane ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR`
-  (0.30), and in tension its fibre-direction modulus `E11` takes 0.30 as
-  well (broken fibres). The impact mapping sets the core radius to
-  `fiber_break_eta · √(E − fiber_break_E_threshold)`, zero for every
-  preset, so only a damage state that gives `fiber_break_radius_mm` (a
-  C-scan file, or a custom material card) has one.
-- In tension the broken fibres under the impactor are, without such a
-  core, the closed-form tiers' equivalent hole (radius
-  `tai_hole_radius_mm`, see the empirical TAI model above), with its
+- The optional fibre-break core (elements whose centre is within
+  `fiber_break_radius_mm` of any delamination centroid; off in every
+  preset) gets both factors: out-of-plane ×0.05 and in-plane
+  ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR` (0.30). Its broken fibres are not a
+  third, fibre-direction softening in tension: they are the hole below,
+  whose radius is at least the core's (issue #164). The impact mapping
+  sets the core radius to `fiber_break_eta · √(E − fiber_break_E_threshold)`,
+  zero for every preset, so only a damage state that gives
+  `fiber_break_radius_mm` (a C-scan file, or a custom material card) has
+  one. A core that holds no element centre (at 5 mm, one under 3.5 mm:
+  the impact point is a node, 3.54 mm from the nearest centre) softens
+  nothing and raises `FiberBreakCoreUnmeshedWarning`, recorded in
+  `AnalysisResults.warnings`.
+- In tension the broken fibres under the impactor are the closed-form
+  tiers' equivalent hole (radius `tai_hole_radius_mm`, see the empirical
+  TAI model above: the footprint's hole, or the fibre-break core when
+  that is larger), with its
   Whitney-Nuismer point-stress knockdown `k_h` (`wn_d0_mm` = 1 mm, Tan's
   finite-width correction). The hole is about 1–4 mm across at BVID
   energies, below the mesh (2–5 mm elements and the 2.5 mm averaging
@@ -857,8 +871,8 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   sensitive to `d₀`. See [Empirical tier](#empirical-tier).
 - **The CAI delamination-growth channel is effectively unvalidated.**
   Soutis governs every coupon of the two gated measured datasets, and on Hasebe
-  et al.'s set, where growth governs 238 of 343 coupons, it raises the
-  error (24.9% against 22.3% on those coupons); see
+  et al.'s set, where growth governs 256 of 343 coupons, it raises the
+  error (25.6% against 23.0% on those coupons); see
   [Semi-analytical tier](#semi-analytical-tier).
 - **The dent depth is an empirical fit with a factor-of-1.7 scatter.**
   `dent_beta` and `dent_gamma` are fitted to two datasets (IM7/8552 and
@@ -936,9 +950,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
     every stress component of the elements under the hole by the
     laminate-level factor, an approximation of the ply stresses at a hole
     edge. A damage state with its own fibre-break core
-    (`DamageState.fiber_break_radius_mm > 0`) has that core meshed
-    instead of the hole, and a core smaller than an element is missed in
-    the same way. Use the closed-form tiers for TAI design values.
+    (`DamageState.fiber_break_radius_mm`, a C-scan) has it as the hole's
+    minimum radius, as in the closed-form tiers. Until issue #164 the
+    core switched the hole off in favour of the meshed core, which held
+    no element at 5 mm below a 3.5 mm radius, so a measured 1.5 mm core
+    made the 8-ply QI 15 J knockdown 0.912 against 0.714 without one
+    (closed form 0.727 / 0.771). Now the hole covers the core and the
+    meshed core no longer softens the fibres as well (the same broken
+    fibres would count twice): 0.673 for the 1.5 mm core, 0.525 / 0.484
+    for 3 / 4 mm cores (closed form 0.567 / 0.513; the 4 mm core is
+    meshed, four columns, and the hole's notch sits on those elements).
+    Use the closed-form tiers for TAI design values.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
   (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances

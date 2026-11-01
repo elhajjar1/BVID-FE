@@ -52,6 +52,25 @@ def test_empty_when_nonpositive_target():
     assert distribute_damage([0, 90, 0], -5.0, 0.3, 0.0) == []
 
 
+@pytest.mark.parametrize("target", [0.5, 0.1, 0.02, 0.01])
+def test_tiny_target_below_default_bracket_is_still_met(target):
+    """Issue #163: a target smaller than the union area at the default lower
+    bracket end (scale 0.1) used to escape as brentq's ``f(a) and f(b) must
+    have different signs``; the bracket now extends downward as well."""
+    layup = [0, 45, -45, 90, 90, -45, 45, 0]
+    ellipses = distribute_damage(layup, target, 0.0, 0.0)
+    assert ellipses
+    ds = DamageState(ellipses, 0.0, 0.0)
+    assert abs(ds.projected_damage_area_mm2 - target) / target < 0.01
+
+
+@pytest.mark.parametrize("target", [9e-3, 1e-4, 1e-9])
+def test_target_below_resolution_floor_is_no_damage(target):
+    """A target under 0.01 mm^2 is below any C-scan's resolution: no
+    delamination, like an impact at or below the onset energy."""
+    assert distribute_damage([0, 45, -45, 90, 90, -45, 45, 0], target, 0.0, 0.0) == []
+
+
 def test_back_face_growth_axiom():
     """Issue #16: delaminations must grow toward the back face (the
     experimentally observed BVID signature encoded by _relative_size).

@@ -5,8 +5,11 @@ import pytest
 
 from bvidfe.analysis import AnalysisConfig
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
+from bvidfe.core.laminate import Laminate
+from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 from bvidfe.impact.mapping import DPACapClipWarning, ImpactEvent
+from bvidfe.impact.olsson import onset_energy
 from bvidfe.sweep.parametric_sweep import (
     sweep_energies,
     sweep_layups,
@@ -369,3 +372,22 @@ def test_sweep_thicknesses_invalid_point_raises_by_default():
 def test_sweep_rejects_unknown_on_error_with_empty_list(sweep, kwargs):
     with pytest.raises(ValueError, match="on_error must be one of"):
         sweep(_base_impact_cfg(), on_error="bogus", **kwargs)
+
+
+def test_sweep_energies_fine_grid_across_onset_has_no_failed_rows():
+    """Issue #163: a fine energy grid straddling the onset energy used to
+    raise from distribute_damage a few mJ above onset. Every point runs,
+    the damage area is zero at and below onset and non-decreasing above."""
+    layup = [0, 45, -45, 90, 90, -45, 45, 0]
+    cfg = _base_impact_cfg(layup_deg=layup)
+    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], layup, 0.152)
+    E_onset = onset_energy(lam, cfg.panel, cfg.impact.impactor)
+    energies = [E_onset + k * 1e-4 for k in range(-5, 6)] + [E_onset + 1e-3, E_onset + 1e-2]
+    df = sweep_energies(cfg, energies_J=energies)
+    assert len(df) == len(energies)
+    assert df["dpa_mm2"].notna().all()
+    assert df["knockdown"].notna().all()
+    at_or_below = df["energy_J"] <= E_onset
+    assert (df.loc[at_or_below, "dpa_mm2"] == 0.0).all()
+    assert (df["dpa_mm2"].diff().dropna() >= 0.0).all()
+    assert (df["knockdown"] <= 1.0).all()
