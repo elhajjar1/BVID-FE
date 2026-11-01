@@ -287,9 +287,10 @@ mesh_damage_figure(mesh).write_html("damage_3d.html")
 The colour is `1 − damage_factor`, where `damage_factor` is each element's
 out-of-plane stiffness factor (0.05 at delaminated interfaces). The
 in-plane damage-zone factor is in `mesh.in_plane_damage_factors`, and
-the factor on the fibre-direction modulus in tension (1 except in an
-explicit fibre-break core, `DamageState.fiber_break_radius_mm`) in
-`mesh.fiber_tension_factors`; fe3d TAI's sub-mesh fibre-damage hole is not
+the factor on the fibre-direction modulus in tension (1 in every mesh
+`build_fe_mesh` builds) in `mesh.fiber_tension_factors`; fe3d TAI's
+sub-mesh fibre-damage hole, which carries the broken fibres, an explicit
+fibre-break core (`DamageState.fiber_break_radius_mm`) included, is not
 in the mesh (see `bvidfe.analysis.fe_tier.tai_fibre_damage_hole`);
 `stress_field_figure(mesh, element_scalar, label=...)` renders any
 per-element array.

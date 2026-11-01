@@ -579,17 +579,23 @@ release):
   strength already uses. Until this release the zone was softened in
   every in-plane direction in tension too, so it failed as if its fibres
   were cut (see [Limitations](#limitations)).
-- The optional fibre-break core (elements within `fiber_break_radius_mm`
-  of any delamination centroid; off in every preset) gets both factors:
-  out-of-plane ×0.05 and in-plane ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR`
-  (0.30), and in tension its fibre-direction modulus `E11` takes 0.30 as
-  well (broken fibres). The impact mapping sets the core radius to
-  `fiber_break_eta · √(E − fiber_break_E_threshold)`, zero for every
-  preset, so only a damage state that gives `fiber_break_radius_mm` (a
-  C-scan file, or a custom material card) has one.
-- In tension the broken fibres under the impactor are, without such a
-  core, the closed-form tiers' equivalent hole (radius
-  `tai_hole_radius_mm`, see the empirical TAI model above), with its
+- The optional fibre-break core (elements whose centre is within
+  `fiber_break_radius_mm` of any delamination centroid; off in every
+  preset) gets both factors: out-of-plane ×0.05 and in-plane
+  ×`DAMAGE_FIBER_BREAK_INPLANE_FACTOR` (0.30). Its broken fibres are not a
+  third, fibre-direction softening in tension: they are the hole below,
+  whose radius is at least the core's (issue #164). The impact mapping
+  sets the core radius to `fiber_break_eta · √(E − fiber_break_E_threshold)`,
+  zero for every preset, so only a damage state that gives
+  `fiber_break_radius_mm` (a C-scan file, or a custom material card) has
+  one. A core that holds no element centre (at 5 mm, one under 3.5 mm:
+  the impact point is a node, 3.54 mm from the nearest centre) softens
+  nothing and raises `FiberBreakCoreUnmeshedWarning`, recorded in
+  `AnalysisResults.warnings`.
+- In tension the broken fibres under the impactor are the closed-form
+  tiers' equivalent hole (radius `tai_hole_radius_mm`, see the empirical
+  TAI model above: the footprint's hole, or the fibre-break core when
+  that is larger), with its
   Whitney-Nuismer point-stress knockdown `k_h` (`wn_d0_mm` = 1 mm, Tan's
   finite-width correction). The hole is about 1–4 mm across at BVID
   energies, below the mesh (2–5 mm elements and the 2.5 mm averaging
@@ -936,9 +942,17 @@ solve; with no delaminations the undamaged growth stress is infinite, so
     every stress component of the elements under the hole by the
     laminate-level factor, an approximation of the ply stresses at a hole
     edge. A damage state with its own fibre-break core
-    (`DamageState.fiber_break_radius_mm > 0`) has that core meshed
-    instead of the hole, and a core smaller than an element is missed in
-    the same way. Use the closed-form tiers for TAI design values.
+    (`DamageState.fiber_break_radius_mm`, a C-scan) has it as the hole's
+    minimum radius, as in the closed-form tiers. Until issue #164 the
+    core switched the hole off in favour of the meshed core, which held
+    no element at 5 mm below a 3.5 mm radius, so a measured 1.5 mm core
+    made the 8-ply QI 15 J knockdown 0.912 against 0.714 without one
+    (closed form 0.727 / 0.771). Now the hole covers the core and the
+    meshed core no longer softens the fibres as well (the same broken
+    fibres would count twice): 0.673 for the 1.5 mm core, 0.525 / 0.484
+    for 3 / 4 mm cores (closed form 0.567 / 0.513; the 4 mm core is
+    meshed, four columns, and the hole's notch sits on those elements).
+    Use the closed-form tiers for TAI design values.
 - **The `fe3d` first-ply failure length scale is fixed, not fitted.** The
   failure index is averaged over a 2.5 mm disk
   (`FPF_AVERAGING_RADIUS_MM`, within the 1-4 mm characteristic distances
