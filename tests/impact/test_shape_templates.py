@@ -2,9 +2,8 @@ import pytest
 
 from bvidfe.damage.state import DamageState
 from bvidfe.impact.shape_templates import (
-    _aspect_ratio,
-    _orientation_deg,
     _ply_mismatch_deg,
+    _template_arrays,
     distribute_damage,
 )
 
@@ -132,7 +131,8 @@ def test_equivalent_layup_notations_give_identical_footprints(rewrite):
 )
 def test_ply_mismatch_is_the_acute_angle(a, b, expected):
     assert float(_ply_mismatch_deg(a, b)) == pytest.approx(expected)
-    assert _aspect_ratio(b - a) == pytest.approx(1.0 + 0.025 * expected)
+    ar, _, _ = _template_arrays([a, b], 1)
+    assert ar[0] == pytest.approx(1.0 + 0.025 * expected)
 
 
 def test_minus45_90_interface_aspect_ratio_is_not_clipped():
@@ -147,7 +147,8 @@ def test_minus45_90_interface_aspect_ratio_is_not_clipped():
 )
 def test_orientation_is_the_back_face_side_ply(impact_side, back_side, expected):
     """Ply 0 is the impact face, so interface i elongates along ply i + 1."""
-    assert _orientation_deg(impact_side, back_side) == expected
+    _, _, orient = _template_arrays([impact_side, back_side], 1)
+    assert orient[0] == expected
     (e,) = distribute_damage([impact_side, back_side], 500.0, 0.3, 0.0)
     assert e.orientation_deg == expected
     assert -90.0 < e.orientation_deg <= 90.0

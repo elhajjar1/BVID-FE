@@ -19,7 +19,6 @@ from bvidfe.analysis.fe_tier import (
 from bvidfe.analysis.results import AnalysisResults
 from bvidfe.analysis.semi_analytical import (
     SemiAnalyticalResult,
-    panel_buckling_load,
     semi_analytical_cai,
     semi_analytical_tai,
 )
@@ -276,7 +275,6 @@ class BvidAnalysis:
             f"{fpf_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
             f"pristine_strength_MPa: {sigma_fpf:.1f} MPa"
         ]
-        panel = self.config.panel
         critical_interface = None
         sigma_growth = math.inf
         if growth is not None and math.isfinite(growth.growth_stress_MPa):
@@ -301,13 +299,6 @@ class BvidAnalysis:
             notes.append(
                 f"fe3d CAI: first-ply failure governs ({sigma_fpf:.1f} MPa; no "
                 f"delamination grows)"
-            )
-        N_cr_panel = panel_buckling_load(lam, panel.Lx_mm, panel.Ly_mm, panel.boundary)
-        sigma_panel = N_cr_panel / lam.thickness_mm
-        if math.isfinite(sigma_panel):
-            notes.append(
-                f"fe3d whole-panel buckling at {sigma_panel:.1f} MPa is excluded from the "
-                f"knockdown (CAI fixtures carry anti-buckling guides)"
             )
         _, lambda_crit, buckling_notes = fe3d_cai_buckling(self.config, damage, lam, math.inf)
         notes.extend(buckling_notes)

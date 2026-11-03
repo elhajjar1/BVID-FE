@@ -825,7 +825,9 @@ def fe3d_cai_buckling(
     (see :func:`fe3d_cai`): a buckled sublaminate keeps carrying load until
     its delamination grows, and whole-panel buckling is suppressed by the
     anti-buckling guides of a CAI fixture. ``BvidAnalysis`` reports the
-    value in ``AnalysisResults.buckling_eigenvalues``.
+    value in ``AnalysisResults.buckling_eigenvalues`` and the returned notes
+    (the whole-panel buckling stress, and a degenerate closed form) in
+    ``AnalysisResults.notes``.
     """
     boundary = cfg.panel.boundary
     notes: List[str] = []
@@ -833,6 +835,11 @@ def fe3d_cai_buckling(
     t_total = float(sum(lam.ply_thicknesses_mm))
     N_cr_panel = panel_buckling_load(lam, cfg.panel.Lx_mm, cfg.panel.Ly_mm, boundary)
     sigma_critical = N_cr_panel / t_total if t_total > 0 else float("inf")
+    if np.isfinite(sigma_critical):
+        notes.append(
+            f"fe3d whole-panel buckling at {sigma_critical:.1f} MPa is excluded from the "
+            f"knockdown (CAI fixtures carry anti-buckling guides)"
+        )
 
     if damage.delaminations:
         crit_idx = find_critical_interface(damage, lam)
@@ -853,7 +860,7 @@ def fe3d_cai_buckling(
             "fe3d buckling: closed-form Rayleigh-Ritz returned a degenerate "
             "result, so no buckling onset is reported"
         )
-        return sigma_pristine_MPa, 0.0, [note]
+        return sigma_pristine_MPa, 0.0, notes + [note]
 
     lambda_crit = sigma_critical / sigma_ref_MPa
     _log.info(

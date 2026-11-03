@@ -2,9 +2,8 @@
 Brent root-find in ``bvidfe.impact.shape_templates`` (issue #87).
 
 Two guarantees:
-1. The vectorized ``_template_arrays`` reproduces the scalar reference
-   implementation exactly (``ar``, ``rel``, ``orient``) for several
-   layups.
+1. ``_template_arrays`` gives the per-interface template coefficients
+   (``ar``, ``rel``, ``orient``) pinned below for several layups.
 2. ``distribute_damage`` lands on a known-good total DPA pinned from
    the pre-refactor implementation, to within 1e-6 relative.
 """
@@ -14,57 +13,42 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import pytest
 
 from bvidfe.damage.state import DamageState
-from bvidfe.impact.shape_templates import (
-    _aspect_ratio,
-    _orientation_deg,
-    _relative_size,
-    _template_arrays,
-    distribute_damage,
+from bvidfe.impact.shape_templates import _template_arrays, distribute_damage
+
+
+@pytest.mark.parametrize(
+    "layup, ar, orient",
+    [
+        # Aspect ratio 1 + 0.025 x the acute ply mismatch, clipped to [1, 4];
+        # orientation the back-face-side ply's fibre angle in (-90, 90].
+        (
+            [0, 45, -45, 90, 0, 90, -45, 45, 0],
+            [2.125, 3.25, 2.125, 3.25, 3.25, 2.125, 3.25, 2.125],
+            [45, -45, 90, 0, 90, -45, 45, 0],
+        ),
+        ([0, 90, 0], [3.25, 3.25], [90, 0]),
+        (
+            [0, 30, -30, 60, -60, 90, 0],
+            [1.75, 2.5, 3.25, 2.5, 1.75, 3.25],
+            [30, -30, 60, -60, 90, 0],
+        ),
+        ([0, 0, 0, 0, 0, 0], [1.0] * 5, [0] * 5),
+        ([45, -45, 45, -45, 45, -45, 45], [3.25] * 6, [-45, 45, -45, 45, -45, 45]),
+        # Fibre directions are axial: 135 is -45, -90 is 90, 180 is 0.
+        ([-45, 135, 90, -90, 180], [1.0, 2.125, 1.0, 3.25], [-45, 90, 90, 0]),
+    ],
 )
-
-
-def _reference_arrays(layup, n_interfaces):
-    """Pure-Python reference for (ar, rel, orient) per interface."""
-    ar = [_aspect_ratio(layup[i + 1] - layup[i]) for i in range(n_interfaces)]
-    orient = [_orientation_deg(layup[i], layup[i + 1]) for i in range(n_interfaces)]
-    rel = [_relative_size(i, n_interfaces) for i in range(n_interfaces)]
-    return ar, rel, orient
-
-
-def test_template_arrays_matches_scalar_reference():
-    layups = [
-        [0, 45, -45, 90, 0, 90, -45, 45, 0],  # 9 plies
-        [0, 90, 0],  # 3 plies
-        [0, 30, -30, 60, -60, 90, 0],  # 7 plies
-        [0, 0, 0, 0, 0, 0],  # 6 plies, all aligned
-        [45, -45, 45, -45, 45, -45, 45],  # 7 plies, alternating
-    ]
-    for layup in layups:
-        n_interfaces = len(layup) - 1
-        ar_arr, rel_arr, orient_arr = _template_arrays(layup, n_interfaces)
-        ar_ref, rel_ref, orient_ref = _reference_arrays(layup, n_interfaces)
-        np.testing.assert_allclose(ar_arr, ar_ref, rtol=0, atol=0)
-        np.testing.assert_allclose(rel_arr, rel_ref, rtol=0, atol=0)
-        np.testing.assert_allclose(orient_arr, orient_ref, rtol=0, atol=0)
-
-
-def test_vectorized_build_semi_axes_match_scalar_recipe():
-    """For several scalars, vectorized major/minor axes equal
-    scalar * AR * rel and scalar * rel respectively."""
-    layup = [0, 45, -45, 90, 90, -45, 45, 0]
+def test_template_arrays_pinned(layup, ar, orient):
     n_interfaces = len(layup) - 1
     ar_arr, rel_arr, orient_arr = _template_arrays(layup, n_interfaces)
-    for scalar in [0.5, 1.7, 5.0, 12.3]:
-        majors = scalar * ar_arr * rel_arr
-        minors = scalar * rel_arr
-        # Compare against the Python recipe (pre-refactor formula).
-        for i in range(n_interfaces):
-            ar_i = _aspect_ratio(layup[i + 1] - layup[i])
-            rel_i = _relative_size(i, n_interfaces)
-            assert math.isclose(majors[i], scalar * ar_i * rel_i, rel_tol=0, abs_tol=0)
-            assert math.isclose(minors[i], scalar * rel_i, rel_tol=0, abs_tol=0)
+    np.testing.assert_allclose(ar_arr, ar, rtol=1e-12, atol=0)
+    np.testing.assert_array_equal(orient_arr, np.asarray(orient, dtype=float))
+    # Back-face growth ramp: 0.3 + 0.7 z, z = (i + 1) / n_interfaces.
+    rel = [0.3 + 0.7 * (i + 1) / n_interfaces for i in range(n_interfaces)]
+    np.testing.assert_allclose(rel_arr, rel, rtol=1e-12, atol=0)
 
 
 def test_distribute_damage_pinned_dpa_known_good():

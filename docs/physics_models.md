@@ -554,9 +554,10 @@ Delaminated interfaces are approximated by a **component-wise
 stiffness-reduction model** (true cohesive surfaces deferred to a future
 release):
 
-- Elements that touch a delaminated interface plane (the element layers
-  on both sides) and whose centroid lies inside that delamination's ellipse carry
-  an out-of-plane factor `DAMAGE_OOP_FACTOR = 0.05`. It scales the
+- The elements of the two plies bounding a delaminated interface (every
+  element layer of both, so the softened thickness is two plies at any
+  `elements_per_ply`) whose centroid lies inside that delamination's
+  ellipse carry an out-of-plane factor `DAMAGE_OOP_FACTOR = 0.05`. It scales the
   through-thickness and transverse-shear stiffness and the in-plane /
   out-of-plane Poisson coupling.
 - The damage zone as a whole (every ply under the union of the
