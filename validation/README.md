@@ -602,7 +602,7 @@ window the plate was impacted on, when it is not the test panel), and
 python validation/validate_bvid_public.py              # empirical tier, all datasets, print table
 python validation/validate_bvid_public.py --gate       # exit non-zero if a gated MAE exceeds 1.25 * target
 python validation/validate_bvid_public.py --dataset synthetic_selfcheck
-python validation/validate_bvid_public.py --tier semi_analytical --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai hasebe_t800s_3900_2b_cai korbelin_m21_t800s_tai
+python validation/validate_bvid_public.py --tier semi_analytical --measured   # every dataset with "kind": "measured"
 python validation/validate_bvid_public.py --tier fe3d --dataset synthetic_selfcheck --max-cases 3
 ```
 

@@ -52,7 +52,7 @@ class FieldResults:
     cohesive_damage : np.ndarray, optional
         Per-interface-element scalar cohesive damage variable in
         ``[0, 1]`` (0 = intact, 1 = fully separated). ``None`` until
-        true cohesive surfaces land (see README "Limitations").
+        true cohesive surfaces land (see "Limitations" in docs/physics_models.md).
     """
 
     displacement: np.ndarray
@@ -82,8 +82,8 @@ class AnalysisResults:
       assigned in ``BvidAnalysis.run()``.
 
     Knockdowns from different tiers are on the same scale (same baseline),
-    but capture different failure mechanisms — see the README "Knockdown
-    definition and cross-tier comparability" section before comparing
+    but capture different failure mechanisms — see "Knockdown definition and
+    cross-tier comparability" in docs/physics_models.md before comparing
     values across tiers.
 
     ``notes`` carries free-form runtime diagnostics emitted by the analysis

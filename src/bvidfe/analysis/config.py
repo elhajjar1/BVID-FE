@@ -61,7 +61,7 @@ class MeshParams:
     cohesive_zone_factor : float
         Reserved (``> 0``, default ``1.0``). Intended as a multiplier on
         the cohesive-zone characteristic length once true cohesive
-        surfaces land (see README "Limitations"); **validated but not read
+        surfaces land (see "Limitations" in docs/physics_models.md); **validated but not read
         by any code path** — the present fe3d tier uses a component-wise
         stiffness-reduction model, not cohesive elements, so changing it
         does not change any result. Leave at the default.
