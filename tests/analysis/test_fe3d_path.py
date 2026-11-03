@@ -1,7 +1,9 @@
+import pytest
+
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis, MeshParams
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.damage.state import DamageState, DelaminationEllipse
-from bvidfe.impact.mapping import ImpactEvent
+from bvidfe.impact.mapping import DPACapClipWarning, ImpactEvent
 
 
 def _small_cfg(**overrides):
@@ -38,6 +40,12 @@ def test_fe3d_tai_end_to_end():
 
 def test_fe3d_impact_path_runs():
     cfg = _small_cfg(impact=ImpactEvent(3.0, ImpactorGeometry(), mass_kg=5.5))
-    r = BvidAnalysis(cfg).run()
+    # The 10 x 5 mm panel cannot hold the predicted DPA: it is clipped, and
+    # the clipped area does not fit inside the impact window.
+    with (
+        pytest.warns(DPACapClipWarning),
+        pytest.warns(UserWarning, match="does not fit inside the impact window"),
+    ):
+        r = BvidAnalysis(cfg).run()
     assert r.tier_used == "fe3d"
     assert r.residual_strength_MPa > 0

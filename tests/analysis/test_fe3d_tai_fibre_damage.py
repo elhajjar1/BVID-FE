@@ -26,6 +26,7 @@ tension, which would count the hole's broken fibres twice.
 
 from __future__ import annotations
 
+import contextlib
 import math
 import sys
 from pathlib import Path
@@ -171,7 +172,8 @@ def test_sub_element_fibre_break_core_lowers_fe3d_tai_on_the_default_mesh():
 
 
 def test_unmeshed_core_is_recorded_in_the_results():
-    r = BvidAnalysis(_cscan_cfg("tension", _cscan(15.0, 1.5))).run()
+    with pytest.warns(FiberBreakCoreUnmeshedWarning):
+        r = BvidAnalysis(_cscan_cfg("tension", _cscan(15.0, 1.5))).run()
     assert any(w.startswith("FiberBreakCoreUnmeshedWarning") for w in r.warnings), r.warnings
     assert any(n.startswith("fe3d TAI: fibre damage") for n in r.notes), r.notes
 
@@ -238,7 +240,10 @@ _CAI_CORE_KNOCKDOWN_BEFORE = {1.5: 0.301015353370238, 8.0: 0.2884425155093483}
 @pytest.mark.parametrize("fiber_break_radius_mm", [1.5, 8.0])
 def test_fe3d_cai_with_a_fibre_break_core_is_unchanged(fiber_break_radius_mm):
     cfg = _cscan_cfg("compression", _cscan(15.0, fiber_break_radius_mm))
-    r = BvidAnalysis(cfg).run()
+    # The 1.5 mm core holds no element centre on this mesh.
+    unmeshed = fiber_break_radius_mm == 1.5
+    with pytest.warns(FiberBreakCoreUnmeshedWarning) if unmeshed else contextlib.nullcontext():
+        r = BvidAnalysis(cfg).run()
     expected = _CAI_CORE_KNOCKDOWN_BEFORE[fiber_break_radius_mm]
     assert r.knockdown == pytest.approx(expected, rel=1e-12)
 

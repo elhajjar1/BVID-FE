@@ -52,8 +52,10 @@ dev = [
     "pytest>=7,<10",
     "pytest-cov>=4,<8",
     "coverage>=7.10",
-    "ruff>=0.5,<1",
-    "black>=24,<27",
+    # ruff and black are pinned exactly, to the revs in .pre-commit-config.yaml;
+    # bump both files together.
+    "ruff==0.17.3",
+    "black==26.10.1",
     "pre-commit>=3,<5",
     "streamlit>=1.51,<2",
     "pip-audit>=2.6,<3",
@@ -93,6 +95,13 @@ select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Any warning fails the test that emits it: a test that expects one asserts
+# it with pytest.warns. Third-party deprecations the project cannot act on
+# are ignored by module.
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:streamlit.*",
+]
 
 [tool.coverage.run]
 # pytest-cov 7 no longer measures subprocesses; the CLI tests run

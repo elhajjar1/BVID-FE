@@ -1,6 +1,8 @@
 """Tests for the fe3d CAI buckling channel (Rayleigh-Ritz closed-form
 delegation, #129)."""
 
+import contextlib
+
 import pytest
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis, MeshParams
@@ -9,7 +11,19 @@ from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.damage.state import DamageState, DelaminationEllipse
-from bvidfe.impact.mapping import ImpactEvent
+from bvidfe.impact.mapping import DPACapClipWarning, ImpactEvent
+
+
+@contextlib.contextmanager
+def _tiny_panel_impact_warnings():
+    """An impact on ``small_cfg``'s 10 x 5 mm panel predicts far more DPA
+    than the panel holds: it is clipped to 80% of the panel area, and that
+    area does not fit inside the impact window."""
+    with (
+        pytest.warns(DPACapClipWarning),
+        pytest.warns(UserWarning, match="does not fit inside the impact window"),
+    ):
+        yield
 
 
 @pytest.fixture
@@ -101,7 +115,8 @@ def test_fe3d_cai_buckling_canonical_panel_value():
 
 def test_bvid_analysis_fe3d_cai_uses_buckling_path(small_cfg):
     """BvidAnalysis with tier=fe3d should populate buckling_eigenvalues."""
-    r = BvidAnalysis(small_cfg).run()
+    with _tiny_panel_impact_warnings():
+        r = BvidAnalysis(small_cfg).run()
     assert r.tier_used == "fe3d"
     assert r.buckling_eigenvalues is not None
     assert len(r.buckling_eigenvalues) >= 1
@@ -136,10 +151,12 @@ def test_bvid_analysis_fe3d_residual_ignores_buckling_onset(small_cfg, monkeypat
     leaves the residual unchanged and raises no fallback tag."""
     from bvidfe.analysis import fe_tier as ft
 
-    baseline = BvidAnalysis(small_cfg).run()
+    with _tiny_panel_impact_warnings():
+        baseline = BvidAnalysis(small_cfg).run()
     monkeypatch.setattr(ft, "panel_buckling_load", lambda *_a, **_kw: float("inf"))
     monkeypatch.setattr(ft, "sublaminate_buckling_load", lambda *_a, **_kw: float("inf"))
-    r = BvidAnalysis(small_cfg).run()
+    with _tiny_panel_impact_warnings():
+        r = BvidAnalysis(small_cfg).run()
     assert r.residual_strength_MPa == baseline.residual_strength_MPa
     assert r.buckling_eigenvalues is None
     assert r.warnings == baseline.warnings  # no extra fallback warning

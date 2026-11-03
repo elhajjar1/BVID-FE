@@ -1,24 +1,22 @@
 name: docs
 
 # Build and deploy the MkDocs site to GitHub Pages on every push to main.
-# We deliberately do NOT trigger on pull_request to avoid burning CI minutes
-# on draft PRs — preview builds (if ever wanted) should go through a manual
-# workflow_dispatch.
+# Pull requests run the strict build only (about a minute), so broken links
+# and nav entries are caught before merge; the deploy job is skipped.
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
-# Required by actions/deploy-pages (OIDC + pages write).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# Avoid concurrent deploys racing each other.
+# Avoid concurrent deploys racing each other. PR builds get their own group
+# (and cancel superseded runs) so they never queue behind a deploy.
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -29,6 +27,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install docs dependencies
         run: pip install ".[docs]"
@@ -37,13 +37,21 @@ jobs:
         run: mkdocs build --strict
 
       - name: Upload artifact for Pages
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
+    # Required by actions/deploy-pages (OIDC + pages write); granted to the
+    # deploy job only, so PR builds run with a read-only token.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

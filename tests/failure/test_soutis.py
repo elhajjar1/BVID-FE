@@ -10,6 +10,10 @@ from bvidfe.failure.soutis_openhole import (
     whitney_nuismer_tai,
 )
 
+# These tests exercise whitney_nuismer_tai's isotropic Kt_inf = 3 fallback,
+# which warns.
+NO_KT_INF = "called without Kt_inf"
+
 
 def test_soutis_monotone_decreasing_in_dpa():
     m = MATERIAL_LIBRARY["IM7/8552"]
@@ -33,20 +37,24 @@ def test_soutis_pristine_strength_cap():
 
 def test_wn_tai_zero_dpa_returns_pristine():
     m = MATERIAL_LIBRARY["IM7/8552"]
-    s = whitney_nuismer_tai(m, dpa_mm2=0, sigma_pristine_MPa=800)
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        s = whitney_nuismer_tai(m, dpa_mm2=0, sigma_pristine_MPa=800)
     assert math.isclose(s, 800, rel_tol=1e-6)
 
 
 def test_wn_tai_monotone_decreasing_in_dpa():
     m = MATERIAL_LIBRARY["IM7/8552"]
-    t1 = whitney_nuismer_tai(m, dpa_mm2=100, sigma_pristine_MPa=800)
-    t2 = whitney_nuismer_tai(m, dpa_mm2=400, sigma_pristine_MPa=800)
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        t1 = whitney_nuismer_tai(m, dpa_mm2=100, sigma_pristine_MPa=800)
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        t2 = whitney_nuismer_tai(m, dpa_mm2=400, sigma_pristine_MPa=800)
     assert t1 > t2
 
 
 def test_wn_tai_pristine_strength_cap():
     m = MATERIAL_LIBRARY["IM7/8552"]
-    s = whitney_nuismer_tai(m, dpa_mm2=200, sigma_pristine_MPa=800)
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        s = whitney_nuismer_tai(m, dpa_mm2=200, sigma_pristine_MPa=800)
     assert 0 < s < 800
 
 

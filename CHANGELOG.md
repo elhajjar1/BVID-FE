@@ -313,6 +313,23 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - **Streamlit app** uses `width="stretch"` / `width="content"` in place of
   the deprecated `use_container_width`, so it no longer logs a
   deprecation warning for every button, table and chart.
+- **CI runs each commit once and in less time (#176).** The test workflow
+  runs on pull requests and on pushes to `main` only (a branch commit used
+  to run twice), cancels a superseded run, has a read-only token and
+  caches pip downloads. Lint, the JSON-schema check and the coverage
+  artifact run in the ubuntu / Python 3.12 cell instead of all nine;
+  pytest still runs on every OS and Python version. The validation job no
+  longer waits for the test matrix. The docs workflow runs
+  `mkdocs build --strict` on pull requests too (deploying only from
+  `main`), and its Pages permissions are limited to the deploy job.
+- **Warnings fail the test suite (#176).** `filterwarnings = ["error"]`
+  (with streamlit's own deprecations ignored); the tests that exercise a
+  warning path now assert it with `pytest.warns` (the `whitney_nuismer_tai`
+  isotropic-`Kt_inf` fallback, `DPACapClipWarning`, the impact-window
+  footprint warning and `FiberBreakCoreUnmeshedWarning`).
+- **Pinned formatters (#176).** The dev extra pins `ruff==0.17.3` and
+  `black==26.10.1`, the same revs as `.pre-commit-config.yaml` (which
+  pinned black 25.1.0 and ruff 0.9.10), so pre-commit and CI format alike.
 
 ### Fixed
 

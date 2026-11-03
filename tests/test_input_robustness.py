@@ -500,7 +500,8 @@ def test_cli_fe3d_size_error_is_a_clean_error(capsys):
 
 
 def test_cli_json_includes_run_warnings(capsys):
-    code, out, err = _main(["--panel", "30x30", "--energy", "30"], capsys)
+    with pytest.warns(DPACapClipWarning):
+        code, out, err = _main(["--panel", "30x30", "--energy", "30"], capsys)
     assert code == 0
     data = json.loads(out)
     assert any(w.startswith("DPACapClipWarning") for w in data["warnings"])
