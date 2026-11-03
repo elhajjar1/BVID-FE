@@ -11,15 +11,49 @@ import json
 import math
 import os
 import sys
-from dataclasses import replace
-from typing import List, Sequence
+import typing
+from dataclasses import MISSING, fields, replace
+from typing import Any, List, Sequence, Tuple
 
 import bvidfe
 from bvidfe._types import _LOADING_MODES, _TIER_NAMES
-from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.analysis import AnalysisConfig, BvidAnalysis, MeshParams
 from bvidfe.analysis.fe_tier import FE3DSizeError, enable_stderr_logging
-from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
+from bvidfe.core.geometry import BoundaryKind, ImpactorGeometry, ImpactorShape, PanelGeometry
 from bvidfe.impact.mapping import ImpactEvent
+
+
+def _field_default(cls: type, name: str) -> Any:
+    """The library's default for dataclass field ``name`` of ``cls``, so the
+    CLI's defaults cannot drift from the API's."""
+    for f in fields(cls):
+        if f.name == name:
+            if f.default is not MISSING:
+                return f.default
+            if f.default_factory is not MISSING:
+                return f.default_factory()
+    raise LookupError(f"{cls.__name__}.{name} has no default")
+
+
+_BOUNDARIES: Tuple[str, ...] = typing.get_args(BoundaryKind)
+_IMPACTOR_SHAPES: Tuple[str, ...] = typing.get_args(ImpactorShape)
+_DEFAULT_IMPACTOR = ImpactorGeometry()
+_DEFAULT_MASS_KG: float = _field_default(ImpactEvent, "mass_kg")
+_DEFAULT_LOCATION: Tuple[float, float] = _field_default(ImpactEvent, "location_xy_mm")
+_DEFAULT_MESH = MeshParams()
+
+# Options that only describe the impact; with --cscan they would be ignored.
+_IMPACT_ONLY_OPTIONS = (
+    ("mass", "--mass"),
+    ("impactor_diameter", "--impactor-diameter"),
+    ("impactor_shape", "--impactor-shape"),
+    ("location", "--location"),
+)
+# Options only the fe3d tier reads.
+_FE3D_ONLY_OPTIONS = (
+    ("in_plane_size", "--in-plane-size"),
+    ("elements_per_ply", "--elements-per-ply"),
+)
 
 
 def _parse_panel(spec: str) -> PanelGeometry:
@@ -36,8 +70,9 @@ def _parse_panel(spec: str) -> PanelGeometry:
 
 
 def _parse_layup(spec: str) -> List[float]:
-    """Comma-separated ply angles, each finite and within [-90, 90] degrees
-    (the same range the Streamlit app accepts)."""
+    """Comma-separated ply angles in degrees, each finite: the range
+    ``AnalysisConfig`` accepts. Angles are used modulo 180 deg (``135`` is
+    ``-45``), so no narrower check is needed."""
     try:
         angles = [float(x) for x in spec.split(",")]
     except ValueError as exc:
@@ -47,21 +82,43 @@ def _parse_layup(spec: str) -> List[float]:
     for i, a in enumerate(angles):
         if not math.isfinite(a):
             raise argparse.ArgumentTypeError(f"ply angle {i} must be finite (got {a})")
-        if not -90.0 <= a <= 90.0:
-            raise argparse.ArgumentTypeError(
-                f"ply angle {i} must be within [-90, 90] degrees (got {a:g})"
-            )
     return angles
 
 
-def _positive_float(spec: str) -> float:
-    """argparse type that rejects non-positive and non-finite numbers."""
+def _finite_float(spec: str) -> float:
+    """argparse type that rejects non-numbers and NaN / +-inf."""
     try:
         v = float(spec)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"expected a number (got {spec!r})") from exc
     if not math.isfinite(v):
         raise argparse.ArgumentTypeError(f"must be finite (got {v})")
+    return v
+
+
+def _positive_float(spec: str) -> float:
+    """argparse type that rejects non-positive and non-finite numbers."""
+    v = _finite_float(spec)
+    if v <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0 (got {v})")
+    return v
+
+
+def _non_negative_float(spec: str) -> float:
+    """argparse type that rejects negative and non-finite numbers (the
+    range of ``ImpactEvent.energy_J``)."""
+    v = _finite_float(spec)
+    if v < 0:
+        raise argparse.ArgumentTypeError(f"must be >= 0 (got {v})")
+    return v
+
+
+def _positive_int(spec: str) -> int:
+    """argparse type for a positive integer (``MeshParams.elements_per_ply``)."""
+    try:
+        v = int(spec)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"expected a positive integer (got {spec!r})") from exc
     if v <= 0:
         raise argparse.ArgumentTypeError(f"must be > 0 (got {v})")
     return v
@@ -180,8 +237,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "e.g. 150x100. Lowercase 'x' separator, no spaces.",
     )
     p.add_argument(
+        "--boundary",
+        choices=_BOUNDARIES,
+        default=_field_default(PanelGeometry, "boundary"),
+        help="Panel edge condition. It sets the plate stiffness in the impact "
+        "model and the buckling factors behind the delamination growth "
+        "stress, so it applies to --cscan runs as well.",
+    )
+    p.add_argument(
         "--loading",
         choices=sorted(_LOADING_MODES),
+        default=_field_default(AnalysisConfig, "loading"),
         help="Load case: compression-after-impact or tension-after-impact",
     )
     p.add_argument(
@@ -195,8 +261,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--energy",
-        type=_positive_float,
-        help="Impact energy in Joules (impact-driven workflow). Mutually exclusive with --cscan.",
+        type=_non_negative_float,
+        help="Impact energy in Joules (impact-driven workflow), >= 0; at or "
+        "below the onset energy there is no damage. Mutually exclusive with --cscan.",
     )
     p.add_argument(
         "--cscan",
@@ -204,17 +271,54 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to a C-scan JSON file (inspection-driven workflow). "
         "Mutually exclusive with --energy. See docs/cscan_schema.md for the format.",
     )
+    # The impact-only options default to None so that combining one with
+    # --cscan can be rejected; their help states the library default.
     p.add_argument(
         "--impactor-diameter",
         type=_positive_float,
-        default=16.0,
-        help="Impactor diameter in mm",
+        metavar="D",
+        help=f"Impactor diameter in mm (default: {_DEFAULT_IMPACTOR.diameter_mm!r}). "
+        "Impact-driven only; not used for a conical impactor.",
     )
-    p.add_argument("--mass", type=_positive_float, default=5.5, help="Impactor mass in kg")
+    p.add_argument(
+        "--impactor-shape",
+        choices=_IMPACTOR_SHAPES,
+        help=f"Impactor tip (default: {_DEFAULT_IMPACTOR.shape}). Impact-driven only.",
+    )
+    p.add_argument(
+        "--mass",
+        type=_positive_float,
+        metavar="M",
+        help=f"Impactor mass in kg (default: {_DEFAULT_MASS_KG!r}). Impact-driven only.",
+    )
+    p.add_argument(
+        "--location",
+        type=_finite_float,
+        nargs=2,
+        metavar=("X", "Y"),
+        help="Impact point in mm in the frame of the panel, origin at a corner "
+        f"(default: {_DEFAULT_LOCATION[0]:g} {_DEFAULT_LOCATION[1]:g}, which "
+        "means the panel centre). Impact-driven only.",
+    )
+    p.add_argument(
+        "--in-plane-size",
+        type=_positive_float,
+        metavar="MM",
+        help="fe3d target in-plane element edge length in mm "
+        f"(default: {_DEFAULT_MESH.in_plane_size_mm!r}). fe3d tier only.",
+    )
+    p.add_argument(
+        "--elements-per-ply",
+        type=_positive_int,
+        metavar="N",
+        help="fe3d hex elements through each ply "
+        f"(default: {_DEFAULT_MESH.elements_per_ply}). fe3d tier only.",
+    )
     p.add_argument(
         "--quick",
         action="store_true",
-        help="Print only the knockdown scalar (residual / pristine) to stdout instead of the full JSON. "
+        help="Print only the knockdown scalar (residual / pristine) to stdout instead of the full "
+        "results JSON. "
         "Useful for shell pipelines: e.g. `bvidfe ... --quick | xargs -I {} ...`.",
     )
     p.add_argument(
@@ -223,7 +327,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Like --quick but emits a single-line JSON object {knockdown, "
         "residual_strength_MPa, pristine_strength_MPa, tier_used} instead of "
         "a bare scalar. Recommended for scripted callers that want the "
-        "value plus tier provenance without parsing the full --json output.",
+        "value plus tier provenance without parsing the full results JSON.",
     )
     p.add_argument(
         "--list-materials",
@@ -245,6 +349,11 @@ def _list_materials() -> None:
             f"{name:<18} {m.E11:>8.0f} {m.E22:>7.0f} {m.Xt:>7.0f} {m.Xc:>7.0f} {m.Yt:>5.0f} {m.Yc:>5.0f}"
         )
     print("\nUnits: MPa. Use --material <Name> to select.")
+
+
+def _given(value: Any, default: Any) -> Any:
+    """``value``, or ``default`` when the option was not given (``None``)."""
+    return default if value is None else value
 
 
 def _error(msg: str) -> int:
@@ -284,11 +393,7 @@ def _main(argv: Sequence[str] | None) -> int:
         _list_materials()
         return 0
     # Base required args (always needed)
-    missing = [
-        n
-        for n in ("material", "layup", "thickness", "panel", "loading")
-        if getattr(args, n) is None
-    ]
+    missing = [n for n in ("material", "layup", "thickness", "panel") if getattr(args, n) is None]
     if missing:
         parser.error(f"missing required arguments: {', '.join('--' + m for m in missing)}")
     # Exactly one of --energy (impact-driven) or --cscan (inspection-driven)
@@ -296,6 +401,23 @@ def _main(argv: Sequence[str] | None) -> int:
         parser.error("must provide either --energy (impact-driven) or --cscan (inspection-driven)")
     if args.energy is not None and args.cscan is not None:
         parser.error("--energy and --cscan are mutually exclusive")
+    # Options that would have no effect are usage errors, like --energy with
+    # --cscan above: a stderr warning is easily lost behind --quick in a
+    # pipeline, and the result would silently not be the one asked for.
+    if args.cscan is not None:
+        given = [flag for dest, flag in _IMPACT_ONLY_OPTIONS if getattr(args, dest) is not None]
+        if given:
+            parser.error(
+                f"{', '.join(given)} describe the impact and cannot be combined with "
+                "--cscan (inspection-driven: the damage is the C-scan's)"
+            )
+    if "fe3d" not in args.tier:
+        given = [flag for dest, flag in _FE3D_ONLY_OPTIONS if getattr(args, dest) is not None]
+        if given:
+            parser.error(
+                f"{', '.join(given)} only apply to the fe3d tier; add fe3d to --tier "
+                f"(got --tier {','.join(args.tier)})"
+            )
 
     # If --thickness was given as a per-ply list, its length must match the layup.
     if isinstance(args.thickness, list) and len(args.thickness) != len(args.layup):
@@ -319,23 +441,33 @@ def _main(argv: Sequence[str] | None) -> int:
         except (OSError, UnicodeDecodeError) as exc:
             parser.error(f"--cscan {args.cscan}: cannot read file: {exc}")
     try:
+        impact = None
+        if args.energy is not None:
+            impact = ImpactEvent(
+                energy_J=args.energy,
+                impactor=ImpactorGeometry(
+                    diameter_mm=_given(args.impactor_diameter, _DEFAULT_IMPACTOR.diameter_mm),
+                    shape=_given(args.impactor_shape, _DEFAULT_IMPACTOR.shape),
+                ),
+                mass_kg=_given(args.mass, _DEFAULT_MASS_KG),
+                location_xy_mm=tuple(_given(args.location, _DEFAULT_LOCATION)),
+            )
+        mesh = None
+        if args.in_plane_size is not None or args.elements_per_ply is not None:
+            mesh = MeshParams(
+                elements_per_ply=_given(args.elements_per_ply, _DEFAULT_MESH.elements_per_ply),
+                in_plane_size_mm=_given(args.in_plane_size, _DEFAULT_MESH.in_plane_size_mm),
+            )
         cfg = AnalysisConfig(
             material=args.material,
             layup_deg=args.layup,
             ply_thickness_mm=args.thickness,
-            panel=args.panel,
+            panel=replace(args.panel, boundary=args.boundary),
             loading=args.loading,
             tier=args.tier[0],
-            impact=(
-                None
-                if args.energy is None
-                else ImpactEvent(
-                    energy_J=args.energy,
-                    impactor=ImpactorGeometry(diameter_mm=args.impactor_diameter),
-                    mass_kg=args.mass,
-                )
-            ),
+            impact=impact,
             damage=damage,
+            mesh=mesh,
         )
     except ValueError as exc:
         parser.error(str(exc))
@@ -348,7 +480,9 @@ def _main(argv: Sequence[str] | None) -> int:
     # shape (JSON array / NDJSON / TSV) keyed by tier_used.
     try:
         results = [BvidAnalysis(replace(cfg, tier=t)).run() for t in args.tier]
-    except FE3DSizeError as exc:
+    except (FE3DSizeError, ValueError) as exc:
+        # ValueError: an input only the run can reject, e.g. a --location on
+        # or outside the panel edge.
         return _error(str(exc))
     multi = len(results) > 1
 

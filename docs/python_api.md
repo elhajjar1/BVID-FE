@@ -392,15 +392,20 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | Flag | Default | Meaning |
 |---|---|---|
 | `--material NAME` | required | Preset: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800/epoxy`, `T800S/3900-2B` |
-| `--layup A,B,...` | required | Comma-separated ply angles in degrees |
+| `--layup A,B,...` | required | Comma-separated ply angles in degrees (any finite angle, as in `AnalysisConfig`; `135` is `-45`) |
 | `--thickness T` | required | Ply thickness in mm, or a comma-separated list with one per ply |
-| `--panel 150x100` | required | Panel size in mm, e.g. `150x100` (simply supported; the CLI has no boundary option) |
-| `--loading` | required | `compression` or `tension` |
+| `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
+| `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
+| `--loading` | `compression` | `compression` or `tension` |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
-| `--energy J` | — | Impact energy in J (impact-driven); exactly one of `--energy` and `--cscan` |
+| `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |
-| `--impactor-diameter D` | `16.0` | Impactor diameter in mm (hemispherical; the CLI has no shape option) |
+| `--impactor-diameter D` | `16.0` | Impactor diameter in mm |
+| `--impactor-shape` | `hemispherical` | `hemispherical`, `flat` or `conical` |
 | `--mass M` | `5.5` | Impactor mass in kg |
+| `--location X Y` | `0 0` | Impact point in mm on the panel (`ImpactEvent.location_xy_mm`; `0 0` is the panel centre) |
+| `--in-plane-size MM` | `5.0` | fe3d `MeshParams.in_plane_size_mm` |
+| `--elements-per-ply N` | `1` | fe3d `MeshParams.elements_per_ply` |
 | `--quick` | off | Print only the knockdown (6 decimals) |
 | `--quick-json` | off | Print `{knockdown, residual_strength_MPa, pristine_strength_MPa, tier_used}` as one-line JSON |
 | `--list-materials` | — | List the presets (E11, E22, Xt, Xc, Yt, Yc in MPa) and exit |
@@ -410,6 +415,9 @@ Without `--quick` / `--quick-json` the full result is printed as JSON
 (`AnalysisResults.to_dict()`). With several tiers the output is a JSON
 array, one JSON line per tier (`--quick-json`), or `tier<TAB>knockdown`
 lines (`--quick`). `--quick` and `--quick-json` cannot be combined.
+Options that would have no effect are usage errors (exit code 2):
+`--impactor-diameter`, `--impactor-shape`, `--mass` and `--location`
+with `--cscan`, and the two mesh options without `fe3d` in `--tier`.
 
 ## Adding a custom material
 
