@@ -19,9 +19,14 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Any, Mapping, Tuple
 
-from bvidfe._validation import require_non_negative, require_positive, require_xy
+from bvidfe._validation import (
+    dataclass_kwargs,
+    require_non_negative,
+    require_positive,
+    require_xy,
+)
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
@@ -167,6 +172,17 @@ class ImpactEvent:
                 f"(got {type(self.impactor).__name__})"
             )
         self.location_xy_mm = require_xy(self.location_xy_mm, "ImpactEvent.location_xy_mm")
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "ImpactEvent":
+        """Build from a dict of the fields (``dataclasses.asdict`` output):
+        ``energy_J`` is required, ``impactor`` an ``ImpactorGeometry`` dict
+        (or instance), and a ``location_xy_mm`` list is stored as a tuple.
+        ``ValueError`` for an unknown or missing key."""
+        kw = dataclass_kwargs(cls, d, "impact")
+        if "impactor" in kw and not isinstance(kw["impactor"], ImpactorGeometry):
+            kw["impactor"] = ImpactorGeometry.from_dict(kw["impactor"])
+        return cls(**kw)
 
 
 def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) -> DamageState:

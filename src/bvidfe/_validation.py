@@ -8,8 +8,10 @@ range is checked. All failures raise :class:`ValueError` naming the field.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import numbers
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -57,3 +59,30 @@ def require_xy(value: Any, name: str) -> tuple:
     require_finite(pair[0], f"{name}[0]")
     require_finite(pair[1], f"{name}[1]")
     return pair
+
+
+def dataclass_kwargs(cls: Any, data: Any, name: str) -> dict:
+    """Check that *data* is a mapping of keyword arguments for dataclass
+    *cls* and return it as a ``dict``, for the ``from_dict`` loaders.
+
+    Raises ``ValueError`` naming *name* for a non-mapping, a key that is
+    not a field of *cls* (a typo would otherwise fall back to the default
+    silently), or a missing field that has no default.
+    """
+    if not isinstance(data, Mapping):
+        raise ValueError(f"{name} must be an object/dict (got {type(data).__name__}: {data!r})")
+    init_fields = [f for f in dataclasses.fields(cls) if f.init]
+    names = [f.name for f in init_fields]
+    unknown = [k for k in data if k not in names]
+    if unknown:
+        raise ValueError(f"{name} has unknown field(s) {unknown}; {cls.__name__} fields: {names}")
+    missing = [
+        f.name
+        for f in init_fields
+        if f.name not in data
+        and f.default is dataclasses.MISSING
+        and f.default_factory is dataclasses.MISSING
+    ]
+    if missing:
+        raise ValueError(f"{name} is missing required field(s) {missing}")
+    return dict(data)

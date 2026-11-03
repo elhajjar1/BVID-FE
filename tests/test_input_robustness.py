@@ -409,21 +409,20 @@ def test_positive_float_rejects_non_finite(spec, match):
         _positive_float(spec)
 
 
-@pytest.mark.parametrize(
-    "spec, match",
-    [("0,nan,90", "finite"), ("0,inf", "finite"), ("0,135", r"\[-90, 90\]"), ("-91", "-90")],
-)
-def test_parse_layup_rejects_non_finite_and_out_of_range(spec, match):
+@pytest.mark.parametrize("spec", ["0,nan,90", "0,inf", "-inf"])
+def test_parse_layup_rejects_non_finite(spec):
     from bvidfe.cli import _parse_layup
 
-    with pytest.raises(argparse.ArgumentTypeError, match=match):
+    with pytest.raises(argparse.ArgumentTypeError, match="finite"):
         _parse_layup(spec)
 
 
-def test_parse_layup_accepts_the_range_ends():
+def test_parse_layup_accepts_any_finite_angle_like_the_api():
+    """``AnalysisConfig`` takes any finite angle (modulo 180 deg); so does
+    the CLI (issue #169)."""
     from bvidfe.cli import _parse_layup
 
-    assert _parse_layup("-90,90") == [-90.0, 90.0]
+    assert _parse_layup("-90,90,135,-91") == [-90.0, 90.0, 135.0, -91.0]
 
 
 @pytest.mark.parametrize("spec", ["0.1,inf", "0.1,nan", "inf"])

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from bvidfe.damage.io import damage_state_to_dict
 from bvidfe.damage.state import DamageState
 
 
@@ -190,13 +191,16 @@ class AnalysisResults:
         """JSON-serialisable dict of the result (the CLI's JSON output).
 
         Keys: ``residual_strength_MPa``, ``pristine_strength_MPa``,
-        ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage`` (in the
-        C-scan JSON layout without ``schema_version``),
+        ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage``,
         ``buckling_eigenvalues``, ``critical_sublaminate``,
         ``config_snapshot``, ``notes`` and ``warnings``. ``field_results``
-        is left out. ``config_snapshot`` holds the config's dataclasses as
-        dicts, with tuples kept as tuples (``json.dumps`` writes them as
-        lists).
+        is left out. ``damage`` is
+        :func:`~bvidfe.damage.io.damage_state_to_dict`, the schema-v1.0
+        C-scan layout with ``schema_version``, so it can be saved and read
+        back with ``load_cscan_json`` (or the CLI's ``--cscan``) for an
+        inspection-driven rerun. ``config_snapshot`` holds the config's
+        dataclasses as dicts, with tuples kept as tuples (``json.dumps``
+        writes them as lists); ``AnalysisConfig.from_dict`` reads it back.
         """
         out = {
             "residual_strength_MPa": self.residual_strength_MPa,
@@ -204,20 +208,7 @@ class AnalysisResults:
             "knockdown": self.knockdown,
             "dpa_mm2": self.dpa_mm2,
             "tier_used": self.tier_used,
-            "damage": {
-                "dent_depth_mm": self.damage.dent_depth_mm,
-                "fiber_break_radius_mm": self.damage.fiber_break_radius_mm,
-                "delaminations": [
-                    {
-                        "interface_index": d.interface_index,
-                        "centroid_mm": list(d.centroid_mm),
-                        "major_mm": d.major_mm,
-                        "minor_mm": d.minor_mm,
-                        "orientation_deg": d.orientation_deg,
-                    }
-                    for d in self.damage.delaminations
-                ],
-            },
+            "damage": damage_state_to_dict(self.damage),
             "buckling_eigenvalues": self.buckling_eigenvalues,
             "critical_sublaminate": self.critical_sublaminate,
             "config_snapshot": self.config_snapshot,

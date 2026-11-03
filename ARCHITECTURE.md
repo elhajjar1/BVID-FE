@@ -66,7 +66,7 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | | `style.py` | Publication styling constants (fonts, DPI, color maps). |
 | `report/` | `ncr.py` | Nonconformance Report for the app's Export NCR tab: `recommend_disposition` (proposed MRB path from the knockdown, dent and fibre-break bands; the `KD_*` bands are placeholders, not from a cited standard) and `build_ncr` (Markdown + dict). Pure functions. |
 | `sweep/` | `parametric_sweep.py` | `sweep_energies`, `sweep_layups`, `sweep_thicknesses` with `on_error` (`raise`/`skip`/`warn`) and optional `progress_callback`; CSV output, partial-result preserving. |
-| `cli.py` | — | `bvidfe` entry point; argparse with `choices=` for `--material` / `--loading`, comma-separated `--tier` list, custom positive-float / existing-path types, `--quick` (bare scalar) and `--quick-json` (single-line object) output modes, `--list-materials`. |
+| `cli.py` | — | `bvidfe` entry point; argparse with `choices=` for `--material` / `--loading` / `--boundary` / `--impactor-shape` (from the library's literals), comma-separated `--tier` list, impact (`--mass`, `--location`, ...) and fe3d mesh options mapped onto `ImpactEvent` / `MeshParams` with the library defaults, custom positive-float / existing-path types, `--quick` (bare scalar) and `--quick-json` (single-line object) output modes, `--list-materials`. |
 
 Outside the package:
 

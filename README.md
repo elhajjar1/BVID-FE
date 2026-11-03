@@ -103,11 +103,15 @@ dimensions, x then y, literal `x` separator, no spaces — e.g. `150x100`
 is Lx = 150 mm, Ly = 100 mm). `--thickness` is the per-ply thickness in
 mm (one value, or a comma-separated list with one value per ply), `--layup`
 is a comma-separated list of ply angles in degrees, and `--energy` is the
-impact energy in joules. The default tier is `empirical` and the output is
-the full results JSON. Other options: `--tier` (one tier or a
-comma-separated list), `--cscan scan.json` in place of `--energy`,
-`--impactor-diameter` and `--mass` (defaults 16 mm and 5.5 kg), `--quick` or
-`--quick-json` for a one-line result, and `--list-materials`. For example:
+impact energy in joules. The default tier is `empirical`, the default
+loading `compression`, and the output is the full results JSON. Other
+options: `--tier` (one tier or a comma-separated list), `--cscan scan.json`
+in place of `--energy`, `--boundary`, the impactor (`--impactor-diameter`,
+`--impactor-shape`, `--mass`, defaults 16 mm hemispherical and 5.5 kg) and
+`--location X Y`, the fe3d mesh (`--in-plane-size`, `--elements-per-ply`),
+`--quick` or `--quick-json` for a one-line result, `--save-damage
+dmg.json` to keep the damage state for a `--cscan dmg.json` rerun, and
+`--list-materials` (`bvidfe --help` lists them all). For example:
 
 ```bash
 bvidfe --material IM7/8552 --layup "0,45,-45,90,90,-45,45,0" \

@@ -195,6 +195,24 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
+- `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
+  `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
+  `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its
+  JSON) back into an equal config, including a custom material (a dict of
+  `OrthotropicMaterial` fields), `damage` (read with
+  `damage_state_from_dict`) and `impact_panel`. Unknown and missing keys
+  are a `ValueError`. The Streamlit app's `_config_from_dict` now calls
+  it, so it no longer drops `impact_panel` or rejects a custom material.
+- CLI `--save-damage PATH` (#170) writes the analysed damage state as
+  C-scan JSON for a `--cscan PATH` rerun.
+- CLI options `--boundary`, `--impactor-shape`, `--location X Y`,
+  `--in-plane-size` and `--elements-per-ply` (#169), mapped onto
+  `PanelGeometry.boundary`, `ImpactorGeometry.shape`,
+  `ImpactEvent.location_xy_mm` and `MeshParams` with the library's
+  defaults and choices. The CLI used to run every impact as a centred
+  hemisphere on a simply supported panel and fe3d at `MeshParams()`. A
+  `ValueError` raised by the run (e.g. a `--location` on or outside the
+  panel edge) is a one-line error (exit 1), not a traceback.
 - CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
   `pip-audit` on the installed runtime + dev dependencies on every PR,
   on pushes to main and weekly; any known vulnerability fails it.
@@ -243,6 +261,14 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Changed
 
+- **CLI ranges match the API (#169).** `--loading` defaults to
+  `compression` (it was required); `--layup` takes any finite ply angle,
+  as `AnalysisConfig` does (`135` was rejected; angles are used modulo
+  180 deg); `--energy 0` runs, like `ImpactEvent(energy_J=0)`, and gives
+  no damage and a knockdown of 1. Options that would have no effect are
+  usage errors (exit 2): `--mass`, `--impactor-diameter`,
+  `--impactor-shape` or `--location` with `--cscan`, and
+  `--in-plane-size` / `--elements-per-ply` without `fe3d` in `--tier`.
 - **fe3d solves ~9x faster in ~6x less memory.** `solve_linear_static`
   eliminates the constrained DOFs instead of adding a 1e10 penalty and
   calling `spsolve` (SuperLU, COLAMD), and solves the reduced system by
@@ -351,6 +377,19 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Fixed
 
+- **Results JSON damage could not be re-run (#170).**
+  `AnalysisResults.to_dict()["damage"]` was a hand-rolled copy of the
+  C-scan layout without `schema_version`, so feeding it (or the CLI's or
+  the app's results JSON `.damage`) to `--cscan` / `damage_state_from_dict`
+  failed with `missing required field: schema_version`. It is now
+  `damage_state_to_dict`. `docs/schemas/` lists the optional
+  `schema_version` of `DamageState`. The app's damage-severity heatmap
+  takes its grid from `fe_mesh.element_grid_shape` instead of recomputing
+  it.
+- **CLI (#169):** `--mass` and `--impactor-diameter` were silently
+  ignored with `--cscan` (now an error, see *Changed*), and the
+  `--quick` / `--quick-json` help referred to a `--json` option that does
+  not exist.
 - **Sublaminate buckling ignored the delamination orientation (#165).**
   `sublaminate_buckling_load` took the enclosing rectangle as
   `2 * major_mm` along the load and `2 * minor_mm` across it whatever the

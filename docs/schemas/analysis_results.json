@@ -15,6 +15,11 @@
         },
         "fiber_break_radius_mm": {
           "type": "number"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "description": "C-scan schema version (docs/cscan_schema.md); written by damage_state_to_dict, optional on input.",
+          "type": "string"
         }
       },
       "title": "DamageState",
