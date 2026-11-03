@@ -145,6 +145,15 @@ A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
   {"impact_energy_J": 30.0, "impactor_diameter_mm": 15.875, "impactor_mass_kg": 5.5}
   ```
 
+- Each dataset must give a top-level `"kind"`, `"measured"` or
+  `"synthetic"`; the validator refuses a file without it (`Invalid
+  dataset: <file>: top-level "kind" is missing ...`, exit 1) before any
+  case runs. Add it to a dataset of your own:
+
+  ```json
+  {"name": "my_cai", "kind": "measured", "reference": "...", "cases": []}
+  ```
+
 **Dependencies**
 
 - The `[app]` and `dev` extras and `requirements.txt` need
@@ -250,7 +259,10 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - Validation harness: case fields `boundary`, `impactor_shape`,
   `measured_pristine_MPa`, `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and
   `impact_boundary`; `"gate": false` with a `gate_note` for a known miss;
-  `--dataset` takes several names. `validation/README.md` and
+  `--dataset` takes several names; `--measured` runs every
+  `"kind": "measured"` dataset, so CI's semi-analytical gate and the
+  smoke tests pick up a new measured dataset from its file alone (#178).
+  `validation/README.md` and
   `validation/reference_data.json` list the open datasets found by a
   literature survey, replacing the v0.2.0 roadmap.
 - `bvidfe.failure.laminate_strength.unnotched_strength`, and in

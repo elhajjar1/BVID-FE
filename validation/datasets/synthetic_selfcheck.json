@@ -1,5 +1,6 @@
 {
   "name": "synthetic_selfcheck",
+  "kind": "synthetic",
   "reference": "auto-generated from BvidAnalysis empirical tier",
   "target_mae_pct": 1.0,
   "cases": [

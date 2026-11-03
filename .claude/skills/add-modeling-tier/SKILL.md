@@ -166,11 +166,12 @@ ruff check src tests
 black src tests
 pytest tests/analysis -v
 python scripts/generate_schemas.py     # regenerate (or use the skill)
-python validation/validate_bvid_public.py --tier <name> \
-    --dataset ncamp_as4_8552_cai lovejoy_scotti_im7_8552_cai
+python validation/validate_bvid_public.py --tier <name> --measured
 ```
 
-The last command scores the tier against the measured CAI datasets.
+The last command scores the tier against every measured dataset (each
+`validation/datasets/*.json` with `"kind": "measured"`; add
+`--max-cases N` for a slow tier, Hasebe has 343 cases).
 `synthetic_selfcheck` is generated from the empirical tier, so only the
 measured datasets are a fair check of a new tier. CI does not run the new
 tier until a step is added to `.github/workflows/tests.yml`; ask the user
