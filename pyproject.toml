@@ -98,7 +98,9 @@ select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
 files = ["src/bvidfe"]
-python_version = "3.10"
+# No python_version: mypy targets the interpreter it runs on (3.12 in the CI
+# lint cell). Pinning 3.10 broke on numpy >= 2.5, whose stubs use the 3.12
+# `type` statement, which mypy will not parse for an older target.
 # plotly ships no type information (and has no stubs package).
 ignore_missing_imports = true
 
