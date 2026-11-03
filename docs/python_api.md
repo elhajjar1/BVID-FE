@@ -128,7 +128,7 @@ bounds it.
 | `panel` | required | `PanelGeometry(Lx_mm, Ly_mm, boundary="simply_supported")`, the tested panel; x is the load direction |
 | `loading` | `"compression"` | `"compression"` (CAI) or `"tension"` (TAI) |
 | `tier` | `"empirical"` | `"empirical"`, `"semi_analytical"` or `"fe3d"` |
-| `impact` | `None` | `ImpactEvent(energy_J, impactor=ImpactorGeometry(), mass_kg=5.5, location_xy_mm=(0.0, 0.0))`; `(0, 0)` means the panel centre |
+| `impact` | `None` | `ImpactEvent(energy_J, impactor=ImpactorGeometry(), mass_kg=5.5, location_xy_mm=None)`; `location_xy_mm` is the impact point `(x, y)` in mm from the panel corner, strictly inside the panel, and `None` is the panel centre (the old `(0, 0)` centre still works, with a `DeprecationWarning`) |
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
@@ -419,7 +419,7 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--impactor-diameter D` | `16.0` | Impactor diameter in mm |
 | `--impactor-shape` | `hemispherical` | `hemispherical`, `flat` or `conical` |
 | `--mass M` | `5.5` | Impactor mass in kg |
-| `--location X Y` | `0 0` | Impact point in mm on the panel (`ImpactEvent.location_xy_mm`; `0 0` is the panel centre) |
+| `--location X Y` | panel centre | Impact point in mm from the panel corner, strictly inside the panel (`ImpactEvent.location_xy_mm`; left out, `None`, is the centre; `0 0` for the centre is deprecated) |
 | `--in-plane-size MM` | `5.0` | fe3d `MeshParams.in_plane_size_mm` |
 | `--elements-per-ply N` | `1` | fe3d `MeshParams.elements_per_ply` |
 | `--quick` | off | Print only the knockdown (6 decimals) |
