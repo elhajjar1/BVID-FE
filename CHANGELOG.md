@@ -388,6 +388,21 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   `KD_SUBSTANTIATE` = 0.85 and `KD_REPAIR` = 0.70, documented as
   placeholder engineering-judgement bands, not values from a cited
   standard. The Export NCR tab's output is unchanged.
+- **The README is a short landing page (#175).** It is also the PyPI long
+  description; it went from 399 lines / 43 KB to about 120 lines: the
+  pitch, the tier table, installation, one CLI and one Python example,
+  the validation table and five limitations, with absolute links. The
+  tier summaries (the fe3d one split into mesh, damage zone, TAI hole,
+  failure and buckling), the cross-tier knockdown numbers, the damage
+  severity heatmap and the README-only limitations moved to
+  `docs/physics_models.md`; the C-scan, sweep and `--quick-json` examples
+  to `docs/quickstart.md` (still run by `tests/test_docs_examples.py`);
+  the feature list to `docs/index.md`, which no longer repeats the
+  README head. Two stale README numbers were not carried over: the
+  example's delamination growth stress is about 244 MPa at interface 5
+  (not 306.9 MPa at interface 11), and the Lovejoy & Scotti hard
+  laminate's growth stress is 227–228 MPa, as `docs/physics_models.md`
+  has it (not 252 MPa).
 
 ### Fixed
 

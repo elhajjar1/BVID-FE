@@ -86,6 +86,51 @@ unnotched laminate strength from classical lamination theory. In this case
 the Soutis bound (225.4 MPa) is below the delamination growth stress, so
 the semi-analytical result equals the empirical one. Below the onset
 energy (about 3.3 J here) no damage is predicted and the knockdown is 1.
+The weakest sublaminate here grows its delamination at about 244 MPa
+(interface 5). The per-interface ellipses are in
+`result.damage.delaminations`, the governing interface in
+`result.critical_sublaminate`, and the runtime notes in `result.notes`.
+
+### Inspection-driven path (C-scan import)
+
+```python
+from bvidfe.damage.io import load_cscan_json
+from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.core.geometry import PanelGeometry
+
+damage_state = load_cscan_json("examples/sample_cscan.json")
+
+cscan_cfg = AnalysisConfig(
+    material="AS4/3501-6",
+    layup_deg=[0, 45, -45, 90] * 4,
+    ply_thickness_mm=0.125,
+    panel=PanelGeometry(Lx_mm=200, Ly_mm=150),
+    damage=damage_state,
+    loading="compression",
+    tier="empirical",
+)
+cscan_result = BvidAnalysis(cscan_cfg).run()
+print(f"Knockdown: {cscan_result.knockdown:.3f}")
+# Knockdown: 0.442
+```
+
+See the [C-scan schema](cscan_schema.md) for the JSON format.
+
+### Parametric sweep
+
+`sweep_energies` reruns an impact-driven config (here `cfg` from
+above) at each energy and returns a pandas DataFrame:
+
+```python
+from bvidfe.sweep.parametric_sweep import sweep_energies
+
+results_df = sweep_energies(
+    cfg,
+    energies_J=[10, 20, 30, 40, 50],
+    csv_path="knockdown_vs_energy.csv",
+)
+print(results_df[["energy_J", "knockdown", "dpa_mm2"]].round(3))
+```
 
 ### Which tier?
 
@@ -116,7 +161,22 @@ separator, no spaces — e.g. `150x100` is `Lx = 150` mm, `Ly = 100` mm).
 the impact energy in joules. The command prints the full results JSON from
 the default `empirical` tier. Add `--tier empirical,semi_analytical` to
 compare tiers, `--quick-json` for a one-line result, or `--list-materials`
-to see the six presets. `bvidfe --help` lists every option.
+to see the six presets. `bvidfe --help` lists every option. For example:
+
+```bash
+bvidfe --material IM7/8552 --layup "0,45,-45,90,90,-45,45,0" \
+       --thickness 0.152 --panel 150x100 --loading compression --energy 10 \
+       --tier empirical,semi_analytical --quick-json
+```
+
+prints one JSON line per tier (full precision; rounded here):
+
+```text
+{"knockdown": 0.448, "residual_strength_MPa": 269.1, "pristine_strength_MPa": 601.3, "tier_used": "empirical"}
+{"knockdown": 0.448, "residual_strength_MPa": 269.1, "pristine_strength_MPa": 601.3, "tier_used": "semi_analytical"}
+```
+
+The [CLI reference](python_api.md#cli) lists every option with its default.
 
 ## 5. Streamlit web app
 
@@ -127,7 +187,8 @@ streamlit run app.py
 Opens the BVID-FE web UI at <http://localhost:8501>. Configure the material,
 layup, panel, impact (or C-scan), pick a tier, click **Run analysis**. Results
 appear across the Summary / Damage Map / Knockdown Curve / 3D Damage /
-Buckling / Damage Severity / Sweep / Export NCR tabs. Export NCR writes a
+Buckling / Damage Severity / Sweep / Export NCR tabs, with JSON / CSV
+download buttons to export results. Export NCR writes a
 nonconformance report (Markdown or JSON) with a *proposed* disposition; a
 Material Review Board must review and approve it.
 
