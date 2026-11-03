@@ -36,4 +36,4 @@ gitignored; delete them when you are done.
   elements across) use `MeshParams(in_plane_size_mm=2.5)` or finer: at
   5 mm the fe3d knockdown can be about 25% high there. fe3d TAI follows
   the closed-form TAI, falling with energy 2–8% below it; use the
-  closed-form tiers for TAI design values (see the README's Limitations).
+  closed-form tiers for TAI design values (see [Physics Models → Limitations](https://elhajjar1.github.io/BVID-FE/physics_models/#limitations)).
