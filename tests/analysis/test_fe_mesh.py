@@ -1,7 +1,10 @@
+import warnings
+
 import numpy as np
+import pytest
 
 from bvidfe.analysis.config import MeshParams
-from bvidfe.analysis.fe_mesh import build_fe_mesh
+from bvidfe.analysis.fe_mesh import FiberBreakCoreUnmeshedWarning, build_fe_mesh
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 
 
@@ -90,7 +93,9 @@ def test_mesh_delamination_only_softens_damage_zone_in_plane():
 
 
 def test_mesh_fiber_break_core_reduces_in_plane_factor():
-    """Inside the fiber-break radius, both factors are reduced."""
+    """Inside the fiber-break radius, both factors are reduced; the fibre
+    tension factor is not (the core's broken fibres are fe3d TAI's hole,
+    issue #164)."""
     from bvidfe.analysis.fe_mesh import (
         DAMAGE_FIBER_BREAK_INPLANE_FACTOR,
         DAMAGE_OOP_FACTOR,
@@ -102,7 +107,9 @@ def test_mesh_fiber_break_core_reduces_in_plane_factor():
         dent_depth_mm=0.3,
         fiber_break_radius_mm=3.0,  # carve out a fiber-break core at the centroid
     )
-    mesh = build_fe_mesh(cfg, ds)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FiberBreakCoreUnmeshedWarning)
+        mesh = build_fe_mesh(cfg, ds)
     # Identified by distance: the surrounding damage zone is softened too.
     centroids = np.array([mesh.node_coords[c].mean(axis=0) for c in mesh.element_connectivity])
     fiber_break = np.hypot(centroids[:, 0] - 10.0, centroids[:, 1] - 5.0) <= 3.0
@@ -113,11 +120,27 @@ def test_mesh_fiber_break_core_reduces_in_plane_factor():
     )
     # Fiber-break-core elements must also have OOP reduced
     assert np.all(mesh.damage_factors[fiber_break] == DAMAGE_OOP_FACTOR)
-    # Broken fibres: the core alone loses fibre-direction stiffness in tension.
-    np.testing.assert_array_equal(
-        mesh.fiber_tension_factors,
-        np.where(fiber_break, DAMAGE_FIBER_BREAK_INPLANE_FACTOR, 1.0),
-    )
+    # The broken fibres are not a softened core: fe3d TAI carries them as
+    # its sub-mesh hole, whose radius is at least the core's.
+    assert np.all(mesh.fiber_tension_factors == 1.0)
+
+
+def test_mesh_fiber_break_core_smaller_than_an_element_warns():
+    """A core that holds no element centre (the centroid sits on an
+    element edge here, 1 mm from the nearest centres of the 2 mm mesh)
+    softens nothing and says so; the damage zone around it is unchanged."""
+    cfg = _simple_config()
+    ell = DelaminationEllipse(1, (10, 5), 8, 4, 0)
+    with pytest.warns(FiberBreakCoreUnmeshedWarning, match="0.90 mm.*2 mm mesh.*1.3 mm"):
+        mesh = build_fe_mesh(cfg, DamageState([ell], dent_depth_mm=0.3, fiber_break_radius_mm=0.9))
+    no_core = build_fe_mesh(cfg, DamageState([ell], dent_depth_mm=0.3))
+    np.testing.assert_array_equal(mesh.in_plane_damage_factors, no_core.in_plane_damage_factors)
+    np.testing.assert_array_equal(mesh.damage_factors, no_core.damage_factors)
+    assert np.all(mesh.fiber_tension_factors == 1.0)
+    # A core with no delamination has no centre to sit on: no warning.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FiberBreakCoreUnmeshedWarning)
+        build_fe_mesh(cfg, DamageState([], dent_depth_mm=0.0, fiber_break_radius_mm=0.9))
 
 
 def test_mesh_element_dof_maps_cover_24_dofs_each():

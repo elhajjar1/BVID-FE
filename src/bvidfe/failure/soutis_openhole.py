@@ -219,8 +219,7 @@ def transverse_damage_width_mm(damage: DamageState, panel_width_mm: float | None
         return 0.0
     lo, hi = math.inf, -math.inf
     for e in damage.delaminations:
-        t = math.radians(e.orientation_deg)
-        half = math.hypot(e.major_mm * math.sin(t), e.minor_mm * math.cos(t))
+        _, half = e.half_extents_mm()
         lo = min(lo, e.centroid_mm[1] - half)
         hi = max(hi, e.centroid_mm[1] + half)
     width = hi - lo

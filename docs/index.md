@@ -84,7 +84,7 @@ the first two (ASTM D7136/D7137) are gated in CI:
 | --- | --- | --- | --- | --- |
 | NCAMP CAM-RP-2010-002 | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 1.5% | 1.5% |
 | Lovejoy & Scotti (NASA LaRC 2019) | IM7/8552 quasi-isotropic at 54 J and hard laminate at 68 J | 8 | 8.8% | 8.8% |
-| Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 23.3% |
+| Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 23.4% |
 
 MAE is the mean absolute error between predicted and measured CAI strength.
 These errors are in-sample: the Soutis constant `soutis_k_s` = 4.8 and the

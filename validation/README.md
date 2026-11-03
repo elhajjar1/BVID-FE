@@ -9,7 +9,7 @@ composite-after-impact test data.
 |---|---|---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.8% | 8.8% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 23.3% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 23.4% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
 | `korbelin_m21_t800s_tai` (not gated) | M21/T800S (T800S/3900-2B card) | TAI | 5 | 15% | 3.5% | 3.5% | In-sample for `tai_notch_fraction` (the only TAI fit) |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 1.2% (not gated) | Tautological (empirical-tier output) |
 
@@ -23,13 +23,13 @@ things the gate does not show:
   miss them and they are not gated.
 - **The semi-analytical growth channel is not exercised by the gate.**
   On every NCAMP and Lovejoy & Scotti coupon the Soutis bound is lower
-  than the delamination growth stress (176–177 against 222–224 MPa on
-  NCAMP; 156 against 218–219 MPa and 224 against 251–252 MPa on Lovejoy &
+  than the delamination growth stress (176–177 against 205–206 MPa on
+  NCAMP; 156 against 182 MPa and 224 against 227–228 MPa on Lovejoy &
   Scotti), so the two tiers give identical numbers there. On Hasebe et
-  al.'s set growth governs 238 of 343 coupons (153 of 157 cross-ply
-  c8/c16/c24, all 27 hard r0, 58 of 132 quasi-isotropic, no soft r45),
-  and on those 238 the semi-analytical MAE is 24.9% against 22.3%
-  empirical (both 19.8% on the other 105). The growth channel is therefore unvalidated, and
+  al.'s set growth governs 256 of 343 coupons (154 of 157 cross-ply
+  c8/c16/c24, all 27 hard r0, 75 of 132 quasi-isotropic, no soft r45),
+  and on those 256 the semi-analytical MAE is 25.6% against 23.0%
+  empirical (both 17.2% on the other 87). The growth channel is therefore unvalidated, and
   where it acts it makes the prediction worse.
 - **TAI is not validated.** The only measured tension data are one
   impact condition (`korbelin_m21_t800s_tai`, five coupons), and
@@ -267,7 +267,9 @@ puts the pooled optimum at 4.8:
 Before the refit (linear plate, the constants above) the MAEs were
 1.55% (NCAMP), 8.73% (Lovejoy & Scotti) and 21.19% / 23.07% (Hasebe et
 al., empirical / semi-analytical); after it they are 1.54%, 8.78% and
-21.53% / 23.35%. The NCAMP damage area is about 2,790 mm² either way.
+21.53% / 23.35% (23.45% semi-analytical once the sublaminate buckling
+rectangle followed the ellipse orientation, #165). The NCAMP damage area
+is about 2,790 mm² either way.
 
 The in-sample numbers flatter the model. The fair measure is
 cross-dataset:
@@ -367,7 +369,7 @@ dent is a median 0.94× the measured dent over the 308 with a positive one
 
 Why the model misses: the damage area is right, but the knockdown map is
 not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
-21.5% (empirical) and 23.3% (semi-analytical). The empirical MAE per
+21.5% (empirical) and 23.4% (semi-analytical). The empirical MAE per
 layup is 14% (c8), 31% (c16), 18% (c24), 20% (q8), 24% (q16), 37% (q24),
 15% (r0) and 4% (r45). The predicted knockdown averages 0.63 against 0.73
 measured. Two things remain:

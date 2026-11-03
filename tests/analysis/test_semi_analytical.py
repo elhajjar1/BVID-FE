@@ -283,3 +283,117 @@ def test_buckling_load_uses_full_plate_dimensions_not_semi_axes():
     assert N_actual == pytest.approx(N_correct, rel=1e-10)
     # And explicitly rule out the buggy value.
     assert N_actual < 0.5 * N_buggy
+
+
+# --- #165: the sublaminate rectangle is the rotated ellipse's bounding box ---
+
+_QI8 = [0, 45, -45, 90, 90, -45, 45, 0]
+
+
+def _lam8():
+    return Laminate(MATERIAL_LIBRARY["IM7/8552"], _QI8, 0.152)
+
+
+def test_buckling_load_rotated_90_equals_swapped_axes():
+    """An ellipse elongated across the load (orientation 90 deg) must buckle
+    like the unrotated ellipse with its semi-axes swapped; before #165
+    ``orientation_deg`` was ignored and both gave the along-load value."""
+    lam = _lam8()
+    across = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 90.0))
+    swapped = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 8.0, 20.0, 0.0))
+    along = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 0.0))
+    assert across == pytest.approx(swapped, rel=1e-12)
+    assert across != pytest.approx(along, rel=1e-3)
+    # Fibre directions are axial: 180 deg is 0 deg and -90 deg is 90 deg.
+    assert sublaminate_buckling_load(
+        lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 180.0)
+    ) == pytest.approx(along, rel=1e-12)
+    assert sublaminate_buckling_load(
+        lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, -90.0)
+    ) == pytest.approx(across, rel=1e-12)
+
+
+def test_buckling_load_45_deg_is_the_square_bounding_box():
+    """At 45 deg the bounding box is square with half-side
+    hypot(major, minor) / sqrt(2): larger in both directions than either
+    axis-aligned box, so the enclosing-rectangle N_cr is below both the
+    along-load and the across-load values (it does not lie between them)."""
+    lam = _lam8()
+    tilted = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 45.0))
+    r = math.hypot(20.0, 8.0) / math.sqrt(2.0)
+    square = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), r, r, 0.0))
+    assert tilted == pytest.approx(square, rel=1e-12)
+    along = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 0.0))
+    across = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 90.0))
+    assert tilted < min(along, across)
+
+
+def test_buckling_load_pins_issue_165_probe():
+    """The 20 x 8 mm ellipse at interface 2 of the 8-ply QI laminate from
+    #165: 78.4 N/mm along the load (unchanged) and 39.5 N/mm across it
+    (was 78.4, the orientation being ignored)."""
+    lam = _lam8()
+    assert sublaminate_buckling_load(
+        lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 0.0)
+    ) == pytest.approx(78.37, abs=0.05)
+    assert sublaminate_buckling_load(
+        lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 90.0)
+    ) == pytest.approx(39.50, abs=0.05)
+
+
+def test_buckling_rectangle_uses_the_tai_width_extents():
+    """The sublaminate rectangle and the TAI damage width read the same
+    extents off the ellipse: buckling a rotated ellipse equals buckling the
+    axis-aligned ellipse of its half-extents, and twice its y half-extent is
+    the TAI width."""
+    from bvidfe.failure.soutis_openhole import transverse_damage_width_mm
+
+    lam = _lam8()
+    for theta in (0.0, 30.0, 45.0, 90.0, -45.0):
+        e = DelaminationEllipse(3, (75, 50), 18.0, 7.0, theta)
+        ex, ey = e.half_extents_mm()
+        aligned = DelaminationEllipse(3, (75, 50), ex, ey, 0.0)
+        assert sublaminate_buckling_load(lam, e) == pytest.approx(
+            sublaminate_buckling_load(lam, aligned), rel=1e-12
+        )
+        assert transverse_damage_width_mm(DamageState([e])) == pytest.approx(2.0 * ey, rel=1e-12)
+
+
+def test_template_damage_growth_sees_the_orientation():
+    """End-to-end regression pins for #165 on 150 x 100 mm IM7/8552 panels
+    (16 mm, 5.5 kg impactor). The peanut template elongates the back-face
+    delaminations along the +/-45 and 90 deg plies, so they are wider
+    across the load than ``2 * major_mm`` along it: on the 8-ply QI panel at
+    5 J the growth stress falls from 300.5 to 281.8 MPa (knockdown 0.500 ->
+    0.469, growth governs); at 10 J the film buckling stress at the
+    governing interface 4 falls from 210 to 78 MPa but Soutis still governs
+    (0.448). The [0/90]2s panel keeps 0.424 / 0.389 at 5 / 10 J."""
+    from bvidfe import AnalysisConfig, BvidAnalysis
+    from bvidfe.analysis.semi_analytical import weakest_sublaminate_growth
+    from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
+    from bvidfe.impact.mapping import ImpactEvent
+
+    def run(layup, energy):
+        cfg = AnalysisConfig(
+            material="IM7/8552",
+            layup_deg=layup,
+            ply_thickness_mm=0.152,
+            panel=PanelGeometry(150.0, 100.0),
+            loading="compression",
+            tier="semi_analytical",
+            impact=ImpactEvent(energy, ImpactorGeometry(diameter_mm=16.0), mass_kg=5.5),
+        )
+        return BvidAnalysis(cfg).run()
+
+    r5 = run(_QI8, 5.0)
+    assert r5.knockdown == pytest.approx(0.469, abs=5e-4)
+    assert r5.residual_strength_MPa == pytest.approx(281.8, abs=0.1)
+    r10 = run(_QI8, 10.0)
+    assert r10.knockdown == pytest.approx(0.448, abs=5e-4)
+    g10 = weakest_sublaminate_growth(_lam8(), r10.damage)
+    assert g10.interface_index == 4
+    assert g10.film_buckling_stress_MPa == pytest.approx(78.4, abs=0.1)
+    assert g10.growth_stress_MPa > r10.residual_strength_MPa  # Soutis governs
+    xp = [0, 90, 0, 90, 90, 0, 90, 0]
+    assert run(xp, 5.0).knockdown == pytest.approx(0.424, abs=5e-4)
+    assert run(xp, 10.0).knockdown == pytest.approx(0.389, abs=5e-4)

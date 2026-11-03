@@ -278,9 +278,14 @@ class BvidAnalysis:
         if self.config.loading != "compression":
             hole = tai_fibre_damage_hole(self.config, damage, lam)
             if hole is not None:
+                size = (
+                    "the damage state's fibre-break core, not meshed"
+                    if damage.fiber_break_radius_mm >= hole[0]
+                    else "below the mesh"
+                )
                 notes.append(
                     f"fe3d TAI: fibre damage as the closed-form equivalent hole "
-                    f"({2 * hole[0]:.2f} mm across, below the mesh), a Whitney-Nuismer "
+                    f"({2 * hole[0]:.2f} mm across, {size}), a Whitney-Nuismer "
                     f"notch x{1 / hole[1]:.3f} on the stress of the elements under it"
                 )
                 notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))

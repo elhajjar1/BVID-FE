@@ -26,6 +26,28 @@ def _ellipse_polygon(e: "DelaminationEllipse", n_pts: int = 72) -> Polygon:
     return Polygon(zip(xr.tolist(), yr.tolist()))
 
 
+def ellipse_half_extents_mm(major_mm, minor_mm, orientation_deg):
+    """Half-widths ``(ex, ey)`` of the axis-aligned bounding box of an
+    ellipse with semi-axes ``major_mm`` / ``minor_mm`` whose major axis is
+    rotated ``orientation_deg`` from the panel x axis:
+
+        ex = hypot(major * cos(theta), minor * sin(theta))
+        ey = hypot(major * sin(theta), minor * cos(theta))
+
+    Accepts scalars or NumPy arrays (element-wise). This is the one place
+    that defines the ellipse's x / y extents, shared by the peanut template
+    (``impact.shape_templates``), the TAI damage width
+    (``failure.soutis_openhole.transverse_damage_width_mm``) and the
+    sublaminate buckling rectangle (``analysis.semi_analytical``), so the
+    same ellipse feeds every tier the same footprint.
+    """
+    theta = np.radians(orientation_deg)
+    cos_t, sin_t = np.cos(theta), np.sin(theta)
+    ex = np.hypot(major_mm * cos_t, minor_mm * sin_t)
+    ey = np.hypot(major_mm * sin_t, minor_mm * cos_t)
+    return ex, ey
+
+
 @dataclass
 class DelaminationEllipse:
     """A single delamination at a specific ply interface, in the panel XY frame.
@@ -76,6 +98,19 @@ class DelaminationEllipse:
     def area_mm2(self) -> float:
         return math.pi * self.major_mm * self.minor_mm
 
+    def half_extents_mm(self) -> Tuple[float, float]:
+        """Half-widths ``(ex, ey)`` of the ellipse's axis-aligned bounding
+        box in the panel frame (:func:`ellipse_half_extents_mm`): the
+        footprint spans ``x = cx +/- ex`` and ``y = cy +/- ey``. For
+        ``orientation_deg = 0`` this is ``(major_mm, minor_mm)``; at 90 deg
+        the two swap.
+
+        >>> DelaminationEllipse(0, (0.0, 0.0), 20.0, 10.0, 90.0).half_extents_mm()
+        (10.0, 20.0)
+        """
+        ex, ey = ellipse_half_extents_mm(self.major_mm, self.minor_mm, self.orientation_deg)
+        return float(ex), float(ey)
+
     def __repr__(self) -> str:
         return (
             f"DelaminationEllipse(iface={self.interface_index}, "
@@ -117,6 +152,15 @@ class DamageState:
     def __post_init__(self) -> None:
         require_non_negative(self.dent_depth_mm, "dent_depth_mm")
         require_non_negative(self.fiber_break_radius_mm, "fiber_break_radius_mm")
+        # A bare ellipse (not in a list) or any other non-iterable used to
+        # escape as ``TypeError: ... is not iterable`` (#168).
+        if isinstance(self.delaminations, (DelaminationEllipse, str, bytes)) or not hasattr(
+            self.delaminations, "__iter__"
+        ):
+            raise ValueError(
+                "delaminations must be a list of DelaminationEllipse "
+                f"(got {type(self.delaminations).__name__})"
+            )
         for i, e in enumerate(self.delaminations):
             if not isinstance(e, DelaminationEllipse):
                 raise ValueError(

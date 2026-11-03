@@ -28,7 +28,9 @@ one direction keeps an ellipse at every interface (circles), so it still
 receives the target damage area.
 
 Total DPA is enforced by a Brent root-find on a single scalar multiplier so the
-polygon-union footprint equals the target DPA within 1%.
+polygon-union footprint equals the target DPA within 1%. A target below
+0.01 mm^2 (``_MIN_TARGET_DPA_MM2``, under any C-scan's resolution) gives no
+delamination, like an impact at or below the onset energy.
 
 With ``max_half_extent_mm`` each ellipse is shrunk (aspect ratio kept) until
 its bounding box fits inside the given half-extents about the centroid: the
@@ -57,7 +59,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from scipy.optimize import brentq
 
-from bvidfe.damage.state import DamageState, DelaminationEllipse
+from bvidfe.damage.state import DamageState, DelaminationEllipse, ellipse_half_extents_mm
 
 
 def _ply_mismatch_deg(theta_a_deg, theta_b_deg):
@@ -122,6 +124,15 @@ def _delaminated_interfaces(layup_deg: List[float]) -> np.ndarray:
 # Plies whose fibre directions differ by less than this are the same direction.
 _SAME_DIRECTION_TOL_DEG = 1e-6
 
+# A target DPA below this (mm^2) is below the resolution of any C-scan and
+# of the 72-sided polygons the union is built from: it is no damage, and
+# ``distribute_damage`` returns no delamination for it (as impact_to_damage
+# does for an impact at or below the onset energy).
+_MIN_TARGET_DPA_MM2 = 0.01
+# Lower limit (mm) of the scalar bracket's downward extension; at 1e-4 mm
+# the largest ellipse of any layup is far below ``_MIN_TARGET_DPA_MM2``.
+_MIN_SCALAR = 1e-4
+
 
 def distribute_damage(
     layup_deg: List[float],
@@ -133,7 +144,7 @@ def distribute_damage(
 ) -> List[DelaminationEllipse]:
     n_plies = len(layup_deg)
     n_interfaces = n_plies - 1
-    if n_interfaces <= 0 or target_dpa_mm2 <= 0:
+    if n_interfaces <= 0 or target_dpa_mm2 < _MIN_TARGET_DPA_MM2:
         return []
 
     ar_arr, rel_arr, orient_arr = _template_arrays(layup_deg, n_interfaces)
@@ -146,8 +157,6 @@ def distribute_damage(
     minor_factor = rel_arr
     # Native-Python orientation list (the dataclass stores it as a float).
     orient_list = orient_arr.tolist()
-    theta = np.radians(orient_arr)
-    cos_t, sin_t = np.abs(np.cos(theta)), np.abs(np.sin(theta))
 
     def _build(scalar: float) -> List[DelaminationEllipse]:
         # Vectorized ellipse-parameter computation. All semi-axes for a
@@ -156,9 +165,9 @@ def distribute_damage(
         majors = scalar * major_factor
         minors = scalar * minor_factor
         if max_half_extent_mm is not None:
-            # Half-widths of each rotated ellipse's bounding box.
-            ex = np.hypot(majors * cos_t, minors * sin_t)
-            ey = np.hypot(majors * sin_t, minors * cos_t)
+            # Half-widths of each rotated ellipse's bounding box (the same
+            # extents the TAI width and the sublaminate buckling use).
+            ex, ey = ellipse_half_extents_mm(majors, minors, orient_arr)
             hx, hy = max_half_extent_mm
             k = np.minimum(1.0, np.minimum(hx / ex, hy / ey))
             majors, minors = majors * k, minors * k
@@ -180,6 +189,13 @@ def distribute_damage(
         ).projected_damage_area_mm2
 
     lo, hi = 0.1, 50.0
+    # A target just above the resolution floor (an impact a few mJ above the
+    # onset energy) sits below the union area at the default lower end, so
+    # the bracket extends downward too (#163).
+    while _union_area(lo) > target_dpa_mm2:
+        lo *= 0.5
+        if lo < _MIN_SCALAR:
+            return []
     area_hi = _union_area(hi)
     while area_hi < target_dpa_mm2:
         hi *= 2

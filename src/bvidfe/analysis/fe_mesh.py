@@ -37,12 +37,17 @@ to the 6x6 elasticity matrix in the global Voigt frame
   - `fiber_tension_factors[e]`     — factor in (0, 1] on the fibre-
                                      direction modulus E11 (ply frame)
                                      when fe3d loads the panel in
-                                     tension. 1 in the damage zone,
-                                     whose delaminations and matrix
-                                     cracks cut no fibres, and
-                                     DAMAGE_FIBER_BREAK_INPLANE_FACTOR in
-                                     the fiber-break core. Compression
-                                     ignores it: there the whole in-plane
+                                     tension: the fibre-damage variable
+                                     of the tension path. 1 everywhere
+                                     `apply_damage` builds: the damage
+                                     zone's delaminations and matrix
+                                     cracks cut no fibres, and the
+                                     broken fibres of the fiber-break
+                                     core are fe3d TAI's sub-mesh
+                                     fibre-damage hole, not a softened
+                                     core (fe_tier.tai_fibre_damage_hole;
+                                     issue #164). Compression ignores
+                                     it: there the whole in-plane
                                      sub-block takes the in-plane factor.
 
 The two factors separate the interlaminar and in-plane effects of impact
@@ -56,7 +61,12 @@ empirical tier's Soutis model uses. Without it the in-plane stress field
 under in-plane load was the same with and without damage, and fe3d
 first-ply failure could not see the impact. Inside the fiber-break core
 under the impact site, fibers are broken in addition to interlaminar
-separation (Camanho & Davila 2007; Maimi et al. 2007).
+separation (Camanho & Davila 2007; Maimi et al. 2007). The core takes
+elements by their centre, and a core smaller than an element (the C-scan
+cores of a few mm against 5 mm elements) can hold none: `apply_damage`
+then warns (FiberBreakCoreUnmeshedWarning). In tension that costs
+nothing, since the core's fibre damage is the hole; in compression the
+core then softens nothing beyond the zone.
 
 The zone's in-plane factor depends on the sign of the fibre load. In
 compression it scales every in-plane term: delaminated sublaminates
@@ -81,6 +91,7 @@ model below makes the model match the docstring intent.
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import List
 
@@ -124,6 +135,14 @@ DAMAGE_ZONE_INPLANE_FACTOR = 0.15
 ZONE_FRACTION_SAMPLES = 6
 
 
+class FiberBreakCoreUnmeshedWarning(UserWarning):
+    """A damage state's fiber-break core (``fiber_break_radius_mm``) holds
+    no element centre, so the mesh softens no element for it. In tension
+    the broken fibres are still fe3d TAI's fibre-damage hole, whose radius
+    is at least the core's; in compression the core softens nothing beyond
+    the damage zone. Recorded in ``AnalysisResults.warnings``."""
+
+
 def estimate_fe_mesh_size(config: AnalysisConfig) -> dict:
     """Return a dict with n_elements, n_nodes, n_dof for a would-be fe_mesh build.
 
@@ -156,7 +175,8 @@ class FeMesh:
     damage_factors: np.ndarray  # (n_elements,) out-of-plane factor in (0, 1]
     in_plane_damage_factors: np.ndarray  # (n_elements,) in-plane factor in (0, 1]
     # (n_elements,) factor on the ply-frame fibre-direction stiffness under
-    # tension, in (0, 1]: 1 except in the fiber-break core
+    # tension, in (0, 1]: 1 from apply_damage (the broken fibres are fe3d
+    # TAI's sub-mesh hole, see the module docstring)
     fiber_tension_factors: np.ndarray
     n_nodes: int = field(init=False)
     n_elements: int = field(init=False)
@@ -392,9 +412,14 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     interface and its centroid lies in the ellipse; in-plane reduction of
     every element overlapping any ellipse (the damage zone, all plies),
     interpolated by the fraction of its area inside the zone; then
-    fiber-break-core reduction (both factors, and the fibre-direction
-    tension factor) within ``fiber_break_radius_mm`` of any delamination
-    centroid.
+    fiber-break-core reduction (both factors) of the elements whose centre
+    is within ``fiber_break_radius_mm`` of any delamination centroid. The
+    core leaves ``fiber_tension_factors`` at 1: in tension its broken
+    fibres are fe3d TAI's fibre-damage hole, whose radius is at least the
+    core's (``fe_tier.tai_fibre_damage_hole``), so softening the fibres of
+    the meshed core as well would count the same broken fibres twice
+    (issue #164). Warns (``FiberBreakCoreUnmeshedWarning``) when the core
+    holds no element centre.
     """
     n_elem = skeleton.element_connectivity.shape[0]
     cx = skeleton.centroid_x
@@ -429,16 +454,30 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
 
     # Fiber-break core: within fiber_break_radius of any delamination
     # centroid → both factors reduced (OOP also forced to DAMAGE_OOP_FACTOR).
-    if damage.fiber_break_radius_mm > 0:
+    # Not the fibre tension factor: the core's broken fibres are the TAI
+    # hole (see the docstring).
+    if damage.fiber_break_radius_mm > 0 and damage.delaminations:
         fb_hit = np.zeros(n_elem, dtype=bool)
         r = damage.fiber_break_radius_mm
         for ell in damage.delaminations:
             dx = cx - ell.centroid_mm[0]
             dy = cy - ell.centroid_mm[1]
             fb_hit |= np.sqrt(dx * dx + dy * dy) <= r
+        if not fb_hit.any():
+            # Element centres sit h / sqrt(2) from a node for square elements
+            # of side h, and the impact point is usually a node.
+            corners = skeleton.node_coords[skeleton.element_connectivity[0], :2]
+            h = float((corners.max(axis=0) - corners.min(axis=0)).max())
+            warnings.warn(
+                f"fibre-break core of radius {r:.2f} mm holds no element centre on the "
+                f"{h:g} mm mesh, so the mesh softens no element for it (in tension it is "
+                f"still fe3d TAI's fibre-damage hole); an in-plane element size of about "
+                f"{r * math.sqrt(2.0):.1f} mm or less would mesh it",
+                FiberBreakCoreUnmeshedWarning,
+                stacklevel=2,
+            )
         damage_factors[fb_hit] = DAMAGE_OOP_FACTOR
         in_plane_damage_factors[fb_hit] = DAMAGE_FIBER_BREAK_INPLANE_FACTOR
-        fiber_tension_factors[fb_hit] = DAMAGE_FIBER_BREAK_INPLANE_FACTOR
 
     return FeMesh(
         node_coords=skeleton.node_coords,

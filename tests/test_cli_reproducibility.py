@@ -115,9 +115,14 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # 14.3 J on this panel and 10 J leaves no damage, so the case
             # moved to 22 J (DPA 847 mm^2, close to the 868 mm^2 at 10 J
             # before): 0.467. With membrane stiffening in the onset energy
-            # (onset 4.2 J) it is back at 10 J (DPA 623 mm^2): 0.503.
-            "knockdown": 0.5034915393489804,
-            "residual_strength_MPa": 302.74275094443186,
+            # (onset 4.2 J) it is back at 10 J (DPA 623 mm^2): 0.503, the
+            # growth stress a hair under the Soutis bound (0.505). With the
+            # sublaminate buckling rectangle taken as the rotated ellipse's
+            # bounding box (#165) the 45-degree back-face delaminations are
+            # wider across the load, the growth stress at interface 12
+            # falls to 275.5 MPa and governs: 0.458.
+            "knockdown": 0.45815510303755336,
+            "residual_strength_MPa": 275.4825561362224,
             "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 623.454803186882,
             "tier_used": "semi_analytical",
