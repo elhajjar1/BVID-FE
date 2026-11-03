@@ -330,6 +330,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "value plus tier provenance without parsing the full results JSON.",
     )
     p.add_argument(
+        "--save-damage",
+        metavar="PATH",
+        help="Also write the analysed damage state (predicted from --energy, or "
+        "the --cscan one) to PATH as C-scan JSON, for an inspection-driven "
+        "rerun with --cscan PATH.",
+    )
+    p.add_argument(
         "--list-materials",
         action="store_true",
         help="List available material presets with key properties and exit.",
@@ -485,6 +492,15 @@ def _main(argv: Sequence[str] | None) -> int:
         # or outside the panel edge.
         return _error(str(exc))
     multi = len(results) > 1
+
+    if args.save_damage is not None:
+        from bvidfe.damage.io import save_cscan_json
+
+        # The damage state does not depend on the tier.
+        try:
+            save_cscan_json(results[0].damage, args.save_damage)
+        except OSError as exc:
+            return _error(f"--save-damage {args.save_damage}: cannot write file: {exc}")
 
     if args.quick_json:
         for result in results:

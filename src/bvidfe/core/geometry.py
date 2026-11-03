@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, Mapping
 
-from bvidfe._validation import require_positive
+from bvidfe._validation import dataclass_kwargs, require_positive
 
 BoundaryKind = Literal["clamped", "simply_supported", "free"]
 ImpactorShape = Literal["hemispherical", "flat", "conical"]
@@ -42,6 +42,13 @@ class PanelGeometry:
         if self.boundary not in ("clamped", "simply_supported", "free"):
             raise ValueError(f"boundary {self.boundary!r} not recognized")
 
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "PanelGeometry":
+        """Build from a dict of the fields (``dataclasses.asdict`` output);
+        ``boundary`` may be left out. ``ValueError`` for an unknown or
+        missing key."""
+        return cls(**dataclass_kwargs(cls, d, "panel"))
+
 
 @dataclass
 class ImpactorGeometry:
@@ -65,3 +72,9 @@ class ImpactorGeometry:
         require_positive(self.diameter_mm, "diameter_mm")
         if self.shape not in ("hemispherical", "flat", "conical"):
             raise ValueError(f"shape {self.shape!r} not recognized")
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "ImpactorGeometry":
+        """Build from a dict of the fields, each optional. ``ValueError``
+        for an unknown key."""
+        return cls(**dataclass_kwargs(cls, d, "impactor"))

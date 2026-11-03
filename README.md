@@ -109,8 +109,9 @@ options: `--tier` (one tier or a comma-separated list), `--cscan scan.json`
 in place of `--energy`, `--boundary`, the impactor (`--impactor-diameter`,
 `--impactor-shape`, `--mass`, defaults 16 mm hemispherical and 5.5 kg) and
 `--location X Y`, the fe3d mesh (`--in-plane-size`, `--elements-per-ply`),
-`--quick` or `--quick-json` for a one-line result, and `--list-materials`
-(`bvidfe --help` lists them all). For example:
+`--quick` or `--quick-json` for a one-line result, `--save-damage
+dmg.json` to keep the damage state for a `--cscan dmg.json` rerun, and
+`--list-materials` (`bvidfe --help` lists them all). For example:
 
 ```bash
 bvidfe --material IM7/8552 --layup "0,45,-45,90,90,-45,45,0" \

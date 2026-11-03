@@ -42,12 +42,16 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis, MeshParams  # noqa: E402
-from bvidfe.analysis.fe_mesh import build_fe_mesh, estimate_fe_mesh_size  # noqa: E402
+from bvidfe.analysis.fe_mesh import (  # noqa: E402
+    build_fe_mesh,
+    element_grid_shape,
+    estimate_fe_mesh_size,
+)
 from bvidfe.analysis.fe_tier import FE3D_MAX_DOF, enable_stderr_logging  # noqa: E402
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry  # noqa: E402
 from bvidfe.core.material import MATERIAL_LIBRARY  # noqa: E402
 from bvidfe.damage.io import CScanSchemaError, damage_state_from_dict  # noqa: E402
-from bvidfe.damage.state import DamageState, DelaminationEllipse  # noqa: E402
+from bvidfe.damage.state import DamageState  # noqa: E402
 from bvidfe.impact.mapping import ImpactEvent, impact_to_damage  # noqa: E402
 from bvidfe.impact.olsson import onset_energy  # noqa: E402
 from bvidfe.core.laminate import Laminate  # noqa: E402
@@ -437,59 +441,11 @@ def _format_ply_thickness(t) -> str:
 
 
 def _config_from_dict(d: dict) -> AnalysisConfig:
-    panel = PanelGeometry(
-        Lx_mm=float(d["panel"]["Lx_mm"]),
-        Ly_mm=float(d["panel"]["Ly_mm"]),
-        boundary=d["panel"].get("boundary", "simply_supported"),
-    )
-    impact = None
-    damage = None
-    if d.get("impact") is not None:
-        i = d["impact"]
-        impact = ImpactEvent(
-            energy_J=float(i["energy_J"]),
-            impactor=ImpactorGeometry(
-                diameter_mm=float(i["impactor"]["diameter_mm"]),
-                shape=i["impactor"]["shape"],
-            ),
-            mass_kg=float(i["mass_kg"]),
-            location_xy_mm=tuple(i["location_xy_mm"]),
-        )
-    if d.get("damage") is not None:
-        dd = d["damage"]
-        damage = DamageState(
-            delaminations=[
-                DelaminationEllipse(
-                    interface_index=int(e["interface_index"]),
-                    centroid_mm=tuple(e["centroid_mm"]),
-                    major_mm=float(e["major_mm"]),
-                    minor_mm=float(e["minor_mm"]),
-                    orientation_deg=float(e["orientation_deg"]),
-                )
-                for e in dd.get("delaminations", [])
-            ],
-            dent_depth_mm=float(dd.get("dent_depth_mm", 0.0)),
-            fiber_break_radius_mm=float(dd.get("fiber_break_radius_mm", 0.0)),
-        )
-    mesh = None
-    if d.get("mesh") is not None:
-        m = d["mesh"]
-        mesh = MeshParams(
-            elements_per_ply=int(m.get("elements_per_ply", 1)),
-            in_plane_size_mm=float(m.get("in_plane_size_mm", 5.0)),
-            cohesive_zone_factor=float(m.get("cohesive_zone_factor", 1.0)),
-        )
-    return AnalysisConfig(
-        material=d["material"],
-        layup_deg=list(d["layup_deg"]),
-        ply_thickness_mm=_ply_thickness_from_json(d["ply_thickness_mm"]),
-        panel=panel,
-        loading=d["loading"],
-        tier=d["tier"],
-        impact=impact,
-        damage=damage,
-        mesh=mesh,
-    )
+    """``AnalysisConfig.from_dict``, keeping the app's old leniency for a
+    damage record without ``dent_depth_mm`` or ``delaminations``."""
+    if isinstance(d.get("damage"), dict):
+        d = {**d, "damage": {"dent_depth_mm": 0.0, "delaminations": [], **d["damage"]}}
+    return AnalysisConfig.from_dict(d)
 
 
 # ---------------------------------------------------------------------------
@@ -1416,11 +1372,8 @@ with tabs[5]:
         else:
             try:
                 cfg_mesh = payload["mesh_config"]
-                in_plane_size = cfg_mesh.mesh.in_plane_size_mm
-                nx = max(1, math.ceil(cfg_mesh.panel.Lx_mm / in_plane_size))
-                ny = max(1, math.ceil(cfg_mesh.panel.Ly_mm / in_plane_size))
-                nz = len(cfg_mesh.layup_deg) * cfg_mesh.mesh.elements_per_ply
-                severity = (1.0 - mesh.damage_factors).reshape(nz, ny, nx).sum(axis=0)
+                grid = element_grid_shape(cfg_mesh)
+                severity = (1.0 - mesh.damage_factors).reshape(grid).sum(axis=0)
                 fig, ax = plt.subplots(figsize=(6, 5))
                 im = ax.imshow(
                     severity,

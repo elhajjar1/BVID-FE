@@ -195,6 +195,16 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
+- `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
+  `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
+  `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its
+  JSON) back into an equal config, including a custom material (a dict of
+  `OrthotropicMaterial` fields), `damage` (read with
+  `damage_state_from_dict`) and `impact_panel`. Unknown and missing keys
+  are a `ValueError`. The Streamlit app's `_config_from_dict` now calls
+  it, so it no longer drops `impact_panel` or rejects a custom material.
+- CLI `--save-damage PATH` (#170) writes the analysed damage state as
+  C-scan JSON for a `--cscan PATH` rerun.
 - CLI options `--boundary`, `--impactor-shape`, `--location X Y`,
   `--in-plane-size` and `--elements-per-ply` (#169), mapped onto
   `PanelGeometry.boundary`, `ImpactorGeometry.shape`,
@@ -332,6 +342,15 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Fixed
 
+- **Results JSON damage could not be re-run (#170).**
+  `AnalysisResults.to_dict()["damage"]` was a hand-rolled copy of the
+  C-scan layout without `schema_version`, so feeding it (or the CLI's or
+  the app's results JSON `.damage`) to `--cscan` / `damage_state_from_dict`
+  failed with `missing required field: schema_version`. It is now
+  `damage_state_to_dict`. `docs/schemas/` lists the optional
+  `schema_version` of `DamageState`. The app's damage-severity heatmap
+  takes its grid from `fe_mesh.element_grid_shape` instead of recomputing
+  it.
 - **CLI (#169):** `--mass` and `--impactor-diameter` were silently
   ignored with `--cscan` (now an error, see *Changed*), and the
   `--quick` / `--quick-json` help referred to a `--json` option that does

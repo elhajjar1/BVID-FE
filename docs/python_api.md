@@ -174,7 +174,23 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 
 `result.summary()` returns a printable block and `result.to_dict()` a
 JSON-serialisable dict (every field but `field_results`, the damage in the
-C-scan layout; the CLI prints it).
+[C-scan layout](cscan_schema.md) with its `schema_version`; the CLI prints
+it). Both halves load back:
+
+```python
+from bvidfe import AnalysisConfig
+from bvidfe.damage.io import damage_state_from_dict
+
+d = result.to_dict()
+assert damage_state_from_dict(d["damage"]) == result.damage   # or --cscan / load_cscan_json
+assert AnalysisConfig.from_dict(d["config_snapshot"]) == config
+```
+
+`AnalysisConfig.from_dict(d)` takes the field names as keys, a preset
+name or a dict of `OrthotropicMaterial` fields for `material`, dicts for
+the nested dataclasses (`PanelGeometry.from_dict`, `ImpactEvent.from_dict`,
+`MeshParams.from_dict`, ...) and a C-scan dict (`schema_version` optional)
+for `damage`, and raises `ValueError` for an unknown or missing key.
 
 ## Tier choice
 
@@ -408,13 +424,15 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--elements-per-ply N` | `1` | fe3d `MeshParams.elements_per_ply` |
 | `--quick` | off | Print only the knockdown (6 decimals) |
 | `--quick-json` | off | Print `{knockdown, residual_strength_MPa, pristine_strength_MPa, tier_used}` as one-line JSON |
+| `--save-damage PATH` | — | Also write the analysed damage state to `PATH` as C-scan JSON (re-run it with `--cscan PATH`) |
 | `--list-materials` | — | List the presets (E11, E22, Xt, Xc, Yt, Yc in MPa) and exit |
 | `--version`, `-h/--help` | — | Print the version or the help and exit |
 
 Without `--quick` / `--quick-json` the full result is printed as JSON
 (`AnalysisResults.to_dict()`). With several tiers the output is a JSON
 array, one JSON line per tier (`--quick-json`), or `tier<TAB>knockdown`
-lines (`--quick`). `--quick` and `--quick-json` cannot be combined.
+lines (`--quick`). `--quick` and `--quick-json` cannot be combined. The
+`damage` object of the JSON output is itself a valid `--cscan` file.
 Options that would have no effect are usage errors (exit code 2):
 `--impactor-diameter`, `--impactor-shape`, `--mass` and `--location`
 with `--cscan`, and the two mesh options without `fe3d` in `--tier`.
