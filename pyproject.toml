@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bvidfe"
-version = "0.2.0"
+version = "0.3.0"
 description = "Barely Visible Impact Damage residual-strength analysis for composite laminates"
 readme = "README.md"
 license = "MIT"
@@ -42,7 +42,7 @@ dependencies = [
     "matplotlib>=3.9,<4",
     "shapely>=2.0,<3",
     "pandas>=2.0,<3",
-    "plotly>=5.18",
+    "plotly>=5.18,<7",
 ]
 
 [project.optional-dependencies]

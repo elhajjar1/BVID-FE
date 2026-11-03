@@ -207,6 +207,16 @@ installed yet, the hook prints a friendly note and exits cleanly.
 BVID-FE publishes to PyPI via **OIDC Trusted Publishing** — there is no
 long-lived API token stored in the repo. The release flow is driven by
 `.github/workflows/publish.yml`, which triggers on any tag matching `v*`.
+No version has been published yet (`0.2.0` was never tagged); `0.3.0` is
+the first release meant for PyPI.
+
+### When to cut a release
+
+A non-empty breaking-changes subsection (`### Breaking changes and
+migration`) under `## [Unreleased]` in `CHANGELOG.md` means the next step
+is a minor release (`0.X.0`), cut before more feature work lands on
+`main`. Otherwise the documentation site, which deploys from `main`,
+describes behaviour that no installable version has.
 
 ### One-time PyPI setup (maintainer only)
 

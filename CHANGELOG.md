@@ -4,6 +4,14 @@ All notable changes to BVID-FE are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-11-03
+
 The closed-form tiers are now calibrated on, and scored against, measured
 CAI data, and the fe3d tier's first-ply failure sees the impact damage.
 Most results change and a few APIs break: read *Breaking changes and
@@ -258,6 +266,12 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   the quickstart and the API page. CI also checks the JSON schemas against
   the dataclasses (`scripts/generate_schemas.py --check`), and
   `tests/test_package.py` the four version strings against each other.
+- `bvidfe.impact.mapping.SHAPE_DPA_FACTOR`, `DIAMETER_DPA_EXPONENT` and
+  `DIAMETER_REF_MM`, public names for the impactor-shape and -diameter
+  damage-area corrections (the underscore names remain as aliases). The
+  app's impactor help and the `ImpactorGeometry` docstring are formatted
+  from them; both had quoted a stale cone factor (1.3x and 1.5x; it is
+  1.9x) (#174).
 
 ### Changed
 
@@ -800,6 +814,14 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   - C-scan dent depth and fiber-break radius replace the file's values
     when **Override file value** is ticked, 0 included; they used to apply
     only when > 0, so a file's non-zero dent could not be set to 0.
+- Documentation that contradicted the code (#174): `examples/README.md`
+  no longer calls fe3d TAI far more conservative than the closed form,
+  the `AnalysisResults.warnings` docstring no longer says it is always
+  empty, and the semi-analytical aspect-ratio clip and the validation
+  harness's fe3d gate comment and `--max-cases` help describe the current
+  model. `DEPLOYMENT_STREAMLIT.md` is merged into `docs/deployment.md`
+  (the root file is a pointer), and the April 2026 plan and spec moved
+  from `docs/superpowers/` to `docs/archive/`.
 
 ### Removed
 
@@ -813,15 +835,17 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ## [0.2.0] - 2026-05-21
 
-First tagged release after `0.1.0`. Major themes: a fully wired 3-D
-hex-element FE tier (`fe3d`) with eigenvalue buckling and FPF coupons,
+First version-bumped entry after `0.1.0`; never published. It was not
+tagged (only the `v0.2.0-dev1` and `v0.2.0-dev2` pre-release tags exist)
+and never reached PyPI, so `0.3.0` is the first PyPI release. Major
+themes: a fully wired 3-D hex-element FE tier (`fe3d`) with eigenvalue buckling and FPF coupons,
 per-ply thickness throughout the stack, a Streamlit GUI, a validation
 harness exercised in CI (against a synthetic self-check dataset only;
 the published Soutis / Caprino / Sanchez-Saez / NASA datasets are not
 yet digitized, see `validation/README.md`), a `SemiAnalyticalResult` dataclass on
 the semi-analytical path, vectorised LaRC05/Tsai-Wu failure-criterion
 batches, refreshed README/ARCHITECTURE docs, and the OIDC Trusted
-Publishing workflow that produced this release (issue #116). See the
+Publishing workflow (issue #116), which had not yet run. See the
 detailed entries below.
 
 ### Changed
@@ -1530,3 +1554,6 @@ Initial release.
 - `fe3d` CAI uses first-ply-failure on the damaged mesh, not a buckling eigenvalue solve
 - No validated datasets yet (Soutis, Caprino, Sanchez-Saez, NASA digitization pending)
 - PyInstaller standalone packaging not yet built
+
+[Unreleased]: https://github.com/elhajjar1/BVID-FE/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/elhajjar1/BVID-FE/releases/tag/v0.3.0

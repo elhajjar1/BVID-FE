@@ -54,12 +54,15 @@ and [Validation](https://github.com/elhajjar1/BVID-FE#validation).
 
 ## Installation
 
-From PyPI:
+BVID-FE is not on PyPI yet. Install it from GitHub:
 
 ```bash
-pip install bvidfe            # library and the `bvidfe` command
-pip install "bvidfe[app]"     # also installs Streamlit, for the web app
+pip install git+https://github.com/elhajjar1/BVID-FE.git                # library and the `bvidfe` command
+pip install "bvidfe[app] @ git+https://github.com/elhajjar1/BVID-FE.git"  # also installs Streamlit, for the web app
 ```
+
+Once 0.3.0 is on PyPI, `pip install bvidfe` (or `pip install "bvidfe[app]"`)
+will do the same.
 
 The package contains the library and the CLI. The Streamlit app
 (`app.py`), the example scripts and data (`examples/`, including the
@@ -85,7 +88,7 @@ The fastest tour of the physics is [`examples/quickstart.ipynb`](https://github.
 streamlit run app.py
 ```
 
-Opens the BVID-FE web UI in your browser: configure material + layup, panel size, impact event or C-scan inspection, pick a tier, click **Run analysis**. Results appear across the Summary / Damage Map / Knockdown Curve / 3D Damage / Buckling / Damage Severity / Sweep / Export NCR tabs. Use the JSON / CSV download buttons to export results. See [DEPLOYMENT_STREAMLIT.md](https://github.com/elhajjar1/BVID-FE/blob/main/DEPLOYMENT_STREAMLIT.md) for deploying a public URL on Streamlit Community Cloud.
+Opens the BVID-FE web UI in your browser: configure material + layup, panel size, impact event or C-scan inspection, pick a tier, click **Run analysis**. Results appear across the Summary / Damage Map / Knockdown Curve / 3D Damage / Buckling / Damage Severity / Sweep / Export NCR tabs. Use the JSON / CSV download buttons to export results. See [Deployment](https://elhajjar1.github.io/BVID-FE/deployment/) for deploying a public URL on Streamlit Community Cloud.
 
 ### Command-line interface
 
@@ -361,7 +364,7 @@ If you use BVID-FE in your research, please cite:
   title     = {{BVID-FE}: Barely Visible Impact Damage residual-strength analysis
                for composite laminates},
   year      = {2026},
-  version   = {0.2.0},
+  version   = {0.3.0},
   publisher = {GitHub},
   url       = {https://github.com/elhajjar1/BVID-FE},
   note      = {University of Wisconsin-Milwaukee}

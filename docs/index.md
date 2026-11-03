@@ -60,10 +60,15 @@ documentation conventions.
 
 ## Installation
 
+BVID-FE is not on PyPI yet. Install it from GitHub:
+
 ```bash
-pip install bvidfe            # library and the `bvidfe` command
-pip install "bvidfe[app]"     # also installs Streamlit, for the web app
+pip install git+https://github.com/elhajjar1/BVID-FE.git                # library and the `bvidfe` command
+pip install "bvidfe[app] @ git+https://github.com/elhajjar1/BVID-FE.git"  # also installs Streamlit, for the web app
 ```
+
+Once 0.3.0 is on PyPI, `pip install bvidfe` (or `pip install "bvidfe[app]"`)
+will do the same.
 
 The examples, the notebook, the validation harness and the Streamlit app
 (`app.py`) are in the repository:

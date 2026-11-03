@@ -56,11 +56,17 @@ class ImpactorGeometry:
 
     diameter_mm: impactor diameter in millimeters (``> 0``; 16.0 is the ASTM
         D7136 default). It changes the onset energy and scales the damage
-        area by ``(16 / diameter_mm) ** 0.2``; not used for ``conical``.
+        area by ``({diameter_ref_mm:g} / diameter_mm) ** {diameter_exponent:g}``;
+        not used for ``conical``.
     shape: 'hemispherical' (standard), 'flat' (cylindrical punch), or
         'conical' (60 deg included angle). The shape changes the onset
         energy (contact stiffness) and, relative to a hemisphere, scales
-        the damage area by x0.2 for flat and x1.5 for conical.
+        the damage area by x{flat_factor:g} for flat and x{conical_factor:g}
+        for conical.
+
+    (The numbers above are filled in from ``bvidfe.impact.mapping``'s
+    ``DIAMETER_REF_MM``, ``DIAMETER_DPA_EXPONENT`` and ``SHAPE_DPA_FACTOR``
+    when that module is imported, which ``import bvidfe`` always does.)
 
     Raises ``ValueError`` for a non-positive diameter or an unknown shape.
     """

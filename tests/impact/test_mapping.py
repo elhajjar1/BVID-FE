@@ -134,3 +134,28 @@ def test_small_mass_emits_quasi_static_warning():
         and "mass" in str(m.message)
     ]
     assert matching, [(m.category.__name__, str(m.message)) for m in w]
+
+
+def test_public_dpa_constants_and_aliases():
+    """The public names are what the app help and docstrings quote; the
+    underscore names stay as aliases (issue #174)."""
+    from bvidfe.impact import mapping
+
+    assert mapping.SHAPE_DPA_FACTOR is mapping._SHAPE_DPA_FACTOR
+    assert mapping.DIAMETER_DPA_EXPONENT == mapping._DIAMETER_DPA_EXPONENT
+    assert mapping.DIAMETER_REF_MM == mapping._DIAMETER_REF_MM
+    assert _shape_dpa_factor("conical") == mapping.SHAPE_DPA_FACTOR["conical"]
+
+
+def test_impactor_geometry_docstring_quotes_mapping_constants():
+    """ImpactorGeometry's docstring is filled in from bvidfe.impact.mapping,
+    so it cannot drift from the factors the code applies (issue #174)."""
+    from bvidfe.impact import mapping
+
+    doc = ImpactorGeometry.__doc__
+    if doc is None:  # python -OO
+        pytest.skip("docstrings stripped")
+    assert "{" not in doc and "}" not in doc
+    assert f"x{mapping.SHAPE_DPA_FACTOR['flat']:g} for flat" in doc
+    assert f"x{mapping.SHAPE_DPA_FACTOR['conical']:g}" in doc
+    assert f"** {mapping.DIAMETER_DPA_EXPONENT:g}" in doc
