@@ -61,7 +61,7 @@ from bvidfe.analysis.fe_mesh import (
 )
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
-from bvidfe.elements.hex8 import Hex8Element, _T_sigma_z, build_geometry_table
+from bvidfe.elements.hex8 import GeometryTable, Hex8Element, _T_sigma_z, build_geometry_table
 from bvidfe.failure.larc05 import larc05_index, larc05_index_batch
 from bvidfe.failure.puck import puck_index, puck_index_batch
 from bvidfe.failure.soutis_openhole import (
@@ -258,7 +258,7 @@ def _build_elements(mesh: FeMesh, lam: Laminate, tension: bool = False) -> List[
     # (B, detJ, gradN) table is identical. Compute it once per ply (keyed by
     # ply index AND element geometry — the latter keeps mixed-thickness plies,
     # issue #5/PR#13, correct) and share it across that ply's elements.
-    geom_cache: dict[tuple, object] = {}
+    geom_cache: dict[tuple, GeometryTable] = {}
     compliance = lam.material.get_compliance_matrix() if tension else None
     for eidx in range(mesh.n_elements):
         node_ids = mesh.element_connectivity[eidx]
@@ -291,6 +291,8 @@ def _build_elements(mesh: FeMesh, lam: Laminate, tension: bool = False) -> List[
             # so the mask applies in the global frame.
             elem._C_global = elem._C_global * mask
         else:
+            # Only reached with tension=True, which is when compliance is built.
+            assert compliance is not None
             elem._C_global = _tension_damaged_stiffness(compliance, ply_angle, f_fibre, f_ip, f_oop)
             # Read by _failure_stress_material: effective stress = ply-frame
             # stress / (1 - d) componentwise.
@@ -462,7 +464,7 @@ def _failure_stress_material(
     zone's fibres are intact there (fibre factor 1), so they fail at the
     intact Xt, and only the matrix-dominated strengths drop.
     """
-    divisors = getattr(elem, "effective_stress_divisors", None)
+    divisors = elem.effective_stress_divisors
     if divisors is not None:
         return elem.stress_at_gauss_points_material(u_elem) / divisors
     if in_plane_factor >= 1.0:

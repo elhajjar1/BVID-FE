@@ -23,3 +23,15 @@ repos:
     hooks:
       - id: ruff
 
+  # mypy runs from the dev environment rather than an isolated hook env, so
+  # it sees the installed numpy / pandas-stubs / types-shapely and reports
+  # exactly what CI reports. It checks the [tool.mypy] files, not just the
+  # staged ones (a change in one module can break a caller in another).
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types: [python]
+        pass_filenames: false

@@ -306,8 +306,8 @@ def sweep_layups(
     rows: List[dict] = []
     n = len(layups)
     with _dedupe_impact_warnings():
-        for i, layup in enumerate(layups):
-            layup = list(layup)
+        for i, layup_in in enumerate(layups):
+            layup = list(layup_in)
             layup_str = "/".join(f"{a:g}" for a in layup)
 
             def _build(layup: List[float] = layup) -> AnalysisConfig:

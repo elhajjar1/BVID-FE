@@ -330,6 +330,14 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - **Pinned formatters (#176).** The dev extra pins `ruff==0.17.3` and
   `black==26.10.1`, the same revs as `.pre-commit-config.yaml` (which
   pinned black 25.1.0 and ruff 0.9.10), so pre-commit and CI format alike.
+- **Type checking (#177).** mypy (`mypy>=1.10,<2`, with `pandas-stubs`
+  and `types-shapely`) is in the dev extra, configured under `[tool.mypy]`
+  (`src/bvidfe`, Python 3.10), run in CI and as a pre-commit hook, and
+  passes. The fixes are annotations only: the scalar failure-criterion
+  registry's signature, `float | Sequence[float]` ply-thickness narrowing
+  and index-array names in `fe_mesh`, the geometry-table cache type, and
+  `Hex8Element.effective_stress_divisors`, now a declared attribute
+  (default `None`) instead of one set on some instances only.
 
 ### Fixed
 

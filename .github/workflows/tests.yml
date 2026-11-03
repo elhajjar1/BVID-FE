@@ -19,7 +19,7 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
     runs-on: ${{ matrix.os }}
     env:
-      # Lint, schema check and the coverage artifact are
+      # Lint, type check, schema check and the coverage artifact are
       # platform-independent, so they run in this one cell only.
       LINT_CELL: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
     steps:
@@ -36,6 +36,10 @@ jobs:
       - name: black
         if: env.LINT_CELL == 'true'
         run: black --check src tests
+      - name: mypy
+        if: env.LINT_CELL == 'true'
+        # Checks the files listed under [tool.mypy] in pyproject.toml.
+        run: mypy
       - name: "JSON schemas match the dataclasses"
         if: env.LINT_CELL == 'true'
         # docs/schemas/*.json are generated; regenerate them with

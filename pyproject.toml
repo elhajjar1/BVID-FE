@@ -56,6 +56,9 @@ dev = [
     # bump both files together.
     "ruff==0.17.3",
     "black==26.10.1",
+    "mypy>=1.10,<2",
+    "pandas-stubs>=2.0,<3",
+    "types-shapely>=2.0,<3",
     "pre-commit>=3,<5",
     "streamlit>=1.51,<2",
     "pip-audit>=2.6,<3",
@@ -92,6 +95,12 @@ target-version = "py310"
 # 164 pre-existing findings. These are the pre-0.16 defaults; widen the list
 # deliberately in its own PR.
 select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+files = ["src/bvidfe"]
+python_version = "3.10"
+# plotly ships no type information (and has no stubs package).
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

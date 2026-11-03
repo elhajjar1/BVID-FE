@@ -93,7 +93,7 @@ from __future__ import annotations
 import math
 import warnings
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, cast
 
 import numpy as np
 
@@ -270,7 +270,9 @@ def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
     if isinstance(raw_t, (list, tuple, np.ndarray)):
         ply_thicknesses = [float(t) for t in raw_t]
     else:
-        ply_thicknesses = [float(raw_t)] * n_plies
+        # A scalar here; the isinstance check above cannot narrow the
+        # ``float | Sequence[float]`` annotation for mypy.
+        ply_thicknesses = [float(cast(float, raw_t))] * n_plies
     # Cumulative ply-boundary z positions (length n_plies + 1).
     ply_top_z = np.empty(n_plies + 1, dtype=float)
     ply_top_z[0] = 0.0
@@ -308,10 +310,12 @@ def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
     layer = nxp1 * nyp1  # nodes per k-layer
 
     # Element (i, j, k) grid in the original loop order: k outer, j, i inner.
-    kk, jj, ii = np.meshgrid(np.arange(nz), np.arange(ny), np.arange(nx), indexing="ij")
-    ii = ii.ravel()
-    jj = jj.ravel()
-    kk = kk.ravel()  # length n_elements, ordered elem = k*(ny*nx) + j*nx + i
+    kk_grid, jj_grid, ii_grid = np.meshgrid(
+        np.arange(nz), np.arange(ny), np.arange(nx), indexing="ij"
+    )
+    ii = ii_grid.ravel()
+    jj = jj_grid.ravel()
+    kk = kk_grid.ravel()  # length n_elements, ordered elem = k*(ny*nx) + j*nx + i
 
     def _nid(i: np.ndarray, j: np.ndarray, k: np.ndarray) -> np.ndarray:
         return k * layer + j * nxp1 + i
@@ -503,7 +507,7 @@ def _skeleton_signature(config: AnalysisConfig) -> tuple:
     if isinstance(raw_t, (list, tuple, np.ndarray)):
         t_sig: tuple = tuple(float(t) for t in raw_t)
     else:
-        t_sig = (float(raw_t),)
+        t_sig = (float(cast(float, raw_t)),)
     return (
         float(config.panel.Lx_mm),
         float(config.panel.Ly_mm),
