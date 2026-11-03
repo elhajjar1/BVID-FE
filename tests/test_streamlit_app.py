@@ -21,6 +21,7 @@ environments.
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 import sys
 from pathlib import Path
@@ -369,3 +370,135 @@ def test_knockdown_curve_tab_low_energy_and_run_tier(_no_stats) -> None:
     assert len(energies) == 7
     assert all(b > a for a, b in zip(energies, energies[1:]))
     assert set(curves[0]["tier_used"]) == {"semi_analytical"}
+
+
+# ---------------------------------------------------------------------------
+# Layup range (#169) and the config / results JSON (#170)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_layup_accepts_any_finite_angle_like_the_cli(monkeypatch) -> None:
+    """The app rejected angles outside [-90, 90] while the CLI and
+    ``AnalysisConfig`` take any finite angle (used modulo 180 deg)."""
+    import bvidfe.cli as cli
+
+    app_module = _import_app(monkeypatch)
+    text = "0, 135, -135, 270"
+    assert app_module._parse_layup(text) == [0.0, 135.0, -135.0, 270.0]
+    assert app_module._parse_layup(text) == cli._parse_layup(text.replace(" ", ""))
+    for bad in ("0, nan", "0, inf", "0, -inf"):
+        with pytest.raises(ValueError, match="finite"):
+            app_module._parse_layup(bad)
+    with pytest.raises(ValueError, match="cap"):
+        app_module._parse_layup(", ".join(["0"] * (app_module.MAX_PLIES + 1)))
+
+
+def test_layup_outside_90_runs_in_the_app(_no_stats) -> None:
+    layup = [0.0, 135.0, -135.0, 90.0, 90.0, -135.0, 135.0, 0.0]
+    at = _app_test({"lay": ",".join(f"{a:g}" for a in layup)})
+    _no_exception(at)
+    assert not [e.value for e in at.error if "layup" in e.value.lower()]
+    at = _run_analysis(at)
+    _no_exception(at)
+    assert at.session_state["last_result"]["config"].layup_deg == layup
+
+
+_QI8 = [0.0, 45.0, -45.0, 90.0, 90.0, -45.0, 45.0, 0.0]
+
+
+def test_config_dict_damage_block_is_the_cscan_layout(monkeypatch) -> None:
+    """The app's config dict (the run's cache key and the source of its
+    config) wrote the damage block by hand, without ``schema_version``; it
+    is ``damage_state_to_dict``, which ``damage_state_from_dict`` reads
+    back, and the whole dict loads with ``AnalysisConfig.from_dict``."""
+    from bvidfe.analysis import AnalysisConfig
+    from bvidfe.core.geometry import PanelGeometry
+    from bvidfe.damage.io import SCHEMA_VERSION, damage_state_from_dict
+    from bvidfe.damage.state import DamageState, DelaminationEllipse
+
+    app_module = _import_app(monkeypatch)
+    damage = DamageState(
+        [
+            DelaminationEllipse(1, (75.0, 50.0), 20.0, 12.0, 45.0),
+            DelaminationEllipse(3, (70.0, 48.0), 25.0, 10.0, -45.0),
+        ],
+        dent_depth_mm=0.3,
+        fiber_break_radius_mm=1.5,
+    )
+    panel = PanelGeometry(150.0, 100.0)
+    d = app_module._config_dict(
+        material="IM7/8552",
+        layup_deg=_QI8,
+        ply_thickness_mm=0.152,
+        panel=panel,
+        loading="compression",
+        tier="empirical",
+        impact_event=None,
+        damage_state=damage,
+        mesh_params=None,
+    )
+    d = json.loads(json.dumps(d))
+    assert d["damage"]["schema_version"] == SCHEMA_VERSION
+    assert damage_state_from_dict(d["damage"]) == damage
+    cfg = AnalysisConfig.from_dict(d)
+    assert (cfg.damage, cfg.panel, cfg.impact) == (damage, panel, None)
+    assert app_module._config_from_dict(d) == cfg
+
+
+def test_config_dict_impact_block_loads(monkeypatch) -> None:
+    from bvidfe.analysis import AnalysisConfig, MeshParams
+    from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
+    from bvidfe.impact.mapping import ImpactEvent
+
+    app_module = _import_app(monkeypatch)
+    impact = ImpactEvent(20.0, ImpactorGeometry(12.7, "conical"), 2.0, (60.0, 40.0))
+    kw: dict = dict(
+        material="IM7/8552",
+        layup_deg=_QI8,
+        ply_thickness_mm=[0.152] * 8,
+        panel=PanelGeometry(150.0, 100.0, "clamped"),
+        loading="tension",
+        tier="fe3d",
+        impact_event=impact,
+        damage_state=None,
+        mesh_params=MeshParams(2, 2.5),
+    )
+    cfg = AnalysisConfig.from_dict(json.loads(json.dumps(app_module._config_dict(**kw))))
+    assert cfg == AnalysisConfig(
+        material="IM7/8552",
+        layup_deg=_QI8,
+        ply_thickness_mm=[0.152] * 8,
+        panel=kw["panel"],
+        loading="tension",
+        tier="fe3d",
+        impact=impact,
+        mesh=MeshParams(2, 2.5),
+    )
+    centre = app_module._config_dict(**{**kw, "impact_event": ImpactEvent(20.0)})
+    assert centre["impact"]["location_xy_mm"] is None
+    assert AnalysisConfig.from_dict(json.loads(json.dumps(centre))).impact == ImpactEvent(20.0)
+
+
+def test_downloaded_results_json_reloads(_no_stats) -> None:
+    """The Summary tab's *Download results JSON* (``json.dumps`` of the
+    run's ``result_dict``): its ``damage`` reads back with
+    ``damage_state_from_dict`` and its ``config_snapshot`` with
+    ``AnalysisConfig.from_dict``, giving the analysed damage and config."""
+    from bvidfe.analysis import AnalysisConfig
+    from bvidfe.damage.io import damage_state_from_dict
+
+    at = _run_analysis(_app_test())
+    _no_exception(at)
+    payload = at.session_state["last_result"]
+    downloaded = json.loads(json.dumps(payload["result_dict"], indent=2))
+    assert damage_state_from_dict(downloaded["damage"]) == payload["damage"]
+    assert AnalysisConfig.from_dict(downloaded["config_snapshot"]) == payload["config"]
+    assert payload["config"] == AnalysisConfig.from_dict(
+        json.loads(json.dumps(payload["config_dict"]))
+    )
+
+
+def test_unused_ply_thickness_helper_is_gone(monkeypatch) -> None:
+    """``_ply_thickness_from_json`` was unused (``AnalysisConfig.from_dict``
+    reads a uniform or per-ply thickness)."""
+    assert not hasattr(_import_app(monkeypatch), "_ply_thickness_from_json")

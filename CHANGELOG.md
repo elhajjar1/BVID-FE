@@ -300,6 +300,8 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   usage errors (exit 2): `--mass`, `--impactor-diameter`,
   `--impactor-shape` or `--location` with `--cscan`, and
   `--in-plane-size` / `--elements-per-ply` without `fe3d` in `--tier`.
+  The Streamlit app's layup field takes any finite angle too (it
+  rejected angles outside [-90, 90]).
 - **fe3d solves ~9x faster in ~6x less memory.** `solve_linear_static`
   eliminates the constrained DOFs instead of adding a 1e10 penalty and
   calling `spsolve` (SuperLU, COLAMD), and solves the reduced system by
@@ -416,7 +418,9 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   `damage_state_to_dict`. `docs/schemas/` lists the optional
   `schema_version` of `DamageState`. The app's damage-severity heatmap
   takes its grid from `fe_mesh.element_grid_shape` instead of recomputing
-  it.
+  it. The app's config dict (its run cache key, read with
+  `AnalysisConfig.from_dict`) also wrote a C-scan damage block by hand
+  without `schema_version`; it is now `damage_state_to_dict` too.
 - **CLI (#169):** `--mass` and `--impactor-diameter` were silently
   ignored with `--cscan` (now an error, see *Changed*), and the
   `--quick` / `--quick-json` help referred to a `--json` option that does
@@ -852,6 +856,7 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - `streamlit` from the core dependencies (now the `app` extra).
 - Leftovers of the removed PyQt6 GUI: `scripts/visual_matrix.py` and
   `docs/BUILD.md`.
+- The unused `_ply_thickness_from_json` helper in `app.py`.
 
 ## [0.2.0] - 2026-05-21
 

@@ -50,7 +50,11 @@ from bvidfe.analysis.fe_mesh import (  # noqa: E402
 from bvidfe.analysis.fe_tier import FE3D_MAX_DOF, enable_stderr_logging  # noqa: E402
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry  # noqa: E402
 from bvidfe.core.material import MATERIAL_LIBRARY  # noqa: E402
-from bvidfe.damage.io import CScanSchemaError, damage_state_from_dict  # noqa: E402
+from bvidfe.damage.io import (  # noqa: E402
+    CScanSchemaError,
+    damage_state_from_dict,
+    damage_state_to_dict,
+)
 from bvidfe.damage.state import DamageState  # noqa: E402
 from bvidfe.impact.mapping import (  # noqa: E402
     DIAMETER_DPA_EXPONENT,
@@ -423,11 +427,12 @@ def _show_df(df: pd.DataFrame) -> None:
 
 
 def _parse_layup(text: str) -> list[float]:
-    """Parse a comma- or whitespace-separated layup string into floats.
+    """Parse a comma-, semicolon- or newline-separated layup string into floats.
 
-    Rejects non-finite values (nan/inf), out-of-range angles, and absurdly
-    long stacks so a malformed paste can't produce NaN ABD matrices or
-    exhaust memory.
+    Any finite angle is accepted, as by the CLI and ``AnalysisConfig``
+    (angles are used modulo 180 deg, so ``135`` is ``-45``). Rejects
+    non-finite values (nan/inf) and absurdly long stacks so a malformed
+    paste can't produce NaN ABD matrices or exhaust memory.
     """
     cleaned = text.replace(";", ",").replace("\n", ",")
     tokens = [x.strip() for x in cleaned.split(",") if x.strip()]
@@ -437,8 +442,6 @@ def _parse_layup(text: str) -> list[float]:
     for a in angles:
         if not math.isfinite(a):
             raise ValueError("ply angles must be finite numbers")
-        if not -90.0 <= a <= 90.0:
-            raise ValueError("ply angles must be within [-90, 90] degrees")
     return angles
 
 
@@ -552,13 +555,6 @@ def _onset_preview_cached(
         return None, f"{type(exc).__name__}: {exc}"
 
 
-def _ply_thickness_from_json(t):
-    """A uniform thickness (number) or per-ply thicknesses (list)."""
-    if isinstance(t, (list, tuple)):
-        return [float(x) for x in t]
-    return float(t)
-
-
 def _format_ply_thickness(t) -> str:
     if isinstance(t, (list, tuple)):
         return ", ".join(f"{x:g}" for x in t) + " mm (per ply)"
@@ -571,6 +567,57 @@ def _config_from_dict(d: dict) -> AnalysisConfig:
     if isinstance(d.get("damage"), dict):
         d = {**d, "damage": {"dent_depth_mm": 0.0, "delaminations": [], **d["damage"]}}
     return AnalysisConfig.from_dict(d)
+
+
+def _config_dict(
+    *,
+    material: str,
+    layup_deg: list[float],
+    ply_thickness_mm: float | list[float],
+    panel: PanelGeometry,
+    loading: str,
+    tier: str,
+    impact_event: ImpactEvent | None,
+    damage_state: DamageState | None,
+    mesh_params: MeshParams | None,
+) -> dict:
+    """The sidebar's config as a JSON-safe dict, the run's cache key; it
+    loads with ``AnalysisConfig.from_dict``. ``damage`` is
+    ``damage_state_to_dict``, the C-scan layout with ``schema_version``."""
+    impact = None
+    if impact_event is not None:
+        loc = impact_event.location_xy_mm
+        impact = {
+            "energy_J": impact_event.energy_J,
+            "impactor": {
+                "diameter_mm": impact_event.impactor.diameter_mm,
+                "shape": impact_event.impactor.shape,
+            },
+            "mass_kg": impact_event.mass_kg,
+            "location_xy_mm": None if loc is None else list(loc),
+        }
+    return {
+        "material": material,
+        "layup_deg": layup_deg,
+        "ply_thickness_mm": ply_thickness_mm,
+        "panel": {
+            "Lx_mm": panel.Lx_mm,
+            "Ly_mm": panel.Ly_mm,
+            "boundary": panel.boundary,
+        },
+        "loading": loading,
+        "tier": tier,
+        "impact": impact,
+        "damage": None if damage_state is None else damage_state_to_dict(damage_state),
+        "mesh": (
+            None
+            if mesh_params is None
+            else {
+                "elements_per_ply": mesh_params.elements_per_ply,
+                "in_plane_size_mm": mesh_params.in_plane_size_mm,
+            }
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1043,61 +1090,17 @@ if input_mode == "Impact event" and impact_event is None:
 
 if config_valid:
     panel = PanelGeometry(Lx_mm=float(Lx_mm), Ly_mm=float(Ly_mm), boundary=boundary)
-    config_dict = {
-        "material": material_choice,
-        "layup_deg": layup_deg,
-        "ply_thickness_mm": ply_thickness_mm,
-        "panel": {
-            "Lx_mm": panel.Lx_mm,
-            "Ly_mm": panel.Ly_mm,
-            "boundary": panel.boundary,
-        },
-        "loading": loading,
-        "tier": tier,
-        "impact": (
-            None
-            if impact_event is None
-            else {
-                "energy_J": impact_event.energy_J,
-                "impactor": {
-                    "diameter_mm": impact_event.impactor.diameter_mm,
-                    "shape": impact_event.impactor.shape,
-                },
-                "mass_kg": impact_event.mass_kg,
-                "location_xy_mm": (
-                    None
-                    if impact_event.location_xy_mm is None
-                    else list(impact_event.location_xy_mm)
-                ),
-            }
-        ),
-        "damage": (
-            None
-            if damage_state is None
-            else {
-                "dent_depth_mm": damage_state.dent_depth_mm,
-                "fiber_break_radius_mm": damage_state.fiber_break_radius_mm,
-                "delaminations": [
-                    {
-                        "interface_index": e.interface_index,
-                        "centroid_mm": list(e.centroid_mm),
-                        "major_mm": e.major_mm,
-                        "minor_mm": e.minor_mm,
-                        "orientation_deg": e.orientation_deg,
-                    }
-                    for e in damage_state.delaminations
-                ],
-            }
-        ),
-        "mesh": (
-            None
-            if mesh_params is None
-            else {
-                "elements_per_ply": mesh_params.elements_per_ply,
-                "in_plane_size_mm": mesh_params.in_plane_size_mm,
-            }
-        ),
-    }
+    config_dict = _config_dict(
+        material=material_choice,
+        layup_deg=layup_deg,
+        ply_thickness_mm=ply_thickness_mm,
+        panel=panel,
+        loading=loading,
+        tier=tier,
+        impact_event=impact_event,
+        damage_state=damage_state,
+        mesh_params=mesh_params,
+    )
 
 
 # Persistent result across reruns.
