@@ -332,12 +332,22 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   pinned black 25.1.0 and ruff 0.9.10), so pre-commit and CI format alike.
 - **Type checking (#177).** mypy (`mypy>=1.10,<2`, with `pandas-stubs`
   and `types-shapely`) is in the dev extra, configured under `[tool.mypy]`
-  (`src/bvidfe`, Python 3.10), run in CI and as a pre-commit hook, and
+  (`src/bvidfe`, targeting the interpreter it runs on), run in CI and as a
+  pre-commit hook, and
   passes. The fixes are annotations only: the scalar failure-criterion
   registry's signature, `float | Sequence[float]` ply-thickness narrowing
   and index-array names in `fe_mesh`, the geometry-table cache type, and
   `Hex8Element.effective_stress_divisors`, now a declared attribute
   (default `None`) instead of one set on some instances only.
+- **NCR / MRB disposition logic moved out of `app.py` (#172)** into the
+  new `bvidfe.report.ncr`: `recommend_disposition(result_dict,
+  dent_threshold_mm=BVID_DENT_THRESHOLD_MM)` and `build_ncr(form, cfg,
+  result_dict, rec, *, generated_utc=None)` (an optional timestamp makes
+  the document reproducible), with unit tests in `tests/report/`. The
+  knockdown bands are module constants, `KD_USE_AS_IS` = 0.97,
+  `KD_SUBSTANTIATE` = 0.85 and `KD_REPAIR` = 0.70, documented as
+  placeholder engineering-judgement bands, not values from a cited
+  standard. The Export NCR tab's output is unchanged.
 
 ### Fixed
 
@@ -723,6 +733,34 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   library presets construct unchanged. `DamageState(ellipse)`, an
   ellipse not in a list, raises a `ValueError` instead of
   `TypeError: 'DelaminationEllipse' object is not iterable`.
+- **Streamlit app: share links and Expert-mode state (#171).**
+  - A link value that is not a number, not finite, outside its widget's
+    bounds (`?E=500`, `?lx=5`), off the panel (`x0`, `y0`) or not one of a
+    choice widget's options is dropped and named in one warning; it used
+    to be replaced silently by the widget's minimum (0.1 J, 10 mm), and
+    `?E=nan` turned the page into a `ValueError` traceback. The sidebar's
+    `ImpactEvent` / `ImpactorGeometry` construction reports a rejection
+    as an error instead of raising.
+  - The Expert-mode inputs (ply thickness, boundary, impactor shape and
+    mass, impact location) keep their values when Expert mode is toggled
+    off and on, still apply with it off (a caption under the toggle lists
+    any that differ from the defaults), and are carried by the share link
+    (`tp`, `bc`, `sh`, `m`, and `x0`, `y0` for an off-centre impact) and
+    reset by the presets.
+  - Impact location: a **Centre of panel** checkbox, and X / Y inputs
+    measured from the panel corner and bounded to the panel, replace the
+    `(0, 0)`-means-centre inputs, so an off-centre point such as
+    (75, 10) mm can be entered. The library's `location_xy_mm` still reads
+    exactly `(0, 0)` as the centre. When the onset preview cannot be
+    computed (e.g. a point on the panel edge) a caption says why instead
+    of the preview disappearing.
+  - Knockdown Curve tab: the energy grid runs from 0.2 E to
+    max(2 E, 0.2 E + 1 J), ascending (it descended below 1.25 J), and a
+    tier selector defaults to the analysed tier instead of always
+    `empirical`, with the Sweep tab's fe3d run-time warning and DOF cap.
+  - C-scan dent depth and fiber-break radius replace the file's values
+    when **Override file value** is ticked, 0 included; they used to apply
+    only when > 0, so a file's non-zero dent could not be set to 0.
 
 ### Removed
 

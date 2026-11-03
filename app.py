@@ -22,7 +22,7 @@ import sys
 import time
 import warnings
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 
 import matplotlib
@@ -50,6 +50,11 @@ from bvidfe.damage.io import CScanSchemaError, damage_state_from_dict  # noqa: E
 from bvidfe.damage.state import DamageState, DelaminationEllipse  # noqa: E402
 from bvidfe.impact.mapping import ImpactEvent, impact_to_damage  # noqa: E402
 from bvidfe.impact.olsson import onset_energy  # noqa: E402
+from bvidfe.report.ncr import (  # noqa: E402
+    BVID_DENT_THRESHOLD_MM,
+    build_ncr,
+    recommend_disposition,
+)
 from bvidfe.core.laminate import Laminate  # noqa: E402
 from bvidfe.sweep.parametric_sweep import sweep_energies  # noqa: E402
 from bvidfe.viz.plots_2d import plot_damage_map, plot_knockdown_curve  # noqa: E402
@@ -92,11 +97,9 @@ MAX_SWEEP_POINTS = 25
 DPA_SATURATION_PCT = 79.0
 
 # MRB / NCR disposition support -------------------------------------------
-# "Barely visible" impact damage is conventionally bounded by a residual
-# surface-dent detectability threshold; 0.30 mm (~0.012 in) is a common
-# design damage-tolerance value. Each program MUST override this with its
-# own damage-tolerance substantiation — it is exposed as a UI input.
-BVID_DENT_THRESHOLD_MM = 0.30
+# The BVID dent-detectability threshold (``BVID_DENT_THRESHOLD_MM``, the
+# default of a UI input each program must override) and the disposition
+# bands are in ``bvidfe.report.ncr``.
 
 NC_TYPES: list[str] = [
     "Impact damage (BVID/VID)",
@@ -140,9 +143,23 @@ _DF_FORMATS = {
 # rewrite of the controlled keys.
 #
 # URL state uses short keys (``mat``, ``lay``, ``lx``, ``ly``, ``E``, ``d``,
-# ``t``, ``ld``) so a shared link stays well under the 2 kB safe ceiling for
+# ``t``, ``ld`` and the expert-mode ``tp``, ``bc``, ``sh``, ``m``, ``x0``,
+# ``y0``) so a shared link stays well under the 2 kB safe ceiling for
 # common browsers. On app load, if the URL carries known keys, we hydrate
 # session state from them BEFORE widgets render (same mechanism as presets).
+
+# Expert-mode widget values (session-state key -> default). These widgets
+# only render in Expert mode, but their values live in session state either
+# way, so toggling Expert mode off and on keeps them and a share link or
+# preset carries them. ``loc_centre`` True means "impact the panel centre";
+# ``loc_x_mm`` / ``loc_y_mm`` (from the panel corner) are then ignored.
+_EXPERT_DEFAULTS: dict = {
+    "ply_thickness_mm": 0.152,
+    "boundary": "simply_supported",
+    "impactor_shape": "hemispherical",
+    "mass_kg": 5.5,
+    "loc_centre": True,
+}
 
 PRESET_CUSTOM = "Custom"
 PRESETS: dict[str, dict] = {
@@ -157,6 +174,7 @@ PRESETS: dict[str, dict] = {
         "tier": "empirical",
         "loading": "compression",
         "input_mode": "Impact event",
+        **_EXPERT_DEFAULTS,
     },
     "Semi-analytical buckling (IM7/8552 quasi-iso, 10 J)": {
         "material_choice": "IM7/8552",
@@ -168,6 +186,7 @@ PRESETS: dict[str, dict] = {
         "tier": "semi_analytical",
         "loading": "compression",
         "input_mode": "Impact event",
+        **_EXPERT_DEFAULTS,
     },
     "FE3D detailed (T800/epoxy, 15 J, coarse mesh)": {
         "material_choice": "T800/epoxy",
@@ -179,6 +198,7 @@ PRESETS: dict[str, dict] = {
         "tier": "fe3d",
         "loading": "compression",
         "input_mode": "Impact event",
+        **_EXPERT_DEFAULTS,
     },
 }
 
@@ -195,7 +215,37 @@ _URL_TO_STATE: dict[str, tuple[str, type]] = {
     "d": ("diameter_mm", float),
     "t": ("tier", str),
     "ld": ("loading", str),
+    "tp": ("ply_thickness_mm", float),
+    "bc": ("boundary", str),
+    "sh": ("impactor_shape", str),
+    "m": ("mass_kg", float),
+    "x0": ("loc_x_mm", float),
+    "y0": ("loc_y_mm", float),
 }
+
+# Bounds of each numeric widget, so a URL value the widget would reject (and
+# Streamlit would silently replace by its minimum) is dropped and reported
+# instead. The location bounds are the panel's and are checked separately.
+_STATE_BOUNDS: dict[str, tuple[float, float]] = {
+    "Lx_mm": (10.0, 2000.0),
+    "Ly_mm": (10.0, 2000.0),
+    "energy_J": (0.1, 200.0),
+    "diameter_mm": (1.0, 100.0),
+    "ply_thickness_mm": (0.01, 2.0),
+    "mass_kg": (0.01, 100.0),
+}
+
+# Allowed values of each choice widget.
+_STATE_CHOICES: dict[str, list[str]] = {
+    "material_choice": MATERIAL_NAMES,
+    "tier": TIERS,
+    "loading": ["compression", "tension"],
+    "input_mode": ["Impact event", "C-scan inspection"],
+    "boundary": BOUNDARIES,
+    "impactor_shape": IMPACTOR_SHAPES,
+}
+
+_LOCATION_KEYS = ("loc_x_mm", "loc_y_mm")
 
 
 def _coerce_layup_url(text: str) -> str:
@@ -214,34 +264,65 @@ def _coerce_layup_url(text: str) -> str:
     return ", ".join(f"{a:g}" for a in angles)
 
 
-def _apply_state_overrides(overrides: dict) -> None:
+def _apply_state_overrides(overrides: dict) -> list[str]:
     """Write controlled overrides into ``st.session_state`` with type coercion.
 
-    Skips unknown keys and bad casts silently — the URL/preset path must be
-    permissive so a stale shared link still loads the app.
+    Unknown keys are skipped. A value that does not cast, is not finite, is
+    outside its widget's bounds (``_STATE_BOUNDS``; the impact location must
+    lie on the panel) or is not one of a choice widget's options is dropped,
+    so its widget keeps its current value, and is returned as a
+    ``"key=value (reason)"`` string for the caller to report: a stale shared
+    link still loads, but says what it could not reproduce.
     """
+    state_to_url = {state_key: url_key for url_key, (state_key, _) in _URL_TO_STATE.items()}
     type_map = {state_key: cast for (_, (state_key, cast)) in _URL_TO_STATE.items()}
     # widgets controlled only by presets (no URL key) — keep validation here.
-    extra_types = {"input_mode": str}
-    for key, value in overrides.items():
+    extra_types = {"input_mode": str, "loc_centre": bool}
+    rejected: list[str] = []
+
+    def _reject(key: str, value, reason: str) -> None:
+        rejected.append(f"{state_to_url.get(key, key)}={value} ({reason})")
+
+    # The location is checked against the panel, so after Lx / Ly are applied.
+    ordered = [k for k in overrides if k not in _LOCATION_KEYS]
+    ordered += [k for k in _LOCATION_KEYS if k in overrides]
+    for key in ordered:
+        value = overrides[key]
         cast = type_map.get(key, extra_types.get(key))
         if cast is None:
             continue
-        try:
-            coerced = cast(value)
-        except (TypeError, ValueError):
-            continue
+        if cast is bool:
+            if not isinstance(value, bool):
+                _reject(key, value, "not true/false")
+                continue
+            coerced = value
+        else:
+            try:
+                coerced = cast(value)
+            except (TypeError, ValueError):
+                _reject(key, value, "not a number" if cast is float else "invalid")
+                continue
+        if cast is float:
+            if not math.isfinite(coerced):
+                _reject(key, value, "not finite")
+                continue
+            if key in _LOCATION_KEYS:
+                span = "Lx_mm" if key == "loc_x_mm" else "Ly_mm"
+                lo, hi = 0.0, float(st.session_state.get(span, 150.0 if span == "Lx_mm" else 100.0))
+            else:
+                lo, hi = _STATE_BOUNDS[key]
+            if not lo <= coerced <= hi:
+                _reject(key, value, f"outside {lo:g}-{hi:g}")
+                continue
         if key == "layup_text":
             coerced = _coerce_layup_url(str(coerced))
-        if key == "material_choice" and coerced not in MATERIAL_NAMES:
-            continue
-        if key == "tier" and coerced not in TIERS:
-            continue
-        if key == "loading" and coerced not in ("compression", "tension"):
-            continue
-        if key == "input_mode" and coerced not in ("Impact event", "C-scan inspection"):
+        if key in _STATE_CHOICES and coerced not in _STATE_CHOICES[key]:
+            _reject(key, value, "unknown option")
             continue
         st.session_state[key] = coerced
+        if key in _LOCATION_KEYS:
+            st.session_state["loc_centre"] = False
+    return rejected
 
 
 def _hydrate_from_url() -> None:
@@ -249,6 +330,8 @@ def _hydrate_from_url() -> None:
 
     Only runs once per session (guarded by ``_url_hydrated``) so user edits
     after load are not overwritten by the original URL on every rerun.
+    Values the link carried but that were dropped are kept in
+    ``_url_rejected`` for the page to report.
     """
     if st.session_state.get("_url_hydrated"):
         return
@@ -259,7 +342,9 @@ def _hydrate_from_url() -> None:
         if url_key in qp:
             overrides[state_key] = qp[url_key]
     if overrides:
-        _apply_state_overrides(overrides)
+        rejected = _apply_state_overrides(overrides)
+        if rejected:
+            st.session_state["_url_rejected"] = rejected
 
 
 def _hydrate_from_preset() -> None:
@@ -282,26 +367,36 @@ def _hydrate_from_preset() -> None:
 def _sync_query_params() -> None:
     """Write the live sidebar config back to ``st.query_params``.
 
-    Only the minimal-shareable subset (material, layup, panel, impact
-    energy, impactor diameter, tier, loading) is encoded — short keys keep
-    URLs under the ~2 kB safe ceiling. Values are stringified; Streamlit
-    handles URL escaping for us.
+    The shareable subset (material, layup, panel and boundary, ply
+    thickness, impact energy, impactor diameter / shape / mass, tier,
+    loading, and the impact location when it is not the panel centre) is
+    encoded — short keys keep URLs under the ~2 kB safe ceiling. Values are
+    stringified; Streamlit handles URL escaping for us.
     """
+    ss = st.session_state
     try:
         new_qp = {
-            "mat": str(st.session_state.get("material_choice", DEFAULT_MATERIAL)),
-            "lay": str(st.session_state.get("layup_text", "")),
-            "lx": f"{float(st.session_state.get('Lx_mm', 150.0)):g}",
-            "ly": f"{float(st.session_state.get('Ly_mm', 100.0)):g}",
-            "E": f"{float(st.session_state.get('energy_J', 30.0)):g}",
-            "d": f"{float(st.session_state.get('diameter_mm', 16.0)):g}",
-            "t": str(st.session_state.get("tier", "empirical")),
-            "ld": str(st.session_state.get("loading", "compression")),
+            "mat": str(ss.get("material_choice", DEFAULT_MATERIAL)),
+            "lay": str(ss.get("layup_text", "")),
+            "lx": f"{float(ss.get('Lx_mm', 150.0)):g}",
+            "ly": f"{float(ss.get('Ly_mm', 100.0)):g}",
+            "E": f"{float(ss.get('energy_J', 30.0)):g}",
+            "d": f"{float(ss.get('diameter_mm', 16.0)):g}",
+            "t": str(ss.get("tier", "empirical")),
+            "ld": str(ss.get("loading", "compression")),
+            "tp": f"{float(ss.get('ply_thickness_mm', _EXPERT_DEFAULTS['ply_thickness_mm'])):g}",
+            "bc": str(ss.get("boundary", _EXPERT_DEFAULTS["boundary"])),
+            "sh": str(ss.get("impactor_shape", _EXPERT_DEFAULTS["impactor_shape"])),
+            "m": f"{float(ss.get('mass_kg', _EXPERT_DEFAULTS['mass_kg'])):g}",
         }
+        if not ss.get("loc_centre", True):
+            new_qp["x0"] = f"{float(ss.get('loc_x_mm', 0.0)):g}"
+            new_qp["y0"] = f"{float(ss.get('loc_y_mm', 0.0)):g}"
     except (TypeError, ValueError):
         return
     # Only write if the dict actually changes — avoids needless reruns.
-    current = {k: st.query_params.get(k) for k in new_qp}
+    # (The whole dict, so a dropped ``x0`` / ``y0`` is noticed too.)
+    current = st.query_params.to_dict()
     if current != new_qp:
         try:
             st.query_params.from_dict(new_qp)
@@ -335,6 +430,26 @@ def _parse_layup(text: str) -> list[float]:
         if not -90.0 <= a <= 90.0:
             raise ValueError("ply angles must be within [-90, 90] degrees")
     return angles
+
+
+def _knockdown_curve_energies(base_E: float, n: int = 7) -> tuple[float, ...]:
+    """Ascending energy grid for the Knockdown Curve tab around ``base_E``.
+
+    From 0.2·E to 2·E, but at least 1 J wide, so the grid never descends
+    (the old ``max(1, 0.2·E)`` floor did for E < 1.25 J).
+    """
+    lo = 0.2 * base_E
+    hi = max(2.0 * base_E, lo + 1.0)
+    return tuple(np.linspace(lo, hi, n).tolist())
+
+
+# Shared by the Sweep and Knockdown Curve tabs' tier selectors.
+_SWEEP_TIER_HELP = (
+    "Use **empirical** or **semi_analytical** for fast scans. "
+    "**fe3d** takes about 15-30 s per point at the 5 mm default "
+    "mesh (longer for thick laminates or finer meshes); keep "
+    "fe3d sweeps short on the 1 GB cloud tier."
+)
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
@@ -394,8 +509,12 @@ def _onset_preview_cached(
     shape: str,
     mass_kg: float,
     loc_xy: tuple[float, float],
-) -> str | None:
-    """Cached Olsson onset/DPA preview so it isn't recomputed every keystroke."""
+) -> tuple[str | None, str | None]:
+    """Cached Olsson onset/DPA preview so it isn't recomputed every keystroke.
+
+    Returns ``(preview, None)``, or ``(None, error text)`` when the preview
+    cannot be computed, so the page can say why instead of dropping it.
+    """
     try:
         mat = MATERIAL_LIBRARY[material]
         lam = Laminate(mat, list(layup), ply_thickness_mm)
@@ -418,9 +537,9 @@ def _onset_preview_cached(
             f"E_onset ≈ **{E_onset:.2f} J** · "
             f"predicted DPA ≈ **{dmg.projected_damage_area_mm2:.0f} mm²** "
             f"({pct:.1f}% of panel){flag}"
-        )
-    except Exception:
-        return None
+        ), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 def _ply_thickness_from_json(t):
@@ -495,241 +614,10 @@ def _config_from_dict(d: dict) -> AnalysisConfig:
 # ---------------------------------------------------------------------------
 # NCR (Nonconformance Report) export — MRB disposition support
 # ---------------------------------------------------------------------------
-
-
-def _recommend_disposition(result_dict: dict, dent_threshold_mm: float) -> dict:
-    """Heuristic MRB disposition *recommendation* from BVID-FE outputs.
-
-    This is structured decision support only: it bands the predicted
-    strength retention, raises the governing flags, and cites the criteria
-    a board must check. It does NOT issue an approved disposition — a
-    qualified Material Review Board must review, modify, and sign.
-    """
-    kd = float(result_dict["knockdown"])
-    dent = float(result_dict["damage"]["dent_depth_mm"])
-    fbr = float(result_dict["damage"]["fiber_break_radius_mm"])
-    n_delam = len(result_dict["damage"]["delaminations"])
-    dpa = float(result_dict["dpa_mm2"])
-
-    flags: list[str] = []
-    if dent >= dent_threshold_mm:
-        flags.append(
-            f"Residual dent {dent:.3f} mm ≥ detectability threshold "
-            f"{dent_threshold_mm:.3f} mm — damage is visible (VID, not "
-            "BVID); disposition under the visible-damage damage-tolerance "
-            "branch."
-        )
-    if fbr > 0.0:
-        flags.append(
-            f"Fiber breakage present (r ≈ {fbr:.2f} mm) — primary load "
-            "path severed; Use-As-Is is not appropriate without structural "
-            "substantiation."
-        )
-    if n_delam > 0:
-        flags.append(
-            f"{n_delam} delamination(s) modelled — assess sublaminate "
-            "stability and growth under spectrum/limit load."
-        )
-
-    if fbr > 0.0:
-        path = "Repair"
-        band = "fiber breakage present"
-    elif kd >= 0.97 and dent < dent_threshold_mm and n_delam == 0:
-        path = "Use-As-Is (UAI)"
-        band = f"knockdown {kd:.3f} ≥ 0.97, no delamination, sub-threshold dent"
-    elif kd >= 0.85:
-        path = "Use-As-Is (UAI) with engineering substantiation, or Repair"
-        band = f"0.85 ≤ knockdown {kd:.3f} < 0.97"
-    elif kd >= 0.70:
-        path = "Repair"
-        band = f"0.70 ≤ knockdown {kd:.3f} < 0.85"
-    else:
-        path = "Repair (structural) or Scrap"
-        band = f"knockdown {kd:.3f} < 0.70"
-
-    rationale = (
-        f"Predicted residual strength retains {kd * 100:.1f}% of pristine "
-        f"({result_dict['residual_strength_MPa']:.1f} MPa vs "
-        f"{result_dict['pristine_strength_MPa']:.1f} MPa) at projected "
-        f"damage area {dpa:.0f} mm² (analysis tier: "
-        f"{result_dict['tier_used']}). Banding: {band}. The board must "
-        "confirm a positive Margin of Safety against design ULTIMATE load "
-        "(and LIMIT load with no detrimental deformation) for the as-found "
-        "damage, including no-growth / arrested-growth substantiation over "
-        "the service inspection interval."
-    )
-
-    criteria = [
-        "Margin of Safety ≥ 0 vs design ultimate load for the as-found "
-        "damage state (governing design load case).",
-        "Damage-tolerance / no-growth substantiation per CMH-17 Vol. 3 "
-        "guidance and the program structural substantiation document.",
-        "BVID detectability basis (residual dent depth + NDI/tap-test) "
-        f"against the {dent_threshold_mm:.3f} mm design threshold.",
-        "Approved Structural Repair Manual (SRM) limits if a Repair path "
-        "is selected; engineering disposition required if outside SRM.",
-        "Control of nonconforming output per AS9100 §8.7 and the site MRB " "procedure.",
-    ]
-
-    return {
-        "recommended_path": path,
-        "rationale": rationale,
-        "criteria": criteria,
-        "flags": flags,
-        "knockdown": kd,
-        "status": "PROPOSED — REQUIRES MRB REVIEW AND APPROVAL",
-    }
-
-
-def _build_ncr(form: dict, cfg, result_dict: dict | None, rec: dict | None) -> tuple[str, dict]:
-    """Assemble a structured NCR as (Markdown document, machine-readable dict)."""
-    layup_str = "[" + "/".join(f"{a:g}" for a in cfg.layup_deg) + "]"
-
-    analysis: dict | None = None
-    if result_dict is not None:
-        analysis = {
-            "tool": "BVID-FE",
-            "tier_used": result_dict["tier_used"],
-            "pristine_strength_MPa": result_dict["pristine_strength_MPa"],
-            "residual_strength_MPa": result_dict["residual_strength_MPa"],
-            "knockdown": result_dict["knockdown"],
-            "projected_damage_area_mm2": result_dict["dpa_mm2"],
-            "dent_depth_mm": result_dict["damage"]["dent_depth_mm"],
-            "fiber_break_radius_mm": result_dict["damage"]["fiber_break_radius_mm"],
-            "n_delaminations": len(result_dict["damage"]["delaminations"]),
-            "notes": list(result_dict.get("notes", [])),
-            "warnings": list(result_dict.get("warnings", [])),
-        }
-
-    ncr = {
-        "ncr_number": form["ncr_number"],
-        "revision": form["revision"],
-        "originated_by": form["originator"],
-        "date": form["date"],
-        "program": form["program"],
-        "part_number": form["part_number"],
-        "part_name": form["part_name"],
-        "serial_or_lot": form["serial_lot"],
-        "work_order": form["work_order"],
-        "quantity_affected": form["quantity"],
-        "found_at_station": form["station"],
-        "found_during": form["found_during"],
-        "nonconformance_type": form["nc_type"],
-        "nonconformance_description": form["description"],
-        "as_found_dimensions": form["dimensions"],
-        "material_configuration": {
-            "material": cfg.material,
-            "layup_deg": list(cfg.layup_deg),
-            "layup_string": layup_str,
-            "ply_thickness_mm": cfg.ply_thickness_mm,
-            "panel_Lx_mm": cfg.panel.Lx_mm,
-            "panel_Ly_mm": cfg.panel.Ly_mm,
-            "panel_boundary": cfg.panel.boundary,
-        },
-        "engineering_analysis": analysis,
-        "proposed_disposition": rec,
-        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
-
-    lines: list[str] = []
-    lines.append(f"# Nonconformance Report — {form['ncr_number']}")
-    lines.append("")
-    lines.append(
-        "> **Decision-support document.** The disposition below is a "
-        "structured *recommendation* generated from BVID-FE analysis. It "
-        "is NOT an approved disposition. A qualified Material Review Board "
-        "must review, modify as required, and approve."
-    )
-    lines.append("")
-    lines.append("## 1. Identification")
-    lines.append("")
-    lines.append(f"- **NCR number:** {form['ncr_number']}  (rev {form['revision']})")
-    lines.append(f"- **Originated by:** {form['originator']}")
-    lines.append(f"- **Date:** {form['date']}")
-    lines.append(f"- **Program / project:** {form['program']}")
-    lines.append(f"- **Part number:** {form['part_number']}")
-    lines.append(f"- **Part name:** {form['part_name']}")
-    lines.append(f"- **Serial / lot:** {form['serial_lot']}")
-    lines.append(f"- **Work order:** {form['work_order']}")
-    lines.append(f"- **Quantity affected:** {form['quantity']}")
-    lines.append(f"- **Found at / station:** {form['station']}")
-    lines.append(f"- **Found during:** {form['found_during']}")
-    lines.append("")
-    lines.append("## 2. Nonconformance")
-    lines.append("")
-    lines.append(f"- **Type:** {form['nc_type']}")
-    lines.append(f"- **As-found dimensions:** {form['dimensions']}")
-    lines.append("")
-    lines.append(form["description"] or "_No description provided._")
-    lines.append("")
-    lines.append("## 3. Material / configuration")
-    lines.append("")
-    lines.append(f"- **Material:** {cfg.material}")
-    lines.append(f"- **Layup:** {layup_str} ({len(cfg.layup_deg)} plies)")
-    lines.append(f"- **Ply thickness:** {_format_ply_thickness(cfg.ply_thickness_mm)}")
-    lines.append(
-        f"- **Panel:** {cfg.panel.Lx_mm:g} × {cfg.panel.Ly_mm:g} mm, " f"{cfg.panel.boundary}"
-    )
-    lines.append("")
-    lines.append("## 4. Engineering analysis (BVID-FE)")
-    lines.append("")
-    if analysis is None:
-        lines.append(
-            "_Engineering analysis pending — run a BVID-FE analysis and "
-            "regenerate this NCR to attach residual-strength results._"
-        )
-    else:
-        lines.append(f"- **Analysis tier:** {analysis['tier_used']}")
-        lines.append(f"- **Pristine strength:** {analysis['pristine_strength_MPa']:.1f} MPa")
-        lines.append(f"- **Residual strength:** {analysis['residual_strength_MPa']:.1f} MPa")
-        lines.append(f"- **Knockdown:** {analysis['knockdown']:.3f}")
-        lines.append(
-            f"- **Projected damage area:** " f"{analysis['projected_damage_area_mm2']:.0f} mm²"
-        )
-        lines.append(f"- **Dent depth:** {analysis['dent_depth_mm']:.3f} mm")
-        lines.append(f"- **Fiber-break radius:** {analysis['fiber_break_radius_mm']:.2f} mm")
-        lines.append(f"- **Delaminations modelled:** {analysis['n_delaminations']}")
-        if analysis["notes"]:
-            lines.append("- **Runtime notes:**")
-            for n in analysis["notes"]:
-                lines.append(f"  - {n}")
-        if analysis["warnings"]:
-            lines.append("- **Warnings:**")
-            for w in analysis["warnings"]:
-                lines.append(f"  - {w}")
-    lines.append("")
-    lines.append("## 5. Proposed disposition (requires MRB review)")
-    lines.append("")
-    if rec is None:
-        lines.append("_No disposition recommendation — attach a BVID-FE analysis " "first._")
-    else:
-        lines.append(f"- **Status:** {rec['status']}")
-        lines.append(f"- **Recommended path:** {rec['recommended_path']}")
-        lines.append("")
-        lines.append(f"**Rationale.** {rec['rationale']}")
-        lines.append("")
-        if rec["flags"]:
-            lines.append("**Flags raised:**")
-            for fl in rec["flags"]:
-                lines.append(f"- {fl}")
-            lines.append("")
-        lines.append("**Criteria the board must verify:**")
-        for c in rec["criteria"]:
-            lines.append(f"- {c}")
-        lines.append("")
-    lines.append("## 6. MRB review & approval")
-    lines.append("")
-    lines.append("| Role | Name | Disposition concurrence | Signature | Date |")
-    lines.append("|------|------|-------------------------|-----------|------|")
-    lines.append("| Engineering (stress) |  |  |  |  |")
-    lines.append("| Quality |  |  |  |  |")
-    lines.append("| Materials & Processes |  |  |  |  |")
-    lines.append("| MRB chair |  |  |  |  |")
-    lines.append("")
-    lines.append(f"_Generated {ncr['generated_utc']} UTC by BVID-FE._")
-    lines.append("")
-
-    return "\n".join(lines), ncr
+#
+# ``recommend_disposition`` and ``build_ncr`` (pure: dicts in, Markdown and
+# dict out) live in ``bvidfe.report.ncr`` with their unit tests (#172); the
+# Export NCR tab below only collects the form and renders the result.
 
 
 # ---------------------------------------------------------------------------
@@ -741,6 +629,23 @@ def _build_ncr(form: dict, cfg, result_dict: dict | None, rec: dict | None) -> t
 # widgets pick up the new values via their ``key=`` arg.
 _hydrate_from_url()
 _hydrate_from_preset()
+
+if st.session_state.get("_url_rejected"):
+    st.warning(
+        "The shared link carried values this page cannot use; they were "
+        "ignored and the sidebar keeps its defaults for them: "
+        + ", ".join(f"`{r}`" for r in st.session_state["_url_rejected"])
+        + "."
+    )
+
+# Seed the expert-mode widgets, then re-assign each to itself: Streamlit
+# drops the session-state value of a keyed widget that is not rendered in a
+# run, and these widgets do not render outside Expert mode.
+for _k, _v in _EXPERT_DEFAULTS.items():
+    st.session_state.setdefault(_k, _v)
+for _k in (*_EXPERT_DEFAULTS, *_LOCATION_KEYS):
+    if _k in st.session_state:
+        st.session_state[_k] = st.session_state[_k]
 
 with st.sidebar:
     st.markdown("**Configuration preset**")
@@ -764,6 +669,7 @@ with st.sidebar:
     expert_mode = st.toggle(
         "Expert mode",
         value=False,
+        key="expert_mode",
         help=(
             "**Off (default)** — simplified sidebar: material, layup, panel, "
             "impact event, tier, loading.\n\n"
@@ -772,6 +678,28 @@ with st.sidebar:
             "parameters expanded."
         ),
     )
+    if not expert_mode:
+        # Expert values set earlier, by a share link or by a preset still
+        # apply with Expert mode off; say so.
+        _labels = {
+            "ply_thickness_mm": "ply thickness {:g} mm",
+            "boundary": "boundary {}",
+            "impactor_shape": "impactor shape {}",
+            "mass_kg": "impactor mass {:g} kg",
+        }
+        _changed = [
+            fmt.format(st.session_state[k])
+            for k, fmt in _labels.items()
+            if st.session_state[k] != _EXPERT_DEFAULTS[k]
+        ]
+        if not st.session_state["loc_centre"]:
+            _changed.append("an off-centre impact point")
+        if _changed:
+            st.caption(
+                "Expert-mode settings in effect: "
+                + ", ".join(_changed)
+                + ". Turn on Expert mode to see or change them."
+            )
 
     st.markdown("**Material & layup**")
     if "material_choice" not in st.session_state:
@@ -794,7 +722,7 @@ with st.sidebar:
             "Ply thickness [mm]",
             min_value=0.01,
             max_value=2.0,
-            value=0.152,
+            key="ply_thickness_mm",
             step=0.001,
             format="%.4f",
             help=(
@@ -804,7 +732,7 @@ with st.sidebar:
             ),
         )
     else:
-        ply_thickness_mm = 0.152
+        ply_thickness_mm = float(st.session_state["ply_thickness_mm"])
 
     if "layup_text" not in st.session_state:
         st.session_state["layup_text"] = "0, 45, -45, 90, 90, -45, 45, 0"
@@ -838,7 +766,7 @@ with st.sidebar:
         boundary = st.selectbox(
             "Boundary condition",
             BOUNDARIES,
-            index=0,
+            key="boundary",
             help=(
                 "Panel edge support. Scales the plate bending stiffness in "
                 "the Olsson onset model (clamped 2.5×, free 0.4× simply "
@@ -851,7 +779,7 @@ with st.sidebar:
             ),
         )
     else:
-        boundary = "simply_supported"
+        boundary = st.session_state["boundary"]
 
     st.markdown("**Input mode**")
     if "input_mode" not in st.session_state:
@@ -906,7 +834,7 @@ with st.sidebar:
             impactor_shape = st.selectbox(
                 "Impactor shape",
                 IMPACTOR_SHAPES,
-                index=0,
+                key="impactor_shape",
                 help=(
                     "Relative to a 16 mm hemisphere, a flat-ended impactor leaves "
                     "0.2× and a 60° cone 1.3× the damage area (fitted to "
@@ -917,7 +845,7 @@ with st.sidebar:
                 "Impactor mass [kg]",
                 min_value=0.01,
                 max_value=100.0,
-                value=5.5,
+                key="mass_kg",
                 step=0.1,
                 help=(
                     "5.5 kg is the reference drop-weight mass. At the same "
@@ -926,25 +854,66 @@ with st.sidebar:
                     "quasi-static model may underpredict damage."
                 ),
             )
-            col_lx_loc, col_ly_loc = st.columns(2)
-            _loc_help = (
-                "Impact point measured from the panel corner; (0, 0) means "
-                "the panel centre. The delaminations are kept inside the "
-                "panel around this point."
+            st.checkbox(
+                "Centre of panel",
+                key="loc_centre",
+                help="Impact the panel centre. Untick to place the impact point.",
             )
-            loc_x = col_lx_loc.number_input("Location X [mm]", value=0.0, step=1.0, help=_loc_help)
-            loc_y = col_ly_loc.number_input("Location Y [mm]", value=0.0, step=1.0, help=_loc_help)
+            if not st.session_state["loc_centre"]:
+                # Seed at the centre; keep a stored point on the panel when
+                # Lx / Ly shrink (the inputs are bounded to it).
+                for _key, _span in (("loc_x_mm", float(Lx_mm)), ("loc_y_mm", float(Ly_mm))):
+                    _cur = float(st.session_state.get(_key, _span / 2.0))
+                    st.session_state[_key] = min(max(_cur, 0.0), _span)
+                col_lx_loc, col_ly_loc = st.columns(2)
+                _loc_help = (
+                    "Impact point measured from the panel corner, on the "
+                    "panel. The delaminations are kept inside the panel "
+                    "around this point."
+                )
+                col_lx_loc.number_input(
+                    "Location X [mm]",
+                    min_value=0.0,
+                    max_value=float(Lx_mm),
+                    step=1.0,
+                    key="loc_x_mm",
+                    help=_loc_help,
+                )
+                col_ly_loc.number_input(
+                    "Location Y [mm]",
+                    min_value=0.0,
+                    max_value=float(Ly_mm),
+                    step=1.0,
+                    key="loc_y_mm",
+                    help=_loc_help,
+                )
         else:
-            impactor_shape = "hemispherical"
-            mass_kg = 5.5
-            loc_x = 0.0
-            loc_y = 0.0
-        impact_event = ImpactEvent(
-            energy_J=energy_J,
-            impactor=ImpactorGeometry(diameter_mm=diameter_mm, shape=impactor_shape),
-            mass_kg=mass_kg,
-            location_xy_mm=(loc_x, loc_y),
-        )
+            impactor_shape = st.session_state["impactor_shape"]
+            mass_kg = float(st.session_state["mass_kg"])
+        if st.session_state["loc_centre"]:
+            loc_xy = (float(Lx_mm) / 2.0, float(Ly_mm) / 2.0)
+        else:
+            loc_xy = (
+                min(max(float(st.session_state.get("loc_x_mm", Lx_mm / 2.0)), 0.0), float(Lx_mm)),
+                min(max(float(st.session_state.get("loc_y_mm", Ly_mm / 2.0)), 0.0), float(Ly_mm)),
+            )
+            if loc_xy == (0.0, 0.0):
+                # bvidfe.impact.mapping reads exactly (0, 0) as the centre.
+                st.warning(
+                    "The impact point must lie inside the panel, and the "
+                    "library reads exactly (0, 0) as the panel centre: this "
+                    "runs a centre impact. Move the point off the corner."
+                )
+        try:
+            impact_event = ImpactEvent(
+                energy_J=energy_J,
+                impactor=ImpactorGeometry(diameter_mm=diameter_mm, shape=impactor_shape),
+                mass_kg=mass_kg,
+                location_xy_mm=loc_xy,
+            )
+        except (TypeError, ValueError) as exc:
+            st.error(f"Invalid impact event: {exc}")
+            impact_event = None
     else:
         st.markdown("**C-scan inspection**")
         uploaded = st.file_uploader(
@@ -952,17 +921,29 @@ with st.sidebar:
             type=["json"],
             help="JSON conforming to docs/cscan_schema.md.",
         )
+        override_dent = st.checkbox(
+            "Override file value: dent depth",
+            key="override_dent",
+            help="Use the dent depth below instead of the C-scan file's.",
+        )
         dent_depth_mm = st.number_input(
             "Dent depth [mm]",
             min_value=0.0,
             max_value=10.0,
             value=0.0,
             step=0.05,
+            disabled=not override_dent,
             help=(
-                "Replaces the file's dent depth when > 0; 0 keeps the file's "
-                "value. Reported and used by the NCR detectability check; it "
-                "does not change the predicted strength."
+                "Replaces the file's dent depth (0 included) when "
+                "*Override file value* is ticked. Reported and used by the "
+                "NCR detectability check; it does not change the predicted "
+                "strength."
             ),
+        )
+        override_fb = st.checkbox(
+            "Override file value: fiber-break radius",
+            key="override_fb",
+            help="Use the fiber-break radius below instead of the C-scan file's.",
         )
         fb_radius_mm = st.number_input(
             "Fiber-break radius [mm]",
@@ -970,10 +951,12 @@ with st.sidebar:
             max_value=50.0,
             value=0.0,
             step=0.5,
+            disabled=not override_fb,
             help=(
-                "Replaces the file's fiber-break core radius when > 0; 0 "
-                "keeps the file's value. Softens the fe3d mesh around the "
-                "delamination centroids; the closed-form tiers ignore it."
+                "Replaces the file's fiber-break core radius (0 included) "
+                "when *Override file value* is ticked. Softens the fe3d mesh "
+                "around the delamination centroids; the closed-form tiers "
+                "ignore it."
             ),
         )
         if uploaded is not None:
@@ -982,12 +965,12 @@ with st.sidebar:
                 # filename to disk (path-traversal write primitive).
                 data = json.loads(uploaded.getvalue())
                 damage_state = damage_state_from_dict(data)
-                # Override dent / fiber-break with the sidebar inputs if the
-                # user has typed values; otherwise keep the file's values.
-                if dent_depth_mm > 0:
-                    damage_state = replace(damage_state, dent_depth_mm=dent_depth_mm)
-                if fb_radius_mm > 0:
-                    damage_state = replace(damage_state, fiber_break_radius_mm=fb_radius_mm)
+                # Override dent / fiber-break with the sidebar inputs when
+                # asked to (0 included); otherwise keep the file's values.
+                if override_dent:
+                    damage_state = replace(damage_state, dent_depth_mm=float(dent_depth_mm))
+                if override_fb:
+                    damage_state = replace(damage_state, fiber_break_radius_mm=float(fb_radius_mm))
                 st.success(f"Loaded {len(damage_state.delaminations)} delamination(s)")
             except (CScanSchemaError, json.JSONDecodeError, ValueError) as exc:
                 st.error(f"Invalid C-scan JSON: {exc}")
@@ -1090,6 +1073,8 @@ config_dict: dict | None = None
 config_valid = bool(layup_deg) and Lx_mm > 0 and Ly_mm > 0
 if input_mode == "C-scan inspection" and damage_state is None:
     config_valid = False
+if input_mode == "Impact event" and impact_event is None:
+    config_valid = False
 
 if config_valid:
     panel = PanelGeometry(Lx_mm=float(Lx_mm), Ly_mm=float(Ly_mm), boundary=boundary)
@@ -1151,10 +1136,10 @@ if "last_result" not in st.session_state:
     st.session_state["last_result"] = None
 
 
-def _live_onset_preview() -> str | None:
+def _live_onset_preview() -> tuple[str | None, str | None]:
     """Olsson onset energy + DPA preview for the impact-driven path."""
     if input_mode != "Impact event" or panel is None or impact_event is None:
-        return None
+        return None, None
     return _onset_preview_cached(
         material_choice,
         tuple(layup_deg),
@@ -1170,9 +1155,11 @@ def _live_onset_preview() -> str | None:
     )
 
 
-preview = _live_onset_preview()
+preview, preview_error = _live_onset_preview()
 if preview:
     st.info(preview)
+elif preview_error:
+    st.caption(f"Onset preview unavailable — {preview_error}")
 
 
 # ---------------------------------------------------------------------------
@@ -1314,24 +1301,49 @@ with tabs[2]:
             "Switch the sidebar to **Impact event** mode."
         )
     else:
-        try:
-            cfg = payload["config"]
-            # Quick empirical sweep around the current energy — fast
-            # (sub-second) and cached so it doesn't rerun every script pass.
-            base_E = cfg.impact.energy_J
-            sweep_E = tuple(np.linspace(max(1.0, base_E * 0.2), base_E * 2.0, 7).tolist())
-            with st.spinner("Computing empirical knockdown sweep…"):
-                df = _sweep_cached(payload["config_dict"], "empirical", sweep_E)
-            ok = df.dropna(subset=["knockdown"])
-            fig = plot_knockdown_curve(
-                ok["energy_J"].tolist(),
-                ok["knockdown"].tolist(),
-                tier_label="empirical",
-            )
-            st.pyplot(fig, width="content")
-            _show_df(df)
-        except Exception as exc:
-            st.error(f"Could not compute the knockdown curve: {exc}")
+        cfg = payload["config"]
+        run_tier = payload["result_dict"]["tier_used"]
+        # No key: the default follows the tier of the latest run.
+        curve_tier = st.selectbox(
+            "Tier for curve",
+            TIERS,
+            index=TIERS.index(run_tier) if run_tier in TIERS else 0,
+            help=_SWEEP_TIER_HELP,
+        )
+        # 7-point sweep around the analysed energy, cached so it doesn't
+        # rerun every script pass.
+        sweep_E = _knockdown_curve_energies(cfg.impact.energy_J)
+        curve_ok = True
+        if curve_tier == "fe3d":
+            st.warning(f"fe3d curve: {len(sweep_E)} fe3d analyses. {_SWEEP_TIER_HELP}")
+            try:
+                stats = estimate_fe_mesh_size(replace(cfg, tier="fe3d"))
+            except Exception as exc:
+                st.error(f"Failed to estimate fe3d mesh size: {exc}")
+                curve_ok = False
+            else:
+                if stats["n_dof"] > FE3D_MAX_DOF:
+                    st.error(
+                        f"fe3d mesh has {stats['n_elements']:,} elements "
+                        f"({stats['n_dof']:,} DOFs), exceeding the safe cap "
+                        f"of {FE3D_MAX_DOF:,}. Increase **In-plane size** or "
+                        f"reduce **Elements per ply** in the sidebar."
+                    )
+                    curve_ok = False
+        if curve_ok:
+            try:
+                with st.spinner(f"Computing {curve_tier} knockdown sweep…"):
+                    df = _sweep_cached(payload["config_dict"], curve_tier, sweep_E)
+                ok = df.dropna(subset=["knockdown"])
+                fig = plot_knockdown_curve(
+                    ok["energy_J"].tolist(),
+                    ok["knockdown"].tolist(),
+                    tier_label=curve_tier,
+                )
+                st.pyplot(fig, width="content")
+                _show_df(df)
+            except Exception as exc:
+                st.error(f"Could not compute the knockdown curve: {exc}")
 
 
 # --- 3D Damage tab --------------------------------------------------------
@@ -1459,12 +1471,7 @@ with tabs[6]:
             "Tier for sweep",
             TIERS,
             index=0,
-            help=(
-                "Use **empirical** or **semi_analytical** for fast scans. "
-                "**fe3d** takes about 15-30 s per point at the 5 mm default "
-                "mesh (longer for thick laminates or finer meshes); keep "
-                "fe3d sweeps short on the 1 GB cloud tier."
-            ),
+            help=_SWEEP_TIER_HELP,
         )
         sweep_clicked = st.button("Run sweep", type="primary")
         if sweep_clicked:
@@ -1687,9 +1694,9 @@ with tabs[7]:
         rec = (
             None
             if ncr_result is None
-            else _recommend_disposition(ncr_result, float(dent_threshold_mm))
+            else recommend_disposition(ncr_result, float(dent_threshold_mm))
         )
-        ncr_md, ncr_dict = _build_ncr(form, ncr_cfg, ncr_result, rec)
+        ncr_md, ncr_dict = build_ncr(form, ncr_cfg, ncr_result, rec)
 
         if rec is not None:
             st.success(
