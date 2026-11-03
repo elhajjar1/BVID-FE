@@ -92,10 +92,12 @@ _BOUNDARY_BUCKLING_FACTOR: dict[str, float] = {
 }
 
 # Maximum sublaminate aspect ratio (major / minor semi-axis) the closed-form
-# Rayleigh-Ritz solution is trusted over. Slender peanut-template ellipses
-# (e.g. b ~ 0.01 mm, a ~ 5 mm) drive the (a/b)^4 term to ~1e16, so the
-# buckling stress overflows the Soutis empirical bound and the buckling
-# channel goes silently inert. We clip the aspect ratio to this value and
+# Rayleigh-Ritz solution is trusted over. The peanut template never comes
+# near it (its aspect ratio is at most 3.25, see
+# ``bvidfe.impact.shape_templates``), so the clip only fires on user-supplied
+# C-scan ellipses: a slender one (e.g. b ~ 0.01 mm, a ~ 5 mm) drives the
+# (a/b)^4 term to ~1e16, so the buckling stress overflows the Soutis
+# empirical bound and the buckling channel goes silently inert. We clip the aspect ratio to this value and
 # emit a ``DegenerateThinSublaminateWarning`` so the degenerate-thin
 # condition is visible rather than masquerading as a clean empirical-tier
 # result.

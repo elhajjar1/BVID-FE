@@ -248,6 +248,12 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   the quickstart and the API page. CI also checks the JSON schemas against
   the dataclasses (`scripts/generate_schemas.py --check`), and
   `tests/test_package.py` the four version strings against each other.
+- `bvidfe.impact.mapping.SHAPE_DPA_FACTOR`, `DIAMETER_DPA_EXPONENT` and
+  `DIAMETER_REF_MM`, public names for the impactor-shape and -diameter
+  damage-area corrections (the underscore names remain as aliases). The
+  app's impactor help and the `ImpactorGeometry` docstring are formatted
+  from them; both had quoted a stale cone factor (1.3x and 1.5x; it is
+  1.9x) (#174).
 
 ### Changed
 
@@ -706,6 +712,14 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   library presets construct unchanged. `DamageState(ellipse)`, an
   ellipse not in a list, raises a `ValueError` instead of
   `TypeError: 'DelaminationEllipse' object is not iterable`.
+- Documentation that contradicted the code (#174): `examples/README.md`
+  no longer calls fe3d TAI far more conservative than the closed form,
+  the `AnalysisResults.warnings` docstring no longer says it is always
+  empty, and the semi-analytical aspect-ratio clip and the validation
+  harness's fe3d gate comment and `--max-cases` help describe the current
+  model. `DEPLOYMENT_STREAMLIT.md` is merged into `docs/deployment.md`
+  (the root file is a pointer), and the April 2026 plan and spec moved
+  from `docs/superpowers/` to `docs/archive/`.
 
 ### Removed
 

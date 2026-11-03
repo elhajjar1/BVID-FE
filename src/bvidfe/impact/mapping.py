@@ -56,7 +56,8 @@ class DPACapClipWarning(UserWarning):
 # per-impactor median predicted / measured area is 0.94 (flat), 1.07
 # (cone), 1.01, 1.01 and 1.06 (12.7, 25.4 and 31.8 mm hemispheres). The
 # previous, unsourced 1.4 (flat) and 0.7 (conical) ran the other way.
-_SHAPE_DPA_FACTOR: dict[str, float] = {
+# Public: the app help and the ImpactorGeometry docstring quote it.
+SHAPE_DPA_FACTOR: dict[str, float] = {
     "hemispherical": 1.0,
     "flat": 0.2,
     "conical": 1.9,
@@ -69,23 +70,39 @@ _SHAPE_DPA_FACTOR: dict[str, float] = {
 # 0.3. The corrected onset energy moved the model's same-group ratios to
 # the 12.7 mm hemisphere by under 5% (25.4 mm: 1.01 to 1.04; 31.8 mm: 1.25
 # to 1.27, on 6 cross-ply groups only), and the membrane-stiffened onset
-# back to 1.03 and 1.26, so 0.2 is kept.
-_DIAMETER_REF_MM: float = 16.0
-_DIAMETER_DPA_EXPONENT: float = 0.2
+# back to 1.03 and 1.26, so 0.2 is kept. Public, like SHAPE_DPA_FACTOR.
+DIAMETER_REF_MM: float = 16.0
+DIAMETER_DPA_EXPONENT: float = 0.2
+
+# Underscore names kept as aliases for existing callers.
+_SHAPE_DPA_FACTOR = SHAPE_DPA_FACTOR
+_DIAMETER_REF_MM = DIAMETER_REF_MM
+_DIAMETER_DPA_EXPONENT = DIAMETER_DPA_EXPONENT
+
+# ImpactorGeometry's docstring quotes these values; fill them in here so the
+# two cannot drift (bvidfe.core.geometry cannot import this module: this
+# module imports it). Skipped when docstrings are stripped (python -OO).
+if ImpactorGeometry.__doc__:
+    ImpactorGeometry.__doc__ = ImpactorGeometry.__doc__.format(
+        diameter_ref_mm=DIAMETER_REF_MM,
+        diameter_exponent=DIAMETER_DPA_EXPONENT,
+        flat_factor=SHAPE_DPA_FACTOR["flat"],
+        conical_factor=SHAPE_DPA_FACTOR["conical"],
+    )
 
 
 def _shape_dpa_factor(shape: str) -> float:
-    return _SHAPE_DPA_FACTOR.get(shape, 1.0)
+    return SHAPE_DPA_FACTOR.get(shape, 1.0)
 
 
 def _diameter_dpa_factor(diameter_mm: float, shape: str = "hemispherical") -> float:
     """Smaller impactors concentrate damage (larger factor); larger
-    impactors spread it (smaller factor). Mild (exponent 0.2). A cone's
+    impactors spread it (smaller factor). Mild (``DIAMETER_DPA_EXPONENT``). A cone's
     contact is set by its angle, not its shank diameter, so the factor is
     1 for ``conical``."""
     if diameter_mm <= 0 or shape == "conical":
         return 1.0
-    return (_DIAMETER_REF_MM / diameter_mm) ** _DIAMETER_DPA_EXPONENT
+    return (DIAMETER_REF_MM / diameter_mm) ** DIAMETER_DPA_EXPONENT
 
 
 # Reference impactor mass (kg) for the small-mass amplification correction.

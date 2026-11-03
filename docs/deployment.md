@@ -1,9 +1,9 @@
 # Deployment
 
 BVID-FE ships with a Streamlit web app (`app.py`) that wraps
-`bvidfe.analysis.BvidAnalysis`. This page summarises how to publish a public
-URL on Streamlit Community Cloud — the full guide lives in
-[`DEPLOYMENT_STREAMLIT.md`](https://github.com/elhajjar1/BVID-FE/blob/main/DEPLOYMENT_STREAMLIT.md).
+`bvidfe.analysis.BvidAnalysis`, and a `requirements.txt` tuned for the
+cloud environment. This page shows how to publish it at a public URL on
+Streamlit Community Cloud.
 
 ## Local smoke test
 
@@ -20,19 +20,36 @@ Severity, Sweep, Export NCR) populate.
 
 ## Streamlit Community Cloud
 
-1. Push your branch (typically `main`) to GitHub.
-2. Sign in at <https://share.streamlit.io> with the GitHub account that owns
-   the repo (`elhajjar1`).
+1. Push your branch to GitHub (`elhajjar1/BVID-FE`). You can deploy a
+   feature branch directly or merge it to `main` first.
+2. Sign in at <https://share.streamlit.io> with **Sign in with GitHub**. On
+   first sign-in, grant access to the GitHub account that owns the repo
+   (`elhajjar1`).
 3. **Create app** → **Deploy a public app from GitHub**:
     - **Repository:** `elhajjar1/BVID-FE`
-    - **Branch:** `main`
+    - **Branch:** `main` (or your feature branch)
     - **Main file path:** `app.py`
     - **App URL:** pick a sub-domain (e.g. `bvidfe.streamlit.app`)
-4. In **Advanced settings** set Python to **3.11**.
-5. Click **Deploy**. First build takes 2–4 minutes; subsequent redeploys
-   finish in ~30 s.
+4. In **Advanced settings** set Python to **3.11**. It satisfies
+   `pyproject.toml`'s `requires-python = ">=3.10"`, is in the CI test
+   matrix (3.10–3.12), and is the version the CI validation job uses.
+5. Click **Deploy**.
 
-Every push to the configured branch triggers an automatic redeploy.
+Streamlit Cloud then clones the repo, creates a virtualenv, runs
+`pip install -r requirements.txt` and starts `streamlit run app.py`. It
+does not necessarily install the `bvidfe` package itself, so `app.py` adds
+the repository's `src/` directory to `sys.path` before importing it. The
+first build takes 2–4 minutes (numpy/scipy/shapely wheels); later
+redeploys reuse the cache and finish in about 30 s.
+
+Once the build finishes the URL is live (e.g.
+`https://bvidfe.streamlit.app`); no GitHub or Streamlit account is needed
+to use a public app.
+
+Every push to the configured branch triggers an automatic redeploy. The
+**Manage app** panel (bottom-right of the live app) shows the live logs and
+lets you reboot the app, edit secrets and other settings, or pause or
+delete it.
 
 ## Resource limits
 
@@ -68,7 +85,7 @@ Implications for BVID-FE:
 | Build fails on `PyQt6` / `pyvista` | They should not be in `requirements.txt`. Streamlit Cloud has no display server. |
 | App boots but `import bvidfe` fails | `app.py` adds `src/` to `sys.path`, so check that `src/bvidfe/` is on the deployed branch, and that `pip install -e .` works locally. |
 | Plots don't render | Make sure `matplotlib.use("Agg")` is called before any `pyplot` import. `app.py` already does this. |
-| Slow first run | Expected — numpy/scipy/shapely wheels are ~100 MB combined. |
+| Slow first run | Expected — numpy/scipy/shapely wheels are ~100 MB combined. Subsequent runs are cached. |
 | Out of memory on large fe3d run | Increase `in_plane_size_mm`, keep `elements_per_ply = 1`, or switch to the empirical / semi_analytical tier. |
 | `FE3DSizeError` or "exceeding the safe cap" | The mesh exceeds `BVIDFE_FE3D_MAX_DOF` (default 150,000). Coarsen the mesh — Streamlit Cloud doesn't have the headroom to raise this cap. |
 

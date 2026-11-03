@@ -48,7 +48,13 @@ from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry  # noqa: E402
 from bvidfe.core.material import MATERIAL_LIBRARY  # noqa: E402
 from bvidfe.damage.io import CScanSchemaError, damage_state_from_dict  # noqa: E402
 from bvidfe.damage.state import DamageState, DelaminationEllipse  # noqa: E402
-from bvidfe.impact.mapping import ImpactEvent, impact_to_damage  # noqa: E402
+from bvidfe.impact.mapping import (  # noqa: E402
+    DIAMETER_DPA_EXPONENT,
+    DIAMETER_REF_MM,
+    SHAPE_DPA_FACTOR,
+    ImpactEvent,
+    impact_to_damage,
+)
 from bvidfe.impact.olsson import onset_energy  # noqa: E402
 from bvidfe.core.laminate import Laminate  # noqa: E402
 from bvidfe.sweep.parametric_sweep import sweep_energies  # noqa: E402
@@ -899,7 +905,8 @@ with st.sidebar:
             key="diameter_mm",
             help=(
                 "Impactor tip diameter; ASTM D7136 uses 16 mm. The damage "
-                "area scales with (16 mm / d)^0.2 (not for a cone)."
+                f"area scales with ({DIAMETER_REF_MM:g} mm / d)^{DIAMETER_DPA_EXPONENT:g} "
+                "(not for a cone)."
             ),
         )
         if expert_mode:
@@ -908,8 +915,9 @@ with st.sidebar:
                 IMPACTOR_SHAPES,
                 index=0,
                 help=(
-                    "Relative to a 16 mm hemisphere, a flat-ended impactor leaves "
-                    "0.2× and a 60° cone 1.3× the damage area (fitted to "
+                    f"Relative to a {DIAMETER_REF_MM:g} mm hemisphere, a flat-ended "
+                    f"impactor leaves {SHAPE_DPA_FACTOR['flat']:g}× and a 60° cone "
+                    f"{SHAPE_DPA_FACTOR['conical']:g}× the damage area (fitted to "
                     "Hasebe et al. 2025)."
                 ),
             )

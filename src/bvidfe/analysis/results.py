@@ -131,7 +131,8 @@ class AnalysisResults:
     notes : list of str
         Human-readable diagnostics (see above).
     warnings : list of str
-        Machine-readable tags; always empty at present (see below).
+        Every ``UserWarning`` raised during ``BvidAnalysis.run``, as
+        ``"<WarningClass>: <message>"`` (see below).
     """
 
     residual_strength_MPa: float

@@ -25,10 +25,12 @@ DATASET_DIR = Path(__file__).parent / "datasets"
 
 # Per-tier slack on the dataset's target_mae_pct. ``empirical`` and
 # ``semi_analytical`` are calibrated closed-form models; ``fe3d`` is the
-# stress-field tool whose absolute-strength prediction has known caveats
-# (energy-flatness, simplified buckling BCs) — see CHANGELOG. The looser
-# fe3d gate keeps CI from flapping on regressions that are still inside
-# the documented model uncertainty.
+# stress-field tool and is qualitative: its strength is the first-ply
+# failure of a softened damage zone whose stiffness is fitted in-sample to
+# three coupons (NCAMP about 21% low), with a fixed FPF averaging length and
+# no cohesive surfaces — see the README's Limitations. The looser fe3d gate
+# keeps CI from flapping on regressions that are still inside that
+# documented model uncertainty.
 _TIER_GATE_MULTIPLIER = {
     "empirical": 1.25,
     "semi_analytical": 1.25,
@@ -219,8 +221,8 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=None,
         help="If set, run only the first N cases of each dataset. Useful for "
-        "the fe3d CI step where the full dataset would push CI runtime "
-        "past 60 s.",
+        "the fe3d CI step, where each case takes about 30 s (16-ply) to 40 s "
+        "(24-ply) on a CI runner.",
     )
     args = parser.parse_args(argv)
 
