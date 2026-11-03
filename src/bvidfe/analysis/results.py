@@ -75,9 +75,12 @@ class AnalysisResults:
       ``bvidfe.failure.laminate_strength``). Same denominator for every
       tier.
     - ``residual_strength_MPa`` is the tier-specific damaged strength. For
-      fe3d it is ``pristine_strength_MPa`` times fe3d's damaged strength
-      over fe3d's own undamaged strength, so an undamaged fe3d run gives
-      a knockdown of 1.0; the raw fe3d stresses are recorded in ``notes``.
+      fe3d it is ``pristine_strength_MPa`` times fe3d's damaged over its
+      own undamaged first-ply-failure stress, so an undamaged fe3d run
+      gives a knockdown of 1.0; in compression the delamination growth
+      stress instead where it is lower (the closed-form stress
+      semi_analytical uses, not rescaled). The raw fe3d stresses are
+      recorded in ``notes``.
     - ``knockdown = residual_strength_MPa / pristine_strength_MPa``,
       assigned in ``BvidAnalysis.run()``.
 
@@ -89,9 +92,10 @@ class AnalysisResults:
     ``notes`` carries free-form runtime diagnostics emitted by the analysis
     backends that affect the interpretation of ``knockdown``. fe3d runs
     always add one line with the raw damaged and undamaged fe3d stresses
-    behind the knockdown; fe3d compression runs also record the governing
-    delamination growth stress and the whole-panel buckling stress that is
-    left out of the knockdown. Otherwise empty when the run produced no
+    behind the knockdown; fe3d compression runs also record the weakest
+    delamination's growth stress, which of it and first-ply failure
+    governs, and the whole-panel buckling stress that is left out of the
+    knockdown. Otherwise empty when the run produced no
     diagnostic-worthy events.
 
     ``buckling_eigenvalues`` is buckling *onset*, not strength: the

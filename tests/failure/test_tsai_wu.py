@@ -1,7 +1,7 @@
 import pytest
 
 from bvidfe.core.material import MATERIAL_LIBRARY
-from bvidfe.failure.tsai_wu import tsai_wu_index, tsai_wu_strength_uniaxial
+from bvidfe.failure.tsai_wu import tsai_wu_index
 
 
 def test_uniaxial_Xt_gives_index_one():
@@ -21,26 +21,13 @@ def test_zero_stress_gives_zero_index():
     assert tsai_wu_index(m, [0] * 6) == 0.0
 
 
-def test_strength_uniaxial_tension_matches_Xt_within_10pct():
-    m = MATERIAL_LIBRARY["IM7/8552"]
-    sig = tsai_wu_strength_uniaxial(m, direction=1, sign=+1)
-    assert 0.9 * m.Xt <= sig <= 1.1 * m.Xt
-
-
-def test_strength_uniaxial_compression_matches_Xc_within_10pct():
-    m = MATERIAL_LIBRARY["IM7/8552"]
-    sig = tsai_wu_strength_uniaxial(m, direction=1, sign=-1)
-    assert 0.9 * m.Xc <= sig <= 1.1 * m.Xc
-
-
 def test_zt_default_falls_back_to_yt():
     """When Zt is not set, direction-3 tensile strength must equal direction-2
     (the unidirectional / transverse-isotropy assumption)."""
     m = MATERIAL_LIBRARY["IM7/8552"]
     assert m.Zt is None and m.Zc is None and m.S13 is None
-    sig_y = tsai_wu_strength_uniaxial(m, direction=2, sign=+1)
-    sig_z = tsai_wu_strength_uniaxial(m, direction=3, sign=+1)
-    assert sig_z == sig_y
+    assert tsai_wu_index(m, [0, 0, m.Yt, 0, 0, 0]) == tsai_wu_index(m, [0, m.Yt, 0, 0, 0, 0])
+    assert tsai_wu_index(m, [0, 0, -m.Yc, 0, 0, 0]) == tsai_wu_index(m, [0, -m.Yc, 0, 0, 0, 0])
 
 
 def test_zt_override_changes_through_thickness_strength():
@@ -51,12 +38,12 @@ def test_zt_override_changes_through_thickness_strength():
 
     base = MATERIAL_LIBRARY["IM7/8552"]
     weaker = replace(base, Zt=0.5 * base.Yt, Zc=0.5 * base.Yc)
-    sig_y = tsai_wu_strength_uniaxial(weaker, direction=2, sign=+1)
-    sig_z = tsai_wu_strength_uniaxial(weaker, direction=3, sign=+1)
-    # Lower Zt → lower through-thickness strength
-    assert sig_z < sig_y
-    # And it should track Zt to within 10%
-    assert 0.9 * weaker.Zt <= sig_z <= 1.1 * weaker.Zt
+    # Uniaxial Tsai-Wu reaches 1 exactly at the strength in that direction.
+    assert tsai_wu_index(weaker, [0, 0, weaker.Zt, 0, 0, 0]) == pytest.approx(1.0, rel=1e-12)
+    assert tsai_wu_index(weaker, [0, weaker.Yt, 0, 0, 0, 0]) == pytest.approx(1.0, rel=1e-12)
+    # Lower Zt -> the same stress is nearer failure through the thickness.
+    s = 0.6 * weaker.Yt
+    assert tsai_wu_index(weaker, [0, 0, s, 0, 0, 0]) > tsai_wu_index(weaker, [0, s, 0, 0, 0, 0])
 
 
 def test_uniaxial_xz_shear_uses_s13():

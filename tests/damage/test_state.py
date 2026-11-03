@@ -48,16 +48,6 @@ def test_damage_state_empty_has_zero_dpa():
     assert ds.projected_damage_area_mm2 == 0.0
 
 
-def test_damage_state_per_interface_area():
-    e1 = DelaminationEllipse(0, (0, 0), 10, 5, 0)
-    e2 = DelaminationEllipse(2, (0, 0), 8, 4, 0)
-    ds = DamageState([e1, e2], dent_depth_mm=0.3)
-    d = ds.per_interface_area
-    assert math.isclose(d[0], math.pi * 10 * 5)
-    assert math.isclose(d[2], math.pi * 8 * 4)
-    assert 1 not in d
-
-
 @pytest.mark.parametrize("theta", [0.0, 30.0, 45.0, 90.0, -45.0, 135.0, 180.0])
 def test_half_extents_match_the_footprint_bounding_box(theta):
     """``half_extents_mm`` is the half-width of the rotated ellipse's

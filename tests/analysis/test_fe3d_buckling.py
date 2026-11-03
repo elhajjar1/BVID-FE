@@ -46,8 +46,9 @@ def test_fe3d_cai_buckling_returns_positive_strength(small_cfg):
     sigma, lambda_crit, notes = fe3d_cai_buckling(small_cfg, damage, lam, sigma_pristine_MPa=500.0)
     assert sigma > 0
     assert lambda_crit > 0
-    # Clean solve on a pristine input should not generate any diagnostic notes.
-    assert notes == []
+    # A clean solve notes only the whole-panel buckling stress, which the
+    # knockdown leaves out.
+    assert len(notes) == 1 and notes[0].startswith("fe3d whole-panel buckling at"), notes
 
 
 def test_fe3d_cai_buckling_damaged_less_than_pristine(small_cfg):

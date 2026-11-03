@@ -92,6 +92,35 @@ def test_mesh_delamination_only_softens_damage_zone_in_plane():
     assert np.all(mesh.fiber_tension_factors == 1.0)
 
 
+@pytest.mark.parametrize("interface", [0, 1, 2])
+def test_oop_factor_takes_the_two_plies_bounding_the_interface(interface):
+    """Issue #167: the interface lies on an element face, so selecting the
+    elements whose z-extent reaches it took one element layer on each side,
+    two plies at elements_per_ply = 1 but one ply's thickness at 2. The two
+    bounding plies are softened at any through-thickness refinement."""
+    import dataclasses
+
+    from bvidfe.analysis.fe_mesh import DAMAGE_OOP_FACTOR
+
+    ds = DamageState([DelaminationEllipse(interface, (10, 5), 8, 4, 0)], dent_depth_mm=0.3)
+    thickness = {}
+    for epp in (1, 2, 3):
+        cfg = dataclasses.replace(
+            _simple_config(), mesh=MeshParams(elements_per_ply=epp, in_plane_size_mm=2.0)
+        )
+        mesh = build_fe_mesh(cfg, ds)
+        hit = mesh.damage_factors < 1.0
+        assert np.all(mesh.damage_factors[hit] == DAMAGE_OOP_FACTOR)
+        assert set(mesh.ply_indices[hit].tolist()) == {interface, interface + 1}
+        z = mesh.node_coords[mesh.element_connectivity[hit]][:, :, 2]
+        columns = len({tuple(c) for c in mesh.node_coords[mesh.element_connectivity[hit, 0], :2]})
+        thickness[epp] = float((z.max(axis=1) - z.min(axis=1)).sum()) / columns
+    # 2 plies x 0.2 mm under each softened column, whatever the refinement.
+    assert thickness[1] == pytest.approx(0.4)
+    assert thickness[2] == pytest.approx(0.4)
+    assert thickness[3] == pytest.approx(0.4)
+
+
 def test_mesh_fiber_break_core_reduces_in_plane_factor():
     """Inside the fiber-break radius, both factors are reduced; the fibre
     tension factor is not (the core's broken fibres are fe3d TAI's hole,

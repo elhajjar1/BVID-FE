@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import numbers
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -174,14 +174,6 @@ class DamageState:
             return 0.0
         polys = [_ellipse_polygon(e) for e in self.delaminations]
         return float(unary_union(polys).area)
-
-    @property
-    def per_interface_area(self) -> Dict[int, float]:
-        """Sum of ellipse areas at each interface (no per-interface union)."""
-        out: Dict[int, float] = {}
-        for e in self.delaminations:
-            out[e.interface_index] = out.get(e.interface_index, 0.0) + e.area_mm2
-        return out
 
     def __repr__(self) -> str:
         return (

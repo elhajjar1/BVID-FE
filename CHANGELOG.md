@@ -314,6 +314,29 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   `--in-plane-size` / `--elements-per-ply` without `fe3d` in `--tier`.
   The Streamlit app's layup field takes any finite angle too (it
   rejected angles outside [-90, 90]).
+- **fe3d's out-of-plane damage factor takes the two plies bounding a
+  delaminated interface at any through-thickness refinement (#167).** It
+  was set on the elements whose z-extent reached the interface; the
+  interface lies on an element face, so that was one element layer on
+  each side, two plies at `elements_per_ply = 1` but one ply's thickness
+  at 2 (0.304 and 0.152 mm on 8-ply QI), a softened volume that halved
+  with each refinement. It is now every element layer of plies `i` and
+  `i + 1` for interface `i`. At the default `elements_per_ply = 1` the
+  selected elements are the same (checked element by element on the
+  three calibration coupons), so default-mesh results, the calibration
+  coupons and `DAMAGE_ZONE_INPLANE_FACTOR` are unchanged. At 2 elements
+  per ply it moves results by about 1% (4-ply `[0/90]2` 20 x 10 mm test
+  panel: CAI knockdown 0.3261 -> 0.3323, TAI 0.964 -> 0.961). Taking only
+  the element layer above the interface instead was measured and
+  rejected: it would move the default-mesh results by up to 1.1% (8-ply
+  QI IM7/8552 CAI at 15 / 30 J, 5 mm mesh: 0.2556 -> 0.2529, 0.2246 ->
+  0.2221; TAI at 5 J 0.834 -> 0.826; NCAMP coupon -0.7%, Lovejoy & Scotti
+  QI +0.3%) and still halve the softened thickness with refinement.
+- **fe3d CAI notes are computed once (#167).** `fe3d_cai_buckling` now
+  returns the whole-panel buckling note (it computed the panel buckling
+  stress already), so `BvidAnalysis` no longer recomputes
+  `panel_buckling_load` for it, nor `weakest_sublaminate_growth` (see
+  `fe3d_cai_channels` under *Fixed*, #166).
 - **fe3d solves ~9x faster in ~6x less memory.** `solve_linear_static`
   eliminates the constrained DOFs instead of adding a 1e10 penalty and
   calling `spsolve` (SuperLU, COLAMD), and solves the reduced system by
@@ -498,6 +521,35 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   150 x 100 mm panel at 5 J on a 10 mm mesh: 0.490 -> 0.469, the growth
   stress now below first-ply failure; 15 and 30 J unchanged; not
   re-measured further here).
+- **fe3d CAI rescaled the delamination growth stress (#166).**
+  `BvidAnalysis` reported `σ₀ × min(1, min(σ_growth, FPF_damaged) /
+  FPF_undamaged)`: the closed-form growth stress, already a far-field
+  stress on the pristine scale, was divided by fe3d's undamaged LaRC05
+  first-ply failure along with the damaged one. Where growth governs fe3d
+  then came out above `semi_analytical`'s growth bound for the same
+  growth stress, by up to `σ₀ / FPF_undamaged`. It is now
+  `min(σ_growth, σ₀ × min(1, FPF_damaged / FPF_undamaged))`, and a note
+  says which channel governs. The new `fe_tier.fe3d_cai_channels` returns
+  the growth record and the first-ply-failure stress, which
+  `BvidAnalysis` reuses instead of recomputing the growth for its notes;
+  `fe3d_cai` keeps its signature. The undamaged first-ply failure is not
+  exactly `σ₀` for any shipped layup (it is a 3D solve with free edges):
+  on 150 x 100 mm panels at a 5 mm mesh it is 0.997 / 0.992 / 1.000 of
+  `σ₀` for 8-ply QI, 16-ply QI and `[0/90]2s` IM7/8552 and 0.837 for
+  AS4/3501-6 QI, whose 90 deg plies fail in matrix compression first.
+  First-ply-failure-governed results are unchanged bit for bit; where
+  growth governs, fe3d now gives the semi-analytical growth stress: 8-ply
+  QI IM7/8552 at 5 J (10 mm mesh) 0.4692 -> 0.4687, AS4/3501-6 QI 0.595 ->
+  0.577, `[45/-45/90]s` IM7/8552 0.552 -> 0.433 (282.9 -> 221.9 MPa;
+  `FPF_undamaged / σ₀` = 0.64), `[±15]2s` 0.396 -> 0.313. `[±45]2s` is
+  first-ply-failure governed and unchanged. Of the three coupons the
+  damage-zone factor is fitted to, the first Lovejoy & Scotti hard
+  laminate goes from first-ply failure, 236.4 MPa (+0.3%), to its growth
+  stress, 227.5 MPa (-3.5% against 235.7 MPa measured); the first NCAMP
+  and Lovejoy & Scotti QI coupons are unchanged (-20.6%, +1.2%).
+  `DAMAGE_ZONE_INPLANE_FACTOR` is not refitted: re-measured, 0.15 still
+  has the lowest mean error of the factors tried (8.4%, against 13.8% /
+  9.0% / 9.9% for 0.13 / 0.17 / 0.20; it was 7.4%).
 - **fe3d TAI dropped a measured fibre-break core smaller than an element,
   and the hole with it (#164).** A C-scan's `fiber_break_radius_mm`
   switched fe3d TAI's fibre-damage hole off in favour of the meshed core,
@@ -893,6 +945,16 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - Leftovers of the removed PyQt6 GUI: `scripts/visual_matrix.py` and
   `docs/BUILD.md`.
 - The unused `_ply_thickness_from_json` helper in `app.py`.
+- Code only tests called (#167): `DamageState.per_interface_area` (sum
+  `e.area_mm2` over `damage.delaminations` by `e.interface_index`
+  instead), `bvidfe.failure.tsai_wu.tsai_wu_strength_uniaxial` (the
+  uniaxial Tsai-Wu index is 1 at the ply strength in that direction;
+  `tsai_wu_index` gives it), and the private scalar duplicates
+  `shape_templates._aspect_ratio` / `_orientation_deg` / `_relative_size`
+  (`_template_arrays` is the implementation) and
+  `fe_mesh._point_in_ellipse` (`_points_in_ellipse`). The fe3d test
+  helpers `QI8` and `impact_cfg` moved to `tests/analysis/_fe3d_fixtures.py`
+  (one test module imported them from another through `sys.path`).
 
 ## [0.2.0] - 2026-05-21
 
