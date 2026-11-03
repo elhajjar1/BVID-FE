@@ -137,12 +137,16 @@ mid-surface `u_z` restraint as well (the final code; coupon damage areas
 | Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 | Mean error |
 |---|---|---|---|---|
 | 0.13 | −26.7% | −6.8% | −7.9% | 13.8% |
-| 0.15 (default) | −20.6% | +1.2% | +0.3% | 7.4% |
-| 0.17 | −14.6% | +9.0% | +7.9% | 10.5% |
-| 0.20 | −5.6% | +20.6% | +11.1% | 12.4% |
+| 0.15 (default) | −20.6% | +1.2% | −3.5% | 8.4% |
+| 0.17 | −14.6% | +9.0% | −3.5% | 9.0% |
+| 0.20 | −5.6% | +20.6% | −3.5% | 9.9% |
 
-0.15 is kept, with the lowest mean error, 7.4%: 141.0 MPa (177.7
-measured), 148.6 MPa (146.8) and 236.4 MPa (235.7). No single factor fits
+0.15 is kept, with the lowest mean error, 8.4%: 141.0 MPa (177.7
+measured), 148.6 MPa (146.8) and 227.5 MPa (235.7). From 0.15 up the
+hard laminate is set by its delamination growth stress, which the factor
+does not change; before issue #166 fe3d rescaled that stress by
+σ0 / FPF_undamaged and first-ply failure set it (+0.3% / +7.9% / +11.1%
+at 0.15 / 0.17 / 0.20, mean errors 7.4% / 10.5% / 12.4%). No single factor fits
 both families within 5%: NCAMP wants about 0.22 and Lovejoy & Scotti
 about 0.15, and any factor that moves one family towards its measured
 strength moves the other away. The earlier fit of all three within 5%
