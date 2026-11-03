@@ -10,14 +10,18 @@ from typing import Union
 
 from bvidfe._types import LoadingMode
 from bvidfe.analysis.config import AnalysisConfig
-from bvidfe.analysis.fe_tier import fe3d_cai, fe3d_cai_buckling, fe3d_tai, tai_fibre_damage_hole
+from bvidfe.analysis.fe_tier import (
+    fe3d_cai_buckling,
+    fe3d_cai_channels,
+    fe3d_tai,
+    tai_fibre_damage_hole,
+)
 from bvidfe.analysis.results import AnalysisResults
 from bvidfe.analysis.semi_analytical import (
     SemiAnalyticalResult,
     panel_buckling_load,
     semi_analytical_cai,
     semi_analytical_tai,
-    weakest_sublaminate_growth,
 )
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
@@ -234,72 +238,69 @@ class BvidAnalysis:
             notes=notes,
         )
 
-    def _fe3d_raw_strength(self, lam: Laminate, damage: DamageState) -> float:
-        """Uncapped fe3d strength (MPa): ``fe3d_cai`` (delamination growth or
-        first-ply failure) in compression, first-ply failure in tension.
-
-        Called with an infinite pristine cap so that two results above
-        ``_pristine_strength`` still keep their true ratio.
-        """
-        if self.config.loading == "compression":
-            return fe3d_cai(self.config, damage, lam, math.inf)
-        return fe3d_tai(self.config, damage, lam, math.inf)
-
     def _fe3d(
         self, lam: Laminate, damage: DamageState, sigma_0: float
     ) -> tuple[float, list[float] | None, int | None, list[str]]:
         """fe3d residual strength on the shared pristine scale.
 
-        fe3d's own failure stresses (delamination growth, first-ply failure
-        on the 3D mesh) are not the same quantity as ``_pristine_strength``,
-        so dividing one by the other reported a knockdown below 1 for an
-        undamaged panel. The knockdown is instead fe3d's damaged strength
-        over its own undamaged strength, applied to ``sigma_0`` so that
-        ``pristine_strength_MPa`` stays the same for every tier and
-        ``knockdown = residual / pristine`` still holds. This costs a second
-        fe3d solve on the undamaged mesh.
+        fe3d's first-ply-failure stress (on the 3D mesh) is not the same
+        quantity as ``_pristine_strength``, so dividing one by the other
+        reported a knockdown below 1 for an undamaged panel. It is instead
+        taken as fe3d's damaged over its own undamaged first-ply failure,
+        applied to ``sigma_0``, so that ``pristine_strength_MPa`` stays the
+        same for every tier and ``knockdown = residual / pristine`` still
+        holds. This costs a second fe3d solve on the undamaged mesh.
 
-        In compression, buckling onset (whole panel or sublaminate) is
-        reported but does not enter the knockdown; see ``fe3d_cai``.
+        In compression the delamination growth stress is a closed-form
+        far-field stress, the one ``semi_analytical`` uses, so it is compared
+        with the normalised first-ply failure as it is, not rescaled:
+        ``residual = min(sigma_growth, sigma_0 * FPF_damaged / FPF_undamaged)``
+        (issue #166; the growth stress used to be rescaled by
+        ``sigma_0 / FPF_undamaged`` too, which put fe3d above
+        ``semi_analytical`` wherever growth governs). Buckling onset (whole
+        panel or sublaminate) is reported but does not enter the residual;
+        see ``fe3d_cai``.
 
         Returns ``(residual_MPa, buckling_eigenvalues, critical_interface,
         notes)``.
         """
-        sigma_damaged = self._fe3d_raw_strength(lam, damage)
-        sigma_undamaged = self._fe3d_raw_strength(
-            lam, DamageState(delaminations=[], dent_depth_mm=0.0)
-        )
-        knockdown = min(1.0, sigma_damaged / sigma_undamaged)
-        notes = [
-            f"fe3d knockdown = damaged {sigma_damaged:.1f} MPa / undamaged "
-            f"{sigma_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
-            f"pristine_strength_MPa"
-        ]
+        undamaged = DamageState(delaminations=[], dent_depth_mm=0.0)
         if self.config.loading != "compression":
-            hole = tai_fibre_damage_hole(self.config, damage, lam)
-            if hole is not None:
-                size = (
-                    "the damage state's fibre-break core, not meshed"
-                    if damage.fiber_break_radius_mm >= hole[0]
-                    else "below the mesh"
-                )
-                notes.append(
-                    f"fe3d TAI: fibre damage as the closed-form equivalent hole "
-                    f"({2 * hole[0]:.2f} mm across, {size}), a Whitney-Nuismer "
-                    f"notch x{1 / hole[1]:.3f} on the stress of the elements under it"
-                )
-                notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
-            return sigma_0 * knockdown, None, None, notes
+            return self._fe3d_tai(lam, damage, undamaged, sigma_0)
 
+        growth, fpf_damaged = fe3d_cai_channels(self.config, damage, lam, math.inf)
+        _, fpf_undamaged = fe3d_cai_channels(self.config, undamaged, lam, math.inf)
+        sigma_fpf = sigma_0 * min(1.0, fpf_damaged / fpf_undamaged)
+        notes = [
+            f"fe3d first-ply failure = damaged {fpf_damaged:.1f} MPa / undamaged "
+            f"{fpf_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
+            f"pristine_strength_MPa: {sigma_fpf:.1f} MPa"
+        ]
         panel = self.config.panel
         critical_interface = None
-        growth = weakest_sublaminate_growth(lam, damage, boundary=panel.boundary)
+        sigma_growth = math.inf
         if growth is not None and math.isfinite(growth.growth_stress_MPa):
             critical_interface = growth.interface_index
+            sigma_growth = growth.growth_stress_MPa
             notes.append(
                 f"fe3d delamination growth: interface {growth.interface_index} grows at "
                 f"{growth.growth_stress_MPa:.1f} MPa (its sublaminate buckles at a film "
                 f"stress of {growth.film_buckling_stress_MPa:.1f} MPa)"
+            )
+        if sigma_growth < sigma_fpf:
+            notes.append(
+                f"fe3d CAI: delamination growth governs ({sigma_growth:.1f} MPa, below "
+                f"first-ply failure at {sigma_fpf:.1f} MPa)"
+            )
+        elif math.isfinite(sigma_growth):
+            notes.append(
+                f"fe3d CAI: first-ply failure governs ({sigma_fpf:.1f} MPa, below "
+                f"delamination growth at {sigma_growth:.1f} MPa)"
+            )
+        else:
+            notes.append(
+                f"fe3d CAI: first-ply failure governs ({sigma_fpf:.1f} MPa; no "
+                f"delamination grows)"
             )
         N_cr_panel = panel_buckling_load(lam, panel.Lx_mm, panel.Ly_mm, panel.boundary)
         sigma_panel = N_cr_panel / lam.thickness_mm
@@ -311,7 +312,37 @@ class BvidAnalysis:
         _, lambda_crit, buckling_notes = fe3d_cai_buckling(self.config, damage, lam, math.inf)
         notes.extend(buckling_notes)
         buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
-        return sigma_0 * knockdown, buckling_eigs, critical_interface, notes
+        return float(min(sigma_growth, sigma_fpf)), buckling_eigs, critical_interface, notes
+
+    def _fe3d_tai(
+        self, lam: Laminate, damage: DamageState, undamaged: DamageState, sigma_0: float
+    ) -> tuple[float, list[float] | None, int | None, list[str]]:
+        """fe3d tension after impact: fe3d's damaged over undamaged
+        first-ply failure (``fe3d_tai``, uncapped so that two results above
+        ``_pristine_strength`` still keep their true ratio), applied to
+        ``sigma_0``."""
+        sigma_damaged = fe3d_tai(self.config, damage, lam, math.inf)
+        sigma_undamaged = fe3d_tai(self.config, undamaged, lam, math.inf)
+        knockdown = min(1.0, sigma_damaged / sigma_undamaged)
+        notes = [
+            f"fe3d knockdown = damaged {sigma_damaged:.1f} MPa / undamaged "
+            f"{sigma_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
+            f"pristine_strength_MPa"
+        ]
+        hole = tai_fibre_damage_hole(self.config, damage, lam)
+        if hole is not None:
+            size = (
+                "the damage state's fibre-break core, not meshed"
+                if damage.fiber_break_radius_mm >= hole[0]
+                else "below the mesh"
+            )
+            notes.append(
+                f"fe3d TAI: fibre damage as the closed-form equivalent hole "
+                f"({2 * hole[0]:.2f} mm across, {size}), a Whitney-Nuismer "
+                f"notch x{1 / hole[1]:.3f} on the stress of the elements under it"
+            )
+            notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
+        return sigma_0 * knockdown, None, None, notes
 
     def _resolve_damage(self, lam: Laminate) -> DamageState:
         if self.config.damage is not None:

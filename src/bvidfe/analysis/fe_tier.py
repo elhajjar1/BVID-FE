@@ -28,7 +28,9 @@ checked against 1; at the default 5 mm mesh that disk holds only the
 element itself. The
 failure stress is the reaction force on the loaded edge over the gross
 section. ``BvidAnalysis`` divides the damaged result by the same quantity
-on the undamaged mesh and applies the ratio to the pristine strength.
+on the undamaged mesh and applies the ratio to the pristine strength; in
+compression it then takes the lower of that and the growth stress, which
+is already on the pristine scale and is not rescaled (issue #166).
 
 Buckling onset (whole panel and sublaminate, Rayleigh-Ritz closed form) is
 reported by :func:`fe3d_cai_buckling` but does not enter the residual.
@@ -45,7 +47,7 @@ import logging
 import os
 import sys
 import time
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from scipy.ndimage import convolve
@@ -71,6 +73,7 @@ from bvidfe.failure.soutis_openhole import (
 )
 from bvidfe.failure.tsai_wu import tsai_wu_index, tsai_wu_index_batch
 from bvidfe.analysis.semi_analytical import (
+    SublaminateGrowth,
     find_critical_interface,
     panel_buckling_load,
     sublaminate_buckling_load,
@@ -860,27 +863,50 @@ def fe3d_cai_buckling(
     return min(sigma_critical, sigma_pristine_MPa), lambda_crit, notes
 
 
+def fe3d_cai_channels(
+    cfg: AnalysisConfig,
+    damage: DamageState,
+    lam: Laminate,
+    sigma_pristine_MPa: float,
+) -> tuple[Optional[SublaminateGrowth], float]:
+    """The two fe3d compression-after-impact channels, each in MPa.
+
+    Returns ``(growth, sigma_fpf)``: the weakest delamination's growth by
+    sublaminate buckling
+    (:func:`bvidfe.analysis.semi_analytical.weakest_sublaminate_growth`,
+    ``None`` without delaminations) and first-ply failure on the damaged
+    mesh (``_fe3d_cai_first_ply_failure``, capped at ``sigma_pristine_MPa``).
+
+    The two are on different scales: the growth stress is a closed-form
+    far-field stress, the same one ``semi_analytical`` uses, while the
+    first-ply-failure stress is fe3d's own and ``BvidAnalysis`` normalises
+    it by an undamaged fe3d run before comparing the two (issue #166).
+    """
+    growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    sigma_fpf = _fe3d_cai_first_ply_failure(cfg, damage, lam, sigma_pristine_MPa)
+    return growth, sigma_fpf
+
+
 def fe3d_cai(
     cfg: AnalysisConfig,
     damage: DamageState,
     lam: Laminate,
     sigma_pristine_MPa: float,
 ) -> float:
-    """3D FE compression-after-impact residual strength (MPa).
+    """3D FE compression-after-impact strength (MPa), unnormalised.
 
-    The smaller of the far-field stress at which the weakest delamination
-    grows by sublaminate buckling
-    (:func:`bvidfe.analysis.semi_analytical.weakest_sublaminate_growth`)
-    and first-ply failure on the damaged mesh
-    (``_fe3d_cai_first_ply_failure``, capped at ``sigma_pristine_MPa``).
+    The smaller of the two :func:`fe3d_cai_channels`: the far-field stress
+    at which the weakest delamination grows by sublaminate buckling and
+    first-ply failure on the damaged mesh (capped at ``sigma_pristine_MPa``).
+    ``BvidAnalysis`` does not use this minimum: it puts the first-ply-failure
+    stress on the pristine scale first (see ``BvidAnalysis._fe3d``).
 
     Whole-panel buckling (:func:`fe3d_cai_buckling`) is left out: a CAI
     fixture's anti-buckling guides suppress it, so it is a property of the
     test setup rather than of the damage.
     """
-    growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    growth, sigma_fpf = fe3d_cai_channels(cfg, damage, lam, sigma_pristine_MPa)
     sigma_growth = growth.growth_stress_MPa if growth is not None else float("inf")
-    sigma_fpf = _fe3d_cai_first_ply_failure(cfg, damage, lam, sigma_pristine_MPa)
     return min(sigma_growth, sigma_fpf)
 
 

@@ -441,6 +441,35 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   150 x 100 mm panel at 5 J on a 10 mm mesh: 0.490 -> 0.469, the growth
   stress now below first-ply failure; 15 and 30 J unchanged; not
   re-measured further here).
+- **fe3d CAI rescaled the delamination growth stress (#166).**
+  `BvidAnalysis` reported `σ₀ × min(1, min(σ_growth, FPF_damaged) /
+  FPF_undamaged)`: the closed-form growth stress, already a far-field
+  stress on the pristine scale, was divided by fe3d's undamaged LaRC05
+  first-ply failure along with the damaged one. Where growth governs fe3d
+  then came out above `semi_analytical`'s growth bound for the same
+  growth stress, by up to `σ₀ / FPF_undamaged`. It is now
+  `min(σ_growth, σ₀ × min(1, FPF_damaged / FPF_undamaged))`, and a note
+  says which channel governs. The new `fe_tier.fe3d_cai_channels` returns
+  the growth record and the first-ply-failure stress, which
+  `BvidAnalysis` reuses instead of recomputing the growth for its notes;
+  `fe3d_cai` keeps its signature. The undamaged first-ply failure is not
+  exactly `σ₀` for any shipped layup (it is a 3D solve with free edges):
+  on 150 x 100 mm panels at a 5 mm mesh it is 0.997 / 0.992 / 1.000 of
+  `σ₀` for 8-ply QI, 16-ply QI and `[0/90]2s` IM7/8552 and 0.837 for
+  AS4/3501-6 QI, whose 90 deg plies fail in matrix compression first.
+  First-ply-failure-governed results are unchanged bit for bit; where
+  growth governs, fe3d now gives the semi-analytical growth stress: 8-ply
+  QI IM7/8552 at 5 J (10 mm mesh) 0.4692 -> 0.4687, AS4/3501-6 QI 0.595 ->
+  0.577, `[45/-45/90]s` IM7/8552 0.552 -> 0.433 (282.9 -> 221.9 MPa;
+  `FPF_undamaged / σ₀` = 0.64), `[±15]2s` 0.396 -> 0.313. `[±45]2s` is
+  first-ply-failure governed and unchanged. Of the three coupons the
+  damage-zone factor is fitted to, the first Lovejoy & Scotti hard
+  laminate goes from first-ply failure, 236.4 MPa (+0.3%), to its growth
+  stress, 227.5 MPa (-3.5% against 235.7 MPa measured); the first NCAMP
+  and Lovejoy & Scotti QI coupons are unchanged (-20.6%, +1.2%).
+  `DAMAGE_ZONE_INPLANE_FACTOR` is not refitted: re-measured, 0.15 still
+  has the lowest mean error of the factors tried (8.4%, against 13.8% /
+  9.0% / 9.9% for 0.13 / 0.17 / 0.20; it was 7.4%).
 - **fe3d TAI dropped a measured fibre-break core smaller than an element,
   and the hole with it (#164).** A C-scan's `fiber_break_radius_mm`
   switched fe3d TAI's fibre-damage hole off in favour of the meshed core,

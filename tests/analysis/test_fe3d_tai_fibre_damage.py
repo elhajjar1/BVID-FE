@@ -218,9 +218,12 @@ def test_fe3d_tai_falls_with_energy_with_the_closed_form():
 # value is recaptured for #165: fe3d CAI takes min(growth, FPF) and, with
 # the sublaminate buckling rectangle following the ellipse orientation, the
 # growth stress at 5 J fell from 300.5 to 281.8 MPa and now governs there
-# (0.490 -> 0.469); 15 and 30 J stay at first-ply failure.
+# (0.490 -> 0.469); 15 and 30 J stay at first-ply failure. Recaptured for
+# #166: the growth stress is no longer rescaled by sigma0 / FPF_undamaged
+# (601.3 / 600.7 MPa here), so at 5 J the knockdown is the semi_analytical
+# one, 281.8 / 601.3 (0.46916 -> 0.46868); 15 and 30 J are unchanged.
 _CAI_KNOCKDOWN_BEFORE = {
-    5.0: 0.4691595567346301,
+    5.0: 0.46868164181012084,
     15.0: 0.301015353370238,
     30.0: 0.23529319659770684,
 }
