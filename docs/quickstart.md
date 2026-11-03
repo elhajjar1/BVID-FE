@@ -10,8 +10,10 @@ cd BVID-FE
 pip install -e ".[dev]"
 ```
 
-`pip install bvidfe` installs the library and the `bvidfe` command alone
-(`pip install "bvidfe[app]"` adds Streamlit). The examples, the sample
+`pip install git+https://github.com/elhajjar1/BVID-FE.git` installs the
+library and the `bvidfe` command alone, without a clone; once 0.3.0 is on
+PyPI, `pip install bvidfe` will do the same (`pip install "bvidfe[app]"`
+adds Streamlit). The examples, the sample
 C-scan, the notebook, the validation harness and the Streamlit app
 (`app.py`) are only in the clone.
 

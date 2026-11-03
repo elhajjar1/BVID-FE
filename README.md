@@ -54,12 +54,15 @@ and [Validation](https://github.com/elhajjar1/BVID-FE#validation).
 
 ## Installation
 
-From PyPI:
+BVID-FE is not on PyPI yet. Install it from GitHub:
 
 ```bash
-pip install bvidfe            # library and the `bvidfe` command
-pip install "bvidfe[app]"     # also installs Streamlit, for the web app
+pip install git+https://github.com/elhajjar1/BVID-FE.git                # library and the `bvidfe` command
+pip install "bvidfe[app] @ git+https://github.com/elhajjar1/BVID-FE.git"  # also installs Streamlit, for the web app
 ```
+
+Once 0.3.0 is on PyPI, `pip install bvidfe` (or `pip install "bvidfe[app]"`)
+will do the same.
 
 The package contains the library and the CLI. The Streamlit app
 (`app.py`), the example scripts and data (`examples/`, including the
@@ -357,7 +360,7 @@ If you use BVID-FE in your research, please cite:
   title     = {{BVID-FE}: Barely Visible Impact Damage residual-strength analysis
                for composite laminates},
   year      = {2026},
-  version   = {0.2.0},
+  version   = {0.3.0},
   publisher = {GitHub},
   url       = {https://github.com/elhajjar1/BVID-FE},
   note      = {University of Wisconsin-Milwaukee}
