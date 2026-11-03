@@ -437,6 +437,15 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Fixed
 
+- **A CG breakdown in the fe3d solver no longer leaks a numpy
+  `RuntimeWarning`.** When the preconditioned residual product `r . M r`
+  is 0, scipy's CG divides 0 by 0 ("invalid value encountered in scalar
+  divide"; seen with the ILU on macOS / Python 3.12). The solver already
+  rejected the non-finite result and fell back to GMRES and then the
+  direct solve, so the answer was right, but the warning reached the user
+  (and, with `filterwarnings = ["error"]`, failed
+  `test_external_force_with_elimination` on that CI cell). The Krylov
+  solves now run under `np.errstate` for those cases.
 - **Results JSON damage could not be re-run (#170).**
   `AnalysisResults.to_dict()["damage"]` was a hand-rolled copy of the
   C-scan layout without `schema_version`, so feeding it (or the CLI's or
