@@ -313,6 +313,15 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - **Streamlit app** uses `width="stretch"` / `width="content"` in place of
   the deprecated `use_container_width`, so it no longer logs a
   deprecation warning for every button, table and chart.
+- **NCR / MRB disposition logic moved out of `app.py` (#172)** into the
+  new `bvidfe.report.ncr`: `recommend_disposition(result_dict,
+  dent_threshold_mm=BVID_DENT_THRESHOLD_MM)` and `build_ncr(form, cfg,
+  result_dict, rec, *, generated_utc=None)` (an optional timestamp makes
+  the document reproducible), with unit tests in `tests/report/`. The
+  knockdown bands are module constants, `KD_USE_AS_IS` = 0.97,
+  `KD_SUBSTANTIATE` = 0.85 and `KD_REPAIR` = 0.70, documented as
+  placeholder engineering-judgement bands, not values from a cited
+  standard. The Export NCR tab's output is unchanged.
 
 ### Fixed
 

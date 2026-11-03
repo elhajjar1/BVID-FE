@@ -64,6 +64,7 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | `viz/` | `plots_2d.py` | Damage-map ellipse overlay (with impact location + fiber-break-core markers), knockdown curves, per-tier comparison charts (matplotlib). |
 | | `plotly_3d.py` | Plotly 3D figures of the hex mesh coloured by damage factor (`mesh_damage_figure`) or any per-element scalar (`stress_field_figure`), for the Streamlit app. |
 | | `style.py` | Publication styling constants (fonts, DPI, color maps). |
+| `report/` | `ncr.py` | Nonconformance Report for the app's Export NCR tab: `recommend_disposition` (proposed MRB path from the knockdown, dent and fibre-break bands; the `KD_*` bands are placeholders, not from a cited standard) and `build_ncr` (Markdown + dict). Pure functions. |
 | `sweep/` | `parametric_sweep.py` | `sweep_energies`, `sweep_layups`, `sweep_thicknesses` with `on_error` (`raise`/`skip`/`warn`) and optional `progress_callback`; CSV output, partial-result preserving. |
 | `cli.py` | — | `bvidfe` entry point; argparse with `choices=` for `--material` / `--loading`, comma-separated `--tier` list, custom positive-float / existing-path types, `--quick` (bare scalar) and `--quick-json` (single-line object) output modes, `--list-materials`. |
 
