@@ -84,17 +84,6 @@ _SHAPE_DPA_FACTOR = SHAPE_DPA_FACTOR
 _DIAMETER_REF_MM = DIAMETER_REF_MM
 _DIAMETER_DPA_EXPONENT = DIAMETER_DPA_EXPONENT
 
-# ImpactorGeometry's docstring quotes these values; fill them in here so the
-# two cannot drift (bvidfe.core.geometry cannot import this module: this
-# module imports it). Skipped when docstrings are stripped (python -OO).
-if ImpactorGeometry.__doc__:
-    ImpactorGeometry.__doc__ = ImpactorGeometry.__doc__.format(
-        diameter_ref_mm=DIAMETER_REF_MM,
-        diameter_exponent=DIAMETER_DPA_EXPONENT,
-        flat_factor=SHAPE_DPA_FACTOR["flat"],
-        conical_factor=SHAPE_DPA_FACTOR["conical"],
-    )
-
 
 def _shape_dpa_factor(shape: str) -> float:
     return SHAPE_DPA_FACTOR.get(shape, 1.0)

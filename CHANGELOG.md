@@ -269,9 +269,9 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - `bvidfe.impact.mapping.SHAPE_DPA_FACTOR`, `DIAMETER_DPA_EXPONENT` and
   `DIAMETER_REF_MM`, public names for the impactor-shape and -diameter
   damage-area corrections (the underscore names remain as aliases). The
-  app's impactor help and the `ImpactorGeometry` docstring are formatted
-  from them; both had quoted a stale cone factor (1.3x and 1.5x; it is
-  1.9x) (#174).
+  app's impactor help is formatted from them and the `ImpactorGeometry`
+  docstring names them instead of quoting values; both had quoted a stale
+  cone factor (1.3x and 1.5x; it is 1.9x) (#174).
 
 ### Changed
 

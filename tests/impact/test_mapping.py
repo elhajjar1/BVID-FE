@@ -147,15 +147,12 @@ def test_public_dpa_constants_and_aliases():
     assert _shape_dpa_factor("conical") == mapping.SHAPE_DPA_FACTOR["conical"]
 
 
-def test_impactor_geometry_docstring_quotes_mapping_constants():
-    """ImpactorGeometry's docstring is filled in from bvidfe.impact.mapping,
-    so it cannot drift from the factors the code applies (issue #174)."""
-    from bvidfe.impact import mapping
-
+def test_impactor_geometry_docstring_names_mapping_constants():
+    """ImpactorGeometry's docstring points at the factors the code applies
+    instead of quoting their values, so it cannot drift from them (#174;
+    it used to say x1.5 for conical while the code used 1.9)."""
     doc = ImpactorGeometry.__doc__
     if doc is None:  # python -OO
         pytest.skip("docstrings stripped")
-    assert "{" not in doc and "}" not in doc
-    assert f"x{mapping.SHAPE_DPA_FACTOR['flat']:g} for flat" in doc
-    assert f"x{mapping.SHAPE_DPA_FACTOR['conical']:g}" in doc
-    assert f"** {mapping.DIAMETER_DPA_EXPONENT:g}" in doc
+    assert "SHAPE_DPA_FACTOR" in doc and "DIAMETER_DPA_EXPONENT" in doc
+    assert "{" not in doc
