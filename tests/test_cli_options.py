@@ -153,9 +153,23 @@ def test_location_reaches_the_impact_event(capsys):
     assert xs == {60.0}
 
 
-def test_location_default_is_the_panel_centre_sentinel(capsys):
+def test_location_default_is_the_panel_centre(capsys):
+    """No ``--location`` is ``location_xy_mm=None``, the panel centre (#171)."""
     data = _json(["--energy", "10"], capsys)
-    assert data["config_snapshot"]["impact"]["location_xy_mm"] == [0.0, 0.0]
+    assert data["config_snapshot"]["impact"]["location_xy_mm"] is None
+    assert {tuple(d["centroid_mm"]) for d in data["damage"]["delaminations"]} == {(75.0, 50.0)}
+
+
+def test_location_origin_is_a_deprecated_centre(capsys):
+    """``--location 0 0`` was the centre sentinel; it still runs a centre
+    impact, with a deprecation note on stderr (the library's
+    ``DeprecationWarning`` is hidden by default outside ``__main__``)."""
+    code, out, err = _main(["--energy", "10", "--location", "0", "0"], capsys)
+    assert code == 0, err
+    assert "bvidfe: warning:" in err and "deprecated" in err and "--location" in err
+    data = json.loads(out)
+    assert data["config_snapshot"]["impact"]["location_xy_mm"] is None
+    assert data == _json(["--energy", "10"], capsys)
 
 
 @pytest.mark.parametrize("bad", [["nan", "10"], ["10"], ["a", "b"]])

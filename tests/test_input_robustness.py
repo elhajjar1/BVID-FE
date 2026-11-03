@@ -267,9 +267,11 @@ def test_impact_event_zero_energy_is_allowed():
 
 
 def test_impact_event_list_location_keeps_panel_centre_sentinel():
-    """JSON gives ``[0.0, 0.0]``; it must mean the panel centre like the tuple."""
-    ev_list = ImpactEvent(energy_J=20.0, location_xy_mm=[0.0, 0.0])
-    assert ev_list.location_xy_mm == (0.0, 0.0)
+    """JSON gives ``[0.0, 0.0]``; it must mean the panel centre like the
+    tuple (deprecated in favour of ``None``, #171)."""
+    with pytest.warns(DeprecationWarning, match="location_xy_mm=None"):
+        ev_list = ImpactEvent(energy_J=20.0, location_xy_mm=[0.0, 0.0])
+    assert ev_list.location_xy_mm is None
     lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], LAYUP, 0.152)
     panel = PanelGeometry(150.0, 100.0)
     a = impact_to_damage(ev_list, lam, panel)

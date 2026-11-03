@@ -85,13 +85,13 @@ def test_config_from_dict_round_trips_ply_thickness(monkeypatch, thickness) -> N
             "energy_J": 20.0,
             "impactor": {"diameter_mm": 16.0, "shape": "hemispherical"},
             "mass_kg": 5.5,
-            "location_xy_mm": [0.0, 0.0],
+            "location_xy_mm": None,
         },
         "damage": None,
     }
     cfg = app_module._config_from_dict(d)
     assert cfg.ply_thickness_mm == thickness
-    assert cfg.impact.location_xy_mm == (0.0, 0.0)
+    assert cfg.impact.location_xy_mm is None
     assert "mm" in app_module._format_ply_thickness(cfg.ply_thickness_mm)
 
 
@@ -297,6 +297,32 @@ def test_url_centre_impact_omits_location_keys(_no_stats) -> None:
     for k in ("tp", "bc", "sh", "m"):
         assert k in at.query_params
     assert "x0" not in at.query_params and "y0" not in at.query_params
+
+
+def test_centre_impact_passes_location_none(_no_stats) -> None:
+    """*Centre of panel* runs ``location_xy_mm=None`` (the library's panel
+    centre, #171), not explicit centre coordinates."""
+    at = _run_analysis(_app_test())
+    _no_exception(at)
+    payload = at.session_state["last_result"]
+    assert payload["config"].impact.location_xy_mm is None
+    assert payload["config_dict"]["impact"]["location_xy_mm"] is None
+
+
+def test_off_centre_corner_point_is_an_error_not_a_centre_run(_no_stats) -> None:
+    """An off-centre point at the corner ``(0, 0)`` is not inside the panel.
+    The library still reads ``(0, 0)`` as the deprecated centre sentinel, so
+    the page must not pass it on: it is an error and the run is blocked."""
+    at = _app_test({"x0": "0", "y0": "0"})
+    _no_exception(at)
+    assert at.session_state["loc_centre"] is False
+    assert any("corner" in e.value and "inside the panel" in e.value for e in at.error), [
+        e.value for e in at.error
+    ]
+    at = _run_analysis(at)
+    _no_exception(at)
+    assert at.session_state["last_result"] is None
+    assert any("Configuration is incomplete" in e.value for e in at.error)
 
 
 def test_presets_reset_expert_values(monkeypatch) -> None:

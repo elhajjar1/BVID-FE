@@ -86,7 +86,10 @@
               "type": "number"
             }
           ],
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "mass_kg": {
           "type": "number"

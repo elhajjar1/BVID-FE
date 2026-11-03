@@ -518,7 +518,7 @@ def _onset_preview_cached(
     diameter_mm: float,
     shape: str,
     mass_kg: float,
-    loc_xy: tuple[float, float],
+    loc_xy: tuple[float, float] | None,
 ) -> tuple[str | None, str | None]:
     """Cached Olsson onset/DPA preview so it isn't recomputed every keystroke.
 
@@ -854,30 +854,31 @@ with st.sidebar:
         else:
             impactor_shape = st.session_state["impactor_shape"]
             mass_kg = float(st.session_state["mass_kg"])
-        if st.session_state["loc_centre"]:
-            loc_xy = (float(Lx_mm) / 2.0, float(Ly_mm) / 2.0)
-        else:
+        # None is the library's panel centre.
+        loc_xy: tuple[float, float] | None = None
+        if not st.session_state["loc_centre"]:
             loc_xy = (
                 min(max(float(st.session_state.get("loc_x_mm", Lx_mm / 2.0)), 0.0), float(Lx_mm)),
                 min(max(float(st.session_state.get("loc_y_mm", Ly_mm / 2.0)), 0.0), float(Ly_mm)),
             )
-            if loc_xy == (0.0, 0.0):
-                # bvidfe.impact.mapping reads exactly (0, 0) as the centre.
-                st.warning(
-                    "The impact point must lie inside the panel, and the "
-                    "library reads exactly (0, 0) as the panel centre: this "
-                    "runs a centre impact. Move the point off the corner."
-                )
-        try:
-            impact_event = ImpactEvent(
-                energy_J=energy_J,
-                impactor=ImpactorGeometry(diameter_mm=diameter_mm, shape=impactor_shape),
-                mass_kg=mass_kg,
-                location_xy_mm=loc_xy,
+        if loc_xy == (0.0, 0.0):
+            # The library still reads (0, 0) as its deprecated centre
+            # sentinel, so it must not get the corner (#171).
+            st.error(
+                "Invalid impact event: the impact point (0, 0) is the panel "
+                "corner; it must lie strictly inside the panel. Move it off "
+                "the corner, or tick *Centre of panel*."
             )
-        except (TypeError, ValueError) as exc:
-            st.error(f"Invalid impact event: {exc}")
-            impact_event = None
+        else:
+            try:
+                impact_event = ImpactEvent(
+                    energy_J=energy_J,
+                    impactor=ImpactorGeometry(diameter_mm=diameter_mm, shape=impactor_shape),
+                    mass_kg=mass_kg,
+                    location_xy_mm=loc_xy,
+                )
+            except (TypeError, ValueError) as exc:
+                st.error(f"Invalid impact event: {exc}")
     else:
         st.markdown("**C-scan inspection**")
         uploaded = st.file_uploader(
@@ -1063,7 +1064,11 @@ if config_valid:
                     "shape": impact_event.impactor.shape,
                 },
                 "mass_kg": impact_event.mass_kg,
-                "location_xy_mm": list(impact_event.location_xy_mm),
+                "location_xy_mm": (
+                    None
+                    if impact_event.location_xy_mm is None
+                    else list(impact_event.location_xy_mm)
+                ),
             }
         ),
         "damage": (
@@ -1115,7 +1120,11 @@ def _live_onset_preview() -> tuple[str | None, str | None]:
         float(impact_event.impactor.diameter_mm),
         impact_event.impactor.shape,
         float(impact_event.mass_kg),
-        tuple(float(v) for v in impact_event.location_xy_mm),
+        (
+            None
+            if impact_event.location_xy_mm is None
+            else (float(impact_event.location_xy_mm[0]), float(impact_event.location_xy_mm[1]))
+        ),
     )
 
 

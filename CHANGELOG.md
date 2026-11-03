@@ -78,6 +78,23 @@ constants are in [`validation/README.md`](validation/README.md).
 - Streamlit is no longer installed with the package. Install
   `pip install "bvidfe[app]"` (or `pip install -r requirements.txt`) for
   the web app; the `dev` extra still includes it.
+- `ImpactEvent.location_xy_mm` defaults to `None`, the panel centre, not
+  the `(0.0, 0.0)` sentinel (#171). `(0, 0)` (and JSON `[0, 0]`, so old
+  configs still load) is still read as the centre and stored as `None`,
+  with a `DeprecationWarning`; a later release will reject it, since the
+  corner is not inside the panel. Code that tests
+  `location_xy_mm == (0.0, 0.0)` for "centre" should test `is None`:
+
+  ```python
+  # 0.2.0
+  ImpactEvent(energy_J=10.0, location_xy_mm=(0.0, 0.0))  # centre
+  # now
+  ImpactEvent(energy_J=10.0)  # or location_xy_mm=None
+  ```
+
+  The CLI's `--location` defaults to the centre (`None`); `--location 0 0`
+  still runs a centre impact, with a deprecation warning on stderr. The
+  JSON schema allows `null` for `location_xy_mm`.
 
 **Changed definitions** (all results move; see *Results change*)
 
@@ -714,8 +731,9 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   calibration coupons' areas (2,800-6,500 mm^2) are resolved at 5 mm.
 - **Inputs that gave silent or deep errors**: NaN/inf geometry, ply
   thickness and angles; `ImpactEvent(location_xy_mm=[0, 0])` from JSON
-  (now a tuple, still the panel centre); a delamination outside the panel,
-  counted in the damage area but missed by the fe3d mesh (now
+  (still the panel centre, now deprecated for `None`); a delamination
+  outside the panel, counted in the damage area but missed by the fe3d
+  mesh (now
   `DamageOutsidePanelWarning`).
 - **CLI errors printed tracebacks** (malformed C-scan, invalid config,
   `FE3DSizeError`, a closed pipe); they are one-line errors with a nonzero
@@ -803,9 +821,11 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   - Impact location: a **Centre of panel** checkbox, and X / Y inputs
     measured from the panel corner and bounded to the panel, replace the
     `(0, 0)`-means-centre inputs, so an off-centre point such as
-    (75, 10) mm can be entered. The library's `location_xy_mm` still reads
-    exactly `(0, 0)` as the centre. When the onset preview cannot be
-    computed (e.g. a point on the panel edge) a caption says why instead
+    (75, 10) mm can be entered. A centre impact passes
+    `location_xy_mm=None`; an off-centre point at the corner `(0, 0)`,
+    which the library still reads as its deprecated centre sentinel, is
+    an error instead of a silent centre run. When the onset preview cannot
+    be computed (e.g. a point on the panel edge) a caption says why instead
     of the preview disappearing.
   - Knockdown Curve tab: the energy grid runs from 0.2 E to
     max(2 E, 0.2 E + 1 J), ascending (it descended below 1.25 J), and a

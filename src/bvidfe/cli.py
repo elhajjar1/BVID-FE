@@ -39,7 +39,6 @@ _BOUNDARIES: Tuple[str, ...] = typing.get_args(BoundaryKind)
 _IMPACTOR_SHAPES: Tuple[str, ...] = typing.get_args(ImpactorShape)
 _DEFAULT_IMPACTOR = ImpactorGeometry()
 _DEFAULT_MASS_KG: float = _field_default(ImpactEvent, "mass_kg")
-_DEFAULT_LOCATION: Tuple[float, float] = _field_default(ImpactEvent, "location_xy_mm")
 _DEFAULT_MESH = MeshParams()
 
 # Options that only describe the impact; with --cscan they would be ignored.
@@ -296,9 +295,8 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_finite_float,
         nargs=2,
         metavar=("X", "Y"),
-        help="Impact point in mm in the frame of the panel, origin at a corner "
-        f"(default: {_DEFAULT_LOCATION[0]:g} {_DEFAULT_LOCATION[1]:g}, which "
-        "means the panel centre). Impact-driven only.",
+        help="Impact point in mm in the frame of the panel, origin at a corner, "
+        "strictly inside the panel (default: the panel centre). Impact-driven only.",
     )
     p.add_argument(
         "--in-plane-size",
@@ -447,6 +445,16 @@ def _main(argv: Sequence[str] | None) -> int:
             parser.error(f"--cscan {args.cscan}: invalid C-scan file: {exc}")
         except (OSError, UnicodeDecodeError) as exc:
             parser.error(f"--cscan {args.cscan}: cannot read file: {exc}")
+    location = None if args.location is None else tuple(args.location)
+    if location is not None and location[0] == 0 and location[1] == 0:
+        # The pre-0.3 centre sentinel (#171). Said here, since the library's
+        # DeprecationWarning is hidden by default outside __main__.
+        sys.stderr.write(
+            "bvidfe: warning: --location 0 0 for the panel centre is deprecated "
+            "and will be rejected (the corner is not inside the panel); leave out "
+            "--location for the centre. Running a centre impact.\n"
+        )
+        location = None
     try:
         impact = None
         if args.energy is not None:
@@ -457,7 +465,7 @@ def _main(argv: Sequence[str] | None) -> int:
                     shape=_given(args.impactor_shape, _DEFAULT_IMPACTOR.shape),
                 ),
                 mass_kg=_given(args.mass, _DEFAULT_MASS_KG),
-                location_xy_mm=tuple(_given(args.location, _DEFAULT_LOCATION)),
+                location_xy_mm=location,
             )
         mesh = None
         if args.in_plane_size is not None or args.elements_per_ply is not None:
