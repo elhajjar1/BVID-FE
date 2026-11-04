@@ -121,14 +121,14 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # impact window: the first NCAMP AS4/8552 [45/0/-45/90]3s coupon, the first
 # Lovejoy & Scotti IM7/8552 [45/0/-45/90]4s coupon and their 40-ply hard
 # laminate. Error of the fe3d strength against the measured CAI (5 mm mesh):
-#   0.13: -26.7%, -6.8%, -7.9%     0.15: -20.6%, +1.2%, -3.5%
-#   0.17: -14.6%, +9.0%, -3.5%     0.20: -5.6%, +20.6%, -3.5%
-# 0.15 has the lowest mean error (8.4%). From 0.15 up the hard laminate is
-# set by its delamination growth stress (227.5 MPa), which the factor does
-# not change; until fe3d stopped rescaling that stress by
-# sigma0 / FPF_undamaged (issue #166) first-ply failure set it at every
-# factor (+0.3%, +7.9%, +11.1% at 0.15, 0.17, 0.20; mean error 7.4% at
-# 0.15, 10.5% at 0.17, 12.4% at 0.20). No single factor fits both
+#   0.13: -26.7%, -6.8%, -7.9%     0.15: -20.6%, +1.2%, +0.3%
+#   0.17: -14.6%, +9.0%, +7.9%     0.20: -5.6%, +20.6%, +15.0%
+# 0.15 has the lowest mean error (7.4%; 13.8%, 10.5% and 13.7% at 0.13,
+# 0.17 and 0.20). First-ply failure sets all three up to 0.17; at 0.20 the
+# hard laminate is set by its delamination growth stress (270.9 MPa). With
+# the enclosing-rectangle sublaminate before #132 that stress was 227.5 MPa
+# and set the hard laminate from 0.15 up (-3.5% at 0.15 to 0.20, mean
+# errors 8.4%, 9.0%, 9.9%). No single factor fits both
 # families: NCAMP wants about 0.22, Lovejoy & Scotti about 0.15. With the
 # old template (ply mismatch not wrapped modulo 180 deg) 0.17 fitted all
 # three within 5%.

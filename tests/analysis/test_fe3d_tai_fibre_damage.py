@@ -218,8 +218,12 @@ def test_fe3d_tai_falls_with_energy_with_the_closed_form():
 # #166: the growth stress is no longer rescaled by sigma0 / FPF_undamaged
 # (601.3 / 600.7 MPa here), so at 5 J the knockdown is the semi_analytical
 # one, 281.8 / 601.3 (0.46916 -> 0.46868); 15 and 30 J are unchanged.
+# Recaptured for #132 PR0: with the sublaminate a clamped ellipse on D*,
+# the growth stress at 5 J rose from 281.8 to 309.1 MPa, so first-ply
+# failure governs there too (294.8 MPa, 0.46868 -> 0.49030); 15 and 30 J
+# are unchanged.
 _CAI_KNOCKDOWN_BEFORE = {
-    5.0: 0.46868164181012084,
+    5.0: 0.490301045563204,
     15.0: 0.301015353370238,
     30.0: 0.23529319659770684,
 }

@@ -9,9 +9,9 @@ composite-after-impact test data.
 |---|---|---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.8% | 8.8% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 23.4% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 24.0% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
 | `korbelin_m21_t800s_tai` (not gated) | M21/T800S (T800S/3900-2B card) | TAI | 5 | 15% | 3.5% | 3.5% | In-sample for `tai_notch_fraction` (the only TAI fit) |
-| `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 1.2% (not gated) | Tautological (empirical-tier output) |
+| `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 0.0% (not gated) | Tautological (empirical-tier output) |
 
 These are the MAEs `validate_bvid_public.py` prints (rounded). Three
 things the gate does not show:
@@ -23,14 +23,17 @@ things the gate does not show:
   miss them and they are not gated.
 - **The semi-analytical growth channel is not exercised by the gate.**
   On every NCAMP and Lovejoy & Scotti coupon the Soutis bound is lower
-  than the delamination growth stress (176–177 against 205–206 MPa on
-  NCAMP; 156 against 182 MPa and 224 against 227–228 MPa on Lovejoy &
+  than the delamination growth stress (176–177 against 217–219 MPa on
+  NCAMP; 156 against 225–226 MPa and 224 against 271 MPa on Lovejoy &
   Scotti), so the two tiers give identical numbers there. On Hasebe et
-  al.'s set growth governs 256 of 343 coupons (154 of 157 cross-ply
-  c8/c16/c24, all 27 hard r0, 75 of 132 quasi-isotropic, no soft r45),
-  and on those 256 the semi-analytical MAE is 25.6% against 23.0%
-  empirical (both 17.2% on the other 87). The growth channel is therefore unvalidated, and
-  where it acts it makes the prediction worse.
+  al.'s set growth governs 176 of 343 coupons (94 of 157 cross-ply
+  c8/c16/c24, 15 of 27 hard r0, 67 of 132 quasi-isotropic, no soft r45),
+  and on those 176 the semi-analytical MAE is 28.6% against 23.9%
+  empirical (both 19.1% on the other 167). The growth channel is therefore unvalidated, and
+  where it acts it makes the prediction worse. (Before the
+  clamped-ellipse sublaminate of #132 the growth stresses were 205–206,
+  182 and 227–228 MPa, and growth governed 256 Hasebe coupons: 25.6%
+  against 23.0%, 17.2% on the other 87.)
 - **TAI is not validated.** The only measured tension data are one
   impact condition (`korbelin_m21_t800s_tai`, five coupons), and
   `tai_notch_fraction` is fitted to it; nothing out of sample tests the
@@ -137,16 +140,19 @@ mid-surface `u_z` restraint as well (the final code; coupon damage areas
 | Factor | NCAMP #0 | Lovejoy & Scotti QI #0 | Lovejoy & Scotti hard #4 | Mean error |
 |---|---|---|---|---|
 | 0.13 | −26.7% | −6.8% | −7.9% | 13.8% |
-| 0.15 (default) | −20.6% | +1.2% | −3.5% | 8.4% |
-| 0.17 | −14.6% | +9.0% | −3.5% | 9.0% |
-| 0.20 | −5.6% | +20.6% | −3.5% | 9.9% |
+| 0.15 (default) | −20.6% | +1.2% | +0.3% | 7.4% |
+| 0.17 | −14.6% | +9.0% | +7.9% | 10.5% |
+| 0.20 | −5.6% | +20.6% | +15.0% | 13.7% |
 
-0.15 is kept, with the lowest mean error, 8.4%: 141.0 MPa (177.7
-measured), 148.6 MPa (146.8) and 227.5 MPa (235.7). From 0.15 up the
-hard laminate is set by its delamination growth stress, which the factor
-does not change; before issue #166 fe3d rescaled that stress by
-σ0 / FPF_undamaged and first-ply failure set it (+0.3% / +7.9% / +11.1%
-at 0.15 / 0.17 / 0.20, mean errors 7.4% / 10.5% / 12.4%). No single factor fits
+0.15 is kept, with the lowest mean error, 7.4%: 141.0 MPa (177.7
+measured), 148.6 MPa (146.8) and 236.4 MPa (235.7). First-ply failure
+sets all three up to 0.17; at 0.20 the hard laminate is set by its
+delamination growth stress (270.9 MPa), which the factor does not change.
+With the enclosing-rectangle sublaminate before issue #132 that growth
+stress was 227.5 MPa and set the hard laminate from 0.15 up (−3.5% at
+0.15 / 0.17 / 0.20, mean errors 8.4% / 9.0% / 9.9%; the factor was not
+refitted, and 0.15 stays the lowest either way); before issue #166 fe3d
+rescaled it by σ0 / FPF_undamaged and first-ply failure set it. No single factor fits
 both families within 5%: NCAMP wants about 0.22 and Lovejoy & Scotti
 about 0.15, and any factor that moves one family towards its measured
 strength moves the other away. The earlier fit of all three within 5%
@@ -272,7 +278,8 @@ Before the refit (linear plate, the constants above) the MAEs were
 1.55% (NCAMP), 8.73% (Lovejoy & Scotti) and 21.19% / 23.07% (Hasebe et
 al., empirical / semi-analytical); after it they are 1.54%, 8.78% and
 21.53% / 23.35% (23.45% semi-analytical once the sublaminate buckling
-rectangle followed the ellipse orientation, #165). The NCAMP damage area
+rectangle followed the ellipse orientation, #165, and 23.97% with the
+clamped-ellipse sublaminate, #132). The NCAMP damage area
 is about 2,790 mm² either way.
 
 The in-sample numbers flatter the model. The fair measure is
@@ -373,7 +380,7 @@ dent is a median 0.94× the measured dent over the 308 with a positive one
 
 Why the model misses: the damage area is right, but the knockdown map is
 not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
-21.5% (empirical) and 23.4% (semi-analytical). The empirical MAE per
+21.5% (empirical) and 24.0% (semi-analytical). The empirical MAE per
 layup is 14% (c8), 31% (c16), 18% (c24), 20% (q8), 24% (q16), 37% (q24),
 15% (r0) and 4% (r45). The predicted knockdown averages 0.63 against 0.73
 measured. Two things remain:
@@ -453,10 +460,10 @@ composites", Band 41) was not located online.
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction.
-The semi-analytical tier scores 1.2% on it (TAI is the same model, and
-Soutis governs every compression case but the 5 J one, where the
-delamination growth stress is 14.5% lower), but CI does not run that
-tier on it. It
+The semi-analytical tier scores 0.0% on it (TAI is the same model, and
+Soutis governs every compression case; before the clamped-ellipse
+sublaminate of #132 the delamination growth stress was 14.5% lower at
+5 J, 1.2% MAE), but CI does not run that tier on it. It
 exercises the harness end-to-end and gates regressions in the empirical
 pipeline. Regenerate it when the empirical tier changes on purpose; there
 is no generator script, so rerun each case through the empirical tier and

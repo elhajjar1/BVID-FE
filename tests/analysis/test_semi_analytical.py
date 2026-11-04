@@ -1,10 +1,14 @@
 import math
 
+import numpy as np
 import pytest
+import scipy.linalg
 
 from bvidfe.analysis.semi_analytical import (
+    DegenerateThinSublaminateWarning,
     SemiAnalyticalResult,
-    _sublaminate_D_matrix,
+    _clamped_ellipse_load_factor,
+    _reduced_bending_stiffness,
     find_critical_interface,
     semi_analytical_cai,
     semi_analytical_tai,
@@ -155,137 +159,168 @@ def test_semi_analytical_tai_monotonic_in_dpa():
     assert t1 > t2
 
 
-def test_buckling_load_matches_closed_form_ssss_square():
-    """Regression test for Issue #29.
+def _reference_clamped_ellipse_N_cr(D, a, b, theta_deg, degree=14):
+    """Independent Rayleigh-Ritz reference for a clamped ellipse, worked in
+    the PANEL frame: semi-axes ``a`` (at ``theta_deg`` from x) and ``b``,
+    the panel-frame bending stiffness ``D`` and uniaxial compression along
+    x. Monomials ``x^p y^q`` (``p + q <= degree``) times the clamp factor
+    ``g^2``, ``g = 1 - r^T Q r``; the kernel under test instead rotates the
+    plies into the ellipse's frame and uses a Legendre basis there."""
+    t = math.radians(theta_deg)
+    c, s = math.cos(t), math.sin(t)
+    rot = np.array([[c, -s], [s, c]])
+    Q = rot @ np.diag([1.0 / a**2, 1.0 / b**2]) @ rot.T
+    rg, rw = np.polynomial.legendre.leggauss(degree + 6)
+    r = 0.5 * (rg + 1.0)
+    n_t = 2 * degree + 12
+    th = np.linspace(0.0, 2.0 * np.pi, n_t, endpoint=False)
+    R, T = np.meshgrid(r, th, indexing="ij")
+    xl, yl = a * R * np.cos(T), b * R * np.sin(T)
+    x, y = (c * xl - s * yl).ravel(), (s * xl + c * yl).ravel()
+    w = (np.outer(0.5 * rw, np.full(n_t, 2.0 * np.pi / n_t)) * R).ravel() * a * b
+    g = 1.0 - (Q[0, 0] * x * x + 2.0 * Q[0, 1] * x * y + Q[1, 1] * y * y)
+    gx, gy = -2.0 * (Q[0, 0] * x + Q[0, 1] * y), -2.0 * (Q[0, 1] * x + Q[1, 1] * y)
+    G0, Gx, Gy = g * g, 2.0 * g * gx, 2.0 * g * gy
+    Gxx = 2.0 * gx * gx - 4.0 * g * Q[0, 0]
+    Gyy = 2.0 * gy * gy - 4.0 * g * Q[1, 1]
+    Gxy = 2.0 * gx * gy - 4.0 * g * Q[0, 1]
+    L = max(a, b)
+    X, Y = x / L, y / L
+    F = {k: [] for k in ("x", "y", "xx", "yy", "xy")}
+    for p in range(degree + 1):
+        for q in range(degree + 1 - p):
+            m = X**p * Y**q
+            mx = p * X ** max(p - 1, 0) * Y**q / L
+            my = q * X**p * Y ** max(q - 1, 0) / L
+            mxx = p * (p - 1) * X ** max(p - 2, 0) * Y**q / L**2
+            myy = q * (q - 1) * X**p * Y ** max(q - 2, 0) / L**2
+            mxy = p * q * X ** max(p - 1, 0) * Y ** max(q - 1, 0) / L**2
+            F["x"].append(Gx * m + G0 * mx)
+            F["y"].append(Gy * m + G0 * my)
+            F["xx"].append(Gxx * m + 2.0 * Gx * mx + G0 * mxx)
+            F["yy"].append(Gyy * m + 2.0 * Gy * my + G0 * myy)
+            F["xy"].append(Gxy * m + Gx * my + Gy * mx + G0 * mxy)
+    F = {k: np.array(v) for k, v in F.items()}
 
-    The closed-form SSSS Navier eigenvalue for an orthotropic rectangle is
+    def integral(f, h):
+        return (F[f] * w) @ F[h].T
 
-        N_cr(m,n) = (pi^2 / a^2)
-                    * [D11*m^4 + 2*(D12 + 2*D66)*(m*a/b)^2 * n^2
-                       + D22 * (a*n/b)^4] / m^2
-
-    where (a, b) are the FULL plate dimensions (the sine basis
-    sin(m*pi*x/a) * sin(n*pi*y/b) vanishes at x=0, x=a, y=0, y=b).
-    For an ellipse with semi-axes (major_mm, minor_mm), the enclosing
-    rectangle is (2*major_mm) x (2*minor_mm), so a = 2*major_mm.
-
-    Prior to the fix, the implementation passed a = major_mm directly,
-    inflating N_cr by ~4x (N_cr ∝ 1/a^2). This test pins the corrected
-    convention against a hand-computed value for a square sublaminate
-    with a balanced [45, -45]s layup (D11 = D22 and m=n=1 governs).
-    """
-    m = MATERIAL_LIBRARY["IM7/8552"]
-    # Balanced ±45 sublaminate -> D11 == D22 by symmetry; D16 == D26 != 0
-    # but the closed form uses only D11, D22, D12, D66.
-    layup = [45.0, -45.0, -45.0, 45.0]
-    ply_t = 0.152
-    lam = Laminate(m, layup, ply_t)
-
-    # Square ellipse so the enclosing rectangle is square (a == b),
-    # which makes m=n=1 the analytic minimizer for any D with D11 == D22.
-    semi = 25.0  # mm
-    ell = DelaminationEllipse(
-        interface_index=1,
-        centroid_mm=(0.0, 0.0),
-        major_mm=semi,
-        minor_mm=semi,
-        orientation_deg=0.0,
+    K = (
+        D[0, 0] * integral("xx", "xx")
+        + D[1, 1] * integral("yy", "yy")
+        + D[0, 1] * (integral("xx", "yy") + integral("yy", "xx"))
+        + 4.0 * D[2, 2] * integral("xy", "xy")
+        + 2.0 * D[0, 2] * (integral("xx", "xy") + integral("xy", "xx"))
+        + 2.0 * D[1, 2] * (integral("yy", "xy") + integral("xy", "yy"))
     )
-
-    # The sublaminate selection picks the thinner stack. With interface=1
-    # and 4 plies total: upper = plies 0..1 (2 plies), lower = plies 2..3
-    # (2 plies); ties go to upper. So sub_layup = [45, -45].
-    sub_layup = [45.0, -45.0]
-    D = _sublaminate_D_matrix(m, sub_layup, ply_t)
-    D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
-
-    # Full rectangle side lengths (a, b) per the corrected convention.
-    a = 2.0 * semi
-    b = 2.0 * semi
-    aspect = a / b  # == 1
-
-    # Hand-evaluate the closed form at m=n=1.
-    pi2 = math.pi * math.pi
-    N_cr_11 = (
-        (pi2 / a**2)
-        * (
-            D11 * 1**4
-            + 2.0 * (D12 + 2.0 * D66) * (1 * aspect) ** 2 * 1**2
-            + D22 * (aspect * 1) ** 4
-        )
-        / 1**2
-    )
-
-    # Sanity: m=n=1 really is the minimizer here (a == b, D11 == D22 by ±45
-    # symmetry). Spot-check (2,1) and (1,2) to be safe.
-    def _N_mn(mm, nn):
-        return (
-            (pi2 / a**2)
-            * (
-                D11 * mm**4
-                + 2.0 * (D12 + 2.0 * D66) * (mm * aspect) ** 2 * nn**2
-                + D22 * (aspect * nn) ** 4
-            )
-            / mm**2
-        )
-
-    assert _N_mn(2, 1) > N_cr_11
-    assert _N_mn(1, 2) > N_cr_11
-    assert _N_mn(2, 2) > N_cr_11
-
-    N_actual = sublaminate_buckling_load(lam, ell, boundary="simply_supported")
-    assert N_actual == pytest.approx(N_cr_11, rel=1e-10)
-
-    # And confirm the boundary factor is applied.
-    N_clamped = sublaminate_buckling_load(lam, ell, boundary="clamped")
-    assert N_clamped == pytest.approx(N_cr_11 * 1.9, rel=1e-10)
+    return 1.0 / scipy.linalg.eigh(integral("x", "x"), K, eigvals_only=True)[-1]
 
 
-def test_buckling_load_uses_full_plate_dimensions_not_semi_axes():
-    """Regression test for Issue #29 — verify the 4x-overprediction bug
-    does not regress.
+# --- #132 PR0: the sublaminate is a clamped ellipse with D* = D - B A^-1 B ---
 
-    If the implementation reverted to using ellipse semi-axes directly as
-    (a, b), N_cr would be inflated by exactly (2*r / r)^2 = 4 (since the
-    eigenvalue is homogeneous of degree -2 in length when a/b is held fixed).
-    Build two cases differing only in scale and check the corrected
-    scaling, then independently check the magnitude against the
-    "semi-axis-as-a" miscalculation.
-    """
+
+def test_buckling_load_is_the_clamped_ellipse_with_semi_axes():
+    """Successor of the #29 regression tests (full rectangle sides, not
+    semi-axes, in the old simply supported closed form): the sublaminate is
+    now the clamped ellipse itself, with ``major_mm`` / ``minor_mm`` as its
+    semi-axes. It matches an independent panel-frame Ritz on the coupled
+    stiffness ``D*`` and scales as 1 / size^2."""
     mat = MATERIAL_LIBRARY["IM7/8552"]
-    ply_t = 0.152
-    lam = Laminate(mat, [0.0, 90.0, 90.0, 0.0], ply_t)
-
-    semi = 20.0  # mm
-    ell = DelaminationEllipse(1, (0.0, 0.0), semi, semi, 0.0)
-
-    # Sub layup is the thinner of [0, 90] vs [90, 0]; tie -> upper -> [0, 90].
-    sub_layup = [0.0, 90.0]
-    D = _sublaminate_D_matrix(mat, sub_layup, ply_t)
-    D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
-
-    # Closed form with the CORRECT full dimensions (a = b = 2*semi).
-    a_full = 2.0 * semi
-    pi2 = math.pi * math.pi
-    N_correct = (pi2 / a_full**2) * (D11 + 2.0 * (D12 + 2.0 * D66) + D22)
-
-    # Closed form with the BUGGY semi-axis-as-side-length (a = semi).
-    a_bug = semi
-    N_buggy = (pi2 / a_bug**2) * (D11 + 2.0 * (D12 + 2.0 * D66) + D22)
-
-    # The bug would inflate by exactly 4x.
-    assert N_buggy == pytest.approx(4.0 * N_correct, rel=1e-12)
-
-    # Verify D11 == D22 for this symmetric cross-ply (so m=n=1 governs at a=b)
-    assert D11 == pytest.approx(D22, rel=1e-12)
-
-    N_actual = sublaminate_buckling_load(lam, ell, boundary="simply_supported")
-    assert N_actual == pytest.approx(N_correct, rel=1e-10)
-    # And explicitly rule out the buggy value.
-    assert N_actual < 0.5 * N_buggy
+    lam = Laminate(mat, [0.0, 90.0, 90.0, 0.0], 0.152)
+    # Interface 1: [0, 90] over [90, 0]; the tie goes to the upper stack.
+    D_star = _reduced_bending_stiffness(mat, [0.0, 90.0], 0.152)
+    N = sublaminate_buckling_load(lam, DelaminationEllipse(1, (0.0, 0.0), 20.0, 20.0, 0.0))
+    assert N == pytest.approx(_reference_clamped_ellipse_N_cr(D_star, 20.0, 20.0, 0.0), rel=1e-6)
+    half = sublaminate_buckling_load(lam, DelaminationEllipse(1, (0.0, 0.0), 10.0, 10.0, 0.0))
+    assert half == pytest.approx(4.0 * N, rel=1e-10)
+    # The old simply supported 40 x 40 mm rectangle on the plain D was
+    # 1.56x lower: the clamped edge raises the load about 2.8x and the
+    # [0/90] stack's bending-extension coupling takes much of it back.
+    D = Laminate(mat, [0.0, 90.0], 0.152).abd_matrices()[2]
+    navier_40 = (math.pi / 40.0) ** 2 * (D[0, 0] + 2.0 * (D[0, 1] + 2.0 * D[2, 2]) + D[1, 1])
+    assert N / navier_40 == pytest.approx(1.56, abs=0.01)
 
 
-# --- #165: the sublaminate rectangle is the rotated ellipse's bounding box ---
+@pytest.mark.parametrize(
+    "layup, iface, major, minor, film_MPa",
+    [
+        # Clamped-ellipse Ritz on D* from the #132 design probes (an
+        # independent monomial-basis script; film stress N_cr / h, MPa).
+        ([0, 90, 90, 0, 0, 90, 90, 0], 0, 12.0, 12.0, 27.0),
+        ([0, 45, -45, 90, 90, -45, 45, 0], 0, 12.0, 12.0, 27.0),
+        ([0, 45, -45, 90, 90, -45, 45, 0], 1, 12.0, 12.0, 49.4),
+        ([0, 45, -45, 90, 90, -45, 45, 0], 2, 12.0, 12.0, 111.2),
+        ([0, 45, -45, 90, 90, -45, 45, 0], 1, 12.0, 6.0, 137.1),
+    ],
+)
+def test_buckling_load_matches_the_design_probe(layup, iface, major, minor, film_MPa):
+    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], layup, 0.152)
+    N = sublaminate_buckling_load(lam, DelaminationEllipse(iface, (0, 0), major, minor, 0.0))
+    assert N / ((iface + 1) * 0.152) == pytest.approx(film_MPa, abs=0.06)
+
+
+def test_bending_extension_coupling_lowers_the_sublaminate_buckling_load():
+    """The [0/45] sublaminate over interface 1 of the 8-ply QI laminate is
+    unsymmetric: ignoring B (the plain D about its mid-plane, as before
+    #132) the clamped R = 12 mm circle buckles at 103.5 MPa, with
+    ``D* = D - B A^-1 B`` at 49.4 MPa (design probe). D - D* is positive
+    semi-definite, and D* = D for a symmetric stack."""
+    mat = MATERIAL_LIBRARY["IM7/8552"]
+    D = Laminate(mat, [0.0, 45.0], 0.152).abd_matrices()[2]
+    D_star = _reduced_bending_stiffness(mat, [0.0, 45.0], 0.152)
+    assert np.linalg.eigvalsh(D - D_star).min() > -1e-9 * D[0, 0]
+    assert np.linalg.eigvalsh(D - D_star).max() > 0.1 * D[0, 0]
+    plain = _clamped_ellipse_load_factor(D, 12.0, 12.0, 1.0, 0.0, 0.0) / 0.304
+    coupled = _clamped_ellipse_load_factor(D_star, 12.0, 12.0, 1.0, 0.0, 0.0) / 0.304
+    assert plain == pytest.approx(103.5, abs=0.1)
+    assert coupled == pytest.approx(49.4, abs=0.1)
+    lam = Laminate(mat, [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
+    N = sublaminate_buckling_load(lam, DelaminationEllipse(1, (0, 0), 12.0, 12.0, 0.0))
+    assert N / 0.304 == pytest.approx(coupled, rel=1e-12)
+    symmetric = [0.0, 45.0, -45.0, 90.0, 90.0, -45.0, 45.0, 0.0]
+    D_sym = Laminate(mat, symmetric, 0.152).abd_matrices()[2]
+    assert _reduced_bending_stiffness(mat, symmetric, 0.152) == pytest.approx(
+        D_sym, rel=1e-9, abs=1e-9 * D_sym[0, 0]
+    )
+
+
+def test_reduced_bending_stiffness_does_not_depend_on_the_reference_plane():
+    """Moving the reference plane by e turns (A, B, D) into
+    (A, B + e A, D + 2 e B + e^2 A); D - B A^-1 B is unchanged."""
+    mat = MATERIAL_LIBRARY["IM7/8552"]
+    A, B, D = Laminate(mat, [0.0, 45.0, -45.0], 0.152).abd_matrices()
+    e = 0.137
+    B_e, D_e = B + e * A, D + 2.0 * e * B + e * e * A
+    D_star = _reduced_bending_stiffness(mat, [0.0, 45.0, -45.0], 0.152)
+    assert D_e - B_e @ np.linalg.solve(A, B_e) == pytest.approx(D_star, rel=1e-9, abs=1e-9)
+
+
+def test_panel_boundary_does_not_scale_the_sublaminate():
+    """The sublaminate's edges are the delamination front (#132): the
+    panel's boundary factor (clamped 1.9, free 0.5) no longer applies."""
+    lam = _lam8()
+    e = DelaminationEllipse(2, (75, 50), 20.0, 8.0, 30.0)
+    ss = sublaminate_buckling_load(lam, e, boundary="simply_supported")
+    assert sublaminate_buckling_load(lam, e, boundary="clamped") == ss
+    assert sublaminate_buckling_load(lam, e, boundary="free") == ss
+
+
+def test_slender_ellipse_is_clipped_to_the_trusted_aspect_ratio():
+    """Above 10:1 the shorter semi-axis is widened to a tenth of the longer
+    one, with a DegenerateThinSublaminateWarning."""
+    lam = _lam8()
+    clipped = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 2.0, 30.0))
+    with pytest.warns(DegenerateThinSublaminateWarning, match="aspect ratio"):
+        slender = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 0.5, 30.0))
+    assert slender == pytest.approx(clipped, rel=1e-12)
+    with pytest.warns(DegenerateThinSublaminateWarning):
+        across = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 0.5, 20.0, 30.0))
+    assert across == pytest.approx(
+        sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 2.0, 20.0, 30.0)), rel=1e-12
+    )
+
+
+# --- #165: the sublaminate follows the ellipse's orientation ---
 
 _QI8 = [0, 45, -45, 90, 90, -45, 45, 0]
 
@@ -313,61 +348,81 @@ def test_buckling_load_rotated_90_equals_swapped_axes():
     ) == pytest.approx(across, rel=1e-12)
 
 
-def test_buckling_load_45_deg_is_the_square_bounding_box():
-    """At 45 deg the bounding box is square with half-side
-    hypot(major, minor) / sqrt(2): larger in both directions than either
-    axis-aligned box, so the enclosing-rectangle N_cr is below both the
-    along-load and the across-load values (it does not lie between them)."""
+def test_buckling_load_follows_the_ellipse_not_its_bounding_box():
+    """A tilted ellipse buckles as itself (#132), not as its axis-aligned
+    bounding box (the #165 enclosing rectangle). Clamped plates obey domain
+    monotonicity, so the 20 x 8 mm ellipse at any angle lies between the
+    circles it contains (R = 8) and is contained in (R = 20)."""
     lam = _lam8()
-    tilted = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 45.0))
-    r = math.hypot(20.0, 8.0) / math.sqrt(2.0)
-    square = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), r, r, 0.0))
-    assert tilted == pytest.approx(square, rel=1e-12)
-    along = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 0.0))
-    across = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 90.0))
-    assert tilted < min(along, across)
+    outer = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 20.0, 20.0, 0.0))
+    inner = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 8.0, 8.0, 0.0))
+    for theta in (0.0, 30.0, 45.0, -45.0, 60.0, 90.0):
+        e = DelaminationEllipse(2, (75, 50), 20.0, 8.0, theta)
+        tilted = sublaminate_buckling_load(lam, e)
+        assert outer < tilted < inner, theta
+        if theta % 90.0:
+            ex, ey = e.half_extents_mm()
+            box = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), ex, ey, 0.0))
+            assert tilted != pytest.approx(box, rel=1e-2), theta
+
+
+def test_buckling_load_of_a_circle_does_not_depend_on_its_orientation():
+    """A circle's orientation is arbitrary; the plies are rotated into the
+    ellipse's frame and the load out of it, so a sign error in either would
+    show up here on an off-axis sublaminate."""
+    lam = _lam8()
+    ref = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), 12.0, 12.0, 0.0))
+    for theta in (17.0, 45.0, 90.0, 133.0, -60.0):
+        e = DelaminationEllipse(2, (75, 50), 12.0, 12.0, theta)
+        assert sublaminate_buckling_load(lam, e) == pytest.approx(ref, rel=1e-10)
+
+
+@pytest.mark.parametrize("major, minor, theta", [(20.0, 14.0, 30.0), (20.0, 8.0, -45.0)])
+def test_rotated_buckling_load_matches_a_panel_frame_reference(major, minor, theta):
+    """The ellipse-frame kernel equals an independent Ritz worked in the
+    panel frame on the rotated ellipse, with the panel-frame D*."""
+    lam = _lam8()
+    D_star = _reduced_bending_stiffness(MATERIAL_LIBRARY["IM7/8552"], [0.0, 45.0, -45.0], 0.152)
+    N = sublaminate_buckling_load(lam, DelaminationEllipse(2, (75, 50), major, minor, theta))
+    assert N == pytest.approx(
+        _reference_clamped_ellipse_N_cr(D_star, major, minor, theta), rel=1e-6
+    )
 
 
 def test_buckling_load_pins_issue_165_probe():
     """The 20 x 8 mm ellipse at interface 2 of the 8-ply QI laminate from
-    #165: 78.4 N/mm along the load (unchanged) and 39.5 N/mm across it
-    (was 78.4, the orientation being ignored)."""
+    #165: 77.7 N/mm along the load and 70.7 N/mm across it as a clamped
+    ellipse on D* (#132). The #165 enclosing rectangle gave 78.4 and 39.5."""
     lam = _lam8()
     assert sublaminate_buckling_load(
         lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 0.0)
-    ) == pytest.approx(78.37, abs=0.05)
+    ) == pytest.approx(77.71, abs=0.05)
     assert sublaminate_buckling_load(
         lam, DelaminationEllipse(2, (75, 50), 20.0, 8.0, 90.0)
-    ) == pytest.approx(39.50, abs=0.05)
+    ) == pytest.approx(70.73, abs=0.05)
 
 
-def test_buckling_rectangle_uses_the_tai_width_extents():
-    """The sublaminate rectangle and the TAI damage width read the same
-    extents off the ellipse: buckling a rotated ellipse equals buckling the
-    axis-aligned ellipse of its half-extents, and twice its y half-extent is
-    the TAI width."""
+def test_tai_width_still_uses_the_extents():
+    """The TAI damage width reads the rotated ellipse's half-extents
+    (#165); the sublaminate buckling no longer does (#132)."""
     from bvidfe.failure.soutis_openhole import transverse_damage_width_mm
 
-    lam = _lam8()
     for theta in (0.0, 30.0, 45.0, 90.0, -45.0):
         e = DelaminationEllipse(3, (75, 50), 18.0, 7.0, theta)
-        ex, ey = e.half_extents_mm()
-        aligned = DelaminationEllipse(3, (75, 50), ex, ey, 0.0)
-        assert sublaminate_buckling_load(lam, e) == pytest.approx(
-            sublaminate_buckling_load(lam, aligned), rel=1e-12
-        )
+        _, ey = e.half_extents_mm()
         assert transverse_damage_width_mm(DamageState([e])) == pytest.approx(2.0 * ey, rel=1e-12)
 
 
-def test_template_damage_growth_sees_the_orientation():
-    """End-to-end regression pins for #165 on 150 x 100 mm IM7/8552 panels
-    (16 mm, 5.5 kg impactor). The peanut template elongates the back-face
-    delaminations along the +/-45 and 90 deg plies, so they are wider
-    across the load than ``2 * major_mm`` along it: on the 8-ply QI panel at
-    5 J the growth stress falls from 300.5 to 281.8 MPa (knockdown 0.500 ->
-    0.469, growth governs); at 10 J the film buckling stress at the
-    governing interface 4 falls from 210 to 78 MPa but Soutis still governs
-    (0.448). The [0/90]2s panel keeps 0.424 / 0.389 at 5 / 10 J."""
+def test_template_damage_growth_end_to_end_pins():
+    """End-to-end regression pins on 150 x 100 mm IM7/8552 panels (16 mm,
+    5.5 kg impactor), re-pinned for the clamped-ellipse sublaminate (#132
+    PR0; the #165 values on the enclosing rectangle in brackets). 8-ply QI
+    at 5 J: growth governs at 309.1 MPa, interface 5 (281.8, interface 4):
+    knockdown 0.514 (0.469). At 10 J the film buckling stress at the
+    governing interface 4 is 156.1 MPa (78.4) and Soutis governs (0.448
+    both). On the [0/90]2s panel the growth stress rose above the Soutis
+    bound at 5 and 10 J: 0.544 / 0.447 (0.424 / 0.389 with growth
+    governing)."""
     from bvidfe import AnalysisConfig, BvidAnalysis
     from bvidfe.analysis.semi_analytical import weakest_sublaminate_growth
     from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
@@ -386,14 +441,19 @@ def test_template_damage_growth_sees_the_orientation():
         return BvidAnalysis(cfg).run()
 
     r5 = run(_QI8, 5.0)
-    assert r5.knockdown == pytest.approx(0.469, abs=5e-4)
-    assert r5.residual_strength_MPa == pytest.approx(281.8, abs=0.1)
+    assert r5.knockdown == pytest.approx(0.514, abs=5e-4)
+    assert r5.residual_strength_MPa == pytest.approx(309.1, abs=0.1)
+    assert r5.critical_sublaminate == 5
     r10 = run(_QI8, 10.0)
     assert r10.knockdown == pytest.approx(0.448, abs=5e-4)
     g10 = weakest_sublaminate_growth(_lam8(), r10.damage)
     assert g10.interface_index == 4
-    assert g10.film_buckling_stress_MPa == pytest.approx(78.4, abs=0.1)
+    assert g10.film_buckling_stress_MPa == pytest.approx(156.1, abs=0.1)
     assert g10.growth_stress_MPa > r10.residual_strength_MPa  # Soutis governs
     xp = [0, 90, 0, 90, 90, 0, 90, 0]
-    assert run(xp, 5.0).knockdown == pytest.approx(0.424, abs=5e-4)
-    assert run(xp, 10.0).knockdown == pytest.approx(0.389, abs=5e-4)
+    for energy, knockdown in ((5.0, 0.544), (10.0, 0.447)):
+        r = run(xp, energy)
+        assert r.knockdown == pytest.approx(knockdown, abs=5e-4)
+        lam_xp = Laminate(MATERIAL_LIBRARY["IM7/8552"], xp, 0.152)
+        growth = weakest_sublaminate_growth(lam_xp, r.damage)
+        assert growth.growth_stress_MPa > r.residual_strength_MPa  # Soutis governs

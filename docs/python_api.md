@@ -203,8 +203,8 @@ for `damage`, and raises `ValueError` for an unknown or missing key.
 | tier | Runtime | Validation status | Good for |
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 8.8% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 22% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated: `tai_notch_fraction` is fitted to one measured condition (3.5% MAE in-sample). | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
-| `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Seconds to a minute (two FE solves; about 4 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 20 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 3.5%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), and the broken fibres are the closed-form equivalent hole, applied as a notch at the impact site (below the mesh): 0.870 against 0.889 on the one measured TAI dataset (MAE 3.6%, partly in-sample, the hole size being fitted to it), falling with energy 2–8% below the closed-form TAI (0.965 and nearly flat in energy without the hole; 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
+| `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (24% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
+| `fe3d` | Seconds to a minute (two FE solves; about 4 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 20 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 1.2%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), and the broken fibres are the closed-form equivalent hole, applied as a notch at the impact site (below the mesh): 0.870 against 0.889 on the one measured TAI dataset (MAE 3.6%, partly in-sample, the hole size being fitted to it), falling with energy 2–8% below the closed-form TAI (0.965 and nearly flat in energy without the hole; 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
 
 ## Knockdown semantics
 
@@ -352,7 +352,7 @@ print(unnotched_strength(lam, "compression"))    # 601.28... MPa (pristine stren
 print(lam.effective_engineering_constants())     # (Ex, Ey, Gxy, nu_xy): 62434 MPa, 62434 MPa, 23885 MPa, 0.307
 
 g = weakest_sublaminate_growth(lam, load_cscan_json("examples/sample_cscan.json"))
-print(g.interface_index, g.growth_stress_MPa)    # 4 275.88... MPa
+print(g.interface_index, g.growth_stress_MPa)    # 4 275.48... MPa
 ```
 
 `weakest_sublaminate_growth` returns a `SublaminateGrowth` with the
@@ -372,7 +372,7 @@ sigma_0 = unnotched_strength(lam, "compression")
 dpa = damage.projected_damage_area_mm2
 print(SOUTIS_REFERENCE_AREA_MM2)                  # 15000.0 (the 150 x 100 mm coupon)
 print(f"{soutis_cai(lam.material, dpa, SOUTIS_REFERENCE_AREA_MM2, sigma_0):.0f}")   # 266 MPa
-r = semi_analytical_cai(lam, damage, sigma_0, boundary="clamped")
+r = semi_analytical_cai(lam, damage, sigma_0)
 print(f"{r.residual_strength_MPa:.0f}", r.critical_interface_index)   # 266 4
 ```
 
@@ -385,7 +385,9 @@ A_ref_mm2=SOUTIS_REFERENCE_AREA_MM2, boundary="simply_supported")` returns
 a `SemiAnalyticalResult` (`residual_strength_MPa`,
 `critical_interface_index`, `critical_buckling_load_N` in N/mm), the
 lower of that Soutis bound and the delamination growth stress; `boundary`
-scales the sublaminate buckling load (clamped ×1.9, free ×0.5).
+is validated but does not change the result (the sublaminate is clamped
+by its delamination front; until #132 it scaled the sublaminate buckling
+load by 1.9 for clamped and 0.5 for free panels).
 `fibre_damage_tai(m, damage, sigma_pristine_MPa, Kt_inf, panel_width_mm)`
 (same module) is the TAI counterpart: Whitney-Nuismer point stress on a
 hole of diameter `m.tai_notch_fraction` × `transverse_damage_width_mm(damage)`,

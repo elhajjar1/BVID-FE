@@ -120,9 +120,12 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # sublaminate buckling rectangle taken as the rotated ellipse's
             # bounding box (#165) the 45-degree back-face delaminations are
             # wider across the load, the growth stress at interface 12
-            # falls to 275.5 MPa and governs: 0.458.
-            "knockdown": 0.45815510303755336,
-            "residual_strength_MPa": 275.4825561362224,
+            # falls to 275.5 MPa and governs: 0.458. With the sublaminate a
+            # clamped ellipse on the coupled stiffness D* (#132 PR0) the
+            # growth stress at interface 12 rises to 303.6 MPa, again a hair
+            # under the Soutis bound: 0.505.
+            "knockdown": 0.5048792739912767,
+            "residual_strength_MPa": 303.5771772860004,
             "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 623.454803186882,
             "tier_used": "semi_analytical",

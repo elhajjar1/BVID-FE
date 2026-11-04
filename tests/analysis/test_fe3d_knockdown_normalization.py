@@ -136,7 +136,7 @@ def test_fe3d_cai_growth_stress_is_capped_at_pristine(monkeypatch):
     assert r.knockdown == 1.0
 
 
-def _impact_config(material: str, layup: list, tier: str) -> AnalysisConfig:
+def _impact_config(material: str, layup: list, tier: str, energy_J: float = 5.0) -> AnalysisConfig:
     return AnalysisConfig(
         material=material,
         layup_deg=layup,
@@ -144,29 +144,33 @@ def _impact_config(material: str, layup: list, tier: str) -> AnalysisConfig:
         panel=PanelGeometry(150.0, 100.0),
         loading="compression",
         tier=tier,
-        impact=ImpactEvent(5.0, ImpactorGeometry(), mass_kg=5.5),
+        impact=ImpactEvent(energy_J, ImpactorGeometry(), mass_kg=5.5),
         mesh=MeshParams(elements_per_ply=1, in_plane_size_mm=10.0) if tier == "fe3d" else None,
     )
 
 
-# Delamination growth governs both tiers at 5 J on a 150 x 100 mm panel
-# (10 mm fe3d mesh), and fe3d's undamaged LaRC05 first-ply failure is below
-# sigma0 (FPF_undamaged / sigma0 = 0.64 and 0.86), so rescaling the growth
-# stress put fe3d 27% and 3% above semi_analytical (282.9 against 221.9 MPa
+# Delamination growth governs both tiers on a 150 x 100 mm panel (10 mm
+# fe3d mesh), and fe3d's undamaged LaRC05 first-ply failure is below sigma0
+# (FPF_undamaged / sigma0 = 0.64 and 0.86), so rescaling the growth stress
+# put fe3d 27% and 3% above semi_analytical at 5 J (282.9 against 221.9 MPa
 # and 298.1 against 288.7 MPa). [+-45]2s is not here: its damaged
-# first-ply failure governs (129 MPa against a 217 MPa growth stress).
+# first-ply failure governs (129 MPa against a 217 MPa growth stress). The
+# AS4/3501-6 case runs at 3 J since the clamped-ellipse sublaminate (#132
+# PR0): at 5 J its growth stress rose to 307.7 MPa, above both first-ply
+# failure (298.1) and the Soutis bound (289.3); at 3 J growth governs both
+# tiers at 309.9 MPa.
 _GROWTH_GOVERNS = [
-    pytest.param("IM7/8552", [45, -45, 90, 90, -45, 45], id="IM7/8552 [45/-45/90]s"),
-    pytest.param("AS4/3501-6", [0, 45, -45, 90, 90, -45, 45, 0], id="AS4/3501-6 QI8"),
+    pytest.param("IM7/8552", [45, -45, 90, 90, -45, 45], 5.0, id="IM7/8552 [45/-45/90]s"),
+    pytest.param("AS4/3501-6", [0, 45, -45, 90, 90, -45, 45, 0], 3.0, id="AS4/3501-6 QI8"),
 ]
 
 
-@pytest.mark.parametrize("material, layup", _GROWTH_GOVERNS)
-def test_fe3d_cai_is_semi_analytical_where_growth_governs(material, layup):
+@pytest.mark.parametrize("material, layup, energy_J", _GROWTH_GOVERNS)
+def test_fe3d_cai_is_semi_analytical_where_growth_governs(material, layup, energy_J):
     """Where growth governs, fe3d is the growth stress itself, as in
     semi_analytical, not the growth stress rescaled by sigma0 / FPF_undamaged."""
-    fe3d = BvidAnalysis(_impact_config(material, layup, "fe3d")).run()
-    semi = BvidAnalysis(_impact_config(material, layup, "semi_analytical")).run()
+    fe3d = BvidAnalysis(_impact_config(material, layup, "fe3d", energy_J)).run()
+    semi = BvidAnalysis(_impact_config(material, layup, "semi_analytical", energy_J)).run()
     assert any(
         n.startswith("fe3d CAI: delamination growth governs") for n in fe3d.notes
     ), fe3d.notes

@@ -782,11 +782,12 @@ with st.sidebar:
             help=(
                 "Panel edge support. Scales the plate bending stiffness in "
                 "the Olsson onset model (clamped 2.5×, free 0.4× simply "
-                "supported) and the sublaminate and panel buckling loads "
-                "(clamped 1.9×, free 0.5×), and so the delamination growth "
-                "stress in semi_analytical and fe3d; it does not change "
-                "fe3d's first-ply-failure solve. The Soutis and Whitney-Nuismer "
-                "knockdowns see it only through the damage area. 'free' is "
+                "supported) and the whole-panel buckling load reported by "
+                "fe3d (clamped 1.9×, free 0.5×). The sublaminate buckling "
+                "load, and so the delamination growth stress, does not see "
+                "it (the sublaminate is clamped by its delamination front), "
+                "nor does fe3d's first-ply-failure solve. All CAI and TAI "
+                "strengths see it only through the damage area. 'free' is "
                 "a crude approximation — interpret qualitatively."
             ),
         )

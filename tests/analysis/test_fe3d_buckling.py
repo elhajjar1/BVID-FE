@@ -105,11 +105,10 @@ def test_fe3d_cai_buckling_canonical_panel_value():
     """Regression test pinning the buckling stress on the canonical
     200x150 mm 8-ply quasi-isotropic IM7/8552 pristine reference (issue #129).
 
-    The Rayleigh-Ritz closed form is exact for this configuration; a
-    regression to a different formulation (or a unit-conversion bug) would
-    move this number by an order of magnitude. The expected value is
-    derived from D11/D22/D12/D66 of the laminate and the
-    Navier sine-basis solution minimised over (m, n) in [1..5].
+    The simply supported Rayleigh-Ritz with D16 / D26 converges to 12.204
+    MPa here (#132 PR0; the Navier closed form that ignores them is 12.582
+    MPa, 3.0% higher). A regression to a different formulation (or a
+    unit-conversion bug) would move this number by an order of magnitude.
     """
     cfg = AnalysisConfig(
         material="IM7/8552",
@@ -123,7 +122,7 @@ def test_fe3d_cai_buckling_canonical_panel_value():
     )
     lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], cfg.layup_deg, cfg.ply_thickness_mm)
     sigma, _, _ = fe3d_cai_buckling(cfg, cfg.damage, lam, sigma_pristine_MPa=887.5)
-    assert 12.0 < sigma < 13.0, f"expected ~12.6 MPa, got {sigma}"
+    assert sigma == pytest.approx(12.204, abs=1e-3), f"expected ~12.204 MPa, got {sigma}"
 
 
 def test_bvid_analysis_fe3d_cai_uses_buckling_path(small_cfg):
