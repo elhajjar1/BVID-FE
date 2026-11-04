@@ -9,7 +9,7 @@ from dataclasses import asdict, replace
 from typing import Union
 
 from bvidfe._types import LoadingMode
-from bvidfe.analysis.config import AnalysisConfig
+from bvidfe.analysis.config import AnalysisConfig, require_tier_supports_ratio
 from bvidfe.analysis.fe_tier import (
     fe3d_cai_buckling,
     fe3d_cai_channels_and_modulus,
@@ -26,6 +26,7 @@ from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
 from bvidfe.damage.state import DamageState
 from bvidfe.failure.laminate_strength import unnotched_strength
+from bvidfe.failure.lekhnitskii import biaxial_point_stress_factor
 from bvidfe.failure.soutis_openhole import (
     SOUTIS_REFERENCE_AREA_MM2,
     fibre_damage_tai,
@@ -84,20 +85,29 @@ def _warn_damage_outside_panel(damage: DamageState, Lx_mm: float, Ly_mm: float) 
     )
 
 
-def _pristine_strength(lam: Laminate, loading: LoadingMode) -> float:
+def _pristine_strength(
+    lam: Laminate, loading: LoadingMode, transverse_stress_ratio: float = 0.0
+) -> float:
     """Unnotched laminate strength in the loading direction (MPa): ply-discount
     last-ply failure on classical lamination theory, see
-    ``bvidfe.failure.laminate_strength``."""
-    return unnotched_strength(lam, loading)
+    ``bvidfe.failure.laminate_strength``; ``|sigma_x|`` along the biaxial
+    load ray for ``transverse_stress_ratio != 0``."""
+    return unnotched_strength(lam, loading, transverse_stress_ratio)
 
 
-def _tai_note(lam: Laminate, damage: DamageState, panel_width_mm: float) -> str:
+def _tai_note(
+    lam: Laminate,
+    damage: DamageState,
+    panel_width_mm: float,
+    transverse_stress_ratio: float = 0.0,
+) -> str:
     """``AnalysisResults.notes`` entry for a closed-form TAI run: the
-    equivalent hole and how little the TAI model is validated."""
+    equivalent hole and how little the TAI model is validated; on a biaxial
+    run also the point-stress factor ``F(beta)``."""
     mat = lam.material
     width = transverse_damage_width_mm(damage, panel_width_mm)
     R = tai_hole_radius_mm(mat, damage, panel_width_mm)
-    return (
+    note = (
         f"TAI: equivalent hole {2 * R:.2f} mm across (tai_notch_fraction "
         f"{mat.tai_notch_fraction:g} x {width:.1f} mm footprint width across the load), "
         f"Whitney-Nuismer point stress at d0 = {mat.wn_d0_mm:g} mm, Kt_inf = "
@@ -105,6 +115,55 @@ def _tai_note(lam: Laminate, damage: DamageState, panel_width_mm: float) -> str:
         f"{panel_width_mm:g} mm wide panel. The TAI model is not validated: "
         f"tai_notch_fraction is fitted in-sample to one measured condition "
         f"(Korbelin et al. 2020, M21/T800S quasi-isotropic, 25 J)."
+    )
+    if transverse_stress_ratio != 0 and R > 0:
+        F = biaxial_point_stress_factor(lam, R, mat.wn_d0_mm, transverse_stress_ratio)
+        note += (
+            f" Biaxial: the point-stress knockdown is multiplied by F = {F:.3f}, the "
+            f"Lekhnitskii far-field sigma_y term of the axial stress at the "
+            f"characteristic point (0, R + d0); the finite-width correction stays "
+            f"uniaxial."
+        )
+    return note
+
+
+def _biaxial_note(
+    tier: str,
+    loading: LoadingMode,
+    transverse_stress_ratio: float,
+    residual_uniaxial_MPa: float,
+    interaction_factor: float,
+) -> str:
+    """``AnalysisResults.notes`` entry of every biaxial run (D12 of the
+    #115 design): experimental and unvalidated, the load ray, and the tier's
+    assumption."""
+    beta = transverse_stress_ratio
+    s = 1 if loading == "tension" else -1
+    note = (
+        f"Biaxial sigma_y/sigma_x = {beta:+.2f}: experimental, not validated (no "
+        f"biaxial residual-strength data); the load is the ray (sigma_x, sigma_y) = "
+        f"lambda * ({s:+d}, {s * beta:+.2f}), the strength fields are |sigma_x| at "
+        f"failure along it and pristine_strength_MPa is the ply-discount envelope "
+        f"along it"
+    )
+    if loading == "tension" and beta > 0:
+        note += (
+            " (under biaxial tension it may end when every ply has cracked, "
+            "conservative where the fibres could carry on; see Limitations)"
+        )
+    if tier == "empirical" and loading == "compression":
+        note += (
+            "; empirical CAI assumes the Soutis knockdown does not depend on the "
+            "ratio (homothetic: residual = knockdown x pristine along the ray)"
+        )
+    elif tier == "empirical":
+        note += (
+            "; empirical TAI adds the far-field sigma_y term at the hole's "
+            "characteristic point (see the TAI note)"
+        )
+    return note + (
+        f"; biaxial_interaction_factor {interaction_factor:.3f} = residual over the "
+        f"uniaxial residual strength {residual_uniaxial_MPa:.1f} MPa."
     )
 
 
@@ -206,6 +265,8 @@ class BvidAnalysis:
         return result
 
     def _run(self) -> AnalysisResults:
+        beta = self.config.transverse_stress_ratio
+        require_tier_supports_ratio(self.config.tier, beta)
         mat = _resolve_material(self.config.material)
         lam = Laminate(
             material=mat,
@@ -214,12 +275,12 @@ class BvidAnalysis:
         )
         damage = self._resolve_damage(lam)
         _warn_damage_outside_panel(damage, self.config.panel.Lx_mm, self.config.panel.Ly_mm)
-        sigma_0 = _pristine_strength(lam, self.config.loading)
+        sigma_0 = _pristine_strength(lam, self.config.loading, beta)
         notes: list[str] = []
         E11_knockdown: float | None = None
 
         if self.config.tier == "empirical":
-            sigma = self._empirical(lam, damage, sigma_0)
+            sigma = self._empirical(lam, damage, sigma_0, beta)
             buckling_eigs = None
             critical_interface = None
             field_results = None
@@ -238,8 +299,27 @@ class BvidAnalysis:
             field_results = None
         else:
             raise NotImplementedError(f"tier '{self.config.tier}' is not recognized")
+        sigma_y_0: float | None = None
+        sigma_y: float | None = None
+        interaction_factor: float | None = None
+        if beta != 0:
+            # Only the empirical tier gets here (require_tier_supports_ratio).
+            # Its uniaxial residual on the same damage is a second closed-form
+            # evaluation.
+            s = 1.0 if self.config.loading == "tension" else -1.0
+            sigma_0_uniaxial = _pristine_strength(lam, self.config.loading)
+            sigma_uniaxial = self._empirical(lam, damage, sigma_0_uniaxial, 0.0)
+            interaction_factor = float(sigma / sigma_uniaxial if sigma_uniaxial > 0 else 0.0)
+            sigma_y_0 = float(s * beta * sigma_0)
+            sigma_y = float(s * beta * sigma)
+            notes.insert(
+                0,
+                _biaxial_note(
+                    self.config.tier, self.config.loading, beta, sigma_uniaxial, interaction_factor
+                ),
+            )
         if self.config.loading == "tension" and self.config.tier != "fe3d":
-            notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
+            notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm, beta))
         # Residual stiffness (issue #114): CLT moduli for every tier, the
         # E11 residual from fe3d's reaction-force ratio only.
         E11_0, E22_0, G12_0, _ = lam.effective_engineering_constants()
@@ -261,6 +341,9 @@ class BvidAnalysis:
             E11_knockdown=E11_knockdown,
             pristine_E22_MPa=float(E22_0),
             pristine_G12_MPa=float(G12_0),
+            pristine_transverse_stress_MPa=sigma_y_0,
+            residual_transverse_stress_MPa=sigma_y,
+            biaxial_interaction_factor=interaction_factor,
         )
 
     def _fe3d(
@@ -414,10 +497,32 @@ class BvidAnalysis:
             critical_buckling_load_N=None,
         )
 
-    def _empirical(self, lam: Laminate, damage: DamageState, sigma_0: float) -> float:
+    def _empirical(
+        self,
+        lam: Laminate,
+        damage: DamageState,
+        sigma_0: float,
+        transverse_stress_ratio: float = 0.0,
+    ) -> float:
+        """Empirical residual strength (MPa) for the pristine strength
+        ``sigma_0`` along the load ray. Biaxial (``transverse_stress_ratio
+        != 0``, experimental): CAI scales the Soutis knockdown, which does
+        not depend on the ratio, onto ``sigma_0`` (homothetic, D6 of the
+        #115 design); TAI multiplies the hole's point-stress knockdown by
+        the Lekhnitskii factor ``F(beta)`` (D7)."""
         dpa = damage.projected_damage_area_mm2
         mat = lam.material
         if self.config.loading == "compression":
             return soutis_cai(mat, dpa, SOUTIS_REFERENCE_AREA_MM2, sigma_0)
         Kt_inf = lekhnitskii_kt_infinity(lam)
-        return fibre_damage_tai(mat, damage, sigma_0, Kt_inf, self.config.panel.Ly_mm)
+        if transverse_stress_ratio == 0:
+            return fibre_damage_tai(mat, damage, sigma_0, Kt_inf, self.config.panel.Ly_mm)
+        return fibre_damage_tai(
+            mat,
+            damage,
+            sigma_0,
+            Kt_inf,
+            self.config.panel.Ly_mm,
+            transverse_stress_ratio=transverse_stress_ratio,
+            laminate=lam,
+        )

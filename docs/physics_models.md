@@ -979,6 +979,161 @@ boundary conditions fe3d does not have), about 40% more run time.
   tier, so these tiers report the CLT moduli and leave the residual
   `None`; run `fe3d` for a stiffness estimate.
 
+## Biaxial loading
+
+!!! warning "Experimental, not validated"
+    No public biaxial CAI or TAI residual-strength data are known, so
+    nothing at `transverse_stress_ratio ≠ 0` is validated. The results are
+    verified (limits, symmetries, closed forms) but not checked against
+    measurements. Every biaxial run says so in `AnalysisResults.notes`.
+    Only the `empirical` tier supports a nonzero ratio so far;
+    `semi_analytical` and `fe3d` raise `NotImplementedError` until the
+    follow-up PRs of issue #115 (biaxial sublaminate buckling and growth,
+    and biaxial fe3d boundary conditions).
+
+**Load path.** `AnalysisConfig.transverse_stress_ratio = β` (default `0.0`,
+`−1 ≤ β ≤ 1`) makes the in-plane load a proportional (radial) ray
+
+```
+(σx, σy, τxy) = λ · (s, s·β, 0),   s = −1 (loading="compression") or +1 ("tension"),   λ ≥ 0
+```
+
+| `loading` | β > 0 | β < 0 |
+|---|---|---|
+| compression (σx < 0) | biaxial compression | axial compression with lateral tension (e.g. cabin pressure hoop stress on a crown panel in bending) |
+| tension (σx > 0) | biaxial tension | axial tension with lateral compression |
+
+σx stays the reference axis. For a load with |σy| > |σx|, rotate the layup
+by 90° and swap `Lx_mm` and `Ly_mm`, so that x is the direction of the
+larger stress, and use the inverse ratio; `AnalysisConfig` says so when it
+rejects |β| > 1. In-plane shear is not in the load. The panel is impacted
+unloaded and loaded afterwards; impact under preload is out of scope.
+
+**Definitions.**
+
+- λ0(β), `pristine_strength_MPa`: |σx| at pristine failure along the ray, by
+  the same ply-discount last-ply failure as the uniaxial strength (see
+  [Knockdown definition](#knockdown-definition-and-cross-tier-comparability)),
+  with the load `h·(s, s·β, 0)` on the right-hand side of the CLT solve
+  (`unnotched_strength(lam, loading, β)`;
+  `unnotched_strength_along(lam, direction)` for any direction, τxy
+  included). At β = 0 it is the uniaxial strength bit for bit.
+- λd(β), `residual_strength_MPa`: |σx| at damaged failure along the ray,
+  from the tier.
+- `knockdown = λd / λ0`, the formula of every run. The damaged envelope
+  point along the ray is `knockdown ×` the pristine one.
+- `pristine_transverse_stress_MPa = s·β·λ0` and
+  `residual_transverse_stress_MPa = s·β·λd`: the signed σy at failure.
+- `biaxial_interaction_factor = λd(β) / λd(0)`: how the lateral stress
+  changes the damaged axial strength against the uniaxial CAI or TAI value
+  of the same damage (1 = no effect, below 1 = the lateral stress costs
+  strength). λd(0) is a second closed-form evaluation in the same run.
+
+The three new fields are `None` at β = 0, and a β = 0 run gives the same
+results, notes and warnings as a config without the field
+(`tests/test_biaxial_bit_identity.py`). The issue's
+"interaction index" (0 safe, 1 on the envelope) needs an applied stress,
+which the config does not hold, so it is not computed.
+
+**Pristine envelope.** 8-ply QI [0/45/−45/90]s IM7/8552 (0.152 mm plies),
+|σx| at last-ply failure (MPa):
+
+| β | −1 | −0.5 | −0.25 | 0 | +0.25 | +0.5 | +1 |
+|---|---|---|---|---|---|---|---|
+| compression | 411.6 | 511.8 | 560.5 | 601.3 | 648.5 | 703.8 | 848.3 |
+| tension | 411.6 | 645.3 | 692.9 | 753.2 | 886.0 | 889.6 | 580.8 (every ply cracked) |
+
+β = −1 is pure shear on the ±45° planes, so QI loses 31% (compression) or
+45% (tension) of its uniaxial strength. The envelope moves far more than
+the damage does. A cross-ply [0/90]2s laminate in compression stays within
+822–848 MPa over the range, its 0° fibres governing.
+
+**Empirical CAI: homothetic.** The Soutis knockdown is a power law of the
+damage area, not a hole model, so there is nothing in it to generalise; it
+is taken as independent of β: `residual = kd_Soutis · λ0(β)`, so the
+knockdown is the uniaxial one and `biaxial_interaction_factor =
+λ0(β)/λ0(0)`. This is an assumption with no data behind it, and the
+mechanisms point both ways: an equivalent open hole of the damage size
+would give factors of 0.78–1.41 at β = ±1 (Kirsch, R = 20 mm), while
+sublaminate buckling under biaxial compression lowers the strength.
+
+**Empirical TAI: Lekhnitskii point stress.** The fibre-damage hole keeps
+its uniaxial Whitney-Nuismer point-stress criterion on the axial stress at
+the characteristic point (0, R + d0), and adds the far-field σy term there
+from the exact orthotropic hole field (Lekhnitskii 1968; Kirsch for an
+in-plane isotropic laminate; `bvidfe.failure.lekhnitskii`):
+
+```
+kd(β) = kd_WN × Tan finite-width factor × F(β),   F(β) = σx(0, R+d0; 1, 0) / σx(0, R+d0; 1, β)
+```
+
+F(0) = 1 exactly, so β = 0 is the uniaxial model. At the net-section edge
+the field gives `σx(0, R)/σx∞ = 1 + n − k·β` (`k = √(Ex/Ey)`, `1 + n =`
+`lekhnitskii_kt_infinity`), and for QI its exact `1/σx(0, R+d0)` is the
+Konish-Whitney knockdown the TAI model uses. At the TAI hole sizes (1–4 mm
+across) F stays within about 5% of 1 (d0 = 1 mm):
+
+| Laminate | R (mm) | F(−1) | F(−0.5) | F(+0.5) | F(+1) |
+|---|---|---|---|---|---|
+| QI8 | 0.75 | 1.037 | 1.018 | 0.982 | 0.965 |
+| QI8 | 2.0 | 0.953 | 0.976 | 1.025 | 1.051 |
+| [0/90]2s | 0.75 | 1.007 | 1.004 | 0.996 | 0.993 |
+| [0]8 | 0.75 | 1.061 | 1.029 | 0.972 | 0.946 |
+
+Its effect changes sign near R = d0/(√3 − 1) ≈ 1.4 mm for QI: by Kirsch the
+σy-induced σx at radius r is `σy (R²/r² − 3R⁴/r⁴)/2`, positive for r > √3·R.
+Tan's finite-width correction stays the uniaxial one. Not modelled:
+failure at the θ = 0 points of the hole (the y-direction concentration)
+and matrix modes at the hole. A full envelope check on the characteristic
+circle (BJSFM style) was rejected: at β = 0 it does not reduce to the
+calibrated uniaxial model (QI 0.815 against 0.875; cross-ply 0.51 against
+0.895).
+
+**Example.** 8-ply QI IM7/8552, 150 × 100 mm, 15 J (16 mm hemisphere,
+5.5 kg; damage area 1,533 mm²), `tier="empirical"`:
+
+| β | CAI pristine (MPa) | CAI knockdown | CAI interaction factor | TAI pristine (MPa) | TAI knockdown | TAI interaction factor |
+|---|---|---|---|---|---|---|
+| −1 | 411.6 | 0.395 | 0.685 | 411.6 | 0.778 | 0.551 |
+| −0.5 | 511.8 | 0.395 | 0.851 | 645.3 | 0.774 | 0.861 |
+| 0 | 601.3 | 0.395 | — | 753.2 | 0.771 | — |
+| +0.5 | 703.8 | 0.395 | 1.170 | 889.6 | 0.767 | 1.176 |
+| +1 | 848.3 | 0.395 | 1.411 | 580.8 | 0.764 | 0.764 |
+
+**Verification** (in the tests): β = 0 bit-identity in all three tiers and
+both load senses; continuity at β = ±1e−9; `unnotched_strength_along(lam,
+(±1, 0, 0))` equal to the uniaxial strength for every preset; the 90°
+rotation symmetry (λ0 along (s, sβ) of a layup equals λ0 along (sβ, s) of
+the layup turned by 90°, and the equibiaxial strength does not change when
+the layup turns); the hole field's uniaxial Kt, Kirsch for QI, the closed
+form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
+
+**Limitations.**
+
+- **Unvalidated.** Only the pristine envelope can be checked against data
+  (WWFE-I, Soden, Hinton & Kaddour 2002, has a QI σy–σx envelope); that
+  check, which needs WWFE-I's lamina card, is a follow-up and checks λ0
+  only, not the knockdown.
+- **All plies cracked under biaxial tension.** The pristine envelope keeps
+  the uniaxial rule that a laminate whose plies have all cracked fails at
+  that load. It is right for uniaxial [90]n and [±45]s (no fibre path) but
+  conservative under biaxial tension, where a fibre network could carry
+  on: equibiaxial tension of QI8 stops at 580.8 MPa, below its β = 0.5
+  strength, against about 1,120 MPa (Xt/2) if the fibres kept the load. A
+  continuation to fibre failure needs a stability check on the discounted
+  laminate (it would otherwise give [90]4 and [±45]s mechanism strengths),
+  which is a separate physics change. Tension knockdowns at β > 0 are
+  relative to this conservative pristine strength.
+- **Homothetic empirical CAI** (above): could be wrong in either direction
+  by tens of percent.
+- **Max-stress plies**: no σ1–σ2 interaction, and fibre compression is
+  maximum stress on Xc, so the lateral stress does not change the kinking
+  strength (Budiansky & Fleck 1993 would make it depend on the transverse
+  stress).
+- The TAI factor neglects the `A16`/`A26` coupling of unbalanced layups
+  (as `lekhnitskii_kt_infinity` does) and keeps the uniaxial finite-width
+  correction.
+
 ## Limitations
 
 - `soutis_k_s` (4.8) is calibrated on two measured CAI datasets (AS4/8552 and
@@ -1003,6 +1158,14 @@ boundary conditions fe3d does not have), about 40% more run time.
   three coupons its damage-zone factor is fitted to, `validation/README.md`;
   on the measured TAI dataset it is 3.6% off, partly in-sample, see the
   fe3d TAI item below).
+- **Biaxial loading (`transverse_stress_ratio ≠ 0`) is experimental and
+  not validated**: no biaxial residual-strength data are known. Only
+  `empirical` supports it; its CAI knockdown is assumed independent of the
+  ratio, its TAI adds the Lekhnitskii far-field σy term at the
+  characteristic point, and the pristine envelope ends, conservatively,
+  when every ply has cracked under biaxial tension (equibiaxial QI8:
+  580.8 MPa against about 1,120 MPa for the fibres). See
+  [Biaxial loading](#biaxial-loading).
 - **The TAI model is not validated.** Its one constant,
   `tai_notch_fraction` (0.05), is fitted in-sample to a single measured
   condition: five M21/T800S quasi-isotropic coupons at 25 J (Körbelin et

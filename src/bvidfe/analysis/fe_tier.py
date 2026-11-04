@@ -60,7 +60,7 @@ import numpy as np
 from scipy.ndimage import convolve
 
 from bvidfe._types import _CRITERION_NAMES, CriterionName
-from bvidfe.analysis.config import AnalysisConfig
+from bvidfe.analysis.config import AnalysisConfig, require_tier_supports_ratio
 from bvidfe.analysis.fe_mesh import (
     FeMesh,
     build_fe_mesh,
@@ -357,6 +357,7 @@ def _fe3d_preflight(
         ``t0`` is ``time.time()`` captured before the mesh build, suitable
         for relative timing logs in the caller.
     """
+    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     _guard_problem_size(cfg)
     label = _run_label(label, damage)
     t0 = time.time()
@@ -920,6 +921,7 @@ def fe3d_cai_buckling(
     (``"fe3d buckling onset ... closed-form Rayleigh-Ritz ..."``, #133) or
     a degenerate closed form.
     """
+    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     boundary = cfg.panel.boundary
     notes: List[str] = []
 
@@ -1095,6 +1097,7 @@ def tai_fibre_damage_hole(
     mesh; the meshed core does not soften the fibres as well
     (``fe_mesh.apply_damage``, issue #164). ``None`` without
     delaminations."""
+    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     if not damage.delaminations:
         return None
     width = cfg.panel.Ly_mm

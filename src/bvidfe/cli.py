@@ -112,6 +112,18 @@ def _non_negative_float(spec: str) -> float:
     return v
 
 
+def _transverse_stress_ratio(spec: str) -> float:
+    """argparse type for ``--transverse-stress-ratio``: a finite number in
+    ``[-1, 1]``, the range of ``AnalysisConfig.transverse_stress_ratio``."""
+    v = _finite_float(spec)
+    if not -1.0 <= v <= 1.0:
+        raise argparse.ArgumentTypeError(
+            f"must be between -1 and 1 (got {v}); for |sigma_y| > |sigma_x| rotate the "
+            "layup by 90 deg, swap the --panel dimensions and use the inverse ratio"
+        )
+    return v
+
+
 def _positive_int(spec: str) -> int:
     """argparse type for a positive integer (``MeshParams.elements_per_ply``)."""
     try:
@@ -248,6 +260,17 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=sorted(_LOADING_MODES),
         default=_field_default(AnalysisConfig, "loading"),
         help="Load case: compression-after-impact or tension-after-impact",
+    )
+    p.add_argument(
+        "--transverse-stress-ratio",
+        type=_transverse_stress_ratio,
+        metavar="BETA",
+        default=_field_default(AnalysisConfig, "transverse_stress_ratio"),
+        help="EXPERIMENTAL, unvalidated: biaxial in-plane load, the signed ratio "
+        "sigma_y/sigma_x in [-1, 1] (0 = uniaxial). The sign of sigma_x is "
+        "--loading's; e.g. --loading compression --transverse-stress-ratio 1 is "
+        "equibiaxial compression. Only the empirical tier supports a nonzero "
+        "ratio so far (AnalysisConfig.transverse_stress_ratio).",
     )
     p.add_argument(
         "--tier",
@@ -483,6 +506,7 @@ def _main(argv: Sequence[str] | None) -> int:
             impact=impact,
             damage=damage,
             mesh=mesh,
+            transverse_stress_ratio=args.transverse_stress_ratio,
         )
     except ValueError as exc:
         parser.error(str(exc))
@@ -495,9 +519,10 @@ def _main(argv: Sequence[str] | None) -> int:
     # shape (JSON array / NDJSON / TSV) keyed by tier_used.
     try:
         results = [BvidAnalysis(replace(cfg, tier=t)).run() for t in args.tier]
-    except (FE3DSizeError, ValueError) as exc:
+    except (FE3DSizeError, NotImplementedError, ValueError) as exc:
         # ValueError: an input only the run can reject, e.g. a --location on
-        # or outside the panel edge.
+        # or outside the panel edge. NotImplementedError: a tier without a
+        # biaxial model yet for --transverse-stress-ratio != 0.
         return _error(str(exc))
     multi = len(results) > 1
 
