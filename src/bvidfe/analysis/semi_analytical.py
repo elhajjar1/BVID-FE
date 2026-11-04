@@ -40,6 +40,8 @@ from typing import Optional, Sequence, Union
 
 import numpy as np
 
+from bvidfe._types import BoundaryKind
+from bvidfe._validation import require_choice
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState, DelaminationEllipse
@@ -85,7 +87,7 @@ class SemiAnalyticalResult:
 # Timoshenko & Gere (1961) Theory of Elastic Stability §9.2 for square
 # plates; they transfer approximately to the rectangular orthotropic case
 # used here.
-_BOUNDARY_BUCKLING_FACTOR: dict[str, float] = {
+_BOUNDARY_BUCKLING_FACTOR: dict[BoundaryKind, float] = {
     "simply_supported": 1.0,
     "clamped": 1.9,
     "free": 0.5,
@@ -191,7 +193,7 @@ def _sublaminate_D_matrix(
 def sublaminate_buckling_load(
     lam: Laminate,
     ellipse: DelaminationEllipse,
-    boundary: str = "simply_supported",
+    boundary: BoundaryKind = "simply_supported",
 ) -> float:
     """Critical buckling force per unit width N_cr (N/mm) for the thinner
     sublaminate at the given delamination interface.
@@ -243,9 +245,9 @@ def sublaminate_buckling_load(
         ``minor_mm`` are the ellipse semi-axes, per
         ``DelaminationEllipse.area_mm2 = pi * major * minor``, and
         ``orientation_deg`` rotates them into the panel frame).
-    boundary : str
+    boundary : BoundaryKind
         One of ``"simply_supported"``, ``"clamped"``, ``"free"``; any other
-        value is treated as ``"simply_supported"``.
+        value raises ``ValueError``.
 
     The ellipse aspect ratio ``a / b`` is clipped to ``_MAX_SUBLAMINATE_ASPECT``
     (50) before evaluating the eigenvalue. Slender peanut-template ellipses
@@ -312,7 +314,7 @@ def _rayleigh_ritz_N_cr(
     D66: float,
     a: float,
     aspect: float,
-    boundary: str,
+    boundary: BoundaryKind,
 ) -> float:
     """Closed-form SSSS uniaxial-compression N_cr for an orthotropic rectangle.
 
@@ -333,15 +335,16 @@ def _rayleigh_ritz_N_cr(
             N_mn = (pi2 / a**2) * num / m_mode**2
             if N_mn < best:
                 best = N_mn
-    boundary_factor = _BOUNDARY_BUCKLING_FACTOR.get(boundary, 1.0)
-    return best * boundary_factor
+    # A typo used to fall back silently to the simply-supported factor.
+    require_choice(boundary, _BOUNDARY_BUCKLING_FACTOR, "boundary")
+    return best * _BOUNDARY_BUCKLING_FACTOR[boundary]
 
 
 def panel_buckling_load(
     lam: Laminate,
     Lx_mm: float,
     Ly_mm: float,
-    boundary: str = "simply_supported",
+    boundary: BoundaryKind = "simply_supported",
 ) -> float:
     """Full-panel buckling force per unit width N_cr (N/mm) for the intact
     laminate under uniaxial compression along x.
@@ -411,7 +414,7 @@ def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]
 def sublaminate_growth_stress(
     lam: Laminate,
     ellipse: DelaminationEllipse,
-    boundary: str = "simply_supported",
+    boundary: BoundaryKind = "simply_supported",
 ) -> SublaminateGrowth:
     """Far-field compressive stress at which a delamination grows (MPa).
 
@@ -473,7 +476,7 @@ def sublaminate_growth_stress(
 def weakest_sublaminate_growth(
     lam: Laminate,
     damage: DamageState,
-    boundary: str = "simply_supported",
+    boundary: BoundaryKind = "simply_supported",
 ) -> Optional[SublaminateGrowth]:
     """The delamination that grows at the lowest far-field stress.
 
@@ -497,7 +500,7 @@ def semi_analytical_cai(
     damage: DamageState,
     sigma_pristine_MPa: float,
     A_ref_mm2: float = SOUTIS_REFERENCE_AREA_MM2,
-    boundary: str = "simply_supported",
+    boundary: BoundaryKind = "simply_supported",
 ) -> SemiAnalyticalResult:
     """Semi-analytical compression-after-impact residual strength (MPa).
 
@@ -531,7 +534,7 @@ def semi_analytical_cai(
         Reference area of the Soutis knockdown, default
         ``SOUTIS_REFERENCE_AREA_MM2`` (15,000 mm², the coupon ``soutis_k_s``
         is calibrated on).
-    boundary : str
+    boundary : BoundaryKind
         Panel edge condition (``"simply_supported"``, ``"clamped"`` or
         ``"free"``) for the sublaminate buckling factor; ``BvidAnalysis``
         passes ``panel.boundary``.

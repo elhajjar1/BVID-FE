@@ -74,6 +74,7 @@ from functools import lru_cache
 
 import numpy as np
 
+from bvidfe._types import BoundaryKind
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 
@@ -88,7 +89,7 @@ NAVIER_N: int = 11  # Navier series truncation (N x N modes)
 # in [0.5, 2.0] — we use 2.5 as a representative value. "Free" has no
 # restoring bending stiffness from edges; we treat it as 0.4 * SSSS (a
 # crude approximation that nonetheless gives users a visible effect).
-_BOUNDARY_BENDING_FACTOR: dict[str, float] = {
+_BOUNDARY_BENDING_FACTOR: dict[BoundaryKind, float] = {
     "simply_supported": 1.0,
     "clamped": 2.5,
     "free": 0.4,
@@ -141,7 +142,7 @@ _MEMBRANE_MODES: dict[str, tuple[tuple[tuple[int, int, float], ...], float]] = {
 # clamps) is free to slide in-plane: movable edges, the lower membrane
 # stiffness. A clamped panel (gripped between two plates) is held in-plane.
 # A free panel has no edge to stretch against.
-_MEMBRANE_EDGE: dict[str, tuple[str, bool] | None] = {
+_MEMBRANE_EDGE: dict[BoundaryKind, tuple[str, bool] | None] = {
     "simply_supported": ("sine", False),
     "clamped": ("clamped", True),
     "free": None,

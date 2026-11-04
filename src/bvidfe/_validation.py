@@ -11,7 +11,7 @@ from __future__ import annotations
 import dataclasses
 import math
 import numbers
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 
@@ -43,6 +43,20 @@ def require_non_negative(value: Any, name: str) -> float:
     if f < 0:
         raise ValueError(f"{name} must be >= 0 (got {value!r})")
     return f
+
+
+def require_choice(value: Any, allowed: Iterable[str], name: str) -> None:
+    """Raise ``ValueError`` unless *value* is one of the strings *allowed*.
+
+    The message names the field, lists the allowed values (sorted, so it is
+    deterministic) and shows the offending value, e.g.
+    ``"tier must be one of ['empirical', 'fe3d', 'semi_analytical']; got 'fe3D'"``.
+    Used for the ``Literal``-typed options of :mod:`bvidfe._types`, whose
+    runtime sets are the *allowed* argument.
+    """
+    allowed_sorted = sorted(allowed)
+    if not isinstance(value, str) or value not in allowed_sorted:
+        raise ValueError(f"{name} must be one of {allowed_sorted}; got {value!r}")
 
 
 def require_xy(value: Any, name: str) -> tuple:

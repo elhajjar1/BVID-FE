@@ -31,7 +31,8 @@ pip install "bvidfe[app] @ git+https://github.com/elhajjar1/BVID-FE.git"  # also
 ```
 
 Once 0.3.0 is on PyPI, `pip install bvidfe` (or `pip install "bvidfe[app]"`)
-will do the same.
+will do the same. From 0.3.0, each [GitHub release](https://github.com/elhajjar1/BVID-FE/releases)
+carries a CycloneDX SBOM (`bvidfe-X.Y.Z.cdx.json`) of what `pip install bvidfe` installs.
 
 The package contains the library and the CLI. The Streamlit app
 (`app.py`), the example scripts and data (`examples/`, including the

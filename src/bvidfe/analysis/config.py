@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from typing import Any, Iterable, List, Mapping, Optional, Sequence, Union
 
 from bvidfe._types import _LOADING_MODES, _TIER_NAMES, LoadingMode, TierName
-from bvidfe._validation import dataclass_kwargs, require_finite, require_positive
+from bvidfe._validation import (
+    dataclass_kwargs,
+    require_choice,
+    require_finite,
+    require_positive,
+)
 from bvidfe.core.geometry import PanelGeometry
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
 from bvidfe.damage.io import SCHEMA_VERSION, damage_state_from_dict
@@ -17,13 +22,12 @@ from bvidfe.impact.mapping import ImpactEvent
 def _validate_choice(value: object, allowed: Iterable[str], field: str) -> None:
     """Raise ``ValueError`` if *value* is not a member of *allowed*.
 
-    The error message lists the allowed values (sorted for deterministic
-    output) and the offending value, prefixed with the *field* name, e.g.
+    Kept as an alias of :func:`bvidfe._validation.require_choice`: the error
+    message lists the allowed values (sorted for deterministic output) and
+    the offending value, prefixed with the *field* name, e.g.
     ``'tier must be one of [...]; got "fe3D"'``.
     """
-    allowed_sorted = sorted(allowed)
-    if value not in allowed_sorted:
-        raise ValueError(f"{field} must be one of {allowed_sorted}; got {value!r}")
+    require_choice(value, allowed, field)
 
 
 @dataclass

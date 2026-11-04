@@ -58,6 +58,8 @@ from typing import Any, Callable, Iterator, List, Optional, Sequence, Union
 
 import pandas as pd
 
+from bvidfe._types import _ON_ERROR_MODES, OnErrorMode
+from bvidfe._validation import require_choice
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
 from bvidfe.impact.mapping import DPACapClipWarning, SmallMassQuasiStaticWarning
 
@@ -71,7 +73,6 @@ _ProgressCallback = Union[
     Callable[[int, int], None],
     Callable[[int, int, dict], None],
 ]
-_ON_ERROR_VALUES = ("raise", "skip", "warn")
 
 
 _DEDUP_WARNING_CATEGORIES = (SmallMassQuasiStaticWarning, DPACapClipWarning)
@@ -139,11 +140,12 @@ def _nan_row() -> dict:
 def _check_on_error(on_error: str) -> None:
     """Reject an unknown ``on_error`` before the sweep starts, so a typo is
     caught even when the sweep list is empty or every point succeeds."""
-    if on_error not in _ON_ERROR_VALUES:
-        raise ValueError(f"on_error must be one of {_ON_ERROR_VALUES} (got {on_error!r})")
+    require_choice(on_error, _ON_ERROR_MODES, "on_error")
 
 
-def _try_run_one(build_cfg: Callable[[], AnalysisConfig], on_error: str, label: str) -> dict:
+def _try_run_one(
+    build_cfg: Callable[[], AnalysisConfig], on_error: OnErrorMode, label: str
+) -> dict:
     """Build the point's config with ``build_cfg()`` and run it, translating
     any exception from either step to a NaN-filled row according to
     ``on_error``. Building inside the handler means a point that fails
@@ -240,7 +242,7 @@ def sweep_energies(
     energies_J: Sequence[float],
     csv_path: Optional[Path | str] = None,
     *,
-    on_error: str = "raise",
+    on_error: OnErrorMode = "raise",
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
     """Sweep impact energies; base_cfg must have `impact` set.
@@ -290,7 +292,7 @@ def sweep_layups(
     layups: Sequence[Sequence[float]],
     csv_path: Optional[Path | str] = None,
     *,
-    on_error: str = "raise",
+    on_error: OnErrorMode = "raise",
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
     """Sweep layup sequences.
@@ -327,7 +329,7 @@ def sweep_thicknesses(
     ply_thicknesses_mm: Sequence[float],
     csv_path: Optional[Path | str] = None,
     *,
-    on_error: str = "raise",
+    on_error: OnErrorMode = "raise",
     progress_callback: Optional[_ProgressCallback] = None,
 ) -> pd.DataFrame:
     """Sweep ply thickness values.

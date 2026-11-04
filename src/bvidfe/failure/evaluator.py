@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 import numpy as np
 
 from bvidfe._types import CriterionName
+from bvidfe._validation import require_choice
 from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.failure.larc05 import larc05_index, larc05_index_batch
 from bvidfe.failure.puck import puck_index, puck_index_batch
@@ -43,16 +44,16 @@ class LaminateFailureReport:
     max_index: float
     critical_element: int
     critical_gauss_point: int
-    criterion: str
+    criterion: CriterionName
 
 
 class FailureEvaluator:
     """Applies a failure criterion across every (element, gauss-point) stress."""
 
     def __init__(self, material: OrthotropicMaterial, criterion: CriterionName = "tsai_wu"):
-        if criterion not in _CRITERION_REGISTRY:
-            valid = sorted(_CRITERION_REGISTRY.keys())
-            raise ValueError(f"unknown criterion {criterion!r}; valid options are {valid}")
+        # The registry keys equal ``_CRITERION_NAMES`` (the ``CriterionName``
+        # Literal), locked by tests/failure/test_evaluator.py.
+        require_choice(criterion, _CRITERION_REGISTRY, "FailureEvaluator criterion")
         self.material = material
         self.criterion = criterion
         # Cache function pointers at construction time so ``evaluate`` and

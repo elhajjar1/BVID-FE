@@ -372,6 +372,33 @@ def test_knockdown_curve_tab_low_energy_and_run_tier(_no_stats) -> None:
     assert set(curves[0]["tier_used"]) == {"semi_analytical"}
 
 
+@pytest.mark.parametrize("tier", ["empirical", "fe3d"])
+def test_summary_shows_the_stiffness(_no_stats, monkeypatch, tier) -> None:
+    """Issue #114: the Summary tab shows E11 / E22 / G12, fe3d's E11 as a
+    residual with its knockdown and the rest as the pristine CLT value.
+    fe3d's solves are replaced by fakes (E11 knockdown 0.8): the app also
+    runs a 7-point knockdown curve at the run's tier."""
+    from bvidfe.analysis import bvid
+
+    monkeypatch.setattr(
+        bvid,
+        "fe3d_cai_channels_and_modulus",
+        lambda cfg, damage, lam, cap: (None, 100.0, 0.8 if damage.delaminations else 1.0),
+    )
+    at = _run_analysis(_app_test({"t": tier, "ld": "compression"}))
+    _no_exception(at)
+    labels = {m.label for m in at.metric}
+    result_dict = at.session_state["last_result"]["result_dict"]
+    if tier == "fe3d":
+        assert result_dict["E11_knockdown"] == pytest.approx(0.8)
+        assert "E11 residual" in labels
+        assert {"E22 (pristine, CLT)", "G12 (pristine, CLT)"} <= labels
+        (e11,) = [m for m in at.metric if m.label == "E11 residual"]
+        assert e11.value == f"{result_dict['residual_E11_MPa'] / 1000:.1f} GPa"
+    else:
+        assert {"E11 (pristine, CLT)", "E22 (pristine, CLT)", "G12 (pristine, CLT)"} <= labels
+
+
 # ---------------------------------------------------------------------------
 # Layup range (#169) and the config / results JSON (#170)
 # ---------------------------------------------------------------------------
@@ -502,3 +529,110 @@ def test_unused_ply_thickness_helper_is_gone(monkeypatch) -> None:
     """``_ply_thickness_from_json`` was unused (``AnalysisConfig.from_dict``
     reads a uniform or per-ply thickness)."""
     assert not hasattr(_import_app(monkeypatch), "_ply_thickness_from_json")
+
+
+# ---------------------------------------------------------------------------
+# fe3d stage log in an st.status block (#110)
+# ---------------------------------------------------------------------------
+
+# A small, fast fe3d run: 768 elements, ~3k DOFs at the 5 mm default mesh.
+_SMALL_FE3D = {"t": "fe3d", "lx": "60", "ly": "40", "E": "2"}
+
+
+def _stage_handlers() -> list:
+    return [
+        h
+        for h in logging.getLogger("bvidfe.fe3d").handlers
+        if type(h).__name__ == "_StageStatusHandler"
+    ]
+
+
+def test_fe3d_run_shows_its_stage_log_in_a_status_block(_no_stats) -> None:
+    streamlit.cache_data.clear()
+    at = _run_analysis(_app_test(_SMALL_FE3D))
+    _no_exception(at)
+    assert not at.error, [e.value for e in at.error]
+    assert any(m.label == "Knockdown" for m in at.metric)
+    (status,) = at.status
+    assert status.label.startswith("fe3d stage log (") and status.label.endswith(" lines)")
+    (log,) = status.text
+    for line in [
+        "fe3d FPF (damaged, ",
+        "fe3d FPF (undamaged): mesh build start",
+        "element build done",
+        "assembly done",
+        "BCs done",
+        "solve done: direct LU",
+        "FPF evaluation done",
+        "fe3d buckling",
+    ]:
+        assert line in log.value, line
+    assert not _stage_handlers()
+
+    # Same config again: a cache hit, nothing solved and nothing logged.
+    at = _run_analysis(at)
+    _no_exception(at)
+    (status,) = at.status
+    assert "cached result" in status.label
+    assert not _stage_handlers()
+
+
+def test_non_fe3d_run_has_no_status_block(_no_stats) -> None:
+    at = _run_analysis(_app_test({"t": "semi_analytical"}))
+    _no_exception(at)
+    assert not at.status
+
+
+def test_fe3d_stage_handler_is_removed_when_the_run_fails(_no_stats, monkeypatch) -> None:
+    import bvidfe.analysis.bvid as bvid
+
+    def _fail(*args, **kwargs):
+        logging.getLogger("bvidfe.fe3d").info("about to fail")
+        raise RuntimeError("solver exploded")
+
+    monkeypatch.setattr(bvid, "fe3d_cai_channels_and_modulus", _fail)
+    streamlit.cache_data.clear()
+    at = _run_analysis(_app_test({**_SMALL_FE3D, "E": "1.5"}))
+    _no_exception(at)
+    assert any("solver exploded" in e.value for e in at.error)
+    (status,) = at.status
+    assert status.proto.state == status.proto.State.ERROR
+    assert "about to fail" in status.text[0].value
+    assert not _stage_handlers()
+
+
+def test_stage_handler_updates_the_label_live_for_its_own_thread_only(monkeypatch) -> None:
+    """Each INFO line becomes the status label as it is logged; records
+    from other threads (other sessions' runs) are ignored."""
+    import threading
+
+    app_module = _import_app(monkeypatch)
+
+    class _Status:
+        def __init__(self):
+            self.labels: list[str] = []
+
+        def update(self, *, label):
+            self.labels.append(label)
+
+    status = _Status()
+    handler = app_module._StageStatusHandler(status)
+    log = logging.getLogger("bvidfe.fe3d.test_stage_handler")
+    monkeypatch.setattr(log, "propagate", False)
+    log.addHandler(handler)
+    log.setLevel(logging.DEBUG)
+    try:
+        log.info("mesh build start")
+        log.debug("not a stage line")
+        other = threading.Thread(target=log.info, args=("another session",))
+        other.start()
+        other.join()
+        log.info("solve done: direct LU (0.05s)")
+    finally:
+        log.removeHandler(handler)
+        log.setLevel(logging.NOTSET)
+    assert status.labels == ["fe3d: mesh build start", "fe3d: solve done: direct LU (0.05s)"]
+    assert [line.split(" ", 1)[1] for line in handler.lines] == [
+        "mesh build start",
+        "solve done: direct LU (0.05s)",
+    ]

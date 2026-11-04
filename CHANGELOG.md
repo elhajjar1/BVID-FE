@@ -75,6 +75,14 @@ constants are in [`validation/README.md`](validation/README.md).
   for a wrong-shaped stress array; `lekhnitskii_kt_infinity` raises a
   descriptive `ValueError` for constants outside the orthotropic stability
   bound.
+- An unknown panel boundary or impactor shape passed straight to a
+  public helper raises `ValueError` listing the valid values (#82):
+  `sublaminate_buckling_load`, `panel_buckling_load`,
+  `sublaminate_growth_stress`, `weakest_sublaminate_growth` and
+  `semi_analytical_cai` (`boundary`), and `dent_depth_mm` (`shape`). A
+  typo was silently treated as `"simply_supported"` or a hemisphere.
+  `PanelGeometry` and `ImpactorGeometry` already rejected one; their
+  message now lists the valid values too.
 - Streamlit is no longer installed with the package. Install
   `pip install "bvidfe[app]"` (or `pip install -r requirements.txt`) for
   the web app; the `dev` extra still includes it.
@@ -229,6 +237,24 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
+- Residual in-plane stiffness beside the strength knockdown (#114).
+  `AnalysisResults` gains `pristine_E11_MPa`, `residual_E11_MPa`,
+  `E11_knockdown` and the same for `E22` and `G12` (laminate membrane
+  moduli in the panel axes, `Optional`, in `to_dict()`, the CLI JSON,
+  `summary()` and the Streamlit Summary tab; `--quick` / `--quick-json`
+  are unchanged). `pristine_*` is CLT's `Ex`, `Ey`, `Gxy` for every tier.
+  fe3d reports the E11 residual: its damaged over undamaged panel's secant
+  axial modulus, from the loaded-edge reaction forces its two first-ply
+  failure solves already compute (no extra solve), in the run's loading
+  sense (8-ply QI IM7/8552 150 x 100 mm: 0.950 / 0.818 / 0.650 in CAI and
+  0.997 / 0.989 / 0.978 in TAI at 5 / 15 / 30 J), with the raw moduli in
+  `notes`. The closed-form tiers model no damaged-material stiffness and
+  leave their residuals `None`, as does fe3d for `E22` and `G12`. No
+  residual-stiffness measurement validates it, and the damage-zone factor
+  behind it was fitted to CAI strength (see "Residual stiffness" in
+  `docs/physics_models.md`). New `fe_tier` helpers:
+  `axial_secant_modulus`, `fe3d_cai_channels_and_modulus` and
+  `fe3d_tai_and_modulus`; strength knockdowns are unchanged.
 - `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
   `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
   `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its
@@ -247,6 +273,24 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   hemisphere on a simply supported panel and fe3d at `MeshParams()`. A
   `ValueError` raised by the run (e.g. a `--location` on or outside the
   panel edge) is a one-line error (exit 1), not a traceback.
+- fe3d per-stage progress log (#110): one INFO line at the start and end
+  of each stage of each fe3d run (mesh build, element build, stiffness
+  assembly, BCs, the solve with the solver that produced the answer and
+  its iterations, first-ply-failure evaluation), with DOF counts and wall
+  time, on the `bvidfe.fe3d` and `bvidfe.fe3d.solver` loggers; the damaged
+  and undamaged runs are labelled. The Streamlit app shows the latest
+  stage as the label of an `st.status` block while an fe3d run is in
+  progress and the whole log in it afterwards. Numerical results are
+  unchanged.
+- CycloneDX SBOM on every release (#118): a `sbom` job in
+  `.github/workflows/publish.yml`, after the PyPI upload, installs the
+  uploaded wheel into a clean venv, writes a CycloneDX 1.6 JSON SBOM of
+  it with `cyclonedx-py environment` (bvidfe as the root component, then
+  numpy, scipy and the rest of what `pip install bvidfe==X.Y.Z` pulls),
+  and attaches it to the GitHub Release for the tag as
+  `bvidfe-X.Y.Z.cdx.json`. Only that job can write repo contents; the
+  PyPI job's permissions are unchanged. `cyclonedx-bom` is installed in
+  the job only, not added to the `dev` extra.
 - CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
   `pip-audit` on the installed runtime + dev dependencies on every PR,
   on pushes to main and weekly; any known vulnerability fails it.
@@ -304,6 +348,33 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Changed
 
+- **The string options are `Literal` types throughout (#82).** `tier`,
+  `loading`, failure `criterion`, panel `boundary`, impactor `shape` and
+  the sweeps' `on_error` are typed with the `TierName`, `LoadingMode`,
+  `CriterionName`, `BoundaryKind`, `ImpactorShape` and `OnErrorMode`
+  aliases of `bvidfe._types` (`BoundaryKind` and `ImpactorShape` are still
+  importable from `bvidfe.core.geometry`), including
+  `AnalysisResults.tier_used`, `LaminateFailureReport.criterion` and the
+  semi-analytical buckling helpers, so mypy and IDEs see the valid values.
+  The runtime validation sets are derived from the Literals with
+  `typing.get_args`, and every construction point (`AnalysisConfig`,
+  `PanelGeometry`, `ImpactorGeometry`, `FailureEvaluator`, the sweeps)
+  raises `ValueError` naming the field, the bad value and the valid ones,
+  e.g. `PanelGeometry.boundary must be one of ['clamped', 'free',
+  'simply_supported']; got 'clampd'`. The values remain plain strings, so
+  JSON configs and the CLI are unchanged; the results schema gains an
+  `enum` for `tier_used`.
+- **fe3d CAI notes say the buckling channel is the closed form (#133).**
+  A successful fe3d CAI run adds `"fe3d buckling onset <X> MPa (<where>;
+  buckling_eigenvalues) is from the closed-form Rayleigh-Ritz kernel
+  semi_analytical uses, not a 3D eigensolve (#129)"` to
+  `AnalysisResults.notes`, `<where>` being `whole panel` or `sublaminate
+  over interface <i>`. Before, only the stderr log and the degenerate
+  case said so, and nothing said which of the two the reported
+  `buckling_eigenvalues` value was. The governing CAI channel was already
+  in a note starting `"fe3d CAI: delamination growth governs"` or
+  `"fe3d CAI: first-ply failure governs"` (#166); buckling onset does not
+  set the fe3d strength, so there is no buckling-governs case to tag.
 - **CLI ranges match the API (#169).** `--loading` defaults to
   `compression` (it was required); `--layup` takes any finite ply angle,
   as `AnalysisConfig` does (`135` was rejected; angles are used modulo

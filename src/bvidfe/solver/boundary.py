@@ -21,6 +21,8 @@ from typing import List, Sequence
 import numpy as np
 import scipy.sparse as sp
 
+from bvidfe._types import BoundaryKind
+
 
 @dataclass
 class BoundaryCondition:
@@ -81,7 +83,7 @@ def mid_surface_z(node_coords: np.ndarray) -> float:
 def uniaxial_x_bcs(
     node_coords: np.ndarray,
     applied_strain: float,
-    boundary: str = "simply_supported",
+    boundary: BoundaryKind = "simply_supported",
 ) -> List[BoundaryCondition]:
     """Build BCs for a uniaxial test along x (compression or tension).
 

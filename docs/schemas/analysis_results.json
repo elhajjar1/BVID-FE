@@ -120,6 +120,24 @@
   "additionalProperties": false,
   "description": "Outcome of a single ``BvidAnalysis.run()`` invocation.",
   "properties": {
+    "E11_knockdown": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "E22_knockdown": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "G12_knockdown": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "buckling_eigenvalues": {
       "items": {
         "type": "number"
@@ -166,13 +184,54 @@
       },
       "type": "array"
     },
+    "pristine_E11_MPa": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "pristine_E22_MPa": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "pristine_G12_MPa": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "pristine_strength_MPa": {
       "type": "number"
+    },
+    "residual_E11_MPa": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "residual_E22_MPa": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "residual_G12_MPa": {
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "residual_strength_MPa": {
       "type": "number"
     },
     "tier_used": {
+      "enum": [
+        "empirical",
+        "semi_analytical",
+        "fe3d"
+      ],
       "type": "string"
     },
     "warnings": {

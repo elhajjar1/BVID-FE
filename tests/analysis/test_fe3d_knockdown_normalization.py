@@ -113,10 +113,10 @@ def test_fe3d_cai_compares_growth_and_normalised_fpf_on_one_scale(
 
     def channels(cfg, damage, lam, cap):
         if damage.delaminations:
-            return _growth_at(growth_MPa), fpf_damaged
-        return None, 400.0
+            return _growth_at(growth_MPa), fpf_damaged, 1.0
+        return None, 400.0, 1.0
 
-    monkeypatch.setattr(bvid, "fe3d_cai_channels", channels)
+    monkeypatch.setattr(bvid, "fe3d_cai_channels_and_modulus", channels)
     r = BvidAnalysis(_config("compression", _DELAMINATED)).run()
     sigma0 = r.pristine_strength_MPa
     assert r.residual_strength_MPa == pytest.approx(min(growth_MPa, sigma0 * fpf_damaged / 400.0))
@@ -127,9 +127,9 @@ def test_fe3d_cai_compares_growth_and_normalised_fpf_on_one_scale(
 def test_fe3d_cai_growth_stress_is_capped_at_pristine(monkeypatch):
     monkeypatch.setattr(
         bvid,
-        "fe3d_cai_channels",
+        "fe3d_cai_channels_and_modulus",
         lambda cfg, damage, lam, cap: (
-            (_growth_at(1e4), 1e4) if damage.delaminations else (None, 1e3)
+            (_growth_at(1e4), 1e4, 1.0) if damage.delaminations else (None, 1e3, 1.0)
         ),
     )
     r = BvidAnalysis(_config("compression", _DELAMINATED)).run()

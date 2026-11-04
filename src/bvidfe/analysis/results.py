@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from bvidfe._types import TierName
 from bvidfe.damage.io import damage_state_to_dict
 from bvidfe.damage.state import DamageState
 
@@ -98,6 +99,24 @@ class AnalysisResults:
     knockdown. Otherwise empty when the run produced no
     diagnostic-worthy events.
 
+    The stiffness fields (issue #114) are the laminate's effective membrane
+    moduli in the panel axes: ``E11`` along x (the loading direction and
+    the layup's 0 deg direction), ``E22`` along y and ``G12`` the in-plane
+    shear modulus, i.e. the CLT ``Ex``, ``Ey`` and ``Gxy`` of
+    :meth:`~bvidfe.core.laminate.Laminate.effective_engineering_constants`
+    (not the ply's ``E11`` / ``E22`` / ``G12``). ``pristine_*`` is that CLT
+    value for every tier. Only fe3d computes a residual, and only
+    ``residual_E11_MPa``: ``pristine_E11_MPa`` times fe3d's damaged over
+    undamaged secant axial modulus of the whole panel (the loaded-edge
+    reaction forces of the two first-ply failure solves, at the same end
+    strain), so in the run's loading sense (compression for CAI, tension
+    for TAI). The closed-form tiers model the damage as a strength
+    equivalent (a hole, a notch, buckled sublaminates) with no stiffness,
+    so their residual fields are ``None``, as are fe3d's E22 and G12
+    (they would need further solves). See "Residual stiffness" in
+    docs/physics_models.md; no residual stiffness measurement validates
+    them.
+
     ``buckling_eigenvalues`` is buckling *onset*, not strength: the
     sublaminate buckling load (N/mm) at ``critical_sublaminate`` for
     semi_analytical, and the lower of whole-panel and sublaminate buckling
@@ -118,8 +137,8 @@ class AnalysisResults:
         the impact (placed on ``panel``).
     dpa_mm2 : float
         ``damage.projected_damage_area_mm2``, the plan-view union area (mm²).
-    tier_used : str
-        The tier that ran.
+    tier_used : {"empirical", "semi_analytical", "fe3d"}
+        The tier that ran (``AnalysisConfig.tier``).
     config_snapshot : dict
         ``dataclasses.asdict`` of the ``AnalysisConfig`` (a custom material
         expanded to a dict), for provenance.
@@ -138,6 +157,14 @@ class AnalysisResults:
     warnings : list of str
         Every ``UserWarning`` raised during ``BvidAnalysis.run``, as
         ``"<WarningClass>: <message>"`` (see below).
+    pristine_E11_MPa, pristine_E22_MPa, pristine_G12_MPa : float, optional
+        CLT effective membrane moduli (MPa) of the intact laminate, set by
+        ``BvidAnalysis.run`` for every tier.
+    residual_E11_MPa, residual_E22_MPa, residual_G12_MPa : float, optional
+        Residual moduli (MPa); only ``residual_E11_MPa`` for fe3d, ``None``
+        otherwise.
+    E11_knockdown, E22_knockdown, G12_knockdown : float, optional
+        ``residual / pristine`` for each modulus, ``None`` with the residual.
     """
 
     residual_strength_MPa: float
@@ -145,7 +172,7 @@ class AnalysisResults:
     knockdown: float
     damage: DamageState
     dpa_mm2: float
-    tier_used: str
+    tier_used: TierName
     config_snapshot: Dict[str, Any]
     buckling_eigenvalues: Optional[List[float]] = None
     critical_sublaminate: Optional[int] = None
@@ -157,6 +184,27 @@ class AnalysisResults:
     #: de-duplicated, in the order raised. The warnings are still emitted
     #: through Python's ``warnings`` machinery as well.
     warnings: List[str] = field(default_factory=list)
+    #: CLT effective membrane modulus along x (MPa) of the intact laminate,
+    #: ``Laminate.effective_engineering_constants()[0]``; every tier.
+    pristine_E11_MPa: Optional[float] = None
+    #: Damaged panel's axial modulus along x (MPa): ``pristine_E11_MPa *
+    #: E11_knockdown``. fe3d only (``None`` for the closed-form tiers).
+    residual_E11_MPa: Optional[float] = None
+    #: fe3d's damaged over undamaged secant axial modulus of the panel, in
+    #: the run's loading sense; ``None`` for the closed-form tiers.
+    E11_knockdown: Optional[float] = None
+    #: CLT effective membrane modulus along y (MPa) of the intact laminate.
+    pristine_E22_MPa: Optional[float] = None
+    #: Not computed by any tier yet: always ``None``.
+    residual_E22_MPa: Optional[float] = None
+    #: Not computed by any tier yet: always ``None``.
+    E22_knockdown: Optional[float] = None
+    #: CLT effective in-plane shear modulus (MPa) of the intact laminate.
+    pristine_G12_MPa: Optional[float] = None
+    #: Not computed by any tier yet: always ``None``.
+    residual_G12_MPa: Optional[float] = None
+    #: Not computed by any tier yet: always ``None``.
+    G12_knockdown: Optional[float] = None
 
     def __repr__(self) -> str:
         return (
@@ -182,6 +230,18 @@ class AnalysisResults:
             f"  dent_depth_mm          : {self.damage.dent_depth_mm:.3f}",
             f"  n_delaminations        : {len(self.damage.delaminations)}",
         ]
+        for name in ("E11", "E22", "G12"):
+            pristine = getattr(self, f"pristine_{name}_MPa")
+            if pristine is None:
+                continue
+            residual = getattr(self, f"residual_{name}_MPa")
+            kd = getattr(self, f"{name}_knockdown")
+            line = f"  {name + '_MPa':23s}: {pristine:.0f} pristine"
+            if residual is not None and kd is not None:
+                line += f", {residual:.0f} residual (knockdown {kd:.3f})"
+            else:
+                line += ", residual not modelled by this tier"
+            lines.append(line)
         if self.notes:
             lines.append("  notes:")
             for note in self.notes:
@@ -198,8 +258,10 @@ class AnalysisResults:
         Keys: ``residual_strength_MPa``, ``pristine_strength_MPa``,
         ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage``,
         ``buckling_eigenvalues``, ``critical_sublaminate``,
-        ``config_snapshot``, ``notes`` and ``warnings``. ``field_results``
-        is left out. ``damage`` is
+        ``config_snapshot``, ``notes``, ``warnings`` and the nine stiffness
+        fields (``pristine_E11_MPa``, ``residual_E11_MPa``,
+        ``E11_knockdown`` and the same for ``E22`` and ``G12``, ``None`` as
+        ``null``). ``field_results`` is left out. ``damage`` is
         :func:`~bvidfe.damage.io.damage_state_to_dict`, the schema-v1.0
         C-scan layout with ``schema_version``, so it can be saved and read
         back with ``load_cscan_json`` (or the CLI's ``--cscan``) for an
@@ -220,4 +282,7 @@ class AnalysisResults:
             "notes": list(self.notes),
             "warnings": list(self.warnings),
         }
+        for name in ("E11", "E22", "G12"):
+            for key in (f"pristine_{name}_MPa", f"residual_{name}_MPa", f"{name}_knockdown"):
+                out[key] = getattr(self, key)
         return out

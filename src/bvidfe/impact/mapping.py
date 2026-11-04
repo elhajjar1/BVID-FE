@@ -21,6 +21,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional, Tuple
 
+from bvidfe._types import ImpactorShape
 from bvidfe._validation import (
     dataclass_kwargs,
     require_non_negative,
@@ -62,7 +63,7 @@ class DPACapClipWarning(UserWarning):
 # (cone), 1.01, 1.01 and 1.06 (12.7, 25.4 and 31.8 mm hemispheres). The
 # previous, unsourced 1.4 (flat) and 0.7 (conical) ran the other way.
 # Public: the app help and the ImpactorGeometry docstring quote it.
-SHAPE_DPA_FACTOR: dict[str, float] = {
+SHAPE_DPA_FACTOR: dict[ImpactorShape, float] = {
     "hemispherical": 1.0,
     "flat": 0.2,
     "conical": 1.9,
@@ -85,11 +86,11 @@ _DIAMETER_REF_MM = DIAMETER_REF_MM
 _DIAMETER_DPA_EXPONENT = DIAMETER_DPA_EXPONENT
 
 
-def _shape_dpa_factor(shape: str) -> float:
+def _shape_dpa_factor(shape: ImpactorShape) -> float:
     return SHAPE_DPA_FACTOR.get(shape, 1.0)
 
 
-def _diameter_dpa_factor(diameter_mm: float, shape: str = "hemispherical") -> float:
+def _diameter_dpa_factor(diameter_mm: float, shape: ImpactorShape = "hemispherical") -> float:
     """Smaller impactors concentrate damage (larger factor); larger
     impactors spread it (smaller factor). Mild (``DIAMETER_DPA_EXPONENT``). A cone's
     contact is set by its angle, not its shank diameter, so the factor is

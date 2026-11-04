@@ -171,6 +171,9 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here (and, for CAI, the delamination-growth and whole-panel buckling stresses). Impact-mapping regimes are Python warnings, not notes |
 | `warnings` | Every `UserWarning` raised during the run, as `"<WarningClass>: <message>"` (also emitted as Python warnings) |
 | `field_results` | Always `None` for now |
+| `pristine_E11_MPa`, `pristine_E22_MPa`, `pristine_G12_MPa` | CLT membrane moduli of the intact laminate (MPa) in the panel axes (`Ex`, `Ey`, `Gxy` of `Laminate.effective_engineering_constants`), every tier |
+| `residual_E11_MPa`, `E11_knockdown` | `fe3d` only: the damaged over undamaged panel's secant axial modulus, in the run's loading sense, applied to `pristine_E11_MPa`; `None` for the closed-form tiers. Not validated against stiffness data ([Residual stiffness](physics_models.md#residual-stiffness)) |
+| `residual_E22_MPa`, `E22_knockdown`, `residual_G12_MPa`, `G12_knockdown` | Not computed by any tier yet: `None` |
 
 `result.summary()` returns a printable block and `result.to_dict()` a
 JSON-serialisable dict (every field but `field_results`, the damage in the
@@ -485,11 +488,16 @@ et al.'s C-scan areas; treat the others as defaults.
 
 ## Logging
 
-The fe3d tier logs stage-by-stage timing lines under the `bvidfe.fe3d`
-logger: mesh build, element build, the first-ply-failure solve and its
-result, and the closed-form buckling stress. The empirical and
-semi-analytical tiers do not log. The `bvidfe` CLI and the Streamlit app
-print these lines to stderr; as a library, bvidfe attaches only a
+The fe3d tier logs one INFO line at the start and one at the end of each
+stage under the `bvidfe.fe3d` logger (the solver's lines under its child
+`bvidfe.fe3d.solver`): mesh build, element build, stiffness assembly,
+BCs, the linear solve (the solver that produced the answer and its
+iterations), first-ply-failure evaluation and the run's result, for the
+damaged and the undamaged run alike, with DOF counts and wall time; then
+the closed-form buckling stress. The empirical and semi-analytical tiers
+do not log. The `bvidfe` CLI and the Streamlit app print these lines to
+stderr, and the app also shows them in a status block during an fe3d
+run; as a library, bvidfe attaches only a
 `NullHandler`, so from Python call
 `bvidfe.analysis.fe_tier.enable_stderr_logging()` (or configure `logging`
 yourself) to see them.
