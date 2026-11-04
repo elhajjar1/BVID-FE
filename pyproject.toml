@@ -106,6 +106,12 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Slow tests (minutes) are left out of the default run and of the 9-cell
+# test matrix; the validation job runs them with `pytest -m slow`.
+addopts = "-m 'not slow'"
+markers = [
+    "slow: minutes-long fe3d checks, deselected by default; run with `pytest -m slow`",
+]
 # Any warning fails the test that emits it: a test that expects one asserts
 # it with pytest.warns. Third-party deprecations the project cannot act on
 # are ignored by module.

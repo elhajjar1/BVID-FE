@@ -1140,14 +1140,47 @@ boundary conditions fe3d does not have), about 40% more run time.
     tension rows were 0.912 / 0.930 (QI) and 0.917 / 0.954 (cross-ply),
     5 mm 2–4% below 2.5 mm. Before the damage zone kept its fibres in
     tension they were 0.242 / 0.273 / 0.269 (QI) and 0.156 / 0.168 / 0.162
-    (cross-ply). Smaller zones, only a few elements across at 5 mm, are less well
-    resolved: with earlier code, at damage areas of about 710–855 mm²,
-    the 5 mm cross-ply compression knockdown was about 25% above its
-    converged value. The
-    calibration coupons' damage areas (2,800–6,500 mm²) are well resolved
-    at 5 mm. Use 2.5 mm or finer when the damage area is below about
-    1,000 mm² (about 20 s for an 8-ply 150 × 100 mm panel);
-    `FE3D_MAX_DOF` (150,000) admits such a panel down to about 1.67 mm.
+    (cross-ply).
+
+    The h-refinement tests (`tests/analysis/test_fe3d_mesh_convergence.py`,
+    issue #89) sweep the same QI panel at 5 J (450 mm²) and 25 J
+    (2,615 mm²):
+
+    | Case | 5 mm | 3.33 mm | 2.5 mm | 2.0 mm |
+    |---|---|---|---|---|
+    | QI 25 J, compression | 0.247 | 0.249 | 0.241 | 0.239 |
+    | QI 25 J, tension | 0.651 | 0.656 | 0.657 | 0.657 |
+    | QI 25 J, E11 knockdown (compression) | 0.703 | 0.695 | 0.691 | 0.690 |
+    | QI 5 J, compression | 0.333 | not run | 0.313 | 0.306 |
+    | QI 5 J, tension | 0.834 | not run | 0.840 | 0.838 |
+
+    Once the zone is resolved the strength knockdown does not converge
+    monotonically: it lies within a few per cent of the finest mesh, by an
+    amount that depends on where the zone's edge falls on each grid
+    (0.235 at 3.0 mm for 25 J compression, below both the 3.33 and
+    2.5 mm values). On small zones in 4-ply coupons it is up to about 4%
+    (a 126 mm² ellipse in a 40 × 30 mm coupon: 0.383 / 0.374 / 0.388 /
+    0.388 at 2.5 / 1.67 / 1.25 / 1.0 mm; a 113 mm² circle: 0.328 / 0.325
+    / 0.327 / 0.315), and about ±5% where two ellipses cross at
+    re-entrant corners. The E11 knockdown integrates the whole field: in
+    compression it falls with each halving of the mesh, by less each
+    time, as a displacement-based model softens when refined (between
+    meshes that are not refinements of each other it can rise by up to
+    0.1%); in tension it moves by under 0.1%.
+
+    Smaller zones, only a few elements across at 5 mm, are less well
+    resolved: at 450 mm² the 5 mm compression knockdown is 9% above the
+    2.0 mm value. A zone that fills most of a narrow coupon's width needs
+    finer still: a 3 J impact on a 60 × 40 mm [0/90]s coupon (304 mm²)
+    gives 0.447 / 0.402 / 0.247 / 0.235 at 5 / 2.5 / 1.25 / 1.0 mm, and
+    5 J on a 60 × 30 mm 8-ply QI coupon (498 mm²) 0.223 / 0.189 / 0.167 /
+    0.164, so 2.5 mm there is 15–71% high and 1.25 mm 2–5% above
+    1.0 mm, still falling. The calibration coupons' damage areas (2,800–6,500 mm²) are
+    well resolved at 5 mm. Use 2.5 mm or finer when the damage area is
+    below about 1,000 mm² (about 20 s for an 8-ply 150 × 100 mm panel),
+    and 1.25 mm when the zone is under about 20 mm across in a coupon
+    only 30–40 mm wide; `FE3D_MAX_DOF` (150,000) admits a 150 × 100 mm
+    8-ply panel down to about 1.67 mm.
     Before the averaging disk was weighted by element overlap it counted
     whole elements by their centres and shrank with the mesh, and the
     cross-ply compression knockdown kept falling (0.186 / 0.165 at 2.5 /

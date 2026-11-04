@@ -76,6 +76,11 @@ jobs:
         # synthetic_selfcheck is generated from the empirical tier, so scoring
         # another tier on it measures the gap between the tiers, not accuracy.
         run: python validation/validate_bvid_public.py --gate --tier=semi_analytical --measured
+      - name: "Slow tests: fe3d h-refinement on the 150 x 100 mm reference panel"
+        # The `slow` marker is deselected by default (pyproject addopts), so
+        # the 9-cell matrix skips it; the fe3d mesh is platform-independent,
+        # so one run here covers it. About 2.5 min.
+        run: pytest -m slow -v
       - name: "Validation: fe3d tier (smoke run; first 3 cases)"
         # Exercises the fe3d path end to end and prints its errors. Not a
         # gate: synthetic_selfcheck is empirical-tier output, so comparing
