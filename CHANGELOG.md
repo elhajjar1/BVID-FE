@@ -345,6 +345,19 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   app's impactor help is formatted from them and the `ImpactorGeometry`
   docstring names them instead of quoting values; both had quoted a stale
   cone factor (1.3x and 1.5x; it is 1.9x) (#174).
+- fe3d h-refinement tests (#89) in
+  `tests/analysis/test_fe3d_mesh_convergence.py`: the `BvidAnalysis`
+  knockdown and E11 knockdown, CAI and TAI, on a 40 x 30 mm coupon at
+  5 / 2.5 / 1.25 / 1.0 mm (every CI cell, about 10 s) and on the 8-ply QI
+  150 x 100 mm panel at 25 J at 5 / 3.33 / 2.5 / 2.0 mm (about 2.5 min,
+  marked `slow`). They check that results are bounded, that every
+  resolved mesh is within 5% of the finest and the two finest within 2%,
+  and that the compression E11 knockdown falls at each refinement by less
+  each time. The strength knockdown does not converge monotonically (a
+  2–4% band set by where the zone's edge falls on the grid), so that is
+  not asserted; the measured sweeps are in the mesh limitation in
+  `docs/physics_models.md`. New pytest marker `slow`, deselected by
+  default (`addopts`); the validation CI job runs `pytest -m slow`.
 
 ### Changed
 

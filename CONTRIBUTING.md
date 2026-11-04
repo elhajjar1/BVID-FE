@@ -45,6 +45,10 @@ pytest tests/analysis/ -v
 
 # What CI's test job runs (coverage floor 90%)
 pytest -v --cov=bvidfe --cov-report=term --cov-fail-under=90
+
+# Tests marked `slow` (minutes; deselected by default, run by CI's
+# validation job)
+pytest -m slow -v
 ```
 
 Coverage also measures subprocesses (`[tool.coverage.run] patch =
