@@ -900,15 +900,17 @@ def fe3d_cai_buckling(
     locks too aggressively for thin laminates at practical mesh sizes.
     Investigation also showed that even a proper static-prestress
     reformulation did not converge to closed-form within an order of
-    magnitude. The Rayleigh-Ritz closed form (Timoshenko & Gere §9.2;
-    Reddy 4.4.4) is exact for SSSS orthotropic rectangles, so the buckling
-    channel now delegates to it via
-    :func:`bvidfe.analysis.semi_analytical.panel_buckling_load`.
+    magnitude. The buckling channel now delegates to the Rayleigh-Ritz
+    solution for the simply supported rectangle with D16 and D26
+    (:func:`bvidfe.analysis.semi_analytical.panel_buckling_load`; exact on
+    the Navier closed form when D16 = D26 = 0, #132), times the panel
+    boundary factor.
 
     For damaged panels the sublaminate-over-delamination check from
-    :func:`bvidfe.analysis.semi_analytical.sublaminate_buckling_load` also
-    runs; the minimum of the full-panel and worst-sublaminate buckling
-    stress is returned.
+    :func:`bvidfe.analysis.semi_analytical.sublaminate_buckling_load` (the
+    clamped ellipse with the coupled stiffness D*, #132) also runs; the
+    minimum of the full-panel and worst-sublaminate buckling stress is
+    returned.
 
     This is buckling *onset* and does not set the fe3d residual strength
     (see :func:`fe3d_cai`): a buckled sublaminate keeps carrying load until

@@ -77,12 +77,12 @@ silently dropped.
   delaminations at different interfaces count once. The empirical tier
   uses only this area.
 - The semi-analytical and fe3d CAI growth check uses, at each interface,
-  the ellipse with the largest area: its sublaminate buckles over the
-  ellipse's bounding box in the panel frame, `2 · ex` along the load
-  direction (x) by `2 · ey`, where `(ex, ey)` are the rotated ellipse's
-  half-extents (`DelaminationEllipse.half_extents_mm()`; `major_mm` by
-  `minor_mm` at `orientation_deg = 0`, swapped at 90°). The TAI hole
-  width reads the same `ey`.
+  the ellipse with the largest area: its sublaminate buckles as a plate
+  clamped along that ellipse (semi-axes `major_mm` and `minor_mm`, the
+  major axis at `orientation_deg` from the load direction x). The TAI
+  hole width reads the rotated ellipse's half-extent across the load,
+  `2 · ey` (`DelaminationEllipse.half_extents_mm()`; `minor_mm` at
+  `orientation_deg = 0`, `major_mm` at 90°).
 - fe3d places the damage on its mesh by the ellipses' positions, sizes and
   orientations, and softens the elements within `fiber_break_radius_mm` of
   any delamination centroid.

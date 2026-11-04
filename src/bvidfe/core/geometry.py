@@ -23,12 +23,14 @@ class PanelGeometry:
     boundary: edge condition, ``"simply_supported"`` (default),
         ``"clamped"`` or ``"free"``. It sets the plate bending stiffness in
         the impact-onset model (x2.5 clamped, x0.4 free, with a
-        ``UserWarning`` for free), the sublaminate and panel buckling
-        factors (x1.9 clamped, x0.5 free), and through them the
-        delamination growth stress. It does not enter the empirical tier's
-        strength formulas, only its predicted damage, nor fe3d's
-        first-ply-failure solve, a membrane state whose out-of-plane edge
-        supports carry no load (``bvidfe.solver.boundary.uniaxial_x_bcs``).
+        ``UserWarning`` for free) and the whole-panel buckling factor
+        (x1.9 clamped, x0.5 free) of the fe3d buckling onset. It does not
+        enter the sublaminate buckling load or the delamination growth
+        stress (the sublaminate is clamped by its delamination front,
+        #132), the empirical tier's strength formulas (only its predicted
+        damage), nor fe3d's first-ply-failure solve, a membrane state whose
+        out-of-plane edge supports carry no load
+        (``bvidfe.solver.boundary.uniaxial_x_bcs``).
 
     Raises ``ValueError`` for a non-positive dimension or an unknown
     ``boundary`` (the message lists the valid values).

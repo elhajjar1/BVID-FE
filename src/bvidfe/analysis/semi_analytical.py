@@ -1,22 +1,27 @@
 """Semi-analytical tier: sublaminate buckling and delamination growth.
 
-The ellipse is approximated as a simply-supported rectangle: its
-axis-aligned bounding box in the panel frame, with full side lengths
-``2 * ex`` along x (the load direction) by ``2 * ey`` along y, where
-``(ex, ey) = DelaminationEllipse.half_extents_mm()`` are the rotated
-ellipse's half-extents (``ex = hypot(major cos θ, minor sin θ)``,
-``ey = hypot(major sin θ, minor cos θ)``, θ = ``orientation_deg``). These
-are the same extents the peanut template and the TAI damage width use, so
-a delamination elongated along a ±45° or 90° ply is as wide across the
-load for sublaminate buckling as it is for the open-hole model (#165;
-before, ``a = 2 * major_mm`` was taken along x whatever the orientation).
-For orthotropic simply-supported rectangles under uniaxial compression,
-the sine basis is exact and the eigenvalue is closed-form — we minimize
-over integer modes (m, n) in [1..5] x [1..5]. The closed-form formula uses
-the FULL side lengths (a, b) as in Timoshenko & Gere §9.2 / Reddy 4.4.4,
-NOT the ellipse semi-axes.
-A boundary-dependent factor (clamped 1.9, free 0.5) scales the result
-for panels that are not simply supported.
+The delaminated sublaminate is a plate **clamped** along the delamination
+front, which is the actual ellipse (semi-axes ``major_mm`` x ``minor_mm``
+rotated by ``orientation_deg``, #165): the front is held by the substrate,
+so its edges are near-clamped (Chai & Babcock 1985; Shivakumar & Whitcomb
+1985), which is also the edge condition the thin-film energy release rate
+of :func:`sublaminate_growth_stress` assumes. Its buckling load under the
+far-field compression along x comes from a Rayleigh-Ritz solution
+(:func:`_clamped_ellipse_load_factor`; trial functions
+``(1 - (x'/a)^2 - (y'/b)^2)^2 P_i(x'/a) P_j(y'/b)`` in the ellipse's own
+frame, Legendre ``P_i``) with the full anisotropic bending stiffness,
+D16 and D26 included, reduced for the sublaminate's bending-extension
+coupling: ``D* = D - B A^-1 B`` (a sublaminate cut from a symmetric
+laminate is in general unsymmetric, B != 0). The panel's edge condition
+does not enter: the sublaminate's edges are the delamination front, not
+the panel edges (#132; it used to be a simply supported enclosing
+rectangle times a panel-boundary factor).
+
+The whole-panel buckling load (:func:`panel_buckling_load`) is a
+Rayleigh-Ritz solution for the simply supported rectangle with D16 and D26
+(trial functions ``x (a - x) y (b - y) P_i P_j``, exact on the Navier value
+when D16 = D26 = 0), times the panel boundary factor for clamped and free
+panels.
 
 Sublaminate selection: at interface ``i`` the laminate splits into plies
 ``0..i`` and ``i+1..n-1``; the thinner stack (by thickness, not ply count)
@@ -33,12 +38,15 @@ is the empirical fibre-damage open-hole model unchanged.
 
 from __future__ import annotations
 
+import functools
 import math
 import warnings
 from dataclasses import dataclass
 from typing import Optional, Sequence, Union
 
 import numpy as np
+import scipy.linalg
+from numpy.polynomial import legendre
 
 from bvidfe._types import BoundaryKind
 from bvidfe._validation import require_choice
@@ -79,31 +87,32 @@ class SemiAnalyticalResult:
     critical_buckling_load_N: float | None = None
 
 
-# Sublaminate buckling coefficient multiplier on the SSSS Rayleigh-Ritz result
-# for other panel boundary conditions. The delaminated sublaminate's edge
-# condition is tied to how the parent panel is supported — stiffer parent
-# boundaries transmit more lateral restraint to the sublaminate. Values are
-# ratios of fundamental compression buckling coefficients (k) from
+# Whole-panel buckling coefficient multiplier on the simply supported
+# Rayleigh-Ritz result (:func:`panel_buckling_load`) for clamped and free
+# panels: ratios of fundamental compression buckling coefficients (k) from
 # Timoshenko & Gere (1961) Theory of Elastic Stability §9.2 for square
-# plates; they transfer approximately to the rectangular orthotropic case
-# used here.
+# plates, transferred approximately to the rectangular orthotropic case.
+# The sublaminate buckling load does not use it (#132): the sublaminate's
+# edges are the delamination front, which the substrate clamps whatever
+# the panel's edge condition.
 _BOUNDARY_BUCKLING_FACTOR: dict[BoundaryKind, float] = {
     "simply_supported": 1.0,
     "clamped": 1.9,
     "free": 0.5,
 }
 
-# Maximum sublaminate aspect ratio (major / minor semi-axis) the closed-form
-# Rayleigh-Ritz solution is trusted over. The peanut template never comes
-# near it (its aspect ratio is at most 3.25, see
-# ``bvidfe.impact.shape_templates``), so the clip only fires on user-supplied
-# C-scan ellipses: a slender one (e.g. b ~ 0.01 mm, a ~ 5 mm) drives the
-# (a/b)^4 term to ~1e16, so the buckling stress overflows the Soutis
-# empirical bound and the buckling channel goes silently inert. We clip the aspect ratio to this value and
-# emit a ``DegenerateThinSublaminateWarning`` so the degenerate-thin
-# condition is visible rather than masquerading as a clean empirical-tier
-# result.
-_MAX_SUBLAMINATE_ASPECT: float = 50.0
+# Maximum sublaminate aspect ratio (longer / shorter semi-axis) the
+# clamped-ellipse Rayleigh-Ritz basis is converged on (< 0.1% at 10:1 with
+# degree 40 along the longer axis). The peanut template never comes near it
+# (its aspect ratio is at most 3.25, see ``bvidfe.impact.shape_templates``),
+# so the clip only fires on user-supplied C-scan ellipses: a slender one
+# (e.g. b ~ 0.01 mm, a ~ 5 mm) would buckle far above the Soutis empirical
+# bound, so the buckling channel would go silently inert. We clip the aspect
+# ratio to this value (widening the shorter semi-axis) and emit a
+# ``DegenerateThinSublaminateWarning`` so the degenerate-thin condition is
+# visible rather than masquerading as a clean empirical-tier result. (It was
+# 50 for the enclosing-rectangle closed form before #132.)
+_MAX_SUBLAMINATE_ASPECT: float = 10.0
 
 
 class DegenerateThinSublaminateWarning(UserWarning):
@@ -175,21 +184,6 @@ def _thinner_sublaminate(lam: Laminate, interface_index: int) -> tuple[list[floa
     return list(lam.layup_deg[i + 1 :]), thicknesses[i + 1 :]
 
 
-def _sublaminate_D_matrix(
-    material: OrthotropicMaterial,
-    sub_layup_deg: list[float],
-    ply_thickness_mm: Union[float, Sequence[float]],
-) -> np.ndarray:
-    """CLT D matrix (3, 3) for a sublaminate. z origin at sublaminate midplane.
-
-    ``ply_thickness_mm`` may be a scalar (uniform) or a sequence of per-ply
-    thicknesses with the same length as ``sub_layup_deg``.
-    """
-    sub_lam = Laminate(material, sub_layup_deg, ply_thickness_mm)
-    _, _, D = sub_lam.abd_matrices()
-    return D
-
-
 def sublaminate_buckling_load(
     lam: Laminate,
     ellipse: DelaminationEllipse,
@@ -198,39 +192,33 @@ def sublaminate_buckling_load(
     """Critical buckling force per unit width N_cr (N/mm) for the thinner
     sublaminate at the given delamination interface.
 
-    The delaminated sublaminate is approximated as an orthotropic
-    simply-supported rectangle: the ellipse's axis-aligned bounding box in
-    the panel frame (the enclosing-rectangle simplification), with full
-    side lengths ``a = 2 * ex`` along x and ``b = 2 * ey`` along y, where
-    ``(ex, ey) = ellipse.half_extents_mm()`` account for
-    ``orientation_deg`` (``a = 2 * major_mm``, ``b = 2 * minor_mm`` for an
-    ellipse elongated along the load; the two swap at 90 deg). Under
-    uniaxial compression along x, the closed-form Navier / Rayleigh-Ritz
-    solution with a sine-
-    basis trial function ``sin(m*pi*x/a) * sin(n*pi*y/b)`` on the domain
-    ``0 <= x <= a``, ``0 <= y <= b`` (Timoshenko & Gere §9.2; Reddy *Theory
-    and Analysis of Elastic Plates*, Eq. 4.4.4) is
+    The sublaminate is a plate **clamped** along the delamination front,
+    the ellipse itself (semi-axes ``major_mm`` and ``minor_mm``, rotated by
+    ``orientation_deg`` from the load axis x), loaded by the far-field
+    compression along x. The front is held by the substrate, so it is
+    near-clamped (Chai & Babcock 1985; Shivakumar & Whitcomb 1985), the
+    edge condition the thin-film energy release rate of
+    :func:`sublaminate_growth_stress` assumes. The Rayleigh-Ritz solution
+    (:func:`_clamped_ellipse_load_factor`) uses the sublaminate's full
+    anisotropic bending stiffness in the ellipse's frame, D16 and D26
+    included, reduced for its bending-extension coupling:
 
-        N_cr(m, n) = (pi^2 / a^2)
-                     * [D11 * m^4 + 2*(D12 + 2*D66)*(m*a/b)^2 * n^2
-                        + D22 * (a*n/b)^4]
-                     / m^2
+        D* = D - B A^-1 B
 
-    where (a, b) are the **full** rectangle side lengths (NOT semi-axes),
-    (m, n) are the integer half-wave numbers along x and y, and the D_ij
-    are the sublaminate's CLT bending stiffnesses. We minimise over (m, n)
-    in [1..5] x [1..5]; the range is bounded by the typical 1-3 mode of
-    practical delaminations plus a safety margin. (Note: the sine basis
-    above vanishes at x=0, x=a, y=0, y=b, so a/b here must be the full
-    plate dimensions for the SSSS boundary conditions to be satisfied —
-    same convention as the Navier impact-compliance solver in
-    ``impact/olsson.py`` which passes ``pan.Lx_mm``, ``pan.Ly_mm`` directly.)
+    with ``A``, ``B``, ``D`` of the sublaminate on its own (a sublaminate
+    cut from a symmetric laminate is in general unsymmetric; ``D* = D``
+    when ``B = 0``). ``D*`` does not depend on the reference plane.
 
     The selected sublaminate is the *thinner* (by through-thickness, not
     ply count) of the "above" and "below" stacks at the interface (it
-    buckles first), and a boundary-dependent multiplier is applied so the
-    parent panel's edge condition transmits appropriate lateral restraint
-    to the sublaminate (clamped: 1.9x, free: 0.5x, simply-supported: 1.0x).
+    buckles first).
+
+    Before #132 this was the simply supported rectangle enclosing the
+    ellipse (its bounding box in the panel frame, Navier closed form, D16,
+    D26 and B ignored) times a factor from the panel's edge condition
+    (clamped 1.9, free 0.5). The sublaminate's edges are the delamination
+    front, not the panel edges, so ``boundary`` no longer changes the
+    result; it is still validated.
 
     Parameters
     ----------
@@ -238,106 +226,273 @@ def sublaminate_buckling_load(
         Full panel laminate; supplies material, layup, and ply thickness.
     ellipse : DelaminationEllipse
         Delamination at which the sublaminate forms. Its
-        ``interface_index`` selects the sublaminate thickness; the
-        enclosing rectangle is its bounding box in the panel frame, with
-        full side lengths ``a = 2 * ex`` and ``b = 2 * ey`` for
-        ``(ex, ey) = ellipse.half_extents_mm()`` (``major_mm`` /
-        ``minor_mm`` are the ellipse semi-axes, per
-        ``DelaminationEllipse.area_mm2 = pi * major * minor``, and
-        ``orientation_deg`` rotates them into the panel frame).
+        ``interface_index`` selects the sublaminate; ``major_mm`` and
+        ``minor_mm`` are its semi-axes (``area_mm2 = pi * major * minor``)
+        and ``orientation_deg`` the angle of ``major_mm`` from x.
     boundary : BoundaryKind
         One of ``"simply_supported"``, ``"clamped"``, ``"free"``; any other
-        value raises ``ValueError``.
+        value raises ``ValueError``. Does not change the result (see
+        above).
 
-    The ellipse aspect ratio ``a / b`` is clipped to ``_MAX_SUBLAMINATE_ASPECT``
-    (50) before evaluating the eigenvalue. Slender peanut-template ellipses
-    would otherwise drive the ``(a/b)^4`` term to ~1e16 N/mm, overflowing the
-    Soutis empirical bound so ``semi_analytical_cai`` silently returns the
-    empirical result with the buckling channel inert. When the clip fires a
-    :class:`DegenerateThinSublaminateWarning` is emitted so the degenerate
-    condition is visible.
+    The ellipse aspect ratio (longer over shorter semi-axis) is clipped to
+    ``_MAX_SUBLAMINATE_ASPECT`` (10), the domain the Ritz basis is
+    converged on, by widening the shorter semi-axis. A slender ellipse
+    (e.g. a 0.01 mm wide C-scan slice) would otherwise buckle at a stress
+    far above the Soutis bound, so the buckling channel would go silently
+    inert. When the clip fires a :class:`DegenerateThinSublaminateWarning`
+    is emitted so the degenerate condition is visible.
 
     Returns
     -------
     float
-        Critical buckling force per unit sublaminate width N_cr in N/mm,
-        already multiplied by the boundary factor. Returns ``inf`` when the
-        sublaminate is degenerate (zero plies, zero ellipse area).
+        Critical buckling force per unit sublaminate width N_cr in N/mm.
+        Returns ``inf`` when the sublaminate is degenerate (zero plies,
+        zero ellipse area).
     """
+    # A typo used to fall back silently to the simply-supported factor.
+    require_choice(boundary, _BOUNDARY_BUCKLING_FACTOR, "boundary")
     sub_layup, sub_thicknesses = _thinner_sublaminate(lam, ellipse.interface_index)
     if len(sub_layup) == 0:
         return float("inf")
 
-    D = _sublaminate_D_matrix(lam.material, sub_layup, sub_thicknesses)
-    D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
-
-    # Rectangle dimensions (panel frame): the rotated ellipse's bounding
-    # box, the same extents the peanut template and the TAI damage width
-    # use (#165: previously a = 2 * major_mm along x whatever the
-    # orientation, so a delamination elongated across the load buckled as
-    # if it were elongated along it). The Navier sine basis
-    # sin(m*pi*x/a) * sin(n*pi*y/b) used in the closed-form eigenvalue
-    # vanishes at x=0,a and y=0,b, so (a, b) must be the FULL rectangle
-    # side lengths — i.e. twice the half-extents — for the SSSS boundary
-    # conditions to be satisfied. (Issue #29: previously assigned
-    # a = ellipse.major_mm directly, which used semi-axes and overpredicted
-    # N_cr by ~4x because N_cr ∝ 1/a^2.)
-    ex, ey = ellipse.half_extents_mm()
-    a = 2.0 * ex
-    b = 2.0 * ey
-    if a <= 0 or b <= 0:
+    a = float(ellipse.major_mm)
+    b = float(ellipse.minor_mm)
+    if not (a > 0 and b > 0 and math.isfinite(a) and math.isfinite(b)):
         return float("inf")
 
-    # Reformulate in terms of the aspect ratio so a slender (b -> 0) ellipse
-    # cannot blow the (a/b)^4 term past the Soutis bound and silently disable
-    # the buckling channel. Clip to the trusted domain and surface the clip.
-    aspect = a / b
+    # Clip the aspect ratio to the domain the Ritz basis is converged on,
+    # and surface the clip.
+    aspect = max(a, b) / min(a, b)
     if aspect > _MAX_SUBLAMINATE_ASPECT:
         warnings.warn(
-            f"Sublaminate ellipse aspect ratio (a/b = {aspect:.1f}) exceeds the "
+            f"Sublaminate ellipse aspect ratio ({aspect:.1f}) exceeds the "
             f"trusted Rayleigh-Ritz domain ({_MAX_SUBLAMINATE_ASPECT:.0f}); "
-            f"clipping to {_MAX_SUBLAMINATE_ASPECT:.0f}. The sublaminate-buckling "
-            f"channel is degenerate for this thin slice and may not constrain "
-            f"the residual strength; the empirical Soutis tier likely governs.",
+            f"clipping to {_MAX_SUBLAMINATE_ASPECT:.0f} by widening the shorter "
+            f"semi-axis. The sublaminate-buckling channel is degenerate for this "
+            f"thin slice and may not constrain the residual strength; the "
+            f"empirical Soutis tier likely governs.",
             DegenerateThinSublaminateWarning,
             stacklevel=2,
         )
-        aspect = _MAX_SUBLAMINATE_ASPECT
+        if a < b:
+            a = b / _MAX_SUBLAMINATE_ASPECT
+        else:
+            b = a / _MAX_SUBLAMINATE_ASPECT
 
-    return _rayleigh_ritz_N_cr(D11, D22, D12, D66, a, aspect, boundary)
+    # Stiffness in the ellipse's frame (x' along major_mm): the plies at
+    # angle phi from x are at phi - theta from x'.
+    theta = float(ellipse.orientation_deg)
+    local_layup = [float(phi) - theta for phi in sub_layup]
+    D_star = _reduced_bending_stiffness(lam.material, local_layup, sub_thicknesses)
+    # The compression along x, in the ellipse's frame: x = (cos t, -sin t).
+    t = math.radians(theta)
+    c, s = math.cos(t), math.sin(t)
+    return _clamped_ellipse_load_factor(D_star, a, b, c * c, s * s, -c * s)
 
 
-def _rayleigh_ritz_N_cr(
-    D11: float,
-    D22: float,
-    D12: float,
-    D66: float,
+def _reduced_bending_stiffness(
+    material: OrthotropicMaterial,
+    sub_layup_deg: list[float],
+    ply_thickness_mm: Union[float, Sequence[float]],
+) -> np.ndarray:
+    """``D* = D - B A^-1 B`` (3, 3) of a sublaminate, in N mm: the bending
+    stiffness of a plate whose membrane force resultant stays zero while
+    it bends (the coupled sublaminate stiffness; Yin 1985). Equal to ``D``
+    for a symmetric stack, and independent of the reference plane."""
+    A, B, D = Laminate(material, sub_layup_deg, ply_thickness_mm).abd_matrices()
+    D_star = D - B @ np.linalg.solve(A, B)
+    return np.asarray(0.5 * (D_star + D_star.T), dtype=float)
+
+
+def _legendre_table(s: np.ndarray, n: int) -> np.ndarray:
+    """``P_i(s)``, ``P_i'(s)`` and ``P_i''(s)`` for ``i < n``: shape
+    ``(3, n, s.size)``."""
+    out = np.zeros((3, n, s.size))
+    for i in range(n):
+        c = np.zeros(i + 1)
+        c[i] = 1.0
+        out[0, i] = legendre.legval(s, c)
+        if i >= 1:
+            out[1, i] = legendre.legval(s, legendre.legder(c, 1))
+        if i >= 2:
+            out[2, i] = legendre.legval(s, legendre.legder(c, 2))
+    return out
+
+
+# Ritz basis sizes. The clamped ellipse uses total degree 8 in its own
+# frame for a circle and up to _ELLIPSE_MAX_DEGREE along the longer axis of a
+# slender one (a strip buckles in several half-waves along it); with these
+# sizes the eigenvalue is converged to < 0.1% up to the aspect-ratio clip
+# (_MAX_SUBLAMINATE_ASPECT). The simply supported panel uses
+# _PANEL_BASE_TERMS Legendre terms in y and three more in x per Navier
+# half-wave along the load.
+_ELLIPSE_BASE_DEGREE: int = 8
+_ELLIPSE_MAX_DEGREE: int = 40
+_PANEL_BASE_TERMS: int = 12
+_PANEL_MAX_TERMS: int = 60
+
+# Field names of the ellipse basis: w and its derivatives in the unit-disk
+# coordinates (xi, eta) = (x'/a, y'/b).
+_ELLIPSE_FIELDS = ("x", "y", "xx", "yy", "xy")
+
+
+@functools.lru_cache(maxsize=32)
+def _clamped_disk_integrals(p_x: int, p_y: int) -> dict[tuple[str, str], np.ndarray]:
+    """Integrals over the unit disk of products of the derivative fields of
+    the clamped trial functions ``(1 - xi^2 - eta^2)^2 P_i(xi) P_j(eta)``
+    with ``i / p_x + j / p_y <= 1``. Keys are pairs of
+    :data:`_ELLIPSE_FIELDS`; the quadrature (Gauss-Legendre in r, the
+    trapezoidal rule in the polar angle) is exact for these polynomials."""
+    idx = [(i, j) for i in range(p_x + 1) for j in range(p_y + 1) if i * p_y + j * p_x <= p_x * p_y]
+    degree = max(i + j for i, j in idx) + 4
+    rg, rw = legendre.leggauss(degree + 1)
+    r = 0.5 * (rg + 1.0)
+    n_t = 2 * degree + 2
+    t = np.linspace(0.0, 2.0 * np.pi, n_t, endpoint=False)
+    R, T = np.meshgrid(r, t, indexing="ij")
+    xi = (R * np.cos(T)).ravel()
+    eta = (R * np.sin(T)).ravel()
+    weight = (np.outer(0.5 * rw, np.full(n_t, 2.0 * np.pi / n_t)) * R).ravel()
+
+    Px = _legendre_table(xi, p_x + 1)
+    Py = _legendre_table(eta, p_y + 1)
+    ii = np.array([i for i, _ in idx])
+    jj = np.array([j for _, j in idx])
+    m0 = Px[0, ii] * Py[0, jj]
+    mx = Px[1, ii] * Py[0, jj]
+    my = Px[0, ii] * Py[1, jj]
+    g = 1.0 - xi**2 - eta**2
+    G0 = g * g
+    Gx = -4.0 * g * xi
+    Gy = -4.0 * g * eta
+    Gxx = 8.0 * xi**2 - 4.0 * g
+    Gyy = 8.0 * eta**2 - 4.0 * g
+    Gxy = 8.0 * xi * eta
+    fields = {
+        "x": Gx * m0 + G0 * mx,
+        "y": Gy * m0 + G0 * my,
+        "xx": Gxx * m0 + 2.0 * Gx * mx + G0 * Px[2, ii] * Py[0, jj],
+        "yy": Gyy * m0 + 2.0 * Gy * my + G0 * Px[0, ii] * Py[2, jj],
+        "xy": Gxy * m0 + Gx * my + Gy * mx + G0 * Px[1, ii] * Py[1, jj],
+    }
+    return {(f, h): (fields[f] * weight) @ fields[h].T for f in fields for h in fields}
+
+
+def _clamped_ellipse_load_factor(
+    D: np.ndarray,
     a: float,
-    aspect: float,
-    boundary: BoundaryKind,
+    b: float,
+    n_xx: float,
+    n_yy: float,
+    n_xy: float,
 ) -> float:
-    """Closed-form SSSS uniaxial-compression N_cr for an orthotropic rectangle.
+    """Rayleigh-Ritz buckling load factor of a clamped elliptical plate.
 
-    Shared kernel for ``sublaminate_buckling_load`` (sublaminate over a
-    delamination) and ``panel_buckling_load`` (intact full-panel). Minimises
-    over (m, n) in 1..5 the Navier sine-basis result from Timoshenko & Gere
-    §9.2 / Reddy 4.4.4, then applies the boundary-dependent multiplier.
+    The plate has semi-axes ``a`` along its x' axis and ``b`` along y'
+    (mm), bending stiffness ``D`` (3, 3, N mm, in the x'y' frame, D16 and
+    D26 included) and the in-plane compressive force resultant
+    ``lambda * (n_xx, n_yy, n_xy)`` (N/mm, compression positive, in the
+    x'y' frame); returns the lowest ``lambda``. With
+    ``(n_xx, n_yy, n_xy) = (1, 0, 0)`` it is the uniaxial ``N_cr``.
+    Isotropic clamped circle of radius R: ``14.68 D / R^2`` under uniform
+    radial compression (exact: the square of the first zero of J1) and
+    ``27.2 D / R^2`` under uniaxial compression.
+
+    Trial functions ``(1 - (x'/a)^2 - (y'/b)^2)^2 P_i(x'/a) P_j(y'/b)``
+    (Legendre ``P_i``) satisfy the clamped conditions on the whole ellipse.
+    For a circle they span the polynomials of total degree up to 8 times
+    the clamp factor, so the result does not depend on the frame; along
+    the longer axis of an elongated ellipse the degree grows with the
+    aspect ratio (up to 40 at 10:1).
     """
-    pi2 = math.pi * math.pi
-    best = float("inf")
-    for m_mode in range(1, 6):
-        for n_mode in range(1, 6):
-            num = (
-                D11 * m_mode**4
-                + 2.0 * (D12 + 2.0 * D66) * (m_mode * aspect) ** 2 * n_mode**2
-                + D22 * (aspect * n_mode) ** 4
-            )
-            N_mn = (pi2 / a**2) * num / m_mode**2
-            if N_mn < best:
-                best = N_mn
-    # A typo used to fall back silently to the simply-supported factor.
-    require_choice(boundary, _BOUNDARY_BUCKLING_FACTOR, "boundary")
-    return best * _BOUNDARY_BUCKLING_FACTOR[boundary]
+    aspect = max(a, b) / min(a, b)
+    p_long = min(_ELLIPSE_MAX_DEGREE, _ELLIPSE_BASE_DEGREE + 4 * math.ceil(aspect - 1.0 - 1e-9))
+    p_x, p_y = (p_long, _ELLIPSE_BASE_DEGREE) if a >= b else (_ELLIPSE_BASE_DEGREE, p_long)
+    J = _clamped_disk_integrals(p_x, p_y)
+    D11, D22, D12, D66, D16, D26 = D[0, 0], D[1, 1], D[0, 1], D[2, 2], D[0, 2], D[1, 2]
+    # d/dx' = (1/a) d/dxi, d/dy' = (1/b) d/deta, dA = a b dxi deta; the
+    # common factor a b cancels in the eigenvalue.
+    K = (
+        D11 / a**4 * J["xx", "xx"]
+        + D22 / b**4 * J["yy", "yy"]
+        + D12 / (a * b) ** 2 * (J["xx", "yy"] + J["yy", "xx"])
+        + 4.0 * D66 / (a * b) ** 2 * J["xy", "xy"]
+        + 2.0 * D16 / (a**3 * b) * (J["xx", "xy"] + J["xy", "xx"])
+        + 2.0 * D26 / (a * b**3) * (J["yy", "xy"] + J["xy", "yy"])
+    )
+    G = (
+        n_xx / a**2 * J["x", "x"]
+        + n_yy / b**2 * J["y", "y"]
+        + n_xy / (a * b) * (J["x", "y"] + J["y", "x"])
+    )
+    # Largest mu of G v = mu K v (K is positive definite; G is only
+    # semi-definite for a general load), lambda = 1 / mu.
+    n = K.shape[0]
+    mu = scipy.linalg.eigh(G, K, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0]
+    return float(1.0 / mu) if mu > 0 else float("inf")
+
+
+@functools.lru_cache(maxsize=32)
+def _ss_beam_integrals(n_terms: int) -> np.ndarray:
+    """``J[r, t] = int_-1^1 f_i^(r) f_j^(t) ds`` for ``r, t in 0..2`` and
+    the simply supported trial functions ``f_i(s) = (1 - s^2) P_i(s)``,
+    ``i < n_terms``: shape ``(3, 3, n_terms, n_terms)``. Gauss-Legendre
+    quadrature, exact for these polynomials."""
+    s, w = legendre.leggauss(n_terms + 3)
+    P = _legendre_table(s, n_terms)
+    q = 1.0 - s * s
+    F = np.stack(
+        [
+            q * P[0],
+            -2.0 * s * P[0] + q * P[1],
+            -2.0 * P[0] - 4.0 * s * P[1] + q * P[2],
+        ]
+    )
+    return np.einsum("rik,tjk,k->rtij", F, F, w)
+
+
+def _ssss_ritz_N_cr(D: np.ndarray, a: float, b: float) -> float:
+    """Rayleigh-Ritz ``N_cr`` (N/mm) of a simply supported ``a`` x ``b``
+    rectangle (mm) with bending stiffness ``D`` (3, 3, N mm; D16 and D26
+    included) under uniaxial compression along x (the side ``a``).
+
+    Trial functions ``x (a - x) y (b - y) P_i(2x/a - 1) P_j(2y/b - 1)``
+    satisfy ``w = 0`` on the edges; the zero edge moment is natural, so the
+    Ritz value converges to the simply supported plate's. With D16 = D26 =
+    0 it is the Navier value ``min over m, n of (pi^2 / a^2) [D11 m^4 +
+    2 (D12 + 2 D66)(m a/b)^2 n^2 + D22 (n a/b)^4] / m^2`` (Timoshenko &
+    Gere §9.2) to 1e-8; D16 and D26 only lower it (it is the minimum over a
+    space containing the Navier mode, whose D16/D26 energy is zero), by
+    3.0% on the canonical 200 x 150 mm 8-ply QI IM7/8552 panel (12.58 ->
+    12.20 MPa). The x basis grows with the Navier half-wave count
+    ``(a/b) (D22/D11)^(1/4)``.
+    """
+    D11, D22, D12, D66, D16, D26 = D[0, 0], D[1, 1], D[0, 1], D[2, 2], D[0, 2], D[1, 2]
+    half_waves = (a / b) * (D22 / D11) ** 0.25
+    n_x = min(_PANEL_MAX_TERMS, _PANEL_BASE_TERMS + 3 * math.ceil(half_waves))
+    Jx = _ss_beam_integrals(n_x)
+    Jy = _ss_beam_integrals(_PANEL_BASE_TERMS)
+
+    def Ix(r: int, t: int) -> np.ndarray:
+        # dx = (a/2) ds and d/dx = (2/a) d/ds.
+        return Jx[r, t] * (a / 2.0) * (2.0 / a) ** (r + t)
+
+    def Iy(r: int, t: int) -> np.ndarray:
+        return Jy[r, t] * (b / 2.0) * (2.0 / b) ** (r + t)
+
+    k = np.kron
+    K = (
+        D11 * k(Ix(2, 2), Iy(0, 0))
+        + D22 * k(Ix(0, 0), Iy(2, 2))
+        + D12 * (k(Ix(2, 0), Iy(0, 2)) + k(Ix(0, 2), Iy(2, 0)))
+        + 4.0 * D66 * k(Ix(1, 1), Iy(1, 1))
+        + 2.0 * D16 * (k(Ix(2, 1), Iy(0, 1)) + k(Ix(1, 2), Iy(1, 0)))
+        + 2.0 * D26 * (k(Ix(0, 1), Iy(2, 1)) + k(Ix(1, 0), Iy(1, 2)))
+    )
+    G = k(Ix(1, 1), Iy(0, 0))
+    n = K.shape[0]
+    mu = scipy.linalg.eigh(G, K, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0]
+    return float(1.0 / mu) if mu > 0 else float("inf")
 
 
 def panel_buckling_load(
@@ -349,22 +504,23 @@ def panel_buckling_load(
     """Full-panel buckling force per unit width N_cr (N/mm) for the intact
     laminate under uniaxial compression along x.
 
-    Same closed-form Rayleigh-Ritz formula as :func:`sublaminate_buckling_load`
-    but evaluated on the full panel rectangle (a = Lx_mm, b = Ly_mm) and the
-    full laminate's CLT D matrix. Used by the fe3d buckling channel after the
-    3D K_g eigensolve was retired (#129): the 3D solid mesh on a thin
-    laminate locks too aggressively to produce a trustworthy buckling
-    eigenvalue, but the closed-form is exact for SSSS orthotropic rectangles.
+    The Rayleigh-Ritz solution for the simply supported ``Lx_mm`` x
+    ``Ly_mm`` rectangle with the full laminate's CLT D matrix, D16 and D26
+    included (:func:`_ssss_ritz_N_cr`; it equals the Navier closed form
+    when D16 = D26 = 0 and is 3.0% below it on the canonical 200 x 150 mm
+    8-ply QI IM7/8552 panel, 12.20 against 12.58 MPa), times the boundary
+    factor for clamped (1.9) and free (0.5) panels. Used by the fe3d
+    buckling channel after the 3D K_g eigensolve was retired (#129).
 
     The load direction is fixed at +x (the compression axis); a/b > 1 simply
-    means the panel is longer along the load direction than wide, which the
-    (m, n) minimisation handles correctly via the m^4 vs (a/b)^4 trade-off.
+    means the panel is longer along the load direction than wide.
     """
     if Lx_mm <= 0 or Ly_mm <= 0:
         return float("inf")
+    # A typo used to fall back silently to the simply-supported factor.
+    require_choice(boundary, _BOUNDARY_BUCKLING_FACTOR, "boundary")
     _, _, D = lam.abd_matrices()
-    D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
-    return _rayleigh_ritz_N_cr(D11, D22, D12, D66, Lx_mm, Lx_mm / Ly_mm, boundary)
+    return _ssss_ritz_N_cr(D, Lx_mm, Ly_mm) * _BOUNDARY_BUCKLING_FACTOR[boundary]
 
 
 def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]:
@@ -507,14 +663,13 @@ def semi_analytical_cai(
     Takes the minimum of:
       (a) Soutis empirical knockdown at total DPA, and
       (b) the far-field stress at which the weakest delamination grows by
-          sublaminate buckling (:func:`weakest_sublaminate_growth`;
-          boundary-aware through the sublaminate buckling stress).
+          sublaminate buckling (:func:`weakest_sublaminate_growth`).
 
     Sublaminate buckling onset alone is not used: a buckled sublaminate
     keeps carrying load until its delamination grows. At the governing
-    interface the film buckling stress is typically 70-370 MPa (IM7/8552
-    150 x 100 mm panels at 5-30 J); a one-ply film over a back-face
-    delamination buckles at 2-26 MPa.
+    interface the film buckling stress is typically 100-430 MPa (IM7/8552
+    150 x 100 mm panels at 10-30 J); a one-ply film over the largest,
+    back-face delamination buckles at 7-50 MPa.
 
     Because of (b), the returned residual stress is always less-than-or-equal
     to the empirical-tier result on the same input — so the resulting
@@ -536,8 +691,10 @@ def semi_analytical_cai(
         is calibrated on).
     boundary : BoundaryKind
         Panel edge condition (``"simply_supported"``, ``"clamped"`` or
-        ``"free"``) for the sublaminate buckling factor; ``BvidAnalysis``
-        passes ``panel.boundary``.
+        ``"free"``); ``BvidAnalysis`` passes ``panel.boundary``. Validated,
+        but it does not change the result: the sublaminate is clamped by
+        the delamination front whatever the panel's edges (#132; it used
+        to scale the sublaminate buckling load by 1.9 or 0.5).
 
     Returns
     -------
