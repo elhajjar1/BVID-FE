@@ -50,7 +50,7 @@ plate is impacted on the standard's 125 × 75 mm support window
 (`impact_panel_*`), which also confines the predicted delaminations. It
 reports no dent depth or damage area. The fe3d tier gives 141.0 MPa on
 the first coupon (20.6% low; it is one of the three coupons the
-damage-zone factor is fitted to, see below). At about 40 s per coupon it
+damage-zone factor is fitted to, see below). At about 20 s per coupon it
 is not run in CI.
 
 **`lovejoy_scotti_im7_8552_cai`** is measured data: Lovejoy & Scotti, NASA
@@ -159,8 +159,8 @@ the NCAMP coupon against 5,269 and 6,542 mm²) is not established, and
 with fe3d run on a single NCAMP coupon the factor cannot be split by
 family without over-fitting. The fit is in-sample on three coupons:
 Lovejoy & Scotti within about 1%, NCAMP about 21% low. Treat fe3d
-strengths as qualitative. fe3d takes about 40 s on the 24-ply NCAMP
-coupon and about 80 s on the 40-ply hard laminate (5 mm mesh).
+strengths as qualitative. fe3d takes about 20 s on the 24-ply NCAMP
+coupon and about 45 s on the 40-ply hard laminate (5 mm mesh).
 
 ### Calibration of `soutis_k_s`
 

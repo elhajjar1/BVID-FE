@@ -40,8 +40,8 @@ documentation conventions.
       modelled as a soft inclusion (fibres intact in tension) and, in
       tension, the closed-form fibre-damage hole as a notch at the impact
       site, normalised by an undamaged fe3d run; LaRC05 for CAI, Tsai-Wu
-      for TAI (about 5 s for an 8-ply 150 × 100 mm panel at the default
-      5 mm mesh, about 35 s at 2.5 mm; see
+      for TAI (about 4 s for an 8-ply 150 × 100 mm panel at the default
+      5 mm mesh, about 20 s at 2.5 mm; see
       [Tier choice](python_api.md#tier-choice))
 - **CAI and TAI loading modes** (Compression-After-Impact and
   Tension-After-Impact)

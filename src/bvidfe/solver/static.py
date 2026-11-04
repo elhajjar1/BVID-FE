@@ -6,18 +6,36 @@ the constrained and ``f`` the free DOFs, the solve is
     K_ff u_f = F_f - K_fc u_c
 
 and ``u_c`` is copied into the result exactly. ``K_ff`` is symmetric
-positive definite, so it is solved by conjugate gradients preconditioned
-with an incomplete LU factorisation (``spilu``). When CG does not reach the
-tolerance, GMRES retries with the same factor, and a direct sparse LU of
-``K_ff`` is the last resort, so every returned solution meets the
-tolerance.
+positive definite. It is solved by GMRES preconditioned with an incomplete
+LU factorisation (``spilu``), and a direct sparse LU of ``K_ff`` is the
+fallback, so every returned solution meets the tolerance.
 
-Measured on an 8-ply 150 x 100 mm IM7/8552 panel at a 2.5 mm mesh
-(67.5k DOF), the previous path (1e10 penalty on the diagonal, then
-``spsolve`` with SuperLU's default COLAMD ordering) took ~110 s and ~2.9 GB
-per solve. ILU-CG on the reduced system takes ~10 s in about 50
-iterations, and agrees with the penalty solve to ~1e-7, which is the
-penalty method's own constraint error.
+Why GMRES and not conjugate gradients. ``spilu`` is an incomplete LU
+(SuperLU's ILUTP), not an incomplete Cholesky: it drops entries of ``L``
+and of ``U`` separately, so ``L U`` is not symmetric although ``K_ff`` is
+(to 6e-17), and neither is the preconditioner ``M = (L U)^-1``:
+``|v . M u - u . M v| / |v . M u|`` is 0.3-0.4 for random ``u``, ``v`` on
+the 8-ply 5 mm systems, with no row pivoting involved. CG needs a
+symmetric positive definite preconditioner; GMRES does not. Before the
+mid-surface ``u_z`` restraint (``uniaxial_x_bcs``) the reduced system was
+well enough conditioned for ILU-CG to converge regardless (undamaged 8-ply
+150 x 100 mm panel at 5 mm: Jacobi-scaled condition number 7.5e4, 101
+iterations); with it the condition number is 1.3e6 (1.7e6 damaged) and
+ILU-CG did not converge in 200 iterations on any 5 mm system measured (8
+to 40 plies, damaged or not, compression and tension; on the 8-ply panel
+it stalls at a relative residual of 1e-6 to 1e-5), while GMRES with the
+same factor reaches 1e-10 in 26-42 iterations. CG with the symmetric part of the same preconditioner,
+``(M + M^T) / 2``, converges in as many iterations as GMRES, which
+confirms the asymmetry as the cause, but needs two ILU solves an
+iteration; Jacobi and 3 x 3 nodal block-Jacobi CG need ~2,650 iterations
+at 5 mm (3 s against 1 s for ILU-GMRES); a direct LU takes 3 s. GMRES, the
+fallback after 200 wasted CG iterations before, is now the only
+Krylov method.
+
+Measured on an 8-ply 150 x 100 mm panel at a 2.5 mm mesh (64k free
+DOFs), the original path (1e10 penalty on the diagonal, then ``spsolve``
+with SuperLU's default COLAMD ordering) took ~110 s and ~2.9 GB per solve;
+ILU-GMRES takes ~7 s in about 44 iterations (5 s of it the factorisation).
 """
 
 from __future__ import annotations
@@ -40,30 +58,37 @@ _log = logging.getLogger("bvidfe.fe3d.solver")
 # it is reported to (the reduced direct solve reaches ~1e-13).
 DEFAULT_RTOL = 1.0e-10
 
-# ILU preconditioner settings, from the 2.5 mm reduced system above
-# (63k free DOFs, 4.5M nonzeros):
-#   drop_tol  fill_factor  nnz(L+U)  factor  CG iterations
-#   1e-3      10           11.9M      8.5 s  43
-#   1e-4      10           21.7M     14.0 s  13
-#   1e-5      10           33.1M     20.2 s  no convergence in 300 (GMRES: 230)
-#   1e-5      30           34.9M     23.0 s  7
+# ILU preconditioner settings. ILU-GMRES on the damaged 8-ply 150 x 100 mm
+# CAI system at 2.5 mm (64k free DOFs, 4.5M nonzeros, one thread,
+# GMRES_RESTART = 100):
+#   drop_tol  nnz(L+U)  factor  GMRES iterations  total
+#   1e-2       5.8M     3.4 s   no convergence in 200 (residual 4e-10)
+#   3e-3       9.0M     4.1 s   70                6.5 s
+#   1e-3      12.6M     5.0 s   44                6.8 s
+#   3e-4      17.2M     6.2 s   28                8.0 s
+#   1e-4      22.2M     8.0 s   19               10.0 s
+# 3e-3 is within the timing noise of 1e-3 (5 mm 8-ply: 1.0 s both;
+# 24-ply NCAMP coupon at 5 mm: 6.4 s against 7.4 s) at 1.5-2x the
+# iterations and next to the 1e-2 that does not converge, so 1e-3 is kept.
 # SuperLU caps the fill column by column at fill_factor x the column of A
 # and drops harder where the cap binds, which can leave an unstable factor
-# CG cannot use: it is why drop_tol=1e-5 failed at fill_factor=10, and
-# likely why drop_tol=1e-4 (fill_factor=10) failed at a 1.25 mm mesh (265k
-# DOFs; not rerun). drop_tol=1e-3 is the cheapest overall and gives the same
-# factor at fill_factor=5; the generous fill_factor keeps the cap from
-# binding on finer meshes.
+# (on the 2.5 mm panel with the earlier BCs, drop_tol=1e-5 at
+# fill_factor=10 left one CG could not use in 300 iterations and GMRES
+# needed 230 for, against 7 CG iterations at fill_factor=30); the generous
+# fill_factor keeps the cap from binding on finer meshes (1e-3 gives the
+# same factor at 10 and 30 here).
 ILU_DROP_TOL = 1.0e-3
 ILU_FILL_FACTOR = 30.0
 
-# Iteration caps. A freshly factorised ILU converges in tens of CG
-# iterations, so hitting CG_MAXITER means the preconditioner is bad; GMRES
-# (restarted every GMRES_RESTART iterations) then gets GMRES_MAXITER
-# iterations with the same factor before the direct solve. One iteration
-# costs roughly 1/250 of an ILU factorisation at 2.5 mm.
-CG_MAXITER = 200
-GMRES_RESTART = 50
+# GMRES iteration cap (inner iterations, over restart cycles of
+# GMRES_RESTART). A freshly factorised ILU converges in 26-58 iterations
+# (5 mm to 2 mm meshes, 8 to 40 plies), so hitting the cap means the
+# preconditioner is bad and the direct solve takes over. Restarting every
+# 50 iterations cost 30-40% more iterations where more than 50 are needed
+# (8-ply at 2 mm: 74 against 56; 16-ply at 2.5 mm: 80 against 58); the
+# 100-vector Krylov basis costs 800 bytes per free DOF (120 MB at the
+# FE3D_MAX_DOF cap), against ~2.4 kB (~200 nonzeros) for the ILU factor.
+GMRES_RESTART = 100
 GMRES_MAXITER = 200
 
 # Below this many free DOFs the direct solve is cheaper than building an
@@ -114,12 +139,12 @@ def _direct(Kff: sp.csc_matrix, rhs: np.ndarray) -> np.ndarray:
     return lu.solve(rhs)
 
 
-def _krylov(
-    Kff: sp.csc_matrix, rhs: np.ndarray, ilu, rtol: float, maxiter: int, solver: str = "cg"
+def _ilu_gmres(
+    Kff: sp.csc_matrix, rhs: np.ndarray, ilu, rtol: float, maxiter: int
 ) -> tuple[np.ndarray | None, int]:
-    """CG (or GMRES) preconditioned by ``ilu``; returns ``(x, iterations)``,
-    with ``x`` ``None`` unless the true residual meets ``rtol`` (10x slack
-    over the solver's own recurrence estimate)."""
+    """GMRES preconditioned by ``ilu``, restarted every ``GMRES_RESTART``
+    iterations; returns ``(x, iterations)``, with ``x`` ``None`` unless the
+    true residual meets ``rtol`` (10x slack over GMRES's own estimate)."""
     n_iter = 0
 
     def _count(_arg) -> None:
@@ -127,28 +152,24 @@ def _krylov(
         n_iter += 1
 
     M = spla.LinearOperator(Kff.shape, matvec=ilu.solve, dtype=float)
-    # A breakdown (r . M r = 0 in CG, seen with the ILU on macOS) makes the
-    # solver divide 0 by 0. The non-finite result is caught below and the
-    # caller moves on to the next solver, so numpy's RuntimeWarning for it
-    # is silenced rather than passed to the user.
+    restart = min(GMRES_RESTART, maxiter)
+    # A breakdown (a preconditioner that maps the residual to zero; with
+    # CG, r . M r = 0, seen with the ILU on macOS) makes the solver divide
+    # by zero. The non-finite result is caught below and the caller moves
+    # on to the direct solve, so numpy's RuntimeWarning for it is silenced
+    # rather than passed to the user.
     with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
-        if solver == "cg":
-            x, info = spla.cg(Kff, rhs, rtol=rtol, atol=0.0, maxiter=maxiter, M=M, callback=_count)
-        else:
-            # GMRES does not need the preconditioner to be SPD, so it rescues
-            # a factor CG stalls on. Its maxiter counts restart cycles.
-            restart = min(GMRES_RESTART, maxiter)
-            x, info = spla.gmres(
-                Kff,
-                rhs,
-                rtol=rtol,
-                atol=0.0,
-                restart=restart,
-                maxiter=max(1, maxiter // restart),
-                M=M,
-                callback=_count,
-                callback_type="pr_norm",
-            )
+        x, info = spla.gmres(
+            Kff,
+            rhs,
+            rtol=rtol,
+            atol=0.0,
+            restart=restart,
+            maxiter=max(1, maxiter // restart),  # counts restart cycles
+            M=M,
+            callback=_count,
+            callback_type="pr_norm",
+        )
     if info != 0 or not np.all(np.isfinite(x)):
         return None, n_iter
     residual = np.linalg.norm(rhs - Kff @ x)
@@ -163,16 +184,16 @@ def solve_spd_reduced(
     *,
     method: str = "auto",
     rtol: float = DEFAULT_RTOL,
-    maxiter: int = CG_MAXITER,
+    maxiter: int = GMRES_MAXITER,
 ) -> np.ndarray:
     """Solve the reduced SPD system ``Kff x = rhs``.
 
-    ``method="iterative"`` runs ILU-preconditioned CG; when CG does not
-    converge to ``rtol`` within ``maxiter`` iterations, GMRES retries with
-    the same ILU (``GMRES_MAXITER`` iterations), and when that fails too
-    (or the ILU cannot be built) a direct sparse LU solves the system.
-    ``"direct"`` goes straight to the LU; ``"auto"`` picks direct below
-    ``DIRECT_MAX_FREE_DOF`` unknowns and iterative above.
+    ``method="iterative"`` runs ILU-preconditioned GMRES (``maxiter``
+    iterations, restarted every ``GMRES_RESTART``); when it does not
+    converge to ``rtol`` (or the ILU cannot be built) a direct sparse LU
+    solves the system. ``"direct"`` goes straight to the LU; ``"auto"``
+    picks direct below ``DIRECT_MAX_FREE_DOF`` unknowns and iterative
+    above.
 
     Logs an INFO line on entry and one on exit (the solver that produced
     the answer, its iterations and the wall time) on ``bvidfe.fe3d.solver``.
@@ -209,20 +230,16 @@ def _solve_spd_reduced(
     except RuntimeError as exc:  # e.g. an exactly singular pivot
         _log.info("ILU factorisation failed (%s); using the direct solver", exc)
         return _direct(Kff, rhs), "direct LU (ILU factorisation failed)"
-    x, n_cg = _krylov(Kff, rhs, ilu, rtol, maxiter)
+    x, n_iter = _ilu_gmres(Kff, rhs, ilu, rtol, maxiter)
     if x is not None:
-        return x, f"ILU-CG, {n_cg} iterations"
-    _log.info("ILU-CG did not reach rtol=%.0e in %d iterations; trying GMRES", rtol, n_cg)
-    x, n_gmres = _krylov(Kff, rhs, ilu, rtol, min(maxiter, GMRES_MAXITER), solver="gmres")
-    if x is not None:
-        return x, f"ILU-GMRES, {n_gmres} iterations (after {n_cg} ILU-CG)"
+        return x, f"ILU-GMRES, {n_iter} iterations"
     _log.info(
         "ILU-GMRES did not reach rtol=%.0e in %d iterations; using the direct solver",
         rtol,
-        n_gmres,
+        n_iter,
     )
     del ilu
-    return _direct(Kff, rhs), f"direct LU (after {n_cg} ILU-CG and {n_gmres} ILU-GMRES iterations)"
+    return _direct(Kff, rhs), f"direct LU (after {n_iter} ILU-GMRES iterations)"
 
 
 def solve_linear_static(
@@ -235,7 +252,7 @@ def solve_linear_static(
     *,
     method: str = "auto",
     rtol: float = DEFAULT_RTOL,
-    maxiter: int = CG_MAXITER,
+    maxiter: int = GMRES_MAXITER,
 ) -> np.ndarray:
     """Assemble K, impose the Dirichlet BCs, and solve K u = F.
 
@@ -252,8 +269,8 @@ def solve_linear_static(
         the constrained DOFs and solve the reduced system with
         ``solve_spd_reduced``. ``"penalty"`` is the previous path (penalty
         on the diagonal, ``spsolve``), kept for comparison.
-    rtol, maxiter : relative-residual tolerance and CG iteration cap for the
-        iterative solve (GMRES gets ``min(maxiter, GMRES_MAXITER)``).
+    rtol, maxiter : relative-residual tolerance and GMRES iteration cap for
+        the iterative solve.
 
     Returns
     -------
