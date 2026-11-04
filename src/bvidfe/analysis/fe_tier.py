@@ -35,6 +35,13 @@ is already on the pristine scale and is not rescaled (issue #166).
 Buckling onset (whole panel and sublaminate, Rayleigh-Ritz closed form) is
 reported by :func:`fe3d_cai_buckling` but does not enter the residual.
 
+Residual stiffness (issue #114): the same solve's loaded-edge reaction
+force at the reference end strain, over the gross section and that strain,
+is the panel's secant axial modulus (:func:`axial_secant_modulus`;
+:func:`fe3d_cai_channels_and_modulus` and :func:`fe3d_tai_and_modulus`
+return it beside the strength). ``BvidAnalysis`` divides the damaged value
+by the undamaged one for the E11 knockdown, at no extra solve.
+
 Problems above ``FE3D_MAX_DOF`` degrees of freedom (150,000, or the
 ``BVIDFE_FE3D_MAX_DOF`` environment variable) raise :class:`FE3DSizeError`.
 Stage timings go to stderr on the ``bvidfe.fe3d`` logger, at the level set
@@ -693,6 +700,25 @@ def _first_ply_failure_stress(
     intact strength. The failure multiplier and the reaction force come
     from the same FE solve.
     """
+    return _first_ply_failure_stress_and_modulus(
+        cfg, mesh, elements, lam, strain_sign, criterion, strain_cap, notch
+    )[0]
+
+
+def _first_ply_failure_stress_and_modulus(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    lam: Laminate,
+    strain_sign: int,
+    criterion: CriterionName,
+    strain_cap: float = 0.05,
+    notch: np.ndarray | None = None,
+) -> tuple[float, float]:
+    """``(_first_ply_failure_stress, E_x)``: the failure stress and, from
+    the same solve, the panel's secant axial modulus ``E_x`` (MPa), the
+    loaded-edge reaction force at the reference end strain over the gross
+    section ``Ly * h`` and that strain (``axial_secant_modulus``)."""
     _require_known_criterion(criterion)
     u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
     c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion, notch=notch)
@@ -700,7 +726,35 @@ def _first_ply_failure_stress(
         c_crit = 1.0  # nothing failed up to strain_cap
     c_crit = min(c_crit, 1.0)
     area = cfg.panel.Ly_mm * lam.thickness_mm
-    return c_crit * _loaded_edge_force(mesh, elements, u_ref) / area
+    force = _loaded_edge_force(mesh, elements, u_ref)
+    return c_crit * force / area, force / area / strain_cap
+
+
+def axial_secant_modulus(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    lam: Laminate,
+    strain_sign: int,
+    strain_cap: float = 0.05,
+) -> float:
+    """The panel's secant axial modulus ``E_x`` (MPa) in the fe3d membrane
+    solve: the loaded-edge reaction force (``_loaded_edge_force``) at an end
+    strain of ``strain_sign * strain_cap`` (between the frictionless platens
+    of ``uniaxial_x_bcs``) over the gross section ``Ly * h`` and the strain.
+
+    The solve is linear, so the value does not depend on ``strain_cap``.
+    On an undamaged mesh it is the CLT membrane modulus ``Ex`` (the
+    platens leave the lateral and through-thickness Poisson contraction
+    free, and the mid-surface restraint holds the panel flat, as CLT's
+    ``A`` matrix with no curvature does). On a damaged mesh it is the
+    whole panel's stiffness with its softened damage zone, so its ratio to
+    the undamaged value is the axial stiffness knockdown that fe3d reports
+    (``BvidAnalysis`` takes it from the first-ply failure solves at no
+    extra cost; this function runs its own solve)."""
+    u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
+    area = cfg.panel.Ly_mm * lam.thickness_mm
+    return _loaded_edge_force(mesh, elements, u_ref) / area / strain_cap
 
 
 def _solve_failure_strain_analytic_scalar_ref(
@@ -776,7 +830,24 @@ def _fe3d_cai_first_ply_failure(
     sigma_pristine_MPa: float,
     criterion: CriterionName = "larc05",
 ) -> float:
-    """3D FE compression-after-impact residual strength via first-ply-failure (MPa).
+    """3D FE compression-after-impact residual strength via first-ply-failure
+    (MPa): the first element of ``_fe3d_cai_first_ply_failure_and_modulus``."""
+    sigma, _ = _fe3d_cai_first_ply_failure_and_modulus(
+        cfg, damage, lam, sigma_pristine_MPa, criterion
+    )
+    return sigma
+
+
+def _fe3d_cai_first_ply_failure_and_modulus(
+    cfg: AnalysisConfig,
+    damage: DamageState,
+    lam: Laminate,
+    sigma_pristine_MPa: float,
+    criterion: CriterionName = "larc05",
+) -> tuple[float, float]:
+    """3D FE compression-after-impact residual strength via first-ply-failure
+    (MPa), and the damaged panel's secant axial modulus in compression (MPa)
+    from the same solve (``_first_ply_failure_stress_and_modulus``).
 
     Scales one elastic solve of the damaged mesh to the load at which the
     selected failure criterion's index first reaches 1, and returns the
@@ -786,14 +857,16 @@ def _fe3d_cai_first_ply_failure(
     raise ``ValueError``.
     """
     mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d FPF")
-    sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=-1, criterion=criterion)
+    sigma, modulus = _first_ply_failure_stress_and_modulus(
+        cfg, mesh, elements, lam, strain_sign=-1, criterion=criterion
+    )
     _t("FPF analytic solve done", t0)
     _log.info(
         "fe3d FPF done: residual = %.1f MPa (total %.2fs)",
         min(sigma, sigma_pristine_MPa),
         time.time() - t0,
     )
-    return min(sigma, sigma_pristine_MPa)
+    return min(sigma, sigma_pristine_MPa), modulus
 
 
 def fe3d_cai_buckling(
@@ -889,9 +962,26 @@ def fe3d_cai_channels(
     first-ply-failure stress is fe3d's own and ``BvidAnalysis`` normalises
     it by an undamaged fe3d run before comparing the two (issue #166).
     """
-    growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
-    sigma_fpf = _fe3d_cai_first_ply_failure(cfg, damage, lam, sigma_pristine_MPa)
+    growth, sigma_fpf, _ = fe3d_cai_channels_and_modulus(cfg, damage, lam, sigma_pristine_MPa)
     return growth, sigma_fpf
+
+
+def fe3d_cai_channels_and_modulus(
+    cfg: AnalysisConfig,
+    damage: DamageState,
+    lam: Laminate,
+    sigma_pristine_MPa: float,
+) -> tuple[Optional[SublaminateGrowth], float, float]:
+    """:func:`fe3d_cai_channels` and, from the first-ply failure solve, the
+    panel's secant axial modulus in compression ``E_x`` (MPa, see
+    :func:`axial_secant_modulus`): ``(growth, sigma_fpf, E_x)``.
+    ``BvidAnalysis`` divides the damaged ``E_x`` by the undamaged one for
+    the E11 knockdown (issue #114)."""
+    growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    sigma_fpf, modulus = _fe3d_cai_first_ply_failure_and_modulus(
+        cfg, damage, lam, sigma_pristine_MPa
+    )
+    return growth, sigma_fpf, modulus
 
 
 def fe3d_cai(
@@ -937,12 +1027,26 @@ def fe3d_tai(
     radius, as in the closed-form tiers. Raises :class:`FE3DSizeError`
     above the size cap.
     """
+    return fe3d_tai_and_modulus(cfg, damage, lam, sigma_pristine_MPa)[0]
+
+
+def fe3d_tai_and_modulus(
+    cfg: AnalysisConfig,
+    damage: DamageState,
+    lam: Laminate,
+    sigma_pristine_MPa: float,
+) -> tuple[float, float]:
+    """``(fe3d_tai, E_x)``: :func:`fe3d_tai` and, from the same solve, the
+    damaged panel's secant axial modulus in tension (MPa, see
+    :func:`axial_secant_modulus`). The fibre-damage hole is a notch on the
+    stress only (``_tai_fibre_damage_notch``), so it does not lower
+    ``E_x``."""
     mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
     notch = _tai_fibre_damage_notch(cfg, damage, lam, mesh)
-    sigma = _first_ply_failure_stress(
+    sigma, modulus = _first_ply_failure_stress_and_modulus(
         cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu", notch=notch
     )
-    return min(sigma, sigma_pristine_MPa)
+    return min(sigma, sigma_pristine_MPa), modulus
 
 
 def tai_fibre_damage_hole(

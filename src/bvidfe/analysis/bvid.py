@@ -12,8 +12,8 @@ from bvidfe._types import LoadingMode
 from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.fe_tier import (
     fe3d_cai_buckling,
-    fe3d_cai_channels,
-    fe3d_tai,
+    fe3d_cai_channels_and_modulus,
+    fe3d_tai_and_modulus,
     tai_fibre_damage_hole,
 )
 from bvidfe.analysis.results import AnalysisResults
@@ -106,6 +106,21 @@ def _tai_note(lam: Laminate, damage: DamageState, panel_width_mm: float) -> str:
         f"tai_notch_fraction is fitted in-sample to one measured condition "
         f"(Korbelin et al. 2020, M21/T800S quasi-isotropic, 25 J)."
     )
+
+
+def _fe3d_stiffness(Ex_damaged: float, Ex_undamaged: float, sense: str) -> tuple[float, str]:
+    """fe3d's E11 knockdown, the damaged over the undamaged panel's secant
+    axial modulus (capped at 1 against solver round-off: softening can only
+    lower the reaction force at a prescribed end strain), and its
+    ``AnalysisResults.notes`` line."""
+    knockdown = min(1.0, Ex_damaged / Ex_undamaged)
+    note = (
+        f"fe3d E11 knockdown {knockdown:.3f} = damaged {Ex_damaged:.0f} MPa / undamaged "
+        f"{Ex_undamaged:.0f} MPa (the whole panel's secant axial modulus in {sense}, "
+        f"from the first-ply failure solves), applied to pristine_E11_MPa; fe3d does "
+        f"not compute E22 or G12, and no stiffness measurement validates it"
+    )
+    return knockdown, note
 
 
 def _config_snapshot_dict(cfg: AnalysisConfig) -> dict:
@@ -201,6 +216,7 @@ class BvidAnalysis:
         _warn_damage_outside_panel(damage, self.config.panel.Lx_mm, self.config.panel.Ly_mm)
         sigma_0 = _pristine_strength(lam, self.config.loading)
         notes: list[str] = []
+        E11_knockdown: float | None = None
 
         if self.config.tier == "empirical":
             sigma = self._empirical(lam, damage, sigma_0)
@@ -215,13 +231,18 @@ class BvidAnalysis:
             buckling_eigs = [N_cr] if N_cr is not None else None
             field_results = None
         elif self.config.tier == "fe3d":
-            sigma, buckling_eigs, critical_interface, fe3d_notes = self._fe3d(lam, damage, sigma_0)
+            sigma, buckling_eigs, critical_interface, fe3d_notes, E11_knockdown = self._fe3d(
+                lam, damage, sigma_0
+            )
             notes.extend(fe3d_notes)
             field_results = None
         else:
             raise NotImplementedError(f"tier '{self.config.tier}' is not recognized")
         if self.config.loading == "tension" and self.config.tier != "fe3d":
             notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
+        # Residual stiffness (issue #114): CLT moduli for every tier, the
+        # E11 residual from fe3d's reaction-force ratio only.
+        E11_0, E22_0, G12_0, _ = lam.effective_engineering_constants()
 
         return AnalysisResults(
             residual_strength_MPa=sigma,
@@ -235,11 +256,16 @@ class BvidAnalysis:
             critical_sublaminate=critical_interface,
             field_results=field_results,
             notes=notes,
+            pristine_E11_MPa=float(E11_0),
+            residual_E11_MPa=None if E11_knockdown is None else float(E11_0 * E11_knockdown),
+            E11_knockdown=E11_knockdown,
+            pristine_E22_MPa=float(E22_0),
+            pristine_G12_MPa=float(G12_0),
         )
 
     def _fe3d(
         self, lam: Laminate, damage: DamageState, sigma_0: float
-    ) -> tuple[float, list[float] | None, int | None, list[str]]:
+    ) -> tuple[float, list[float] | None, int | None, list[str], float]:
         """fe3d residual strength on the shared pristine scale.
 
         fe3d's first-ply-failure stress (on the 3D mesh) is not the same
@@ -260,21 +286,31 @@ class BvidAnalysis:
         panel or sublaminate) is reported but does not enter the residual;
         see ``fe3d_cai``.
 
+        The same two solves give the E11 knockdown: the damaged over the
+        undamaged panel's secant axial modulus (loaded-edge reaction force
+        at the same end strain), recorded in ``notes`` with the raw moduli.
+
         Returns ``(residual_MPa, buckling_eigenvalues, critical_interface,
-        notes)``.
+        notes, E11_knockdown)``.
         """
         undamaged = DamageState(delaminations=[], dent_depth_mm=0.0)
         if self.config.loading != "compression":
             return self._fe3d_tai(lam, damage, undamaged, sigma_0)
 
-        growth, fpf_damaged = fe3d_cai_channels(self.config, damage, lam, math.inf)
-        _, fpf_undamaged = fe3d_cai_channels(self.config, undamaged, lam, math.inf)
+        growth, fpf_damaged, Ex_damaged = fe3d_cai_channels_and_modulus(
+            self.config, damage, lam, math.inf
+        )
+        _, fpf_undamaged, Ex_undamaged = fe3d_cai_channels_and_modulus(
+            self.config, undamaged, lam, math.inf
+        )
         sigma_fpf = sigma_0 * min(1.0, fpf_damaged / fpf_undamaged)
         notes = [
             f"fe3d first-ply failure = damaged {fpf_damaged:.1f} MPa / undamaged "
             f"{fpf_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
             f"pristine_strength_MPa: {sigma_fpf:.1f} MPa"
         ]
+        E11_knockdown, stiffness_note = _fe3d_stiffness(Ex_damaged, Ex_undamaged, "compression")
+        notes.append(stiffness_note)
         critical_interface = None
         sigma_growth = math.inf
         if growth is not None and math.isfinite(growth.growth_stress_MPa):
@@ -303,23 +339,31 @@ class BvidAnalysis:
         _, lambda_crit, buckling_notes = fe3d_cai_buckling(self.config, damage, lam, math.inf)
         notes.extend(buckling_notes)
         buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
-        return float(min(sigma_growth, sigma_fpf)), buckling_eigs, critical_interface, notes
+        return (
+            float(min(sigma_growth, sigma_fpf)),
+            buckling_eigs,
+            critical_interface,
+            notes,
+            E11_knockdown,
+        )
 
     def _fe3d_tai(
         self, lam: Laminate, damage: DamageState, undamaged: DamageState, sigma_0: float
-    ) -> tuple[float, list[float] | None, int | None, list[str]]:
+    ) -> tuple[float, list[float] | None, int | None, list[str], float]:
         """fe3d tension after impact: fe3d's damaged over undamaged
         first-ply failure (``fe3d_tai``, uncapped so that two results above
         ``_pristine_strength`` still keep their true ratio), applied to
-        ``sigma_0``."""
-        sigma_damaged = fe3d_tai(self.config, damage, lam, math.inf)
-        sigma_undamaged = fe3d_tai(self.config, undamaged, lam, math.inf)
+        ``sigma_0``; the E11 knockdown in tension as in ``_fe3d``."""
+        sigma_damaged, Ex_damaged = fe3d_tai_and_modulus(self.config, damage, lam, math.inf)
+        sigma_undamaged, Ex_undamaged = fe3d_tai_and_modulus(self.config, undamaged, lam, math.inf)
         knockdown = min(1.0, sigma_damaged / sigma_undamaged)
         notes = [
             f"fe3d knockdown = damaged {sigma_damaged:.1f} MPa / undamaged "
             f"{sigma_undamaged:.1f} MPa (fe3d's own failure stresses), applied to "
             f"pristine_strength_MPa"
         ]
+        E11_knockdown, stiffness_note = _fe3d_stiffness(Ex_damaged, Ex_undamaged, "tension")
+        notes.append(stiffness_note)
         hole = tai_fibre_damage_hole(self.config, damage, lam)
         if hole is not None:
             size = (
@@ -333,7 +377,7 @@ class BvidAnalysis:
                 f"notch x{1 / hole[1]:.3f} on the stress of the elements under it"
             )
             notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
-        return sigma_0 * knockdown, None, None, notes
+        return sigma_0 * knockdown, None, None, notes, E11_knockdown
 
     def _resolve_damage(self, lam: Laminate) -> DamageState:
         if self.config.damage is not None:

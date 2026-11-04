@@ -372,6 +372,33 @@ def test_knockdown_curve_tab_low_energy_and_run_tier(_no_stats) -> None:
     assert set(curves[0]["tier_used"]) == {"semi_analytical"}
 
 
+@pytest.mark.parametrize("tier", ["empirical", "fe3d"])
+def test_summary_shows_the_stiffness(_no_stats, monkeypatch, tier) -> None:
+    """Issue #114: the Summary tab shows E11 / E22 / G12, fe3d's E11 as a
+    residual with its knockdown and the rest as the pristine CLT value.
+    fe3d's solves are replaced by fakes (E11 knockdown 0.8): the app also
+    runs a 7-point knockdown curve at the run's tier."""
+    from bvidfe.analysis import bvid
+
+    monkeypatch.setattr(
+        bvid,
+        "fe3d_cai_channels_and_modulus",
+        lambda cfg, damage, lam, cap: (None, 100.0, 0.8 if damage.delaminations else 1.0),
+    )
+    at = _run_analysis(_app_test({"t": tier, "ld": "compression"}))
+    _no_exception(at)
+    labels = {m.label for m in at.metric}
+    result_dict = at.session_state["last_result"]["result_dict"]
+    if tier == "fe3d":
+        assert result_dict["E11_knockdown"] == pytest.approx(0.8)
+        assert "E11 residual" in labels
+        assert {"E22 (pristine, CLT)", "G12 (pristine, CLT)"} <= labels
+        (e11,) = [m for m in at.metric if m.label == "E11 residual"]
+        assert e11.value == f"{result_dict['residual_E11_MPa'] / 1000:.1f} GPa"
+    else:
+        assert {"E11 (pristine, CLT)", "E22 (pristine, CLT)", "G12 (pristine, CLT)"} <= labels
+
+
 # ---------------------------------------------------------------------------
 # Layup range (#169) and the config / results JSON (#170)
 # ---------------------------------------------------------------------------

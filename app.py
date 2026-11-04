@@ -1235,6 +1235,28 @@ with tabs[0]:
             f"{result_dict['residual_strength_MPa']:.1f} MPa",
         )
         col3.metric("Knockdown", f"{result_dict['knockdown']:.3f}")
+        # Residual in-plane stiffness (issue #114): only fe3d computes one
+        # (E11, the panel's axial modulus); the others show the CLT value.
+        for col, name in zip(st.columns(3), ("E11", "E22", "G12")):
+            pristine = result_dict.get(f"pristine_{name}_MPa")
+            residual = result_dict.get(f"residual_{name}_MPa")
+            if pristine is None:
+                continue
+            if residual is None:
+                col.metric(
+                    f"{name} (pristine, CLT)",
+                    f"{pristine / 1000:.1f} GPa",
+                    help="Laminate membrane modulus. The residual is not modelled by this tier.",
+                )
+            else:
+                col.metric(
+                    f"{name} residual",
+                    f"{residual / 1000:.1f} GPa",
+                    delta=f"{100 * (result_dict[f'{name}_knockdown'] - 1):.1f}% "
+                    f"of {pristine / 1000:.1f} GPa",
+                    help="fe3d's damaged over undamaged panel axial modulus, applied to "
+                    "the CLT modulus. Unvalidated: no stiffness measurement backs it.",
+                )
         st.text(payload["summary_text"])
         if payload["notes"]:
             st.warning("Runtime notes:\n\n" + "\n\n".join(payload["notes"]))

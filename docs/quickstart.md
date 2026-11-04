@@ -78,10 +78,16 @@ BVID Analysis Results
   dpa_mm2                : 1810.9
   dent_depth_mm          : 0.219
   n_delaminations        : 15
+  E11_MPa                : 62434 pristine, residual not modelled by this tier
+  E22_MPa                : 62434 pristine, residual not modelled by this tier
+  G12_MPa                : 23885 pristine, residual not modelled by this tier
 ```
 
 `knockdown` is `residual_strength_MPa / pristine_strength_MPa`, and
-`dpa_mm2` is the projected damage area. The pristine strength is the
+`dpa_mm2` is the projected damage area. The `E11` / `E22` / `G12` lines
+are the laminate's CLT membrane moduli; only the fe3d tier estimates a
+residual (E11 only, see [Residual stiffness](physics_models.md#residual-stiffness)).
+The pristine strength is the
 unnotched laminate strength from classical lamination theory. In this case
 the Soutis bound (225.4 MPa) is below the delamination growth stress, so
 the semi-analytical result equals the empirical one. Below the onset
