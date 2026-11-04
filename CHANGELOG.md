@@ -328,6 +328,17 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   'simply_supported']; got 'clampd'`. The values remain plain strings, so
   JSON configs and the CLI are unchanged; the results schema gains an
   `enum` for `tier_used`.
+- **fe3d CAI notes say the buckling channel is the closed form (#133).**
+  A successful fe3d CAI run adds `"fe3d buckling onset <X> MPa (<where>;
+  buckling_eigenvalues) is from the closed-form Rayleigh-Ritz kernel
+  semi_analytical uses, not a 3D eigensolve (#129)"` to
+  `AnalysisResults.notes`, `<where>` being `whole panel` or `sublaminate
+  over interface <i>`. Before, only the stderr log and the degenerate
+  case said so, and nothing said which of the two the reported
+  `buckling_eigenvalues` value was. The governing CAI channel was already
+  in a note starting `"fe3d CAI: delamination growth governs"` or
+  `"fe3d CAI: first-ply failure governs"` (#166); buckling onset does not
+  set the fe3d strength, so there is no buckling-governs case to tag.
 - **CLI ranges match the API (#169).** `--loading` defaults to
   `compression` (it was required); `--layup` takes any finite ply angle,
   as `AnalysisConfig` does (`135` was rejected; angles are used modulo

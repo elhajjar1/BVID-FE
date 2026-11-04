@@ -46,9 +46,12 @@ def test_fe3d_cai_buckling_returns_positive_strength(small_cfg):
     sigma, lambda_crit, notes = fe3d_cai_buckling(small_cfg, damage, lam, sigma_pristine_MPa=500.0)
     assert sigma > 0
     assert lambda_crit > 0
-    # A clean solve notes only the whole-panel buckling stress, which the
-    # knockdown leaves out.
-    assert len(notes) == 1 and notes[0].startswith("fe3d whole-panel buckling at"), notes
+    # A clean solve notes the whole-panel buckling stress, which the
+    # knockdown leaves out, and that the onset is the closed form (#133).
+    assert len(notes) == 2, notes
+    assert notes[0].startswith("fe3d whole-panel buckling at"), notes
+    assert notes[1].startswith(f"fe3d buckling onset {lambda_crit:.1f} MPa (whole panel;"), notes
+    assert "closed-form rayleigh-ritz" in notes[1].lower(), notes
 
 
 def test_fe3d_cai_buckling_damaged_less_than_pristine(small_cfg):
@@ -84,9 +87,18 @@ def test_fe3d_cai_buckling_sublaminate_path_binds_on_thin_panel():
     sigma_pristine_panel, _, _ = fe3d_cai_buckling(
         cfg, DamageState([], 0.0), lam, sigma_pristine_MPa=600.0
     )
-    sigma_damaged, _, _ = fe3d_cai_buckling(cfg, cfg.damage, lam, sigma_pristine_MPa=600.0)
+    sigma_damaged, lambda_crit, notes = fe3d_cai_buckling(
+        cfg, cfg.damage, lam, sigma_pristine_MPa=600.0
+    )
     assert sigma_damaged < sigma_pristine_panel
     assert sigma_damaged < 600.0  # neither path saturates
+    # The onset note names the sublaminate it comes from (#133).
+    onset = [n for n in notes if n.startswith("fe3d buckling onset")]
+    assert onset == [
+        f"fe3d buckling onset {lambda_crit:.1f} MPa (sublaminate over interface 3; "
+        f"buckling_eigenvalues) is from the closed-form Rayleigh-Ritz kernel "
+        f"semi_analytical uses, not a 3D eigensolve (#129)"
+    ], notes
 
 
 def test_fe3d_cai_buckling_canonical_panel_value():
@@ -122,6 +134,12 @@ def test_bvid_analysis_fe3d_cai_uses_buckling_path(small_cfg):
     assert r.buckling_eigenvalues is not None
     assert len(r.buckling_eigenvalues) >= 1
     assert r.buckling_eigenvalues[0] > 0
+    # Issue #133: the success path says in-band that the buckling channel is
+    # the closed form, and which CAI channel sets the strength.
+    assert any(
+        n.startswith("fe3d buckling onset") and "closed-form" in n.lower() for n in r.notes
+    ), r.notes
+    assert any(n.startswith("fe3d CAI: ") and " governs " in n for n in r.notes), r.notes
 
 
 def test_fe3d_cai_buckling_degenerate_closed_form_emits_note(small_cfg, monkeypatch):

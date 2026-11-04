@@ -826,8 +826,10 @@ def fe3d_cai_buckling(
     its delamination grows, and whole-panel buckling is suppressed by the
     anti-buckling guides of a CAI fixture. ``BvidAnalysis`` reports the
     value in ``AnalysisResults.buckling_eigenvalues`` and the returned notes
-    (the whole-panel buckling stress, and a degenerate closed form) in
-    ``AnalysisResults.notes``.
+    in ``AnalysisResults.notes``: the whole-panel buckling stress, and either
+    the buckling onset with where it occurs and that it is the closed form
+    (``"fe3d buckling onset ... closed-form Rayleigh-Ritz ..."``, #133) or
+    a degenerate closed form.
     """
     boundary = cfg.panel.boundary
     notes: List[str] = []
@@ -841,6 +843,7 @@ def fe3d_cai_buckling(
             f"knockdown (CAI fixtures carry anti-buckling guides)"
         )
 
+    source = "whole panel"
     if damage.delaminations:
         crit_idx = find_critical_interface(damage, lam)
         if crit_idx is not None:
@@ -853,7 +856,9 @@ def fe3d_cai_buckling(
             sub_t = min(upper_t, lower_t)
             if sub_t > 0:
                 sigma_sublam = N_cr_sub / sub_t
-                sigma_critical = min(sigma_critical, sigma_sublam)
+                if sigma_sublam < sigma_critical:
+                    sigma_critical = sigma_sublam
+                    source = f"sublaminate over interface {crit_idx}"
 
     if not np.isfinite(sigma_critical) or sigma_critical <= 0:
         note = (
@@ -863,6 +868,13 @@ def fe3d_cai_buckling(
         return sigma_pristine_MPa, 0.0, notes + [note]
 
     lambda_crit = sigma_critical / sigma_ref_MPa
+    # Issue #133: say in-band that this channel is the closed form (#129),
+    # the kernel semi_analytical's sublaminate buckling uses, not a 3D solve.
+    notes.append(
+        f"fe3d buckling onset {sigma_critical:.1f} MPa ({source}; buckling_eigenvalues) "
+        f"is from the closed-form Rayleigh-Ritz kernel semi_analytical uses, not a "
+        f"3D eigensolve (#129)"
+    )
     _log.info(
         "fe3d buckling: sigma_crit=%.1f MPa (closed-form Rayleigh-Ritz)",
         sigma_critical,

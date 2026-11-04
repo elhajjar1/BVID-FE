@@ -736,7 +736,8 @@ expose a criterion choice, and an unknown criterion name raises
 
 For CAI, the lower of first-ply failure (normalised by an undamaged fe3d
 run, see [Knockdown definition](#knockdown-definition-and-cross-tier-comparability)) and the semi-analytical
-delamination growth stress governs; `AnalysisResults.notes` says which. Buckling onset is reported in
+delamination growth stress governs; `AnalysisResults.notes` says which, in a note that starts
+`"fe3d CAI: delamination growth governs"` or `"fe3d CAI: first-ply failure governs"`. Buckling onset is reported in
 `AnalysisResults.buckling_eigenvalues` (MPa) but does not set the strength.
 It is the lower of whole-panel buckling (the Navier closed form above
 applied to the full laminate over `Lx × Ly`) and sublaminate buckling at
@@ -746,7 +747,11 @@ laminate surface (`find_critical_interface`), which need not be
 which locked too aggressively on thin laminates at affordable mesh sizes
 (issue #129). Whole-panel buckling is left out of the knockdown because CAI
 fixtures carry anti-buckling guides; its stress is recorded in
-`AnalysisResults.notes`.
+`AnalysisResults.notes`, as is the onset itself, where it occurs (whole
+panel or the sublaminate over an interface) and that it comes from the
+closed form `semi_analytical` uses (`"fe3d buckling onset ... is from the
+closed-form Rayleigh-Ritz kernel semi_analytical uses, not a 3D
+eigensolve"`, issue #133).
 
 The linear solve eliminates the constrained DOFs and runs conjugate
 gradients preconditioned by an incomplete LU factorisation to a relative
