@@ -171,6 +171,9 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here (and, for CAI, the delamination-growth and whole-panel buckling stresses). Impact-mapping regimes are Python warnings, not notes |
 | `warnings` | Every `UserWarning` raised during the run, as `"<WarningClass>: <message>"` (also emitted as Python warnings) |
 | `field_results` | Always `None` for now |
+| `pristine_E11_MPa`, `pristine_E22_MPa`, `pristine_G12_MPa` | CLT membrane moduli of the intact laminate (MPa) in the panel axes (`Ex`, `Ey`, `Gxy` of `Laminate.effective_engineering_constants`), every tier |
+| `residual_E11_MPa`, `E11_knockdown` | `fe3d` only: the damaged over undamaged panel's secant axial modulus, in the run's loading sense, applied to `pristine_E11_MPa`; `None` for the closed-form tiers. Not validated against stiffness data ([Residual stiffness](physics_models.md#residual-stiffness)) |
+| `residual_E22_MPa`, `E22_knockdown`, `residual_G12_MPa`, `G12_knockdown` | Not computed by any tier yet: `None` |
 
 `result.summary()` returns a printable block and `result.to_dict()` a
 JSON-serialisable dict (every field but `field_results`, the damage in the

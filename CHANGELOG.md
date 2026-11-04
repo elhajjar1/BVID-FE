@@ -237,6 +237,24 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
+- Residual in-plane stiffness beside the strength knockdown (#114).
+  `AnalysisResults` gains `pristine_E11_MPa`, `residual_E11_MPa`,
+  `E11_knockdown` and the same for `E22` and `G12` (laminate membrane
+  moduli in the panel axes, `Optional`, in `to_dict()`, the CLI JSON,
+  `summary()` and the Streamlit Summary tab; `--quick` / `--quick-json`
+  are unchanged). `pristine_*` is CLT's `Ex`, `Ey`, `Gxy` for every tier.
+  fe3d reports the E11 residual: its damaged over undamaged panel's secant
+  axial modulus, from the loaded-edge reaction forces its two first-ply
+  failure solves already compute (no extra solve), in the run's loading
+  sense (8-ply QI IM7/8552 150 x 100 mm: 0.950 / 0.818 / 0.650 in CAI and
+  0.997 / 0.989 / 0.978 in TAI at 5 / 15 / 30 J), with the raw moduli in
+  `notes`. The closed-form tiers model no damaged-material stiffness and
+  leave their residuals `None`, as does fe3d for `E22` and `G12`. No
+  residual-stiffness measurement validates it, and the damage-zone factor
+  behind it was fitted to CAI strength (see "Residual stiffness" in
+  `docs/physics_models.md`). New `fe_tier` helpers:
+  `axial_secant_modulus`, `fe3d_cai_channels_and_modulus` and
+  `fe3d_tai_and_modulus`; strength knockdowns are unchanged.
 - `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
   `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
   `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its

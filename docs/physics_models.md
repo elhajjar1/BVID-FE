@@ -903,6 +903,79 @@ twice. In numbers:
 
 <!-- End of cross-tier numbers moved from README.md. -->
 
+## Residual stiffness
+
+`AnalysisResults` reports in-plane stiffness beside the strength (issue
+#114): `pristine_E11_MPa`, `residual_E11_MPa` and `E11_knockdown`, and the
+same for `E22` and `G12`. These are the **laminate's** effective membrane
+moduli in the panel axes, not the ply's: `E11` along x (the load direction
+and the layup's 0° direction), `E22` along y, `G12` the in-plane shear
+modulus, i.e. CLT's `Ex`, `Ey`, `Gxy` from the extensional compliance
+`h·A⁻¹` (`Laminate.effective_engineering_constants`).
+
+| | `pristine_*` | `residual_E11_MPa`, `E11_knockdown` | `residual_E22` / `G12` |
+|---|---|---|---|
+| `empirical`, `semi_analytical` | CLT | `None` | `None` |
+| `fe3d` | CLT | `pristine_E11_MPa` × damaged / undamaged secant axial modulus | `None` |
+
+**fe3d.** The first-ply failure solve is a linear membrane solve at a
+prescribed end strain ε between frictionless platens
+(`uniaxial_x_bcs`), and its loaded-edge reaction force `F` (already
+computed for the failure stress) gives the whole panel's secant axial
+modulus `E_x = F / (Ly·h·ε)` (`fe_tier.axial_secant_modulus`). fe3d runs
+that solve on the damaged and on the undamaged mesh, so the ratio of the
+two moduli, the E11 knockdown, costs nothing extra; it is applied to the
+CLT modulus, as the strength ratio is to the pristine strength. On the
+undamaged mesh `E_x` is CLT's `Ex` (62,382 against 62,434 MPa for the 8-ply
+QI IM7/8552 panel at 5 mm, 0.08%): the platens leave the Poisson
+contraction free and the mid-surface restraint holds the panel flat, as
+CLT with no curvature does. `F·Lx·ε` is twice the strain energy, so `E_x`
+is the energy-equivalent modulus of the panel, and it lies below the
+Voigt-type estimate the issue proposed (the volume average of the damaged
+element stiffness under the undamaged strain field), which is an upper
+bound. The knockdown is a **panel** property: the same damage in a larger
+panel softens it less.
+
+The modulus is in the run's loading sense, because fe3d softens the
+damage zone differently in the two: in compression its whole in-plane
+stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.15), in tension only its
+matrix-dominated terms (the fibres are intact). 8-ply QI IM7/8552,
+150×100 mm, 5 mm mesh:
+
+| Energy | DPA (mm²) | E11 knockdown, CAI | E11 knockdown, TAI | strength knockdown, CAI / TAI |
+|---|---|---|---|---|
+| 5 J | 450 | 0.950 | 0.997 | 0.333 / 0.834 |
+| 15 J | 1,533 | 0.818 | 0.989 | 0.256 / 0.714 |
+| 30 J | 3,156 | 0.650 | 0.978 | 0.225 / 0.629 |
+
+It is insensitive to the mesh (15 J CAI: 0.818 at 5 mm, 0.808 at
+2.5 mm; TAI 0.989 at both), since it integrates the whole field rather
+than a peak. fe3d does not compute `E22` or `G12`: each would need two
+more solves per run (a y-loaded and a shear load case, the second with
+boundary conditions fe3d does not have), about 40% more run time.
+
+**What it does not capture.**
+
+- **No stiffness measurement validates it.** The repository holds no
+  measured residual modulus, and `DAMAGE_ZONE_INPLANE_FACTOR` was fitted
+  to CAI *strength* (three coupons), where it stands for the zone's lost
+  strength as much as its stiffness. Treat the compression E11 knockdown
+  as that strength-calibrated model's, and expect it to overstate the
+  loss.
+- It is the initial (pre-buckling) stiffness of a flat membrane: the
+  solve holds the panel flat, so the extra compliance of buckled
+  sublaminates after onset, and of panel bending, is not in it.
+- The TAI fibre-damage hole is a notch on the stress only, so it does not
+  lower the tension modulus.
+- **The closed-form tiers report no residual.** They represent the damage
+  by a strength equivalent: Soutis' equivalent hole of the DPA, the TAI
+  notch, buckled sublaminates. None of these carries a stiffness of the
+  damaged material, and with no stiffness data a DPA-based correlation
+  would rest on invented constants. Homogenising fe3d's soft inclusion in
+  closed form would only restate fe3d's strength-fitted factor in another
+  tier, so these tiers report the CLT moduli and leave the residual
+  `None`; run `fe3d` for a stiffness estimate.
+
 ## Limitations
 
 - `soutis_k_s` (4.8) is calibrated on two measured CAI datasets (AS4/8552 and
