@@ -15,10 +15,13 @@ Deploy: see DEPLOYMENT_STREAMLIT.md.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
+import logging
 import math
 import sys
+import threading
 import time
 import warnings
 from dataclasses import replace
@@ -1142,6 +1145,56 @@ elif preview_error:
 # Run analysis
 # ---------------------------------------------------------------------------
 
+
+class _StageStatusHandler(logging.Handler):
+    """Mirrors the fe3d stage log (``bvidfe.fe3d``, INFO) into an ``st.status``
+    block (#110). While the run is in progress the status label shows the
+    latest stage; ``status.update`` goes straight to the browser, whereas
+    ``status.write`` inside the cached run would be recorded for cache replay
+    against a container the replay cannot find. The full log is written into
+    the block when the run ends. Only records from the thread that attached
+    the handler are taken: the logger is process-wide and other sessions'
+    runs log to it too."""
+
+    def __init__(self, status) -> None:
+        super().__init__(logging.INFO)
+        self.status = status
+        self.lines: list[str] = []
+        self._thread = threading.get_ident()
+        self.setFormatter(logging.Formatter("%(asctime)s %(message)s", "%H:%M:%S"))
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.thread != self._thread:
+            return
+        try:
+            self.lines.append(self.format(record))
+            self.status.update(label=f"fe3d: {record.getMessage()}")
+        except Exception:
+            self.handleError(record)
+
+
+@contextlib.contextmanager
+def _fe3d_stage_status():
+    """Show the fe3d stage log in an ``st.status`` block for the duration of
+    the run; the handler is removed afterwards, also on error."""
+    status = st.status("Running fe3d analysis…", expanded=True)
+    handler = _StageStatusHandler(status)
+    fe3d_logger = logging.getLogger("bvidfe.fe3d")
+    fe3d_logger.addHandler(handler)
+    state = "error"
+    try:
+        yield
+        state = "complete"
+    finally:
+        fe3d_logger.removeHandler(handler)
+        if handler.lines:
+            status.text("\n".join(handler.lines))
+            label = f"fe3d stage log ({len(handler.lines)} lines)"
+        else:
+            label = "fe3d stage log (none: cached result, or BVIDFE_LOG_LEVEL above INFO)"
+        status.update(label=label, state=state, expanded=False)
+
+
 if run_clicked:
     if not config_valid or config_dict is None:
         st.error(
@@ -1174,7 +1227,8 @@ if run_clicked:
                 # (a real BvidAnalysis solve is at least sub-second on the
                 # empirical tier and seconds-to-minutes on fe3d).
                 _t0 = time.perf_counter()
-                payload = _run_analysis_cached(config_dict)
+                with _fe3d_stage_status() if tier == "fe3d" else contextlib.nullcontext():
+                    payload = _run_analysis_cached(config_dict)
                 _dt = time.perf_counter() - _t0
                 st.session_state["last_result"] = payload
                 try:

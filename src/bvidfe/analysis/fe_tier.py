@@ -351,13 +351,25 @@ def _fe3d_preflight(
         for relative timing logs in the caller.
     """
     _guard_problem_size(cfg)
+    label = _run_label(label, damage)
     t0 = time.time()
     _log.info("%s: mesh build start", label)
     mesh = build_fe_mesh(cfg, damage)
-    _t(f"mesh build done: {mesh.n_elements} elements, {mesh.n_dof} DOFs", t0)
+    _t(f"{label}: mesh build done: {mesh.n_elements} elements, {mesh.n_dof} DOFs", t0)
+    t1 = time.time()
+    _log.info("%s: element build start: %d elements", label, mesh.n_elements)
     elements = _build_elements(mesh, lam, tension=tension)
-    _t("elements built", t0)
+    _t(f"{label}: element build done", t1)
     return mesh, elements, t0
+
+
+def _run_label(label: str, damage: DamageState) -> str:
+    """``label`` tagged damaged or undamaged, for the stage log: the fe3d
+    tiers solve both meshes (see ``BvidAnalysis._fe3d``)."""
+    n = len(damage.delaminations)
+    if not n:
+        return f"{label} (undamaged)"
+    return f"{label} (damaged, {n} delamination{'s' if n > 1 else ''})"
 
 
 def _require_known_criterion(criterion: str) -> None:
@@ -695,12 +707,16 @@ def _first_ply_failure_stress(
     """
     _require_known_criterion(criterion)
     u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
+    t0 = time.time()
+    _log.info("FPF evaluation start: %s, %d elements", criterion, len(elements))
     c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion, notch=notch)
     if not np.isfinite(c_crit) or c_crit <= 0:
         c_crit = 1.0  # nothing failed up to strain_cap
     c_crit = min(c_crit, 1.0)
     area = cfg.panel.Ly_mm * lam.thickness_mm
-    return c_crit * _loaded_edge_force(mesh, elements, u_ref) / area
+    sigma = c_crit * _loaded_edge_force(mesh, elements, u_ref) / area
+    _t(f"FPF evaluation done: failure stress {sigma:.1f} MPa", t0)
+    return sigma
 
 
 def _solve_failure_strain_analytic_scalar_ref(
@@ -787,9 +803,9 @@ def _fe3d_cai_first_ply_failure(
     """
     mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d FPF")
     sigma = _first_ply_failure_stress(cfg, mesh, elements, lam, strain_sign=-1, criterion=criterion)
-    _t("FPF analytic solve done", t0)
     _log.info(
-        "fe3d FPF done: residual = %.1f MPa (total %.2fs)",
+        "%s done: first-ply failure at %.1f MPa (total %.2fs)",
+        _run_label("fe3d FPF", damage),
         min(sigma, sigma_pristine_MPa),
         time.time() - t0,
     )
@@ -937,10 +953,16 @@ def fe3d_tai(
     radius, as in the closed-form tiers. Raises :class:`FE3DSizeError`
     above the size cap.
     """
-    mesh, elements, _t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
+    mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
     notch = _tai_fibre_damage_notch(cfg, damage, lam, mesh)
     sigma = _first_ply_failure_stress(
         cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu", notch=notch
+    )
+    _log.info(
+        "%s done: first-ply failure at %.1f MPa (total %.2fs)",
+        _run_label("fe3d TAI", damage),
+        min(sigma, sigma_pristine_MPa),
+        time.time() - t0,
     )
     return min(sigma, sigma_pristine_MPa)
 
