@@ -138,6 +138,13 @@
         "null"
       ]
     },
+    "biaxial_interaction_factor": {
+      "description": "residual_strength_MPa over the same damaged panel's uniaxial residual strength; null when transverse_stress_ratio is 0. Experimental, not validated (no biaxial residual-strength data); see 'Biaxial loading' in docs/physics_models.md.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "buckling_eigenvalues": {
       "items": {
         "type": "number"
@@ -205,6 +212,13 @@
     "pristine_strength_MPa": {
       "type": "number"
     },
+    "pristine_transverse_stress_MPa": {
+      "description": "Signed sigma_y (MPa) at pristine failure along the biaxial load ray; null when transverse_stress_ratio is 0. Experimental, not validated (no biaxial residual-strength data); see 'Biaxial loading' in docs/physics_models.md.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "residual_E11_MPa": {
       "type": [
         "number",
@@ -225,6 +239,13 @@
     },
     "residual_strength_MPa": {
       "type": "number"
+    },
+    "residual_transverse_stress_MPa": {
+      "description": "Signed sigma_y (MPa) at damaged failure along the biaxial load ray; null when transverse_stress_ratio is 0. Experimental, not validated (no biaxial residual-strength data); see 'Biaxial loading' in docs/physics_models.md.",
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "tier_used": {
       "enum": [

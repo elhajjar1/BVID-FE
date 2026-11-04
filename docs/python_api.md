@@ -132,6 +132,7 @@ bounds it.
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
+| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; only `tier="empirical"` supports a nonzero ratio so far (the other tiers raise `NotImplementedError`). See [Biaxial loading](physics_models.md#biaxial-loading) |
 
 `MeshParams` fields (fe3d only):
 
@@ -174,6 +175,8 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `pristine_E11_MPa`, `pristine_E22_MPa`, `pristine_G12_MPa` | CLT membrane moduli of the intact laminate (MPa) in the panel axes (`Ex`, `Ey`, `Gxy` of `Laminate.effective_engineering_constants`), every tier |
 | `residual_E11_MPa`, `E11_knockdown` | `fe3d` only: the damaged over undamaged panel's secant axial modulus, in the run's loading sense, applied to `pristine_E11_MPa`; `None` for the closed-form tiers. Not validated against stiffness data ([Residual stiffness](physics_models.md#residual-stiffness)) |
 | `residual_E22_MPa`, `E22_knockdown`, `residual_G12_MPa`, `G12_knockdown` | Not computed by any tier yet: `None` |
+| `pristine_transverse_stress_MPa`, `residual_transverse_stress_MPa` | Biaxial runs only (`transverse_stress_ratio ≠ 0`, experimental): the signed σy at pristine and damaged failure along the load ray; `None` otherwise. The strength fields are then \|σx\| at failure along the ray |
+| `biaxial_interaction_factor` | Biaxial runs only: `residual_strength_MPa` over the same damage's uniaxial residual strength (1 = no effect of the lateral stress); `None` otherwise |
 
 `result.summary()` returns a printable block and `result.to_dict()` a
 JSON-serialisable dict (every field but `field_results`, the damage in the
@@ -416,6 +419,7 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
 | `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
 | `--loading` | `compression` | `compression` or `tension` |
+| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; `empirical` tier only so far |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
 | `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |

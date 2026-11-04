@@ -165,6 +165,25 @@ class AnalysisResults:
         otherwise.
     E11_knockdown, E22_knockdown, G12_knockdown : float, optional
         ``residual / pristine`` for each modulus, ``None`` with the residual.
+    pristine_transverse_stress_MPa, residual_transverse_stress_MPa : float, optional
+        Biaxial runs only (``AnalysisConfig.transverse_stress_ratio = beta
+        != 0``, experimental): the signed sigma_y (MPa) at pristine and at
+        damaged failure, ``s * beta * pristine_strength_MPa`` and ``s * beta
+        * residual_strength_MPa`` (``s = -1`` in compression, ``+1`` in
+        tension). ``None`` at ``beta == 0``.
+    biaxial_interaction_factor : float, optional
+        Biaxial runs only: the damaged axial strength along the ray over
+        that of the same damaged panel under the uniaxial load,
+        ``residual_strength_MPa(beta) / residual_strength_MPa(0)`` (1 = the
+        lateral stress has no effect, below 1 = it costs strength).
+        ``None`` at ``beta == 0``.
+
+    With ``beta != 0`` the strength fields are ``|sigma_x|`` at failure
+    along the proportional load ray ``(sigma_x, sigma_y) = lambda * (s, s *
+    beta)``: ``pristine_strength_MPa`` the ply-discount envelope along the
+    ray, ``residual_strength_MPa`` the tier's damaged strength along it, and
+    ``knockdown`` their ratio as before. No biaxial residual-strength data
+    validate these; see "Biaxial loading" in docs/physics_models.md.
     """
 
     residual_strength_MPa: float
@@ -205,6 +224,15 @@ class AnalysisResults:
     residual_G12_MPa: Optional[float] = None
     #: Not computed by any tier yet: always ``None``.
     G12_knockdown: Optional[float] = None
+    #: Signed sigma_y (MPa) at pristine failure along the biaxial load ray;
+    #: ``None`` unless ``transverse_stress_ratio != 0``.
+    pristine_transverse_stress_MPa: Optional[float] = None
+    #: Signed sigma_y (MPa) at damaged failure along the biaxial load ray;
+    #: ``None`` unless ``transverse_stress_ratio != 0``.
+    residual_transverse_stress_MPa: Optional[float] = None
+    #: ``residual_strength_MPa`` over the same run's uniaxial residual
+    #: strength; ``None`` unless ``transverse_stress_ratio != 0``.
+    biaxial_interaction_factor: Optional[float] = None
 
     def __repr__(self) -> str:
         return (
@@ -242,6 +270,17 @@ class AnalysisResults:
             else:
                 line += ", residual not modelled by this tier"
             lines.append(line)
+        if self.biaxial_interaction_factor is not None:
+            ratio = self.config_snapshot.get("transverse_stress_ratio")
+            label = "" if ratio is None else f" (sigma_y/sigma_x = {ratio:+.2f})"
+            lines.append(f"  biaxial{label}, experimental:")
+            for key in ("pristine_transverse_stress_MPa", "residual_transverse_stress_MPa"):
+                value = getattr(self, key)
+                if value is not None:
+                    lines.append(f"    {key:31s}: {value:.1f}")
+            lines.append(
+                f"    {'biaxial_interaction_factor':31s}: {self.biaxial_interaction_factor:.3f}"
+            )
         if self.notes:
             lines.append("  notes:")
             for note in self.notes:
@@ -258,10 +297,12 @@ class AnalysisResults:
         Keys: ``residual_strength_MPa``, ``pristine_strength_MPa``,
         ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage``,
         ``buckling_eigenvalues``, ``critical_sublaminate``,
-        ``config_snapshot``, ``notes``, ``warnings`` and the nine stiffness
+        ``config_snapshot``, ``notes``, ``warnings``, the nine stiffness
         fields (``pristine_E11_MPa``, ``residual_E11_MPa``,
-        ``E11_knockdown`` and the same for ``E22`` and ``G12``, ``None`` as
-        ``null``). ``field_results`` is left out. ``damage`` is
+        ``E11_knockdown`` and the same for ``E22`` and ``G12``) and the three
+        biaxial fields (``pristine_transverse_stress_MPa``,
+        ``residual_transverse_stress_MPa``, ``biaxial_interaction_factor``),
+        ``None`` as ``null``. ``field_results`` is left out. ``damage`` is
         :func:`~bvidfe.damage.io.damage_state_to_dict`, the schema-v1.0
         C-scan layout with ``schema_version``, so it can be saved and read
         back with ``load_cscan_json`` (or the CLI's ``--cscan``) for an
@@ -285,4 +326,10 @@ class AnalysisResults:
         for name in ("E11", "E22", "G12"):
             for key in (f"pristine_{name}_MPa", f"residual_{name}_MPa", f"{name}_knockdown"):
                 out[key] = getattr(self, key)
+        for key in (
+            "pristine_transverse_stress_MPa",
+            "residual_transverse_stress_MPa",
+            "biaxial_interaction_factor",
+        ):
+            out[key] = getattr(self, key)
         return out

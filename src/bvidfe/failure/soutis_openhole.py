@@ -29,6 +29,7 @@ import warnings
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState
+from bvidfe.failure.lekhnitskii import biaxial_point_stress_factor
 
 
 def lekhnitskii_kt_infinity(lam: Laminate) -> float:
@@ -245,6 +246,9 @@ def fibre_damage_tai(
     sigma_pristine_MPa: float,
     Kt_inf: float,
     panel_width_mm: float | None = None,
+    *,
+    transverse_stress_ratio: float = 0.0,
+    laminate: Laminate | None = None,
 ) -> float:
     """Tension-after-impact residual strength (MPa) from an equivalent open
     hole for the fibre damage.
@@ -269,6 +273,16 @@ def fibre_damage_tai(
     two tiers report identical tension knockdowns. Returns
     ``sigma_pristine_MPa`` for an undamaged state.
 
+    Biaxial loading (issue #115, experimental and unvalidated): with
+    ``transverse_stress_ratio = beta != 0`` (signed sigma_y / sigma_x) the
+    knockdown is multiplied by the Lekhnitskii factor ``F(beta)`` of
+    :func:`~bvidfe.failure.lekhnitskii.biaxial_point_stress_factor`, the
+    far-field sigma_y term of the axial stress at the characteristic point,
+    for which ``laminate`` is required; ``sigma_pristine_MPa`` is then the
+    pristine strength along the same load ray. Tan's finite-width
+    correction stays the uniaxial one. ``beta == 0`` is the uniaxial model
+    unchanged.
+
     >>> from bvidfe import MATERIAL_LIBRARY
     >>> from bvidfe.damage.state import DelaminationEllipse
     >>> m = MATERIAL_LIBRARY["IM7/8552"]
@@ -282,4 +296,11 @@ def fibre_damage_tai(
     kd = _point_stress_knockdown(R, m.wn_d0_mm, Kt_inf)
     if panel_width_mm is not None:
         kd *= finite_width_factor(2.0 * R / panel_width_mm, Kt_inf)
+    if transverse_stress_ratio != 0:
+        if laminate is None:
+            raise ValueError(
+                "fibre_damage_tai needs the laminate for transverse_stress_ratio != 0 "
+                "(the biaxial point-stress factor depends on its stiffness)"
+            )
+        kd *= biaxial_point_stress_factor(laminate, R, m.wn_d0_mm, transverse_stress_ratio)
     return kd * sigma_pristine_MPa

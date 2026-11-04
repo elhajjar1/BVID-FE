@@ -20,6 +20,38 @@ All notable changes to BVID-FE are documented in this file.
   at 10 mm, where Hex8i alone is 39% stiff. This is an internal building
   block for FE sublaminate buckling: no tier uses it, and no result
   changes.
+- **Biaxial in-plane loading, experimental and unvalidated** (issue #115,
+  first part). `AnalysisConfig.transverse_stress_ratio` (CLI
+  `--transverse-stress-ratio`, default `0.0`, the last field, so positional
+  construction is unchanged) is the signed ratio β = σy/σx of a
+  proportional load `(σx, σy) = λ·(s, s·β)`, `s` the sign of `loading`,
+  with `−1 ≤ β ≤ 1` (a larger ratio is rejected with the rotate-the-layup,
+  swap-`Lx_mm`/`Ly_mm` workaround). The strength fields stay |σx| at
+  failure along the ray:
+  - the pristine strength is the ply-discount envelope along the ray
+    (`unnotched_strength(lam, loading, transverse_stress_ratio)`, and
+    `unnotched_strength_along(lam, direction)` for any in-plane direction);
+  - the `empirical` tier keeps the Soutis CAI knockdown independent of the
+    ratio (homothetic) and multiplies the TAI hole's point-stress knockdown
+    by the Lekhnitskii far-field σy term at the characteristic point, `F(β)`
+    (new `bvidfe.failure.lekhnitskii`: the orthotropic open-hole stress
+    field and `biaxial_point_stress_factor`; `fibre_damage_tai` gains
+    keyword-only `transverse_stress_ratio` and `laminate`);
+  - new `AnalysisResults` fields `pristine_transverse_stress_MPa`,
+    `residual_transverse_stress_MPa` (signed σy at failure) and
+    `biaxial_interaction_factor` (residual over the uniaxial residual of the
+    same damage), `None` for a uniaxial run, and a `notes` line on every
+    biaxial run saying it is experimental and not validated;
+  - `semi_analytical` and `fe3d` raise `NotImplementedError` for a nonzero
+    ratio until their follow-up PRs.
+
+  No biaxial residual-strength data are known, so nothing at β ≠ 0 is
+  validated; under biaxial tension the pristine envelope ends,
+  conservatively, when every ply has cracked. At β = 0 every result is
+  unchanged; `config_snapshot` and the JSON output gain the new keys. See
+  [Biaxial loading](docs/physics_models.md#biaxial-loading). The JSON
+  Schemas are regenerated (the ratio's range and sign convention are in
+  the schema).
 
 ### Changed
 

@@ -106,6 +106,47 @@ class MeshParams:
         return cls(**dataclass_kwargs(cls, d, "mesh"))
 
 
+def _validate_transverse_stress_ratio(value: Any) -> float:
+    """``AnalysisConfig.transverse_stress_ratio`` as a float in ``[-1, 1]``
+    (``-0.0`` becomes ``0.0``); ``ValueError`` otherwise, naming the
+    rotation that brings a sigma_y-dominant load into range."""
+    beta = require_finite(value, "transverse_stress_ratio")
+    if not -1.0 <= beta <= 1.0:
+        hint = f" (here 1/{beta:g} = {1.0 / beta:g})"
+        raise ValueError(
+            f"transverse_stress_ratio (sigma_y / sigma_x) must be between -1 and 1 "
+            f"(got {value!r}). For a load with |sigma_y| > |sigma_x|, rotate the layup "
+            f"by 90 deg and swap the panel's Lx_mm and Ly_mm, so that x is the "
+            f"direction of the larger stress, set loading to the sign of that stress "
+            f"and use the inverse ratio{hint}."
+        )
+    return beta + 0.0
+
+
+#: Tiers that do not model biaxial loading yet (issue #115): they raise
+#: ``NotImplementedError`` for ``transverse_stress_ratio != 0`` rather than
+#: silently run the uniaxial model. The value names the follow-up PR.
+_UNIAXIAL_ONLY_TIERS = {
+    "semi_analytical": "PR 2 of #115 (biaxial sublaminate buckling and growth)",
+    "fe3d": "PR 3 of #115 (biaxial fe3d boundary conditions)",
+}
+
+
+def require_tier_supports_ratio(tier: str, transverse_stress_ratio: float) -> None:
+    """Raise ``NotImplementedError`` for ``transverse_stress_ratio != 0`` on a
+    tier without a biaxial model yet (``semi_analytical``, ``fe3d``), naming
+    the follow-up PR; ``BvidAnalysis.run`` and the fe3d entry points call it
+    so that no tier silently runs the uniaxial model for a biaxial config."""
+    if transverse_stress_ratio != 0 and tier in _UNIAXIAL_ONLY_TIERS:
+        raise NotImplementedError(
+            f"transverse_stress_ratio != 0 (biaxial loading, here "
+            f"{transverse_stress_ratio:g}) is not yet supported by tier={tier!r}; it "
+            f"is planned in the follow-up {_UNIAXIAL_ONLY_TIERS[tier]}. Use "
+            f"tier='empirical' (experimental at transverse_stress_ratio != 0) or "
+            f"transverse_stress_ratio=0.0."
+        )
+
+
 def _material_from_json(value: Any) -> Any:
     """A preset name or an ``OrthotropicMaterial`` as is; a dict (as
     ``config_snapshot`` writes a custom material) as
@@ -171,6 +212,19 @@ class AnalysisConfig:
     impact_panel : PanelGeometry, optional
         Panel the impact is applied on, see above. Its ``boundary`` is the
         one the impact model uses.
+    transverse_stress_ratio : float
+        **Experimental, unvalidated** (issue #115): the signed ratio
+        ``beta = sigma_y / sigma_x`` of a proportional biaxial in-plane load
+        ``(sigma_x, sigma_y) = lambda * (s, s * beta)``, ``s = -1`` for
+        ``loading="compression"`` and ``+1`` for ``"tension"`` (so ``beta >
+        0`` is biaxial compression or biaxial tension, ``beta < 0`` an axial
+        load with lateral stress of the other sign). ``-1 <= beta <= 1``;
+        default ``0.0``, the uniaxial load, which gives exactly the results
+        of a config without the field. The strength fields stay ``|sigma_x|``
+        at failure along the ray. Only ``tier="empirical"`` supports
+        ``beta != 0`` so far; the other tiers raise ``NotImplementedError``.
+        No biaxial residual-strength data validate it; see "Biaxial
+        loading" in docs/physics_models.md.
 
     Raises
     ------
@@ -180,6 +234,8 @@ class AnalysisConfig:
         ``impact_panel`` without ``impact``; for an empty or string layup,
         a non-finite ply angle, a non-finite or non-positive ply thickness
         or a thickness list whose length is not ``len(layup_deg)``; for a
+        ``transverse_stress_ratio`` that is not a finite number in
+        ``[-1, 1]`` (a ``bool`` is rejected); for a
         ``panel``, ``impact``, ``damage`` or ``mesh`` of the wrong type; and
         for a delamination ``interface_index`` past the last interface
         (``len(layup_deg) - 2``).
@@ -208,10 +264,15 @@ class AnalysisConfig:
     damage: Optional[DamageState] = None
     mesh: Optional[MeshParams] = None
     impact_panel: Optional[PanelGeometry] = None
+    # Last, so positional construction of the fields above is unchanged.
+    transverse_stress_ratio: float = 0.0
 
     def __post_init__(self) -> None:
         _validate_choice(self.tier, _TIER_NAMES, "tier")
         _validate_choice(self.loading, _LOADING_MODES, "loading")
+        self.transverse_stress_ratio = _validate_transverse_stress_ratio(
+            self.transverse_stress_ratio
+        )
         if isinstance(self.material, str):
             if self.material not in MATERIAL_LIBRARY:
                 raise ValueError(
@@ -305,8 +366,10 @@ class AnalysisConfig:
         config) and of its JSON form in ``AnalysisResults.to_dict()``.
 
         The keys are the field names; ``loading``, ``tier``, ``impact``,
-        ``damage``, ``mesh`` and ``impact_panel`` may be left out and take
-        the field defaults. ``material`` is a preset name or a dict of
+        ``damage``, ``mesh``, ``impact_panel`` and
+        ``transverse_stress_ratio`` may be left out and take the field
+        defaults (a JSON written before ``transverse_stress_ratio`` existed
+        loads as the uniaxial load). ``material`` is a preset name or a dict of
         :class:`~bvidfe.core.material.OrthotropicMaterial` fields;
         ``panel`` / ``impact_panel``, ``impact`` and ``mesh`` are dicts of
         the fields of :class:`~bvidfe.core.geometry.PanelGeometry`,
