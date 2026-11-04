@@ -191,12 +191,12 @@ def _t(msg: str, t0: float) -> None:
 # instead of exhausting memory inside SuperLU (native code: an OOM there
 # kills the process rather than raising). Peak RSS of a whole fe3d CAI run
 # (two solves) on an 8-ply 150 x 100 mm panel, OMP_NUM_THREADS=1:
-#   mesh    DOFs   ILU-CG (default)  direct LU fallback  old penalty + spsolve
-#   5 mm    17.6k  0.20 GB           0.33 GB             0.55 GB
-#   2.5 mm  67.5k  0.46 GB           1.3 GB              3.0 GB
-#   1.25mm  265k   -                 -                   killed (OOM, 15 GB)
-# ILU-CG memory grows about linearly (~1 GB at 150k DOFs); the direct LU,
-# used only when ILU-CG and ILU-GMRES both fail, grows as ~n^1.4 in fill
+#   mesh    DOFs   ILU-GMRES (default)  direct LU fallback  old penalty + spsolve
+#   5 mm    17.6k  0.18 GB              0.33 GB             0.55 GB
+#   2.5 mm  67.5k  0.48 GB              1.3 GB              3.0 GB
+#   1.25mm  265k   -                    -                   killed (OOM, 15 GB)
+# ILU-GMRES memory grows about linearly (~1 GB at 150k DOFs); the direct
+# LU, used only when ILU-GMRES fails, grows as ~n^1.4 in fill
 # (113M factor entries at 63k free DOFs on a cross-ply panel), so ~4-8 GB
 # at 150k. The cap keeps that worst case within a workstation's memory; it
 # admits 8-ply 150 x 100 mm panels down to ~1.7 mm and 16-ply ones at

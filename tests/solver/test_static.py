@@ -1,5 +1,7 @@
 """Tests for the linear static FE solver."""
 
+import re
+
 import numpy as np
 import pytest
 
@@ -68,7 +70,7 @@ def test_solve_axial_strain_matches_prescribed_for_single_cube():
     assert abs(u[3 * 2 + 0] - applied_strain) < 1e-3
 
 
-# --- Dirichlet elimination + ILU-CG ------------------------------------------
+# --- Dirichlet elimination + ILU-GMRES ----------------------------------------
 
 
 def _small_panel_model(delaminated: bool = True):
@@ -182,44 +184,47 @@ def test_conflicting_bcs_raise():
         dirichlet_dofs_and_values([BoundaryCondition(24, 0.0)], 24)
 
 
-def test_cg_non_convergence_falls_back_to_direct(caplog):
+def test_gmres_non_convergence_falls_back_to_direct(caplog):
     mesh, elements, bcs = _small_panel_model()
     u_ref = _dense_reference(mesh, elements, bcs)
     with caplog.at_level("INFO", logger="bvidfe.fe3d.solver"):
         u = solve_linear_static(
             elements, mesh.element_dof_maps, mesh.n_dof, bcs, method="iterative", maxiter=1
         )
+    assert "ILU-GMRES did not reach rtol=1e-10 in 1 iterations" in caplog.text
     assert "using the direct solver" in caplog.text
     assert np.linalg.norm(u - u_ref) <= 1e-8 * np.linalg.norm(u_ref)
 
 
-def test_cg_failure_is_rescued_by_gmres(monkeypatch, caplog):
-    """A factor CG cannot use (e.g. an unstable ILU) goes to GMRES with the
-    same factor before the direct solve."""
+def test_iterative_solve_is_ilu_gmres_not_cg(monkeypatch, caplog):
+    """The ILU preconditioner is not symmetric, so CG is not used at all
+    (it ran 200 iterations without converging before GMRES on every 5 mm
+    panel): the iterative solve is ILU-GMRES, which converges on the first
+    attempt, without a fallback."""
+
+    def _no_cg(*args, **kwargs):
+        raise AssertionError("CG must not be called")
+
+    monkeypatch.setattr(static.spla, "cg", _no_cg)
     mesh, elements, bcs = _small_panel_model()
-
-    def _stalled_cg(A, b, **kwargs):
-        return np.zeros_like(b), 1
-
-    monkeypatch.setattr(static.spla, "cg", _stalled_cg)
     with caplog.at_level("INFO", logger="bvidfe.fe3d.solver"):
         u = solve_linear_static(
             elements, mesh.element_dof_maps, mesh.n_dof, bcs, method="iterative"
         )
-    assert "trying GMRES" in caplog.text
-    assert "using the direct solver" not in caplog.text
+    assert "did not reach" not in caplog.text
     u_ref = _dense_reference(mesh, elements, bcs)
     assert np.linalg.norm(u - u_ref) <= 1e-8 * np.linalg.norm(u_ref)
 
 
-def test_cg_breakdown_falls_back_without_a_numpy_warning(monkeypatch):
-    """CG breaks down when the preconditioned residual product r . M r is 0:
-    its next step divides 0 by 0, which numpy reports as a RuntimeWarning
-    ("invalid value encountered in scalar divide", seen with the real ILU
-    on macOS / Python 3.12 for this cantilever). The solver already falls
-    back on the non-finite result, so the warning is noise and must not
-    escape. A preconditioner mapping each vector to its roll by one makes
-    r . M r = 0 for the single-entry tip load below."""
+def test_gmres_breakdown_falls_back_without_a_numpy_warning(monkeypatch):
+    """A Krylov solver breaks down when the preconditioner maps the
+    residual to zero (in CG, r . M r = 0, seen with the real ILU on macOS /
+    Python 3.12 for this cantilever): GMRES then normalises a zero vector,
+    dividing by zero, which numpy reports as a RuntimeWarning ("divide by
+    zero encountered in scalar divide"). The solver already falls back on
+    the non-finite result, so the warning is noise and must not escape
+    (pytest turns it into an error). The preconditioner below projects out
+    the right-hand side, so M b = 0 for the single-entry tip load."""
     mesh, elements, _ = _small_panel_model(delaminated=False)
     x = mesh.node_coords[:, 0]
     bcs = [
@@ -229,12 +234,14 @@ def test_cg_breakdown_falls_back_without_a_numpy_warning(monkeypatch):
     ]
     F = np.zeros(mesh.n_dof)
     F[3 * int(np.flatnonzero(x == x.max())[-1]) + 2] = 1.0
+    fixed, _ = dirichlet_dofs_and_values(bcs, mesh.n_dof)
+    b = np.delete(F, fixed)  # the reduced right-hand side (u_c = 0)
 
-    class _Orthogonal:
+    class _AnnihilatesLoad:
         def solve(self, v):
-            return np.roll(v, 1)
+            return v - b * (b @ v) / (b @ b)
 
-    monkeypatch.setattr(static, "_ilu", lambda _K: _Orthogonal())
+    monkeypatch.setattr(static, "_ilu", lambda _K: _AnnihilatesLoad())
     u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs, F, method="iterative")
     u_dir = solve_linear_static(
         elements, mesh.element_dof_maps, mesh.n_dof, bcs, F, method="direct"
@@ -272,14 +279,13 @@ def _stage_messages(caplog) -> list[str]:
     "method, how",
     [
         ("direct", r"solve done: direct LU \(\d+\.\d\ds\)"),
-        ("iterative", r"solve done: ILU-CG, \d+ iterations \(\d+\.\d\ds\)"),
+        ("iterative", r"solve done: ILU-GMRES, \d+ iterations \(\d+\.\d\ds\)"),
         ("penalty", r"solve done: spsolve \(\d+\.\d\ds\)"),
     ],
 )
 def test_solve_logs_each_stage_with_dofs_method_and_time(caplog, method, how):
     """One INFO line at the start and end of assembly, BCs and the solve,
     with DOF counts, the solver used, its iterations and the wall time."""
-    import re
 
     mesh, elements, bcs = _small_panel_model()
     with caplog.at_level("INFO", logger="bvidfe.fe3d.solver"):
@@ -312,4 +318,5 @@ def test_solve_log_names_the_fallback_that_produced_the_answer(caplog):
             elements, mesh.element_dof_maps, mesh.n_dof, bcs, method="iterative", maxiter=1
         )
     (done,) = [m for m in _stage_messages(caplog) if m.startswith("solve done")]
-    assert done.startswith("solve done: direct LU (after 1 ILU-CG and ")
+    after = r"\(after 1 ILU-GMRES iterations\)"
+    assert re.fullmatch(rf"solve done: direct LU {after} \(\d+\.\d\ds\)", done), done

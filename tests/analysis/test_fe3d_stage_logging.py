@@ -48,7 +48,8 @@ def test_fe3d_logs_every_stage_of_the_damaged_and_undamaged_runs(caplog, loading
         if r.name.startswith("bvidfe.fe3d") and "buckling" not in r.getMessage()
     ]
     # One stage sequence per run, damaged first. The solver's fallback notes
-    # ("ILU-CG did not reach rtol ...; trying GMRES") are not stages.
+    # ("ILU-GMRES did not reach rtol ...; using the direct solver") are not
+    # stages.
     msgs = [m for m in msgs if not m.startswith("ILU")]
     assert [_stage(m) for m in msgs] == _STAGES * 2, msgs
     damaged, undamaged = msgs[: len(_STAGES)], msgs[len(_STAGES) :]
@@ -64,7 +65,7 @@ def test_fe3d_logs_every_stage_of_the_damaged_and_undamaged_runs(caplog, loading
         assert re.search(r"assembly start: \d+ elements, \d+ DOFs", lines[4])
         assert re.search(r"BCs done: \d+ constrained DOFs eliminated, \d+ free", lines[7])
         assert re.search(r"solve start: method=\w+, \d+ free DOFs", lines[8])
-        assert re.search(r"solve done: (direct LU|ILU-CG, \d+ iterations|ILU-GMRES)", lines[9])
+        assert re.search(r"solve done: (direct LU|ILU-GMRES, \d+ iterations)", lines[9])
         criterion = "larc05" if run == "FPF" else "tsai_wu"
         assert lines[10].startswith(f"FPF evaluation start: {criterion}, ")
         assert re.search(r"FPF evaluation done: failure stress \d+\.\d MPa", lines[11])

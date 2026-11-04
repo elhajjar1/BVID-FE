@@ -753,10 +753,13 @@ closed form `semi_analytical` uses (`"fe3d buckling onset ... is from the
 closed-form Rayleigh-Ritz kernel semi_analytical uses, not a 3D
 eigensolve"`, issue #133).
 
-The linear solve eliminates the constrained DOFs and runs conjugate
-gradients preconditioned by an incomplete LU factorisation to a relative
-residual of 1e-10, retrying with GMRES and then a direct sparse LU if it
-does not converge (`bvidfe.solver.static`). The fe3d run is refused with
+The linear solve eliminates the constrained DOFs and runs GMRES
+preconditioned by an incomplete LU factorisation to a relative residual
+of 1e-10, falling back to a direct sparse LU if it does not converge
+(`bvidfe.solver.static`). The incomplete LU is not symmetric, so
+conjugate gradients, which needs a symmetric preconditioner, is not used:
+with it the solve ran 200 CG iterations without converging before GMRES
+on every 5 mm panel measured. The fe3d run is refused with
 `FE3DSizeError` above 150,000 degrees of freedom (`BVIDFE_FE3D_MAX_DOF`),
 which admits an 8-ply 150 × 100 mm panel down to a ~1.7 mm mesh.
 
@@ -1143,7 +1146,7 @@ boundary conditions fe3d does not have), about 40% more run time.
     converged value. The
     calibration coupons' damage areas (2,800–6,500 mm²) are well resolved
     at 5 mm. Use 2.5 mm or finer when the damage area is below about
-    1,000 mm² (about 35 s for an 8-ply 150 × 100 mm panel);
+    1,000 mm² (about 20 s for an 8-ply 150 × 100 mm panel);
     `FE3D_MAX_DOF` (150,000) admits such a panel down to about 1.67 mm.
     Before the averaging disk was weighted by element overlap it counted
     whole elements by their centres and shrank with the mesh, and the

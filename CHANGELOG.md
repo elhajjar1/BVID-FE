@@ -412,7 +412,8 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   eliminates the constrained DOFs instead of adding a 1e10 penalty and
   calling `spsolve` (SuperLU, COLAMD), and solves the reduced system by
   ILU-preconditioned CG to a relative residual of 1e-10, with GMRES and
-  then a direct LU as fallbacks. Whole `BvidAnalysis.run()`, 8-ply
+  then a direct LU as fallbacks (now ILU-GMRES, see the next entry).
+  Whole `BvidAnalysis.run()`, 8-ply
   [0/45/-45/90]s IM7/8552 150 x 100 mm, 15 J, fe3d compression, one
   thread: 5 mm 20.8 s / 0.55 GB -> 5.1 s / 0.20 GB, 2.5 mm 270 s /
   3.05 GB -> 31.5 s / 0.46 GB. Knockdowns move by ~2e-7 (0.43002956 ->
@@ -421,6 +422,27 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   `method="penalty"` keeps the old path. `BVIDFE_FE3D_MAX_DOF` defaults
   to 150,000 (was 500,000; 265k DOFs ran out of 15 GB with the old
   solver), sized so the direct fallback stays within a few GB.
+- **fe3d solves by ILU-GMRES, without 200 wasted CG iterations first
+  (~1.5x faster runs).** The incomplete LU preconditioner (`spilu`) is
+  not symmetric (|v.Mu - u.Mv| / |v.Mu| = 0.3-0.4), and CG needs a
+  symmetric one. Since the mid-surface `u_z` restraint, which raised the
+  reduced system's condition number about 17x (7.5e4 to 1.3e6, undamaged
+  8-ply panel at 5 mm), ILU-CG ran all 200 iterations without reaching
+  the 1e-10 tolerance (it stalled near 1e-5) on every 5 mm panel
+  measured (8 to 40 plies, damaged or not, compression and tension)
+  before GMRES with the same factor converged in 26-42 iterations.
+  `solve_spd_reduced` now runs ILU-GMRES alone, restarted every 100
+  iterations (was 50, which cost 30-40% more iterations where more than
+  50 are needed), with the direct LU as the fallback; `CG_MAXITER` is
+  removed and `maxiter` caps the GMRES iterations (default 200). The
+  "solve done" log line reads `ILU-GMRES, N iterations`. Whole
+  `BvidAnalysis.run()` at 30 J, one thread: 8-ply 150 x 100 mm 5.7 s ->
+  3.7 s (5 mm) and 34.6 s -> 20.6 s (2.5 mm), 16-ply 15.5 s -> 9.6 s
+  (5 mm), the NCAMP #0 coupon (24 plies) 29.1 s -> 19.6 s and Lovejoy &
+  Scotti hard #4 (40 plies) 67.0 s -> 45.8 s (5 mm). Results are
+  unchanged bit for bit where GMRES already produced them (every 5 mm
+  run measured); at 2.5 and 2 mm knockdowns, strengths and
+  `E11_knockdown` move by at most 7e-9 relative.
 - **Damage area**: energy balance with `olsson_alpha` = 0.0855, fitted to
   the median of Lovejoy & Scotti's C-scan areas (0.0605 for T800S/3900-2B,
   fitted to Hasebe et al.'s). It now grows with laminate thickness at
