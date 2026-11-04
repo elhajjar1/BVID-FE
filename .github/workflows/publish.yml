@@ -27,5 +27,70 @@ jobs:
         run: python -m build
       - name: Twine check
         run: python -m twine check --strict dist/*
+      # The sbom job describes these exact files, not a rebuild.
+      - name: Keep the distributions for the SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
       - name: Publish to PyPI via OIDC
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  # CycloneDX SBOM of what `pip install bvidfe==X.Y.Z` installs (#118),
+  # attached to the GitHub Release for the tag (created if missing). Runs
+  # only after the PyPI upload succeeded. The only job that can write repo
+  # contents (the release and its asset); no checkout, no cache.
+  sbom:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      # A venv without pip, filled by the runner's pip: it then holds
+      # bvidfe and its resolved runtime dependencies and nothing else.
+      - name: Install the released wheel into a clean venv
+        run: |
+          python -m venv --without-pip "$RUNNER_TEMP/release-env"
+          python -m pip --python "$RUNNER_TEMP/release-env/bin/python" install dist/*.whl
+      # Installed in the runner's Python, outside the described venv. Not
+      # in the dev extra: nothing outside this job needs it.
+      - name: Generate the CycloneDX SBOM
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python -m pip install cyclonedx-bom==7.5.0
+          tar -xzf "dist/bvidfe-$VERSION.tar.gz" -C "$RUNNER_TEMP" "bvidfe-$VERSION/pyproject.toml"
+          cyclonedx-py environment "$RUNNER_TEMP/release-env/bin/python" \
+            --pyproject "$RUNNER_TEMP/bvidfe-$VERSION/pyproject.toml" --mc-type library \
+            --output-format JSON --output-file "bvidfe-$VERSION.cdx.json"
+      - name: Check the SBOM lists the release and its dependencies
+        run: |
+          python - "bvidfe-${GITHUB_REF_NAME#v}.cdx.json" "${GITHUB_REF_NAME#v}" <<'EOF'
+          import json, sys
+          path, version = sys.argv[1:]
+          bom = json.load(open(path))
+          root = bom["metadata"]["component"]
+          assert (root["name"], root["version"]) == ("bvidfe", version), root
+          names = {c["name"].lower() for c in bom["components"]}
+          missing = {"numpy", "scipy", "matplotlib"} - names
+          assert not missing, f"SBOM lacks {sorted(missing)}"
+          print(f"{path}: {len(names)} components")
+          EOF
+      - name: Attach the SBOM to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "$TAG" \
+              --notes "See CHANGELOG.md for the changes in this release. bvidfe-${TAG#v}.cdx.json is a CycloneDX SBOM of the dependency set \`pip install bvidfe==${TAG#v}\` installs (CPython 3.12, Linux x86_64)."
+          fi
+          gh release upload "$TAG" "bvidfe-${TAG#v}.cdx.json" --clobber

@@ -256,6 +256,15 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   stage as the label of an `st.status` block while an fe3d run is in
   progress and the whole log in it afterwards. Numerical results are
   unchanged.
+- CycloneDX SBOM on every release (#118): a `sbom` job in
+  `.github/workflows/publish.yml`, after the PyPI upload, installs the
+  uploaded wheel into a clean venv, writes a CycloneDX 1.6 JSON SBOM of
+  it with `cyclonedx-py environment` (bvidfe as the root component, then
+  numpy, scipy and the rest of what `pip install bvidfe==X.Y.Z` pulls),
+  and attaches it to the GitHub Release for the tag as
+  `bvidfe-X.Y.Z.cdx.json`. Only that job can write repo contents; the
+  PyPI job's permissions are unchanged. `cyclonedx-bom` is installed in
+  the job only, not added to the `dev` extra.
 - CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
   `pip-audit` on the installed runtime + dev dependencies on every PR,
   on pushes to main and weekly; any known vulnerability fails it.
