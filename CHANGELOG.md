@@ -75,6 +75,14 @@ constants are in [`validation/README.md`](validation/README.md).
   for a wrong-shaped stress array; `lekhnitskii_kt_infinity` raises a
   descriptive `ValueError` for constants outside the orthotropic stability
   bound.
+- An unknown panel boundary or impactor shape passed straight to a
+  public helper raises `ValueError` listing the valid values (#82):
+  `sublaminate_buckling_load`, `panel_buckling_load`,
+  `sublaminate_growth_stress`, `weakest_sublaminate_growth` and
+  `semi_analytical_cai` (`boundary`), and `dent_depth_mm` (`shape`). A
+  typo was silently treated as `"simply_supported"` or a hemisphere.
+  `PanelGeometry` and `ImpactorGeometry` already rejected one; their
+  message now lists the valid values too.
 - Streamlit is no longer installed with the package. Install
   `pip install "bvidfe[app]"` (or `pip install -r requirements.txt`) for
   the web app; the `dev` extra still includes it.
@@ -304,6 +312,22 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Changed
 
+- **The string options are `Literal` types throughout (#82).** `tier`,
+  `loading`, failure `criterion`, panel `boundary`, impactor `shape` and
+  the sweeps' `on_error` are typed with the `TierName`, `LoadingMode`,
+  `CriterionName`, `BoundaryKind`, `ImpactorShape` and `OnErrorMode`
+  aliases of `bvidfe._types` (`BoundaryKind` and `ImpactorShape` are still
+  importable from `bvidfe.core.geometry`), including
+  `AnalysisResults.tier_used`, `LaminateFailureReport.criterion` and the
+  semi-analytical buckling helpers, so mypy and IDEs see the valid values.
+  The runtime validation sets are derived from the Literals with
+  `typing.get_args`, and every construction point (`AnalysisConfig`,
+  `PanelGeometry`, `ImpactorGeometry`, `FailureEvaluator`, the sweeps)
+  raises `ValueError` naming the field, the bad value and the valid ones,
+  e.g. `PanelGeometry.boundary must be one of ['clamped', 'free',
+  'simply_supported']; got 'clampd'`. The values remain plain strings, so
+  JSON configs and the CLI are unchanged; the results schema gains an
+  `enum` for `tier_used`.
 - **CLI ranges match the API (#169).** `--loading` defaults to
   `compression` (it was required); `--layup` takes any finite ply angle,
   as `AnalysisConfig` does (`135` was rejected; angles are used modulo

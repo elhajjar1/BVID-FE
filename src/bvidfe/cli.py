@@ -16,7 +16,7 @@ from dataclasses import MISSING, fields, replace
 from typing import Any, List, Sequence, Tuple
 
 import bvidfe
-from bvidfe._types import _LOADING_MODES, _TIER_NAMES
+from bvidfe._types import _LOADING_MODES, _TIER_NAMES, TierName
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis, MeshParams
 from bvidfe.analysis.fe_tier import FE3DSizeError, enable_stderr_logging
 from bvidfe.core.geometry import BoundaryKind, ImpactorGeometry, ImpactorShape, PanelGeometry
@@ -162,13 +162,13 @@ def _existing_path(spec: str):
 _VALID_TIERS = tuple(sorted(_TIER_NAMES))
 
 
-def _parse_tiers(spec: str) -> List[str]:
+def _parse_tiers(spec: str) -> List[TierName]:
     """Parse ``--tier`` as one tier or a comma-separated list to compare.
 
     Validated against the known tiers, order-preserving, and de-duplicated
     so ``--tier empirical,empirical`` doesn't run the same solve twice.
     """
-    tiers: List[str] = []
+    tiers: List[TierName] = []
     for raw in spec.split(","):
         t = raw.strip()
         if not t:
@@ -178,7 +178,7 @@ def _parse_tiers(spec: str) -> List[str]:
                 f"unknown tier {t!r}; choose from {', '.join(_VALID_TIERS)}"
             )
         if t not in tiers:
-            tiers.append(t)
+            tiers.append(typing.cast(TierName, t))
     if not tiers:
         raise argparse.ArgumentTypeError("--tier must name at least one tier")
     return tiers

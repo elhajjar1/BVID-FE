@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from bvidfe._types import TierName
 from bvidfe.damage.io import damage_state_to_dict
 from bvidfe.damage.state import DamageState
 
@@ -118,8 +119,8 @@ class AnalysisResults:
         the impact (placed on ``panel``).
     dpa_mm2 : float
         ``damage.projected_damage_area_mm2``, the plan-view union area (mm²).
-    tier_used : str
-        The tier that ran.
+    tier_used : {"empirical", "semi_analytical", "fe3d"}
+        The tier that ran (``AnalysisConfig.tier``).
     config_snapshot : dict
         ``dataclasses.asdict`` of the ``AnalysisConfig`` (a custom material
         expanded to a dict), for provenance.
@@ -145,7 +146,7 @@ class AnalysisResults:
     knockdown: float
     damage: DamageState
     dpa_mm2: float
-    tier_used: str
+    tier_used: TierName
     config_snapshot: Dict[str, Any]
     buckling_eigenvalues: Optional[List[float]] = None
     critical_sublaminate: Optional[int] = None

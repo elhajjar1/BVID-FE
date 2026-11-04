@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Mapping
+from typing import Any, Mapping
 
-from bvidfe._validation import dataclass_kwargs, require_positive
+from bvidfe._types import _BOUNDARY_KINDS, _IMPACTOR_SHAPES, BoundaryKind, ImpactorShape
+from bvidfe._validation import dataclass_kwargs, require_choice, require_positive
 
-BoundaryKind = Literal["clamped", "simply_supported", "free"]
-ImpactorShape = Literal["hemispherical", "flat", "conical"]
+# The Literal aliases live in bvidfe._types; re-exported here, where they
+# have always been importable from.
+__all__ = ["BoundaryKind", "ImpactorShape", "PanelGeometry", "ImpactorGeometry"]
 
 
 @dataclass
@@ -29,7 +31,7 @@ class PanelGeometry:
         supports carry no load (``bvidfe.solver.boundary.uniaxial_x_bcs``).
 
     Raises ``ValueError`` for a non-positive dimension or an unknown
-    ``boundary``.
+    ``boundary`` (the message lists the valid values).
     """
 
     Lx_mm: float
@@ -39,8 +41,7 @@ class PanelGeometry:
     def __post_init__(self) -> None:
         require_positive(self.Lx_mm, "Lx_mm")
         require_positive(self.Ly_mm, "Ly_mm")
-        if self.boundary not in ("clamped", "simply_supported", "free"):
-            raise ValueError(f"boundary {self.boundary!r} not recognized")
+        require_choice(self.boundary, _BOUNDARY_KINDS, "PanelGeometry.boundary")
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "PanelGeometry":
@@ -63,7 +64,8 @@ class ImpactorGeometry:
         energy (contact stiffness) and, relative to a hemisphere, scales
         the damage area by ``bvidfe.impact.mapping.SHAPE_DPA_FACTOR[shape]``.
 
-    Raises ``ValueError`` for a non-positive diameter or an unknown shape.
+    Raises ``ValueError`` for a non-positive diameter or an unknown shape
+    (the message lists the valid values).
     """
 
     diameter_mm: float = 16.0
@@ -71,8 +73,7 @@ class ImpactorGeometry:
 
     def __post_init__(self) -> None:
         require_positive(self.diameter_mm, "diameter_mm")
-        if self.shape not in ("hemispherical", "flat", "conical"):
-            raise ValueError(f"shape {self.shape!r} not recognized")
+        require_choice(self.shape, _IMPACTOR_SHAPES, "ImpactorGeometry.shape")
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "ImpactorGeometry":

@@ -173,6 +173,11 @@
       "type": "number"
     },
     "tier_used": {
+      "enum": [
+        "empirical",
+        "semi_analytical",
+        "fe3d"
+      ],
       "type": "string"
     },
     "warnings": {

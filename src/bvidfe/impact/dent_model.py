@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+from bvidfe._types import ImpactorShape
+from bvidfe._validation import require_choice
 from bvidfe.core.material import OrthotropicMaterial
 
 # Dent depth of a flat-ended or 60 deg conical impactor relative to a
@@ -12,7 +14,11 @@ from bvidfe.core.material import OrthotropicMaterial
 # is 8.6 (92 specimens; with the membrane-stiffened onset energy the law as
 # used predicts the cone dents at a median 0.91x); 34 of the 40 flat-ended
 # dents are recorded as 0, and 0.03 matches their mean (0.0034 mm).
-_DENT_SHAPE_FACTOR = {"hemispherical": 1.0, "conical": 8.5, "flat": 0.03}
+_DENT_SHAPE_FACTOR: dict[ImpactorShape, float] = {
+    "hemispherical": 1.0,
+    "conical": 8.5,
+    "flat": 0.03,
+}
 
 
 def dent_depth_mm(
@@ -20,7 +26,7 @@ def dent_depth_mm(
     E_impact_J: float,
     E_onset_J: float,
     h_mm: float,
-    shape: str = "hemispherical",
+    shape: ImpactorShape = "hemispherical",
 ) -> float:
     """Residual dent depth on the impact face, mm.
 
@@ -33,10 +39,11 @@ def dent_depth_mm(
     Lovejoy & Scotti (IM7/8552) and Hasebe et al. (T800S/3900-2B); see
     ``docs/physics_models.md`` and ``validation/README.md``.
     """
+    require_choice(shape, _DENT_SHAPE_FACTOR, "shape")
     if E_impact_J <= E_onset_J:
         return 0.0
     raw = m.dent_beta * (E_impact_J - E_onset_J) ** m.dent_gamma
-    raw *= _DENT_SHAPE_FACTOR.get(shape, 1.0)
+    raw *= _DENT_SHAPE_FACTOR[shape]
     # Safety bound: a dent deeper than half the laminate is perforation, not
     # BVID. Of the measured cases it binds only on seven 8-ply laminates
     # struck by the cone at 5.2 J, whose measured dents exceed h / 2 too.
