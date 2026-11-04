@@ -121,26 +121,105 @@ def test_case_boundary_and_impactor_shape_reach_the_analysis(monkeypatch):
     assert seen["config"].impact.impactor.shape == "flat"
 
 
-@pytest.mark.parametrize("dataset", ["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
-def test_measured_cai_gates_pass_for_the_closed_form_tiers(dataset):
-    for tier in ("empirical", "semi_analytical"):
-        res = subprocess.run(
-            [
-                sys.executable,
-                "validation/validate_bvid_public.py",
-                "--dataset",
-                dataset,
-                "--tier",
-                tier,
-                "--gate",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
+def _measured_datasets():
+    """(every measured dataset, the gated ones), by stem, from the harness's
+    own loader: a dataset JSON with "kind": "measured" is picked up here
+    without editing this file."""
+    v = _load_validator()
+    paths = v._select_datasets(None, kind="measured")
+    gated = [p.stem for p in paths if v.load_dataset(p)[2]["gate"]]
+    return [p.stem for p in paths], gated
+
+
+_MEASURED, _GATED_MEASURED = _measured_datasets()
+
+
+# The validation job runs these gates on ubuntu / Python 3.11 only; this
+# runs them on every cell of the test matrix. In-process (the CLI wrapper is
+# exercised by test_validator_gate_passes_on_synthetic_dataset), with
+# UserWarnings shown but not fatal, as on the command line.
+@pytest.mark.filterwarnings("default::UserWarning")
+@pytest.mark.parametrize("tier", ["empirical", "semi_analytical"])
+@pytest.mark.parametrize("dataset", _GATED_MEASURED)
+def test_measured_gates_pass_for_the_closed_form_tiers(dataset, tier, capsys):
+    v = _load_validator()
+    rc = v.main(["--dataset", dataset, "--tier", tier, "--gate"])
+    out, err = capsys.readouterr()
+    assert rc == 0, (tier, out, err)
+    assert f"=== {dataset} ({tier})" in out
+    assert "ADVISORY" not in out
+
+
+def test_measured_selects_every_measured_dataset_and_no_synthetic_one():
+    v = _load_validator()
+    kinds = {p.stem: v.load_dataset(p)[2]["kind"] for p in v._discover_datasets()}
+    assert _MEASURED == sorted(k for k, kind in kinds.items() if kind == "measured")
+    assert kinds["synthetic_selfcheck"] == "synthetic"
+    assert _GATED_MEASURED and set(_GATED_MEASURED) <= set(_MEASURED)
+
+
+def test_measured_flag_runs_only_the_measured_datasets(tmp_path, monkeypatch, capsys):
+    import json
+
+    v = _load_validator()
+    for name, kind in (("real", "measured"), ("made_up", "synthetic")):
+        (tmp_path / f"{name}.json").write_text(
+            json.dumps({"name": name, "kind": kind, "cases": [_CASE]})
         )
-        assert res.returncode == 0, (tier, res.stdout, res.stderr)
-        assert dataset in res.stdout
-        assert "ADVISORY" not in res.stdout
+    monkeypatch.setattr(v, "DATASET_DIR", tmp_path)
+    assert v.main(["--measured"]) == 0
+    out = capsys.readouterr().out
+    assert "=== real (empirical)" in out and "made_up" not in out
+    with pytest.raises(SystemExit):  # --measured and --dataset exclude each other
+        v.main(["--measured", "--dataset", "real"])
+
+
+@pytest.mark.parametrize(
+    "extra, message",
+    [
+        ({}, 'top-level "kind" is missing'),
+        ({"kind": "digitized"}, "top-level \"kind\" is 'digitized'"),
+    ],
+)
+def test_dataset_without_a_valid_kind_is_a_clear_error(
+    tmp_path, monkeypatch, capsys, extra, message
+):
+    import json
+
+    v = _load_validator()
+    path = tmp_path / "no_kind.json"
+    path.write_text(json.dumps({"name": "no_kind", "cases": [_CASE], **extra}))
+    with pytest.raises(
+        ValueError, match=f"no_kind.json: {message}; set it to 'measured' or 'synthetic'"
+    ):
+        v.load_dataset(path)
+
+    # The harness checks every selected file before running any case, and
+    # reports the bad one without a traceback.
+    (tmp_path / "good.json").write_text(
+        json.dumps({"name": "good", "kind": "measured", "cases": [_CASE]})
+    )
+    monkeypatch.setattr(v, "DATASET_DIR", tmp_path)
+    for argv in ([], ["--measured"], ["--dataset", "no_kind", "--gate"]):
+        assert v.main(argv) == 1
+        out, err = capsys.readouterr()
+        assert f"Invalid dataset: no_kind.json: {message}" in err
+        assert "===" not in out
+    assert v.main(["--dataset", "good"]) == 0  # an unselected bad file is not read
+
+
+def test_reference_index_agrees_with_each_dataset_kind():
+    """validation/reference_data.json lists the datasets with a "measured"
+    flag; it must not contradict the dataset files' own "kind"."""
+    import json
+
+    v = _load_validator()
+    index = json.loads((v.DATASET_DIR.parent / "reference_data.json").read_text())
+    for entry in index["datasets"]:
+        path = v.DATASET_DIR / f"{entry['name']}.json"
+        if path.exists():
+            kind = v.load_dataset(path)[2]["kind"]
+            assert entry["measured"] == (kind == "measured"), entry["name"]
 
 
 def test_ungated_dataset_reports_its_error_without_failing_the_gate(tmp_path, monkeypatch, capsys):
@@ -150,7 +229,15 @@ def test_ungated_dataset_reports_its_error_without_failing_the_gate(tmp_path, mo
     wrong = {**_CASE, "measured_strength_MPa": 1.0}  # any prediction is far off
     for name, extra in (("gated", {}), ("advisory", {"gate": False, "gate_note": "known miss"})):
         (tmp_path / f"{name}.json").write_text(
-            json.dumps({"name": name, "target_mae_pct": 10.0, "cases": [wrong], **extra})
+            json.dumps(
+                {
+                    "name": name,
+                    "kind": "measured",
+                    "target_mae_pct": 10.0,
+                    "cases": [wrong],
+                    **extra,
+                }
+            )
         )
     monkeypatch.setattr(v, "DATASET_DIR", tmp_path)
 
@@ -232,13 +319,33 @@ def test_korbelin_tai_dataset_is_advisory_and_fits():
         assert df["predicted_knockdown"].iloc[0] == pytest.approx(0.875, abs=0.005)
 
 
-@pytest.mark.parametrize("dataset", ["ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"])
-def test_astm_datasets_impact_on_the_d7136_window(dataset):
+def _is_d7137_coupon(c):
+    """The ASTM D7137 CAI coupon: 150 x 100 mm, or 6 x 4 in (152.4 x 101.6)."""
+    return (
+        c.loading == "compression"
+        and 149.0 <= c.panel_Lx_mm <= 153.0
+        and 99.0 <= c.panel_Ly_mm <= 102.0
+    )
+
+
+@pytest.mark.parametrize("dataset", _MEASURED)
+def test_astm_coupons_impact_on_the_d7136_window(dataset):
+    """A measured D7137 CAI coupon was impacted on the D7136 125 x 75 mm
+    simply supported window, so the case must say so (impact_panel)."""
     v = _load_validator()
     _, cases, _ = v.load_dataset(v.DATASET_DIR / f"{dataset}.json")
-    for c in cases:
-        assert (c.impact_panel_Lx_mm, c.impact_panel_Ly_mm) == (125.0, 75.0)
-        assert c.impact_boundary == "simply_supported"
+    for c in filter(_is_d7137_coupon, cases):
+        assert (c.impact_panel_Lx_mm, c.impact_panel_Ly_mm) == (125.0, 75.0), c.note
+        assert c.impact_boundary == "simply_supported", c.note
+
+
+def test_d7137_coupon_rule_covers_the_astm_datasets():
+    """The rule above is not vacuous: it applies to every case of the NCAMP
+    and Lovejoy & Scotti (ASTM D7136 / D7137) datasets."""
+    v = _load_validator()
+    for dataset in ("ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"):
+        _, cases, _ = v.load_dataset(v.DATASET_DIR / f"{dataset}.json")
+        assert all(map(_is_d7137_coupon, cases))
 
 
 def test_dent_summary_is_reported_not_gated(capsys):

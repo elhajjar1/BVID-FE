@@ -126,23 +126,28 @@ def _krylov(
         n_iter += 1
 
     M = spla.LinearOperator(Kff.shape, matvec=ilu.solve, dtype=float)
-    if solver == "cg":
-        x, info = spla.cg(Kff, rhs, rtol=rtol, atol=0.0, maxiter=maxiter, M=M, callback=_count)
-    else:
-        # GMRES does not need the preconditioner to be SPD, so it rescues a
-        # factor CG stalls on. Its maxiter counts restart cycles.
-        restart = min(GMRES_RESTART, maxiter)
-        x, info = spla.gmres(
-            Kff,
-            rhs,
-            rtol=rtol,
-            atol=0.0,
-            restart=restart,
-            maxiter=max(1, maxiter // restart),
-            M=M,
-            callback=_count,
-            callback_type="pr_norm",
-        )
+    # A breakdown (r . M r = 0 in CG, seen with the ILU on macOS) makes the
+    # solver divide 0 by 0. The non-finite result is caught below and the
+    # caller moves on to the next solver, so numpy's RuntimeWarning for it
+    # is silenced rather than passed to the user.
+    with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+        if solver == "cg":
+            x, info = spla.cg(Kff, rhs, rtol=rtol, atol=0.0, maxiter=maxiter, M=M, callback=_count)
+        else:
+            # GMRES does not need the preconditioner to be SPD, so it rescues
+            # a factor CG stalls on. Its maxiter counts restart cycles.
+            restart = min(GMRES_RESTART, maxiter)
+            x, info = spla.gmres(
+                Kff,
+                rhs,
+                rtol=rtol,
+                atol=0.0,
+                restart=restart,
+                maxiter=max(1, maxiter // restart),
+                M=M,
+                callback=_count,
+                callback_type="pr_norm",
+            )
     if info != 0 or not np.all(np.isfinite(x)):
         return None, n_iter
     residual = np.linalg.norm(rhs - Kff @ x)

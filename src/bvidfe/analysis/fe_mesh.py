@@ -14,11 +14,12 @@ to the 6x6 elasticity matrix in the global Voigt frame
                                      Scales the OOP block (rows/cols 2,
                                      3, 4) and the in-plane / OOP
                                      Poisson cross-coupling. Reduced to
-                                     DAMAGE_OOP_FACTOR in elements that
-                                     span a delaminated interface with
-                                     their centroid inside that
-                                     delamination's footprint, and in
-                                     the fiber-break core.
+                                     DAMAGE_OOP_FACTOR in the elements of
+                                     the two plies bounding a delaminated
+                                     interface (every element layer of
+                                     both) with their centroid inside
+                                     that delamination's footprint, and
+                                     in the fiber-break core.
 
   - `in_plane_damage_factors[e]`   — in-plane factor in (0, 1]. Scales
                                      the in-plane sub-block on rows/cols
@@ -93,7 +94,7 @@ from __future__ import annotations
 import math
 import warnings
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, cast
 
 import numpy as np
 
@@ -120,9 +121,14 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # impact window: the first NCAMP AS4/8552 [45/0/-45/90]3s coupon, the first
 # Lovejoy & Scotti IM7/8552 [45/0/-45/90]4s coupon and their 40-ply hard
 # laminate. Error of the fe3d strength against the measured CAI (5 mm mesh):
-#   0.13: -26.7%, -6.8%, -7.9%     0.15: -20.6%, +1.2%, +0.3%
-#   0.17: -14.6%, +9.0%, +7.9%     0.20: -5.6%, +20.6%, +11.1%
-# 0.15 has the lowest mean error (7.4%). No single factor fits both
+#   0.13: -26.7%, -6.8%, -7.9%     0.15: -20.6%, +1.2%, -3.5%
+#   0.17: -14.6%, +9.0%, -3.5%     0.20: -5.6%, +20.6%, -3.5%
+# 0.15 has the lowest mean error (8.4%). From 0.15 up the hard laminate is
+# set by its delamination growth stress (227.5 MPa), which the factor does
+# not change; until fe3d stopped rescaling that stress by
+# sigma0 / FPF_undamaged (issue #166) first-ply failure set it at every
+# factor (+0.3%, +7.9%, +11.1% at 0.15, 0.17, 0.20; mean error 7.4% at
+# 0.15, 10.5% at 0.17, 12.4% at 0.20). No single factor fits both
 # families: NCAMP wants about 0.22, Lovejoy & Scotti about 0.15. With the
 # old template (ply mismatch not wrapped modulo 180 deg) 0.17 fitted all
 # three within 5%.
@@ -188,24 +194,10 @@ class FeMesh:
         self.n_dof = 3 * self.n_nodes
 
 
-def _point_in_ellipse(x: float, y: float, ellipse: DelaminationEllipse) -> bool:
-    """Return True if (x, y) is inside the ellipse footprint."""
-    c = math.cos(math.radians(-ellipse.orientation_deg))
-    s = math.sin(math.radians(-ellipse.orientation_deg))
-    dx = x - ellipse.centroid_mm[0]
-    dy = y - ellipse.centroid_mm[1]
-    xr = c * dx - s * dy
-    yr = s * dx + c * dy
-    return (xr / ellipse.major_mm) ** 2 + (yr / ellipse.minor_mm) ** 2 <= 1.0
-
-
 def _points_in_ellipse(x: np.ndarray, y: np.ndarray, ellipse: DelaminationEllipse) -> np.ndarray:
-    """Vectorised ``_point_in_ellipse`` over coordinate arrays.
+    """Boolean mask of the points (x, y) inside the ellipse footprint.
 
-    cos/sin of the orientation are evaluated once (not once per element).
-    The per-point arithmetic is the exact same sequence of scalar
-    operations as ``_point_in_ellipse``, applied elementwise by numpy, so
-    the boolean result is identical element by element.
+    cos/sin of the orientation are evaluated once (not once per point).
     """
     c = math.cos(math.radians(-ellipse.orientation_deg))
     s = math.sin(math.radians(-ellipse.orientation_deg))
@@ -270,7 +262,9 @@ def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
     if isinstance(raw_t, (list, tuple, np.ndarray)):
         ply_thicknesses = [float(t) for t in raw_t]
     else:
-        ply_thicknesses = [float(raw_t)] * n_plies
+        # A scalar here; the isinstance check above cannot narrow the
+        # ``float | Sequence[float]`` annotation for mypy.
+        ply_thicknesses = [float(cast(float, raw_t))] * n_plies
     # Cumulative ply-boundary z positions (length n_plies + 1).
     ply_top_z = np.empty(n_plies + 1, dtype=float)
     ply_top_z[0] = 0.0
@@ -308,10 +302,12 @@ def build_fe_mesh_skeleton(config: AnalysisConfig) -> FeMeshSkeleton:
     layer = nxp1 * nyp1  # nodes per k-layer
 
     # Element (i, j, k) grid in the original loop order: k outer, j, i inner.
-    kk, jj, ii = np.meshgrid(np.arange(nz), np.arange(ny), np.arange(nx), indexing="ij")
-    ii = ii.ravel()
-    jj = jj.ravel()
-    kk = kk.ravel()  # length n_elements, ordered elem = k*(ny*nx) + j*nx + i
+    kk_grid, jj_grid, ii_grid = np.meshgrid(
+        np.arange(nz), np.arange(ny), np.arange(nx), indexing="ij"
+    )
+    ii = ii_grid.ravel()
+    jj = jj_grid.ravel()
+    kk = kk_grid.ravel()  # length n_elements, ordered elem = k*(ny*nx) + j*nx + i
 
     def _nid(i: np.ndarray, j: np.ndarray, k: np.ndarray) -> np.ndarray:
         return k * layer + j * nxp1 + i
@@ -408,9 +404,9 @@ def fibre_damage_hole_elements(
 def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     """Fill per-element damage factors onto a skeleton, returning a FeMesh.
 
-    Out-of-plane reduction where an element straddles a delaminated
-    interface and its centroid lies in the ellipse; in-plane reduction of
-    every element overlapping any ellipse (the damage zone, all plies),
+    Out-of-plane reduction of the elements of the two plies bounding a
+    delaminated interface whose centroid lies in its ellipse; in-plane
+    reduction of every element overlapping any ellipse (the damage zone, all plies),
     interpolated by the fraction of its area inside the zone; then
     fiber-break-core reduction (both factors) of the elements whose centre
     is within ``fiber_break_radius_mm`` of any delamination centroid. The
@@ -424,9 +420,6 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     n_elem = skeleton.element_connectivity.shape[0]
     cx = skeleton.centroid_x
     cy = skeleton.centroid_y
-    cz_bot = skeleton.cz_bot
-    cz_top = skeleton.cz_top
-    ply_top_z = skeleton.ply_top_z
 
     damage_factors = np.ones(n_elem, dtype=float)
     in_plane_damage_factors = np.ones(n_elem, dtype=float)
@@ -434,16 +427,19 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     # zone keeps its fibre-direction stiffness. Only broken fibres lower it.
     fiber_tension_factors = np.ones(n_elem, dtype=float)
 
-    # OOP: first ellipse (in order) whose interface the element straddles
-    # and whose footprint contains the centroid sets the OOP factor. The
-    # scalar code breaks on the first match; assigning a constant makes the
-    # vectorised "any match" result identical.
+    # OOP: every element of the two plies bounding a delaminated interface
+    # (plies i and i + 1 for interface i) whose centroid lies in that
+    # delamination's footprint. Selected by ply, not by element layer, so
+    # the softened thickness is two plies at any elements_per_ply: the
+    # interface coincides with an element face, and a test on the element's
+    # z-extent took the one layer on each side, a thickness that halved
+    # with each through-thickness refinement (issue #167). At the default
+    # elements_per_ply = 1 the two are the same elements.
     oop_hit = np.zeros(n_elem, dtype=bool)
+    ply = skeleton.ply_indices
     for ell in damage.delaminations:
-        inside = _points_in_ellipse(cx, cy, ell)
-        z_iface = ply_top_z[ell.interface_index + 1]
-        straddles = (cz_bot <= z_iface) & (z_iface <= cz_top)
-        oop_hit |= straddles & inside
+        bounding = (ply == ell.interface_index) | (ply == ell.interface_index + 1)
+        oop_hit |= bounding & _points_in_ellipse(cx, cy, ell)
     damage_factors[oop_hit] = DAMAGE_OOP_FACTOR
     # Damage zone: soft inclusion over the delamination footprints,
     # through the thickness. An element partly inside takes the
@@ -503,7 +499,7 @@ def _skeleton_signature(config: AnalysisConfig) -> tuple:
     if isinstance(raw_t, (list, tuple, np.ndarray)):
         t_sig: tuple = tuple(float(t) for t in raw_t)
     else:
-        t_sig = (float(raw_t),)
+        t_sig = (float(cast(float, raw_t)),)
     return (
         float(config.panel.Lx_mm),
         float(config.panel.Ly_mm),

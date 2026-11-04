@@ -122,22 +122,3 @@ def tsai_wu_index_batch(m: OrthotropicMaterial, stresses: np.ndarray) -> np.ndar
     linear = s @ F  # (...,)
     quad = np.einsum("...i,ij,...j->...", s, Q, s)
     return linear + quad
-
-
-def tsai_wu_strength_uniaxial(m: OrthotropicMaterial, direction: int, sign: int) -> float:
-    """Return the applied uniaxial stress magnitude |sigma| at which the Tsai-Wu
-    index equals 1 for sigma_(direction) = sign * |sigma|, other components zero.
-
-    direction is 1-indexed (1, 2, or 3). sign is +1 (tension) or -1 (compression).
-    Solve F * (sign*s) + Q * (sign*s)^2 = 1 -> Q * s^2 + sign * F * s - 1 = 0.
-    """
-    F, Q = _tsai_wu_coefficients(m)
-    i = direction - 1
-    a = Q[i][i]
-    b = sign * F[i]
-    c = -1.0
-    disc = b * b - 4 * a * c
-    if disc < 0:
-        raise ValueError("no real Tsai-Wu strength for this loading")
-    # positive root
-    return (-b + math.sqrt(disc)) / (2 * a)

@@ -267,9 +267,11 @@ def test_impact_event_zero_energy_is_allowed():
 
 
 def test_impact_event_list_location_keeps_panel_centre_sentinel():
-    """JSON gives ``[0.0, 0.0]``; it must mean the panel centre like the tuple."""
-    ev_list = ImpactEvent(energy_J=20.0, location_xy_mm=[0.0, 0.0])
-    assert ev_list.location_xy_mm == (0.0, 0.0)
+    """JSON gives ``[0.0, 0.0]``; it must mean the panel centre like the
+    tuple (deprecated in favour of ``None``, #171)."""
+    with pytest.warns(DeprecationWarning, match="location_xy_mm=None"):
+        ev_list = ImpactEvent(energy_J=20.0, location_xy_mm=[0.0, 0.0])
+    assert ev_list.location_xy_mm is None
     lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], LAYUP, 0.152)
     panel = PanelGeometry(150.0, 100.0)
     a = impact_to_damage(ev_list, lam, panel)
@@ -409,21 +411,20 @@ def test_positive_float_rejects_non_finite(spec, match):
         _positive_float(spec)
 
 
-@pytest.mark.parametrize(
-    "spec, match",
-    [("0,nan,90", "finite"), ("0,inf", "finite"), ("0,135", r"\[-90, 90\]"), ("-91", "-90")],
-)
-def test_parse_layup_rejects_non_finite_and_out_of_range(spec, match):
+@pytest.mark.parametrize("spec", ["0,nan,90", "0,inf", "-inf"])
+def test_parse_layup_rejects_non_finite(spec):
     from bvidfe.cli import _parse_layup
 
-    with pytest.raises(argparse.ArgumentTypeError, match=match):
+    with pytest.raises(argparse.ArgumentTypeError, match="finite"):
         _parse_layup(spec)
 
 
-def test_parse_layup_accepts_the_range_ends():
+def test_parse_layup_accepts_any_finite_angle_like_the_api():
+    """``AnalysisConfig`` takes any finite angle (modulo 180 deg); so does
+    the CLI (issue #169)."""
     from bvidfe.cli import _parse_layup
 
-    assert _parse_layup("-90,90") == [-90.0, 90.0]
+    assert _parse_layup("-90,90,135,-91") == [-90.0, 90.0, 135.0, -91.0]
 
 
 @pytest.mark.parametrize("spec", ["0.1,inf", "0.1,nan", "inf"])
@@ -500,7 +501,8 @@ def test_cli_fe3d_size_error_is_a_clean_error(capsys):
 
 
 def test_cli_json_includes_run_warnings(capsys):
-    code, out, err = _main(["--panel", "30x30", "--energy", "30"], capsys)
+    with pytest.warns(DPACapClipWarning):
+        code, out, err = _main(["--panel", "30x30", "--energy", "30"], capsys)
     assert code == 0
     data = json.loads(out)
     assert any(w.startswith("DPACapClipWarning") for w in data["warnings"])

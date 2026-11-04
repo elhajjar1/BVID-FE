@@ -1,7 +1,7 @@
 """Cross-tier knockdown consistency checks.
 
 Issue #11: existing tests cover each tier in isolation but never assert the
-documented cross-tier relationships from README "Knockdown definition and
+documented cross-tier relationships from docs/physics_models.md "Knockdown definition and
 cross-tier comparability":
 
   * All three tiers share the same pristine baseline (the unnotched

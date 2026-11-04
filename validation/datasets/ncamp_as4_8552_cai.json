@@ -1,5 +1,6 @@
 {
   "name": "ncamp_as4_8552_cai",
+  "kind": "measured",
   "reference": "NCAMP CAM-RP-2010-002 Rev A (2011), Hexcel 8552 AS4 unitape qualification, sec. 2.3.31 and 4.31: CAI1, [45/0/-45/90]3s, ASTM D7136/D7137, RTD, 1500 in-lbf/in impact. Measured (not CPT-normalized) strengths with each specimen's measured thickness. Impactor mass and the 0.625 in hemispherical tup are the ASTM D7136 standard values; the report does not list them. No dent depth or damage area is reported. The plate is impacted on the ASTM D7136 125 x 75 mm support window (impact_panel), which also confines the predicted delaminations.",
   "target_mae_pct": 15.0,
   "cases": [

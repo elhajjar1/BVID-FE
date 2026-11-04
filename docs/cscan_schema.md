@@ -3,8 +3,11 @@
 BVID-FE reads inspection data describing damage in a panel using the JSON format below.
 `bvidfe.damage.io.load_cscan_json(path)` returns a `DamageState`, and
 `save_cscan_json(damage_state, path)` writes one in the same format (the
-CLI reads it with `--cscan path.json`). A complete example ships as
-`examples/sample_cscan.json`.
+CLI reads it with `--cscan path.json`). The `damage` object of the
+results JSON (`AnalysisResults.to_dict()`, the CLI's output) is in this
+format too, and `bvidfe ... --save-damage path.json` writes it to a file,
+so a predicted damage state can be re-run inspection-driven. A complete
+example ships as `examples/sample_cscan.json`.
 
 ## Example
 

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from bvidfe.damage.io import damage_state_to_dict
 from bvidfe.damage.state import DamageState
 
 
@@ -51,7 +52,7 @@ class FieldResults:
     cohesive_damage : np.ndarray, optional
         Per-interface-element scalar cohesive damage variable in
         ``[0, 1]`` (0 = intact, 1 = fully separated). ``None`` until
-        true cohesive surfaces land (see README "Limitations").
+        true cohesive surfaces land (see "Limitations" in docs/physics_models.md).
     """
 
     displacement: np.ndarray
@@ -74,23 +75,27 @@ class AnalysisResults:
       ``bvidfe.failure.laminate_strength``). Same denominator for every
       tier.
     - ``residual_strength_MPa`` is the tier-specific damaged strength. For
-      fe3d it is ``pristine_strength_MPa`` times fe3d's damaged strength
-      over fe3d's own undamaged strength, so an undamaged fe3d run gives
-      a knockdown of 1.0; the raw fe3d stresses are recorded in ``notes``.
+      fe3d it is ``pristine_strength_MPa`` times fe3d's damaged over its
+      own undamaged first-ply-failure stress, so an undamaged fe3d run
+      gives a knockdown of 1.0; in compression the delamination growth
+      stress instead where it is lower (the closed-form stress
+      semi_analytical uses, not rescaled). The raw fe3d stresses are
+      recorded in ``notes``.
     - ``knockdown = residual_strength_MPa / pristine_strength_MPa``,
       assigned in ``BvidAnalysis.run()``.
 
     Knockdowns from different tiers are on the same scale (same baseline),
-    but capture different failure mechanisms — see the README "Knockdown
-    definition and cross-tier comparability" section before comparing
+    but capture different failure mechanisms — see "Knockdown definition and
+    cross-tier comparability" in docs/physics_models.md before comparing
     values across tiers.
 
     ``notes`` carries free-form runtime diagnostics emitted by the analysis
     backends that affect the interpretation of ``knockdown``. fe3d runs
     always add one line with the raw damaged and undamaged fe3d stresses
-    behind the knockdown; fe3d compression runs also record the governing
-    delamination growth stress and the whole-panel buckling stress that is
-    left out of the knockdown. Otherwise empty when the run produced no
+    behind the knockdown; fe3d compression runs also record the weakest
+    delamination's growth stress, which of it and first-ply failure
+    governs, and the whole-panel buckling stress that is left out of the
+    knockdown. Otherwise empty when the run produced no
     diagnostic-worthy events.
 
     ``buckling_eigenvalues`` is buckling *onset*, not strength: the
@@ -131,7 +136,8 @@ class AnalysisResults:
     notes : list of str
         Human-readable diagnostics (see above).
     warnings : list of str
-        Machine-readable tags; always empty at present (see below).
+        Every ``UserWarning`` raised during ``BvidAnalysis.run``, as
+        ``"<WarningClass>: <message>"`` (see below).
     """
 
     residual_strength_MPa: float
@@ -190,13 +196,16 @@ class AnalysisResults:
         """JSON-serialisable dict of the result (the CLI's JSON output).
 
         Keys: ``residual_strength_MPa``, ``pristine_strength_MPa``,
-        ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage`` (in the
-        C-scan JSON layout without ``schema_version``),
+        ``knockdown``, ``dpa_mm2``, ``tier_used``, ``damage``,
         ``buckling_eigenvalues``, ``critical_sublaminate``,
         ``config_snapshot``, ``notes`` and ``warnings``. ``field_results``
-        is left out. ``config_snapshot`` holds the config's dataclasses as
-        dicts, with tuples kept as tuples (``json.dumps`` writes them as
-        lists).
+        is left out. ``damage`` is
+        :func:`~bvidfe.damage.io.damage_state_to_dict`, the schema-v1.0
+        C-scan layout with ``schema_version``, so it can be saved and read
+        back with ``load_cscan_json`` (or the CLI's ``--cscan``) for an
+        inspection-driven rerun. ``config_snapshot`` holds the config's
+        dataclasses as dicts, with tuples kept as tuples (``json.dumps``
+        writes them as lists); ``AnalysisConfig.from_dict`` reads it back.
         """
         out = {
             "residual_strength_MPa": self.residual_strength_MPa,
@@ -204,20 +213,7 @@ class AnalysisResults:
             "knockdown": self.knockdown,
             "dpa_mm2": self.dpa_mm2,
             "tier_used": self.tier_used,
-            "damage": {
-                "dent_depth_mm": self.damage.dent_depth_mm,
-                "fiber_break_radius_mm": self.damage.fiber_break_radius_mm,
-                "delaminations": [
-                    {
-                        "interface_index": d.interface_index,
-                        "centroid_mm": list(d.centroid_mm),
-                        "major_mm": d.major_mm,
-                        "minor_mm": d.minor_mm,
-                        "orientation_deg": d.orientation_deg,
-                    }
-                    for d in self.damage.delaminations
-                ],
-            },
+            "damage": damage_state_to_dict(self.damage),
             "buckling_eigenvalues": self.buckling_eigenvalues,
             "critical_sublaminate": self.critical_sublaminate,
             "config_snapshot": self.config_snapshot,

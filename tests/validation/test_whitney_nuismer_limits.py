@@ -26,11 +26,16 @@ from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.failure.soutis_openhole import lekhnitskii_kt_infinity, whitney_nuismer_tai
 
+# Calls without Kt_inf take the isotropic Kt_inf = 3 fallback, which warns.
+NO_KT_INF = "called without Kt_inf"
+
 
 def test_wn_returns_pristine_at_zero_dpa():
     """The formula short-circuits to sigma_pristine at dpa <= 0."""
     m = MATERIAL_LIBRARY["IM7/8552"]
-    assert whitney_nuismer_tai(m, dpa_mm2=0.0, sigma_pristine_MPa=600.0) == 600.0
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        sigma = whitney_nuismer_tai(m, dpa_mm2=0.0, sigma_pristine_MPa=600.0)
+    assert sigma == 600.0
 
 
 def test_wn_knockdown_approaches_unity_for_tiny_dpa():
@@ -38,7 +43,8 @@ def test_wn_knockdown_approaches_unity_for_tiny_dpa():
     m = MATERIAL_LIBRARY["IM7/8552"]
     sigma_0 = 600.0
     # Pick DPA so xi = R/(R + d0) is small (<< 1)
-    sigma = whitney_nuismer_tai(m, dpa_mm2=1e-4, sigma_pristine_MPa=sigma_0)
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        sigma = whitney_nuismer_tai(m, dpa_mm2=1e-4, sigma_pristine_MPa=sigma_0)
     assert sigma == pytest.approx(sigma_0, rel=1e-3)
     assert sigma <= sigma_0  # never exceeds pristine
 
@@ -69,10 +75,11 @@ def test_wn_monotonically_decreases_with_dpa():
     """sigma_TAI must decrease as DPA grows."""
     m = MATERIAL_LIBRARY["IM7/8552"]
     sigma_0 = 600.0
-    series = [
-        whitney_nuismer_tai(m, dpa_mm2=dpa, sigma_pristine_MPa=sigma_0)
-        for dpa in (0.1, 1.0, 10.0, 100.0, 1000.0, 10_000.0)
-    ]
+    with pytest.warns(UserWarning, match=NO_KT_INF):
+        series = [
+            whitney_nuismer_tai(m, dpa_mm2=dpa, sigma_pristine_MPa=sigma_0)
+            for dpa in (0.1, 1.0, 10.0, 100.0, 1000.0, 10_000.0)
+        ]
     for prev, nxt in zip(series, series[1:]):
         assert prev > nxt, f"non-monotone: {series}"
 

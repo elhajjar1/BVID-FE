@@ -144,6 +144,11 @@ class Hex8Element:
         # per ply). When set, the Gauss-loop routines skip the per-point
         # B_matrix / Jacobian recomputation. None → legacy per-point path.
         self._b_table = b_table
+        # Continuum-damage effective-stress divisors (6,) in the ply frame,
+        # set by fe_tier._build_elements on damaged elements built for
+        # tension and read by fe_tier._failure_stress_material. None → the
+        # element has none (pristine, or built for compression).
+        self.effective_stress_divisors: np.ndarray | None = None
 
     def _compute_global_stiffness(self) -> np.ndarray:
         C_mat = self.material.get_stiffness_matrix()

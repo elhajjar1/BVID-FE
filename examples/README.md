@@ -34,6 +34,6 @@ gitignored; delete them when you are done.
   for the same panel at 2.5 mm, about 40 s for a 24-ply ASTM coupon at
   5 mm. For damage areas below about 1,000 mm² (a zone only a few 5 mm
   elements across) use `MeshParams(in_plane_size_mm=2.5)` or finer: at
-  5 mm the fe3d knockdown can be about 25% high there. fe3d TAI is not
-  recommended (far more conservative than the closed-form TAI; see the
-  README's Limitations).
+  5 mm the fe3d knockdown can be about 25% high there. fe3d TAI follows
+  the closed-form TAI, falling with energy 2–8% below it; use the
+  closed-form tiers for TAI design values (see [Physics Models → Limitations](https://elhajjar1.github.io/BVID-FE/physics_models/#limitations)).

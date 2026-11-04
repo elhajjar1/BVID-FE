@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, Mapping
 
-from bvidfe._validation import require_positive
+from bvidfe._validation import dataclass_kwargs, require_positive
 
 BoundaryKind = Literal["clamped", "simply_supported", "free"]
 ImpactorShape = Literal["hemispherical", "flat", "conical"]
@@ -42,6 +42,13 @@ class PanelGeometry:
         if self.boundary not in ("clamped", "simply_supported", "free"):
             raise ValueError(f"boundary {self.boundary!r} not recognized")
 
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "PanelGeometry":
+        """Build from a dict of the fields (``dataclasses.asdict`` output);
+        ``boundary`` may be left out. ``ValueError`` for an unknown or
+        missing key."""
+        return cls(**dataclass_kwargs(cls, d, "panel"))
+
 
 @dataclass
 class ImpactorGeometry:
@@ -49,11 +56,12 @@ class ImpactorGeometry:
 
     diameter_mm: impactor diameter in millimeters (``> 0``; 16.0 is the ASTM
         D7136 default). It changes the onset energy and scales the damage
-        area by ``(16 / diameter_mm) ** 0.2``; not used for ``conical``.
+        area by ``(DIAMETER_REF_MM / diameter_mm) ** DIAMETER_DPA_EXPONENT``
+        (``bvidfe.impact.mapping``); not used for ``conical``.
     shape: 'hemispherical' (standard), 'flat' (cylindrical punch), or
         'conical' (60 deg included angle). The shape changes the onset
         energy (contact stiffness) and, relative to a hemisphere, scales
-        the damage area by x0.2 for flat and x1.5 for conical.
+        the damage area by ``bvidfe.impact.mapping.SHAPE_DPA_FACTOR[shape]``.
 
     Raises ``ValueError`` for a non-positive diameter or an unknown shape.
     """
@@ -65,3 +73,9 @@ class ImpactorGeometry:
         require_positive(self.diameter_mm, "diameter_mm")
         if self.shape not in ("hemispherical", "flat", "conical"):
             raise ValueError(f"shape {self.shape!r} not recognized")
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "ImpactorGeometry":
+        """Build from a dict of the fields, each optional. ``ValueError``
+        for an unknown key."""
+        return cls(**dataclass_kwargs(cls, d, "impactor"))

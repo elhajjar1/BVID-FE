@@ -44,6 +44,7 @@ from bvidfe.analysis.config import AnalysisConfig, MeshParams  # noqa: E402
 from bvidfe.analysis.results import AnalysisResults, FieldResults  # noqa: E402
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry  # noqa: E402
 from bvidfe.core.material import OrthotropicMaterial  # noqa: E402
+from bvidfe.damage.io import SCHEMA_VERSION  # noqa: E402
 from bvidfe.damage.state import DamageState, DelaminationEllipse  # noqa: E402
 from bvidfe.impact.mapping import ImpactEvent  # noqa: E402
 
@@ -86,6 +87,22 @@ _KNOWN_DATACLASSES: Dict[type, str] = {
     MeshParams: "MeshParams",
     FieldResults: "FieldResults",
     OrthotropicMaterial: "OrthotropicMaterial",
+}
+
+
+# Optional properties a dataclass's JSON form carries beyond its fields.
+# ``AnalysisResults.to_dict()["damage"]`` is ``damage_state_to_dict``, which
+# adds the C-scan ``schema_version``; ``AnalysisConfig.from_dict`` accepts a
+# damage record with or without it.
+_EXTRA_PROPERTIES: Dict[type, Dict[str, Any]] = {
+    DamageState: {
+        "schema_version": {
+            "type": "string",
+            "const": SCHEMA_VERSION,
+            "description": "C-scan schema version (docs/cscan_schema.md); written by "
+            "damage_state_to_dict, optional on input.",
+        },
+    },
 }
 
 
@@ -201,6 +218,7 @@ def _dataclass_schema_body(cls: type, defs: Dict[str, Any]) -> Dict[str, Any]:
             and f.default_factory is dataclasses.MISSING  # type: ignore[misc]
         ):
             required.append(f.name)
+    properties.update(_EXTRA_PROPERTIES.get(cls, {}))
     body: Dict[str, Any] = {
         "type": "object",
         "title": cls.__name__,

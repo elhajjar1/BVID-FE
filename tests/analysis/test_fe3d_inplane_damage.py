@@ -45,8 +45,8 @@ from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 from bvidfe.impact.mapping import ImpactEvent
+from tests.analysis._fe3d_fixtures import QI8, impact_cfg
 
-_QI8 = [0, 45, -45, 90, 90, -45, 45, 0]
 _UNDAMAGED = DamageState(delaminations=[], dent_depth_mm=0.0)
 
 
@@ -159,10 +159,10 @@ def test_damage_zone_softens_only_the_matrix_terms_in_tension():
     factor, as before tension was told apart."""
     from bvidfe.elements.hex8 import _T_sigma_z
 
-    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], _QI8, 0.152)
+    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], QI8, 0.152)
     cfg = AnalysisConfig(
         material="IM7/8552",
-        layup_deg=_QI8,
+        layup_deg=QI8,
         ply_thickness_mm=0.152,
         panel=PanelGeometry(20.0, 10.0),
         loading="tension",
@@ -203,11 +203,15 @@ def test_damage_zone_softens_only_the_matrix_terms_in_tension():
 # Values on the code before tension was told apart (the soft zone's whole
 # in-plane stiffness softened in both loadings), same small panel and
 # delamination. Compression must reproduce them; tension now keeps the
-# zone's fibres.
+# zone's fibres. The compression values are recaptured for #167: this mesh
+# has two elements per ply, and the out-of-plane factor now takes both
+# plies bounding the delaminated interface (four element layers) instead of
+# the one element layer on each side (multiplier 0.09863 -> 0.09968, FPF
+# 272.3 -> 277.4 MPa, knockdown 0.3261 -> 0.3323).
 _SMALL_ELLIPSE = DelaminationEllipse(1, (10.0, 5.0), 6.0, 3.0, 0.0)
-_CAI_MULTIPLIER_BEFORE = 0.09863416263950059
-_CAI_FPF_BEFORE_MPA = 272.2799510816287
-_CAI_KNOCKDOWN_BEFORE = 0.3260979695149508
+_CAI_MULTIPLIER_BEFORE = 0.099682075758536
+_CAI_FPF_BEFORE_MPA = 277.4475534690435
+_CAI_KNOCKDOWN_BEFORE = 0.33228698431057696
 _TAI_KNOCKDOWN_BEFORE = 0.3157040508823482
 
 
@@ -229,10 +233,12 @@ def test_tension_knockdown_of_small_panel_rises_with_intact_zone_fibres():
     """0.316 when the zone failed as if its fibres were cut; 0.968 with
     them intact, the 90 deg plies' matrix cracking governing; 0.964 with
     the closed-form fibre-damage hole (0.3 mm across here) at the impact
-    site (test_fe3d_tai_fibre_damage.py)."""
+    site (test_fe3d_tai_fibre_damage.py); 0.961 with the out-of-plane
+    factor over both plies bounding the interface (#167; two elements per
+    ply here)."""
     r = BvidAnalysis(_small_cfg("tension", DamageState([_SMALL_ELLIPSE], 0.3))).run()
     assert r.knockdown > _TAI_KNOCKDOWN_BEFORE
-    assert r.knockdown == pytest.approx(0.9642, abs=2e-3)
+    assert r.knockdown == pytest.approx(0.9613, abs=2e-3)
 
 
 @pytest.mark.parametrize("f_oop", [1.0, DAMAGE_OOP_FACTOR])
@@ -288,31 +294,18 @@ def test_first_ply_failure_stress_of_intact_panel_matches_clt_modulus():
     assert ft.fe3d_tai(cfg, _UNDAMAGED, lam, math.inf) == pytest.approx(strain * Ex, rel=0.1)
 
 
-def _impact_cfg(loading: str, energy_J: float) -> AnalysisConfig:
-    return AnalysisConfig(
-        material="IM7/8552",
-        layup_deg=_QI8,
-        ply_thickness_mm=0.152,
-        panel=PanelGeometry(150.0, 100.0),
-        loading=loading,
-        tier="fe3d",
-        impact=ImpactEvent(energy_J, ImpactorGeometry(), mass_kg=5.5),
-        mesh=MeshParams(elements_per_ply=1, in_plane_size_mm=10.0),
-    )
-
-
 def test_fe3d_tension_knockdown_responds_to_impact_damage():
     """Was 1.000: first-ply failure sat at a panel corner in both runs.
     With the zone's fibres cut in tension too it was 0.286 on this mesh;
     with them intact the matrix-cracked zone cost about 9% (0.909); the
     closed-form fibre-damage hole at the impact site brings it to 0.714
     (closed form 0.771, see test_fe3d_tai_fibre_damage.py)."""
-    r = BvidAnalysis(_impact_cfg("tension", 15.0)).run()
+    r = BvidAnalysis(impact_cfg("tension", 15.0)).run()
     assert r.knockdown == pytest.approx(0.7144, abs=2e-3), r.notes
 
 
 def test_fe3d_tension_knockdown_falls_with_impact_energy():
-    kd = [BvidAnalysis(_impact_cfg("tension", E)).run().knockdown for E in (5.0, 15.0)]
+    kd = [BvidAnalysis(impact_cfg("tension", E)).run().knockdown for E in (5.0, 15.0)]
     assert kd[1] < kd[0] < 1.0, kd
 
 

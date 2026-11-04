@@ -43,7 +43,7 @@ def test_last_interface_is_accepted():
 
 def test_fe3d_buckling_notes_reach_the_results(monkeypatch):
     note = "fe3d buckling: degenerate"
-    monkeypatch.setattr(bvid.BvidAnalysis, "_fe3d_raw_strength", lambda self, lam, dmg: 100.0)
+    monkeypatch.setattr(bvid, "fe3d_cai_channels", lambda cfg, dmg, lam, cap: (None, 100.0))
     monkeypatch.setattr(bvid, "fe3d_cai_buckling", lambda cfg, dmg, lam, s: (s, 0.0, [note]))
     damage = DamageState([DelaminationEllipse(3, (75.0, 50.0), 20.0, 10.0, 0.0)], 0.2)
     cfg = _cfg(damage, tier="fe3d")

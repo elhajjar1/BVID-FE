@@ -40,8 +40,66 @@ def test_above_threshold_produces_n_minus_1_ellipses():
 
 
 def test_impact_event_location_defaults_to_panel_center():
+    """``None`` (the default) is the panel centre (#171)."""
     ev = ImpactEvent(energy_J=10.0, impactor=ImpactorGeometry(), mass_kg=5.5)
-    assert ev.location_xy_mm == (0.0, 0.0)
+    assert ev.location_xy_mm is None
+    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
+    pan = PanelGeometry(150, 80)
+    ds = impact_to_damage(ImpactEvent(energy_J=20.0), lam, pan)
+    assert ds.delaminations
+    assert {e.centroid_mm for e in ds.delaminations} == {(75.0, 40.0)}
+    explicit = impact_to_damage(ImpactEvent(energy_J=20.0, location_xy_mm=(75.0, 40.0)), lam, pan)
+    assert explicit == ds
+
+
+@pytest.mark.parametrize("loc", [(0.0, 0.0), (0, 0), [0.0, 0.0], (-0.0, 0.0)])
+def test_impact_event_origin_location_is_deprecated_centre(loc):
+    """``(0, 0)`` used to be the centre sentinel. It still means the centre
+    for now, with a ``DeprecationWarning`` saying to pass ``None``, and is
+    stored as ``None`` so nothing downstream sees the sentinel (#171)."""
+    with pytest.warns(DeprecationWarning, match="location_xy_mm=None"):
+        ev = ImpactEvent(energy_J=20.0, location_xy_mm=loc)
+    assert ev.location_xy_mm is None
+    assert ev == ImpactEvent(energy_J=20.0)
+    lam = Laminate(MATERIAL_LIBRARY["IM7/8552"], [0, 45, -45, 90, 90, -45, 45, 0], 0.152)
+    pan = PanelGeometry(150, 100)
+    assert impact_to_damage(ev, lam, pan) == impact_to_damage(ImpactEvent(energy_J=20.0), lam, pan)
+
+
+def test_impact_event_from_dict_location():
+    assert ImpactEvent.from_dict({"energy_J": 5.0}).location_xy_mm is None
+    assert ImpactEvent.from_dict({"energy_J": 5.0, "location_xy_mm": None}).location_xy_mm is None
+    assert ImpactEvent.from_dict({"energy_J": 5.0, "location_xy_mm": [60, 45]}).location_xy_mm == (
+        60,
+        45,
+    )
+    with pytest.warns(DeprecationWarning, match="location_xy_mm=None"):
+        old = ImpactEvent.from_dict({"energy_J": 5.0, "location_xy_mm": [0.0, 0.0]})
+    assert old.location_xy_mm is None
+
+
+def test_analysis_config_from_old_snapshot_with_origin_location():
+    """A config JSON written before ``None`` meant the centre carries
+    ``[0, 0]``; it still loads, as a centre impact, with the deprecation."""
+    import json
+    from dataclasses import asdict
+
+    from bvidfe.analysis import AnalysisConfig
+
+    cfg = AnalysisConfig(
+        material="IM7/8552",
+        layup_deg=[0, 45, -45, 90, 90, -45, 45, 0],
+        ply_thickness_mm=0.152,
+        panel=PanelGeometry(150, 100),
+        impact=ImpactEvent(energy_J=10.0),
+    )
+    snap = json.loads(json.dumps(asdict(cfg)))
+    assert snap["impact"]["location_xy_mm"] is None
+    assert AnalysisConfig.from_dict(snap) == cfg
+    snap["impact"]["location_xy_mm"] = [0, 0]
+    with pytest.warns(DeprecationWarning, match="location_xy_mm=None"):
+        old = AnalysisConfig.from_dict(snap)
+    assert old == cfg
 
 
 @pytest.mark.parametrize("dE_J", [1e-2, 1e-3, 1e-4, 1e-6])
@@ -134,3 +192,25 @@ def test_small_mass_emits_quasi_static_warning():
         and "mass" in str(m.message)
     ]
     assert matching, [(m.category.__name__, str(m.message)) for m in w]
+
+
+def test_public_dpa_constants_and_aliases():
+    """The public names are what the app help and docstrings quote; the
+    underscore names stay as aliases (issue #174)."""
+    from bvidfe.impact import mapping
+
+    assert mapping.SHAPE_DPA_FACTOR is mapping._SHAPE_DPA_FACTOR
+    assert mapping.DIAMETER_DPA_EXPONENT == mapping._DIAMETER_DPA_EXPONENT
+    assert mapping.DIAMETER_REF_MM == mapping._DIAMETER_REF_MM
+    assert _shape_dpa_factor("conical") == mapping.SHAPE_DPA_FACTOR["conical"]
+
+
+def test_impactor_geometry_docstring_names_mapping_constants():
+    """ImpactorGeometry's docstring points at the factors the code applies
+    instead of quoting their values, so it cannot drift from them (#174;
+    it used to say x1.5 for conical while the code used 1.9)."""
+    doc = ImpactorGeometry.__doc__
+    if doc is None:  # python -OO
+        pytest.skip("docstrings stripped")
+    assert "SHAPE_DPA_FACTOR" in doc and "DIAMETER_DPA_EXPONENT" in doc
+    assert "{" not in doc

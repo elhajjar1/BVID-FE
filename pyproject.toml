@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bvidfe"
-version = "0.2.0"
+version = "0.3.0"
 description = "Barely Visible Impact Damage residual-strength analysis for composite laminates"
 readme = "README.md"
 license = "MIT"
@@ -42,7 +42,7 @@ dependencies = [
     "matplotlib>=3.9,<4",
     "shapely>=2.0,<3",
     "pandas>=2.0,<3",
-    "plotly>=5.18",
+    "plotly>=5.18,<7",
 ]
 
 [project.optional-dependencies]
@@ -52,8 +52,13 @@ dev = [
     "pytest>=7,<10",
     "pytest-cov>=4,<8",
     "coverage>=7.10",
-    "ruff>=0.5,<1",
-    "black>=24,<27",
+    # ruff and black are pinned exactly, to the revs in .pre-commit-config.yaml;
+    # bump both files together.
+    "ruff==0.17.3",
+    "black==26.10.1",
+    "mypy>=1.10,<2",
+    "pandas-stubs>=2.0,<3",
+    "types-shapely>=2.0,<3",
     "pre-commit>=3,<5",
     "streamlit>=1.51,<2",
     "pip-audit>=2.6,<3",
@@ -91,8 +96,23 @@ target-version = "py310"
 # deliberately in its own PR.
 select = ["E4", "E7", "E9", "F"]
 
+[tool.mypy]
+files = ["src/bvidfe"]
+# No python_version: mypy targets the interpreter it runs on (3.12 in the CI
+# lint cell). Pinning 3.10 broke on numpy >= 2.5, whose stubs use the 3.12
+# `type` statement, which mypy will not parse for an older target.
+# plotly ships no type information (and has no stubs package).
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Any warning fails the test that emits it: a test that expects one asserts
+# it with pytest.warns. Third-party deprecations the project cannot act on
+# are ignored by module.
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:streamlit.*",
+]
 
 [tool.coverage.run]
 # pytest-cov 7 no longer measures subprocesses; the CLI tests run

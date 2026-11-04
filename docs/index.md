@@ -1,10 +1,8 @@
 # BVID-FE
 
-A Python library for predicting residual strength and stiffness of fiber-reinforced composite laminates containing Barely Visible Impact Damage (BVID).
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml/badge.svg)](https://github.com/elhajjar1/BVID-FE/actions/workflows/tests.yml)
+Residual compression (CAI) and tension (TAI) strength of fibre-reinforced
+composite laminates with Barely Visible Impact Damage (BVID), from an
+impact energy or a C-scan, in three modelling tiers.
 
 ## Why this tool?
 
@@ -29,8 +27,8 @@ documentation conventions.
     - *Impact-driven*: Olsson quasi-static threshold + energy-balance damage
       area + peanut-template distribution over the interfaces + empirical
       dent model
-    - *Inspection-driven*: C-scan JSON import per the documented schema
-      (see [C-Scan Schema](cscan_schema.md))
+    - *Inspection-driven*: C-scan JSON import per the documented
+      [schema](cscan_schema.md)
 - **Three modeling tiers** for residual strength after BVID:
     - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI on an
       equivalent hole for the fibre damage (tens of milliseconds)
@@ -39,41 +37,52 @@ documentation conventions.
       Benzeggagh-Kenane mixed-mode toughness, weakest interface governs),
       capped by Soutis; the empirical TAI model (tens of milliseconds)
     - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
-      modelled as a soft inclusion, normalised by an undamaged fe3d run;
-      LaRC05 for CAI, Tsai-Wu for TAI (about 5 s for an 8-ply
-      150 × 100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm; see
+      modelled as a soft inclusion (fibres intact in tension) and, in
+      tension, the closed-form fibre-damage hole as a notch at the impact
+      site, normalised by an undamaged fe3d run; LaRC05 for CAI, Tsai-Wu
+      for TAI (about 5 s for an 8-ply 150 × 100 mm panel at the default
+      5 mm mesh, about 35 s at 2.5 mm; see
       [Tier choice](python_api.md#tier-choice))
 - **CAI and TAI loading modes** (Compression-After-Impact and
   Tension-After-Impact)
-- **Per-interface ellipse damage model** using `DelaminationEllipse` with
-  shapely-union projected damage area
 - **Pristine (unnotched) laminate strength** from classical lamination
   theory with ply-discount last-ply failure, within 0.83–1.14× of NCAMP
   unnotched tension and compression strengths
-- **Six material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510, T800S/3900-2B, T800/epoxy
-- **Validation harness** scored against three measured CAI datasets, two of
-  them gated in CI (see [Validation](#validation) below)
-- **CLI**, **Streamlit web app**, and **Python API**
+- **Per-interface ellipse damage model** using `DelaminationEllipse` with
+  shapely-union projected damage area
+- **Six material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510,
+  T800S/3900-2B, T800/epoxy
+- **Validation harness** (`validation/`) that scores the tiers against
+  three measured CAI datasets (NCAMP AS4/8552 and Lovejoy & Scotti
+  IM7/8552, gated in CI; Hasebe et al. T800S/3900-2B, reported only) and
+  one TAI condition (Körbelin et al. M21/T800S, reported only); see
+  [Validation](#validation) below
+- **CLI** for single runs, several tiers in one call
+  (`--tier empirical,semi_analytical`), and shell pipelines (`--quick`,
+  `--quick-json`); see the [CLI reference](python_api.md#cli)
+- **Streamlit web app** with sidebar-driven `AnalysisConfig` and result
+  tabs — Summary, Damage Map, Knockdown Curve (live empirical sweep around
+  the current energy), 3D Damage (Plotly hex mesh coloured by damage
+  factor), Buckling (tier-specific buckling indicator: `N_cr` in N/mm for
+  `semi_analytical`, `σ_crit` in MPa for `fe3d`), Damage Severity
+  (through-thickness sum of per-element `1 − damage_factor`; see
+  [Damage severity heatmap](physics_models.md#damage-severity-heatmap)),
+  Sweep (CSV-exportable parametric energy sweep), and Export NCR (a
+  nonconformance report in Markdown or JSON with a *proposed* disposition
+  that a Material Review Board must review). Cached runs, fe3d mesh-size
+  guards, JSON/CSV downloads; see [Deployment](deployment.md)
 - **Parametric sweeps** over impact energy, layup, or ply thickness with
   CSV output
-- **2D / 3D visualisations** of damage and stress fields
+- **2D plots**: damage map, knockdown curves, tier comparison charts
+- **Plotly 3D viz** for the damaged hex mesh (`bvidfe.viz.plotly_3d`)
 
 ## Installation
 
-```bash
-pip install bvidfe            # library and the `bvidfe` command
-pip install "bvidfe[app]"     # also installs Streamlit, for the web app
-```
-
-The examples, the notebook, the validation harness and the Streamlit app
-(`app.py`) are in the repository:
-
-```bash
-git clone https://github.com/elhajjar1/BVID-FE.git
-cd BVID-FE
-pip install -e ".[dev]"
-pytest -v
-```
+BVID-FE is not on PyPI yet: install the library and the `bvidfe` command
+with `pip install git+https://github.com/elhajjar1/BVID-FE.git`, or clone
+the repository for the examples, the notebook, the validation harness and
+the Streamlit app. [Quickstart → Install](quickstart.md#1-install) has the
+commands.
 
 ## Validation
 

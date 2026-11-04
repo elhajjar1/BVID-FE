@@ -128,7 +128,7 @@ bounds it.
 | `panel` | required | `PanelGeometry(Lx_mm, Ly_mm, boundary="simply_supported")`, the tested panel; x is the load direction |
 | `loading` | `"compression"` | `"compression"` (CAI) or `"tension"` (TAI) |
 | `tier` | `"empirical"` | `"empirical"`, `"semi_analytical"` or `"fe3d"` |
-| `impact` | `None` | `ImpactEvent(energy_J, impactor=ImpactorGeometry(), mass_kg=5.5, location_xy_mm=(0.0, 0.0))`; `(0, 0)` means the panel centre |
+| `impact` | `None` | `ImpactEvent(energy_J, impactor=ImpactorGeometry(), mass_kg=5.5, location_xy_mm=None)`; `location_xy_mm` is the impact point `(x, y)` in mm from the panel corner, strictly inside the panel, and `None` is the panel centre (the old `(0, 0)` centre still works, with a `DeprecationWarning`) |
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
@@ -174,7 +174,23 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 
 `result.summary()` returns a printable block and `result.to_dict()` a
 JSON-serialisable dict (every field but `field_results`, the damage in the
-C-scan layout; the CLI prints it).
+[C-scan layout](cscan_schema.md) with its `schema_version`; the CLI prints
+it). Both halves load back:
+
+```python
+from bvidfe import AnalysisConfig
+from bvidfe.damage.io import damage_state_from_dict
+
+d = result.to_dict()
+assert damage_state_from_dict(d["damage"]) == result.damage   # or --cscan / load_cscan_json
+assert AnalysisConfig.from_dict(d["config_snapshot"]) == config
+```
+
+`AnalysisConfig.from_dict(d)` takes the field names as keys, a preset
+name or a dict of `OrthotropicMaterial` fields for `material`, dicts for
+the nested dataclasses (`PanelGeometry.from_dict`, `ImpactEvent.from_dict`,
+`MeshParams.from_dict`, ...) and a C-scan dict (`schema_version` optional)
+for `damage`, and raises `ValueError` for an unknown or missing key.
 
 ## Tier choice
 
@@ -182,7 +198,7 @@ C-scan layout; the CLI prints it).
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 8.8% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 22% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated: `tai_notch_fraction` is fitted to one measured condition (3.5% MAE in-sample). | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
 | `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 1.2%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), and the broken fibres are the closed-form equivalent hole, applied as a notch at the impact site (below the mesh): 0.870 against 0.889 on the one measured TAI dataset (MAE 3.6%, partly in-sample, the hole size being fitted to it), falling with energy 2–8% below the closed-form TAI (0.965 and nearly flat in energy without the hole; 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
+| `fe3d` | Seconds to a minute (two FE solves; about 5 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 35 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 3.5%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), and the broken fibres are the closed-form equivalent hole, applied as a notch at the impact site (below the mesh): 0.870 against 0.889 on the one measured TAI dataset (MAE 3.6%, partly in-sample, the hole size being fitted to it), falling with energy 2–8% below the closed-form TAI (0.965 and nearly flat in energy without the hole; 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
 
 ## Knockdown semantics
 
@@ -392,24 +408,34 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | Flag | Default | Meaning |
 |---|---|---|
 | `--material NAME` | required | Preset: `AS4/3501-6`, `AS4/8552`, `IM7/8552`, `T700/2510`, `T800/epoxy`, `T800S/3900-2B` |
-| `--layup A,B,...` | required | Comma-separated ply angles in degrees |
+| `--layup A,B,...` | required | Comma-separated ply angles in degrees (any finite angle, as in `AnalysisConfig`; `135` is `-45`) |
 | `--thickness T` | required | Ply thickness in mm, or a comma-separated list with one per ply |
-| `--panel 150x100` | required | Panel size in mm, e.g. `150x100` (simply supported; the CLI has no boundary option) |
-| `--loading` | required | `compression` or `tension` |
+| `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
+| `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
+| `--loading` | `compression` | `compression` or `tension` |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
-| `--energy J` | — | Impact energy in J (impact-driven); exactly one of `--energy` and `--cscan` |
+| `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |
-| `--impactor-diameter D` | `16.0` | Impactor diameter in mm (hemispherical; the CLI has no shape option) |
+| `--impactor-diameter D` | `16.0` | Impactor diameter in mm |
+| `--impactor-shape` | `hemispherical` | `hemispherical`, `flat` or `conical` |
 | `--mass M` | `5.5` | Impactor mass in kg |
+| `--location X Y` | panel centre | Impact point in mm from the panel corner, strictly inside the panel (`ImpactEvent.location_xy_mm`; left out, `None`, is the centre; `0 0` for the centre is deprecated) |
+| `--in-plane-size MM` | `5.0` | fe3d `MeshParams.in_plane_size_mm` |
+| `--elements-per-ply N` | `1` | fe3d `MeshParams.elements_per_ply` |
 | `--quick` | off | Print only the knockdown (6 decimals) |
 | `--quick-json` | off | Print `{knockdown, residual_strength_MPa, pristine_strength_MPa, tier_used}` as one-line JSON |
+| `--save-damage PATH` | — | Also write the analysed damage state to `PATH` as C-scan JSON (re-run it with `--cscan PATH`) |
 | `--list-materials` | — | List the presets (E11, E22, Xt, Xc, Yt, Yc in MPa) and exit |
 | `--version`, `-h/--help` | — | Print the version or the help and exit |
 
 Without `--quick` / `--quick-json` the full result is printed as JSON
 (`AnalysisResults.to_dict()`). With several tiers the output is a JSON
 array, one JSON line per tier (`--quick-json`), or `tier<TAB>knockdown`
-lines (`--quick`). `--quick` and `--quick-json` cannot be combined.
+lines (`--quick`). `--quick` and `--quick-json` cannot be combined. The
+`damage` object of the JSON output is itself a valid `--cscan` file.
+Options that would have no effect are usage errors (exit code 2):
+`--impactor-diameter`, `--impactor-shape`, `--mass` and `--location`
+with `--cscan`, and the two mesh options without `fe3d` in `--tier`.
 
 ## Adding a custom material
 

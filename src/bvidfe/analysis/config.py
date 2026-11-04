@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Union
+from typing import Any, Iterable, List, Mapping, Optional, Sequence, Union
 
 from bvidfe._types import _LOADING_MODES, _TIER_NAMES, LoadingMode, TierName
-from bvidfe._validation import require_finite, require_positive
+from bvidfe._validation import dataclass_kwargs, require_finite, require_positive
 from bvidfe.core.geometry import PanelGeometry
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
+from bvidfe.damage.io import SCHEMA_VERSION, damage_state_from_dict
 from bvidfe.damage.state import DamageState
 from bvidfe.impact.mapping import ImpactEvent
 
@@ -60,7 +61,7 @@ class MeshParams:
     cohesive_zone_factor : float
         Reserved (``> 0``, default ``1.0``). Intended as a multiplier on
         the cohesive-zone characteristic length once true cohesive
-        surfaces land (see README "Limitations"); **validated but not read
+        surfaces land (see "Limitations" in docs/physics_models.md); **validated but not read
         by any code path** — the present fe3d tier uses a component-wise
         stiffness-reduction model, not cohesive elements, so changing it
         does not change any result. Leave at the default.
@@ -93,6 +94,33 @@ class MeshParams:
             )
         require_positive(self.in_plane_size_mm, "MeshParams.in_plane_size_mm")
         require_positive(self.cohesive_zone_factor, "MeshParams.cohesive_zone_factor")
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "MeshParams":
+        """Build from a dict of the fields, each optional. ``ValueError``
+        for an unknown key."""
+        return cls(**dataclass_kwargs(cls, d, "mesh"))
+
+
+def _material_from_json(value: Any) -> Any:
+    """A preset name or an ``OrthotropicMaterial`` as is; a dict (as
+    ``config_snapshot`` writes a custom material) as
+    ``OrthotropicMaterial(**d)``. Anything else is left for
+    ``AnalysisConfig`` to reject."""
+    if isinstance(value, Mapping):
+        return OrthotropicMaterial(**dataclass_kwargs(OrthotropicMaterial, value, "material"))
+    return value
+
+
+def _damage_from_json(value: Any) -> Optional[DamageState]:
+    """``None``, a ``DamageState``, or a dict in the C-scan layout
+    (``damage_state_from_dict``). ``schema_version`` may be left out, as
+    ``config_snapshot`` (``dataclasses.asdict``) leaves it out."""
+    if value is None or isinstance(value, DamageState):
+        return value
+    if isinstance(value, Mapping) and "schema_version" not in value:
+        value = {"schema_version": SCHEMA_VERSION, **value}
+    return damage_state_from_dict(value)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -265,3 +293,59 @@ class AnalysisConfig:
                     )
         if self.tier == "fe3d" and self.mesh is None:
             self.mesh = MeshParams()
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "AnalysisConfig":
+        """Build a config from a JSON-style dict, the inverse of
+        ``AnalysisResults.config_snapshot`` (``dataclasses.asdict`` of the
+        config) and of its JSON form in ``AnalysisResults.to_dict()``.
+
+        The keys are the field names; ``loading``, ``tier``, ``impact``,
+        ``damage``, ``mesh`` and ``impact_panel`` may be left out and take
+        the field defaults. ``material`` is a preset name or a dict of
+        :class:`~bvidfe.core.material.OrthotropicMaterial` fields;
+        ``panel`` / ``impact_panel``, ``impact`` and ``mesh`` are dicts of
+        the fields of :class:`~bvidfe.core.geometry.PanelGeometry`,
+        :class:`~bvidfe.impact.mapping.ImpactEvent` and
+        :class:`MeshParams` (``ImpactEvent.from_dict`` etc.); ``damage``
+        is a dict in the C-scan layout (``docs/cscan_schema.md``, read
+        with :func:`~bvidfe.damage.io.damage_state_from_dict`), with
+        ``schema_version`` optional. A value that is already the
+        dataclass instance is used as is.
+
+        Raises
+        ------
+        ValueError
+            For an unknown or missing key at any level, and for every
+            value ``AnalysisConfig`` and the nested dataclasses reject
+            (:class:`~bvidfe.damage.io.CScanSchemaError`, a ``ValueError``,
+            for the damage record).
+
+        Examples
+        --------
+        >>> from bvidfe import AnalysisConfig, ImpactEvent, PanelGeometry
+        >>> from bvidfe.analysis.bvid import _config_snapshot_dict
+        >>> cfg = AnalysisConfig(
+        ...     material="IM7/8552",
+        ...     layup_deg=[0, 45, -45, 90, 90, -45, 45, 0],
+        ...     ply_thickness_mm=0.152,
+        ...     panel=PanelGeometry(150, 100),
+        ...     impact=ImpactEvent(energy_J=10.0),
+        ... )
+        >>> AnalysisConfig.from_dict(_config_snapshot_dict(cfg)) == cfg
+        True
+        """
+        kw = dataclass_kwargs(cls, d, "AnalysisConfig")
+        kw["material"] = _material_from_json(kw["material"])
+        # Dicts become the nested dataclasses; anything else is left for
+        # __post_init__ to accept (an instance) or reject.
+        for name, sub in (
+            ("panel", PanelGeometry),
+            ("impact_panel", PanelGeometry),
+            ("impact", ImpactEvent),
+            ("mesh", MeshParams),
+        ):
+            if isinstance(kw.get(name), Mapping):
+                kw[name] = sub.from_dict(kw[name])
+        kw["damage"] = _damage_from_json(kw.get("damage"))
+        return cls(**kw)

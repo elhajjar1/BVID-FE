@@ -19,9 +19,14 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Any, Mapping, Optional, Tuple
 
-from bvidfe._validation import require_non_negative, require_positive, require_xy
+from bvidfe._validation import (
+    dataclass_kwargs,
+    require_non_negative,
+    require_positive,
+    require_xy,
+)
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.core.laminate import Laminate
 from bvidfe.damage.state import DamageState
@@ -56,7 +61,8 @@ class DPACapClipWarning(UserWarning):
 # per-impactor median predicted / measured area is 0.94 (flat), 1.07
 # (cone), 1.01, 1.01 and 1.06 (12.7, 25.4 and 31.8 mm hemispheres). The
 # previous, unsourced 1.4 (flat) and 0.7 (conical) ran the other way.
-_SHAPE_DPA_FACTOR: dict[str, float] = {
+# Public: the app help and the ImpactorGeometry docstring quote it.
+SHAPE_DPA_FACTOR: dict[str, float] = {
     "hemispherical": 1.0,
     "flat": 0.2,
     "conical": 1.9,
@@ -69,23 +75,28 @@ _SHAPE_DPA_FACTOR: dict[str, float] = {
 # 0.3. The corrected onset energy moved the model's same-group ratios to
 # the 12.7 mm hemisphere by under 5% (25.4 mm: 1.01 to 1.04; 31.8 mm: 1.25
 # to 1.27, on 6 cross-ply groups only), and the membrane-stiffened onset
-# back to 1.03 and 1.26, so 0.2 is kept.
-_DIAMETER_REF_MM: float = 16.0
-_DIAMETER_DPA_EXPONENT: float = 0.2
+# back to 1.03 and 1.26, so 0.2 is kept. Public, like SHAPE_DPA_FACTOR.
+DIAMETER_REF_MM: float = 16.0
+DIAMETER_DPA_EXPONENT: float = 0.2
+
+# Underscore names kept as aliases for existing callers.
+_SHAPE_DPA_FACTOR = SHAPE_DPA_FACTOR
+_DIAMETER_REF_MM = DIAMETER_REF_MM
+_DIAMETER_DPA_EXPONENT = DIAMETER_DPA_EXPONENT
 
 
 def _shape_dpa_factor(shape: str) -> float:
-    return _SHAPE_DPA_FACTOR.get(shape, 1.0)
+    return SHAPE_DPA_FACTOR.get(shape, 1.0)
 
 
 def _diameter_dpa_factor(diameter_mm: float, shape: str = "hemispherical") -> float:
     """Smaller impactors concentrate damage (larger factor); larger
-    impactors spread it (smaller factor). Mild (exponent 0.2). A cone's
+    impactors spread it (smaller factor). Mild (``DIAMETER_DPA_EXPONENT``). A cone's
     contact is set by its angle, not its shank diameter, so the factor is
     1 for ``conical``."""
     if diameter_mm <= 0 or shape == "conical":
         return 1.0
-    return (_DIAMETER_REF_MM / diameter_mm) ** _DIAMETER_DPA_EXPONENT
+    return (DIAMETER_REF_MM / diameter_mm) ** DIAMETER_DPA_EXPONENT
 
 
 # Reference impactor mass (kg) for the small-mass amplification correction.
@@ -146,17 +157,20 @@ class ImpactEvent:
         Impactor mass in kg, finite and ``> 0`` (default 5.5, the ASTM
         D7136 reference, at which the mass correction is 1). The damage area scales by
         ``(5.5 / mass_kg) ** 0.1``.
-    location_xy_mm : tuple of float
+    location_xy_mm : tuple of float, optional
         Impact point ``(x, y)`` in mm on the impacted panel
-        (``AnalysisConfig.impact_panel`` if set, else ``panel``). The
-        default ``(0.0, 0.0)`` means the panel centre. A list (as JSON
-        gives) is stored as a tuple.
+        (``AnalysisConfig.impact_panel`` if set, else ``panel``), measured
+        from its corner and strictly inside it. ``None`` (the default) is
+        the panel centre. A list (as JSON gives) is stored as a tuple.
+        ``(0, 0)``, the corner, used to mean the centre: it is still read
+        as the centre (stored as ``None``) with a ``DeprecationWarning``,
+        and will be rejected as on the panel edge in a later release.
     """
 
     energy_J: float
     impactor: ImpactorGeometry = field(default_factory=ImpactorGeometry)
     mass_kg: float = 5.5
-    location_xy_mm: Tuple[float, float] = (0.0, 0.0)
+    location_xy_mm: Optional[Tuple[float, float]] = None
 
     def __post_init__(self) -> None:
         require_non_negative(self.energy_J, "ImpactEvent.energy_J")
@@ -166,7 +180,36 @@ class ImpactEvent:
                 f"ImpactEvent.impactor must be an ImpactorGeometry "
                 f"(got {type(self.impactor).__name__})"
             )
-        self.location_xy_mm = require_xy(self.location_xy_mm, "ImpactEvent.location_xy_mm")
+        if self.location_xy_mm is not None:
+            loc = require_xy(self.location_xy_mm, "ImpactEvent.location_xy_mm")
+            if loc[0] == 0 and loc[1] == 0:
+                # The pre-0.3 centre sentinel (#171). __post_init__ is called
+                # from the generated __init__, so stacklevel 3 is the caller.
+                warnings.warn(
+                    "ImpactEvent.location_xy_mm=(0, 0) as the panel centre is "
+                    "deprecated and will be rejected (the corner is not inside "
+                    "the panel) in a later release; pass location_xy_mm=None "
+                    "(the default) for the panel centre. It is read as the "
+                    "centre.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                self.location_xy_mm = None
+            else:
+                self.location_xy_mm = (loc[0], loc[1])
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "ImpactEvent":
+        """Build from a dict of the fields (``dataclasses.asdict`` output):
+        ``energy_J`` is required, ``impactor`` an ``ImpactorGeometry`` dict
+        (or instance), and a ``location_xy_mm`` list is stored as a tuple
+        (``None`` or left out is the panel centre; the old ``[0, 0]``
+        centre is read with a ``DeprecationWarning``).
+        ``ValueError`` for an unknown or missing key."""
+        kw = dataclass_kwargs(cls, d, "impact")
+        if "impactor" in kw and not isinstance(kw["impactor"], ImpactorGeometry):
+            kw["impactor"] = ImpactorGeometry.from_dict(kw["impactor"])
+        return cls(**kw)
 
 
 def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) -> DamageState:
@@ -201,9 +244,9 @@ def impact_to_damage(event: ImpactEvent, lam: Laminate, panel: PanelGeometry) ->
     """
     material = lam.material
 
-    # If location is (0, 0), interpret as panel center for Olsson bending stiffness
+    # None is the panel centre.
     loc = event.location_xy_mm
-    if loc == (0.0, 0.0):
+    if loc is None:
         loc = (panel.Lx_mm / 2, panel.Ly_mm / 2)
 
     E_onset = onset_energy(lam, panel, event.impactor, location_xy_mm=loc)

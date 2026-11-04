@@ -10,8 +10,10 @@ docs_dir: docs
 # Files inside docs/ that are internal/dev-only and should NOT ship with the
 # published site. Listed explicitly so mkdocs --strict stays quiet about
 # "pages exist in the docs directory but are not in the nav".
+# archive/ holds the April 2026 implementation plan and design spec, kept for
+# history only (they describe the original PyQt6 design, not the current code).
 exclude_docs: |
-  superpowers/
+  archive/
 
 theme:
   name: material

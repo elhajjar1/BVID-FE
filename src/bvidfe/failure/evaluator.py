@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Sequence
 
 import numpy as np
 
@@ -28,7 +28,7 @@ _CRITERION_REGISTRY: dict[
 # Scalar variants used by ``FailureEvaluator._index`` (per-point evaluation).
 # Kept parallel to ``_CRITERION_REGISTRY`` so any extension touches both.
 _CRITERION_SCALAR_REGISTRY: dict[
-    CriterionName, Callable[[OrthotropicMaterial, np.ndarray], float]
+    CriterionName, Callable[[OrthotropicMaterial, Sequence[float]], float]
 ] = {
     "tsai_wu": tsai_wu_index,
     "larc05": larc05_index,

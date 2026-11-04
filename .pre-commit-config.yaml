@@ -1,9 +1,10 @@
 # Pre-commit hooks for BVID-FE
-# Install: pip install pre-commit && pre-commit install
+# Install: pip install -e ".[dev]" && pre-commit install
 # Run manually: pre-commit run --all-files
 #
-# Hook versions are pinned to match the version constraints in
-# pyproject.toml [project.optional-dependencies] dev.
+# The black and ruff revs must equal the exact pins in pyproject.toml
+# [project.optional-dependencies] dev, which is what CI runs; bump both
+# files together so a local commit and CI never format differently.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -13,11 +14,24 @@ repos:
       - id: end-of-file-fixer
 
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 26.10.1
     hooks:
       - id: black
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.10
+    rev: v0.17.3
     hooks:
       - id: ruff
+
+  # mypy runs from the dev environment rather than an isolated hook env, so
+  # it sees the installed numpy / pandas-stubs / types-shapely and reports
+  # exactly what CI reports. It checks the [tool.mypy] files, not just the
+  # staged ones (a change in one module can break a caller in another).
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types: [python]
+        pass_filenames: false

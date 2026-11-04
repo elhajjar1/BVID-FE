@@ -4,6 +4,14 @@ All notable changes to BVID-FE are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-11-03
+
 The closed-form tiers are now calibrated on, and scored against, measured
 CAI data, and the fe3d tier's first-ply failure sees the impact damage.
 Most results change and a few APIs break: read *Breaking changes and
@@ -70,6 +78,23 @@ constants are in [`validation/README.md`](validation/README.md).
 - Streamlit is no longer installed with the package. Install
   `pip install "bvidfe[app]"` (or `pip install -r requirements.txt`) for
   the web app; the `dev` extra still includes it.
+- `ImpactEvent.location_xy_mm` defaults to `None`, the panel centre, not
+  the `(0.0, 0.0)` sentinel (#171). `(0, 0)` (and JSON `[0, 0]`, so old
+  configs still load) is still read as the centre and stored as `None`,
+  with a `DeprecationWarning`; a later release will reject it, since the
+  corner is not inside the panel. Code that tests
+  `location_xy_mm == (0.0, 0.0)` for "centre" should test `is None`:
+
+  ```python
+  # 0.2.0
+  ImpactEvent(energy_J=10.0, location_xy_mm=(0.0, 0.0))  # centre
+  # now
+  ImpactEvent(energy_J=10.0)  # or location_xy_mm=None
+  ```
+
+  The CLI's `--location` defaults to the centre (`None`); `--location 0 0`
+  still runs a centre impact, with a deprecation warning on stderr. The
+  JSON schema allows `null` for `location_xy_mm`.
 
 **Changed definitions** (all results move; see *Results change*)
 
@@ -137,6 +162,15 @@ A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
   {"impact_energy_J": 30.0, "impactor_diameter_mm": 15.875, "impactor_mass_kg": 5.5}
   ```
 
+- Each dataset must give a top-level `"kind"`, `"measured"` or
+  `"synthetic"`; the validator refuses a file without it (`Invalid
+  dataset: <file>: top-level "kind" is missing ...`, exit 1) before any
+  case runs. Add it to a dataset of your own:
+
+  ```json
+  {"name": "my_cai", "kind": "measured", "reference": "...", "cases": []}
+  ```
+
 **Dependencies**
 
 - The `[app]` and `dev` extras and `requirements.txt` need
@@ -195,6 +229,24 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 
 ### Added
 
+- `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
+  `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
+  `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its
+  JSON) back into an equal config, including a custom material (a dict of
+  `OrthotropicMaterial` fields), `damage` (read with
+  `damage_state_from_dict`) and `impact_panel`. Unknown and missing keys
+  are a `ValueError`. The Streamlit app's `_config_from_dict` now calls
+  it, so it no longer drops `impact_panel` or rejects a custom material.
+- CLI `--save-damage PATH` (#170) writes the analysed damage state as
+  C-scan JSON for a `--cscan PATH` rerun.
+- CLI options `--boundary`, `--impactor-shape`, `--location X Y`,
+  `--in-plane-size` and `--elements-per-ply` (#169), mapped onto
+  `PanelGeometry.boundary`, `ImpactorGeometry.shape`,
+  `ImpactEvent.location_xy_mm` and `MeshParams` with the library's
+  defaults and choices. The CLI used to run every impact as a centred
+  hemisphere on a simply supported panel and fe3d at `MeshParams()`. A
+  `ValueError` raised by the run (e.g. a `--location` on or outside the
+  panel edge) is a one-line error (exit 1), not a traceback.
 - CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
   `pip-audit` on the installed runtime + dev dependencies on every PR,
   on pushes to main and weekly; any known vulnerability fails it.
@@ -224,7 +276,10 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - Validation harness: case fields `boundary`, `impactor_shape`,
   `measured_pristine_MPa`, `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and
   `impact_boundary`; `"gate": false` with a `gate_note` for a known miss;
-  `--dataset` takes several names. `validation/README.md` and
+  `--dataset` takes several names; `--measured` runs every
+  `"kind": "measured"` dataset, so CI's semi-analytical gate and the
+  smoke tests pick up a new measured dataset from its file alone (#178).
+  `validation/README.md` and
   `validation/reference_data.json` list the open datasets found by a
   literature survey, replacing the v0.2.0 roadmap.
 - `bvidfe.failure.laminate_strength.unnotched_strength`, and in
@@ -240,9 +295,48 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   the quickstart and the API page. CI also checks the JSON schemas against
   the dataclasses (`scripts/generate_schemas.py --check`), and
   `tests/test_package.py` the four version strings against each other.
+- `bvidfe.impact.mapping.SHAPE_DPA_FACTOR`, `DIAMETER_DPA_EXPONENT` and
+  `DIAMETER_REF_MM`, public names for the impactor-shape and -diameter
+  damage-area corrections (the underscore names remain as aliases). The
+  app's impactor help is formatted from them and the `ImpactorGeometry`
+  docstring names them instead of quoting values; both had quoted a stale
+  cone factor (1.3x and 1.5x; it is 1.9x) (#174).
 
 ### Changed
 
+- **CLI ranges match the API (#169).** `--loading` defaults to
+  `compression` (it was required); `--layup` takes any finite ply angle,
+  as `AnalysisConfig` does (`135` was rejected; angles are used modulo
+  180 deg); `--energy 0` runs, like `ImpactEvent(energy_J=0)`, and gives
+  no damage and a knockdown of 1. Options that would have no effect are
+  usage errors (exit 2): `--mass`, `--impactor-diameter`,
+  `--impactor-shape` or `--location` with `--cscan`, and
+  `--in-plane-size` / `--elements-per-ply` without `fe3d` in `--tier`.
+  The Streamlit app's layup field takes any finite angle too (it
+  rejected angles outside [-90, 90]).
+- **fe3d's out-of-plane damage factor takes the two plies bounding a
+  delaminated interface at any through-thickness refinement (#167).** It
+  was set on the elements whose z-extent reached the interface; the
+  interface lies on an element face, so that was one element layer on
+  each side, two plies at `elements_per_ply = 1` but one ply's thickness
+  at 2 (0.304 and 0.152 mm on 8-ply QI), a softened volume that halved
+  with each refinement. It is now every element layer of plies `i` and
+  `i + 1` for interface `i`. At the default `elements_per_ply = 1` the
+  selected elements are the same (checked element by element on the
+  three calibration coupons), so default-mesh results, the calibration
+  coupons and `DAMAGE_ZONE_INPLANE_FACTOR` are unchanged. At 2 elements
+  per ply it moves results by about 1% (4-ply `[0/90]2` 20 x 10 mm test
+  panel: CAI knockdown 0.3261 -> 0.3323, TAI 0.964 -> 0.961). Taking only
+  the element layer above the interface instead was measured and
+  rejected: it would move the default-mesh results by up to 1.1% (8-ply
+  QI IM7/8552 CAI at 15 / 30 J, 5 mm mesh: 0.2556 -> 0.2529, 0.2246 ->
+  0.2221; TAI at 5 J 0.834 -> 0.826; NCAMP coupon -0.7%, Lovejoy & Scotti
+  QI +0.3%) and still halve the softened thickness with refinement.
+- **fe3d CAI notes are computed once (#167).** `fe3d_cai_buckling` now
+  returns the whole-panel buckling note (it computed the panel buckling
+  stress already), so `BvidAnalysis` no longer recomputes
+  `panel_buckling_load` for it, nor `weakest_sublaminate_growth` (see
+  `fe3d_cai_channels` under *Fixed*, #166).
 - **fe3d solves ~9x faster in ~6x less memory.** `solve_linear_static`
   eliminates the constrained DOFs instead of adding a 1e10 penalty and
   calling `spsolve` (SuperLU, COLAMD), and solves the reduced system by
@@ -313,9 +407,83 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - **Streamlit app** uses `width="stretch"` / `width="content"` in place of
   the deprecated `use_container_width`, so it no longer logs a
   deprecation warning for every button, table and chart.
+- **CI runs each commit once and in less time (#176).** The test workflow
+  runs on pull requests and on pushes to `main` only (a branch commit used
+  to run twice), cancels a superseded run, has a read-only token and
+  caches pip downloads. Lint, the JSON-schema check and the coverage
+  artifact run in the ubuntu / Python 3.12 cell instead of all nine;
+  pytest still runs on every OS and Python version. The validation job no
+  longer waits for the test matrix. The docs workflow runs
+  `mkdocs build --strict` on pull requests too (deploying only from
+  `main`), and its Pages permissions are limited to the deploy job.
+- **Warnings fail the test suite (#176).** `filterwarnings = ["error"]`
+  (with streamlit's own deprecations ignored); the tests that exercise a
+  warning path now assert it with `pytest.warns` (the `whitney_nuismer_tai`
+  isotropic-`Kt_inf` fallback, `DPACapClipWarning`, the impact-window
+  footprint warning and `FiberBreakCoreUnmeshedWarning`).
+- **Pinned formatters (#176).** The dev extra pins `ruff==0.17.3` and
+  `black==26.10.1`, the same revs as `.pre-commit-config.yaml` (which
+  pinned black 25.1.0 and ruff 0.9.10), so pre-commit and CI format alike.
+- **Type checking (#177).** mypy (`mypy>=1.10,<2`, with `pandas-stubs`
+  and `types-shapely`) is in the dev extra, configured under `[tool.mypy]`
+  (`src/bvidfe`, targeting the interpreter it runs on), run in CI and as a
+  pre-commit hook, and
+  passes. The fixes are annotations only: the scalar failure-criterion
+  registry's signature, `float | Sequence[float]` ply-thickness narrowing
+  and index-array names in `fe_mesh`, the geometry-table cache type, and
+  `Hex8Element.effective_stress_divisors`, now a declared attribute
+  (default `None`) instead of one set on some instances only.
+- **NCR / MRB disposition logic moved out of `app.py` (#172)** into the
+  new `bvidfe.report.ncr`: `recommend_disposition(result_dict,
+  dent_threshold_mm=BVID_DENT_THRESHOLD_MM)` and `build_ncr(form, cfg,
+  result_dict, rec, *, generated_utc=None)` (an optional timestamp makes
+  the document reproducible), with unit tests in `tests/report/`. The
+  knockdown bands are module constants, `KD_USE_AS_IS` = 0.97,
+  `KD_SUBSTANTIATE` = 0.85 and `KD_REPAIR` = 0.70, documented as
+  placeholder engineering-judgement bands, not values from a cited
+  standard. The Export NCR tab's output is unchanged.
+- **The README is a short landing page (#175).** It is also the PyPI long
+  description; it went from 399 lines / 43 KB to about 120 lines: the
+  pitch, the tier table, installation, one CLI and one Python example,
+  the validation table and five limitations, with absolute links. The
+  tier summaries (the fe3d one split into mesh, damage zone, TAI hole,
+  failure and buckling), the cross-tier knockdown numbers, the damage
+  severity heatmap and the README-only limitations moved to
+  `docs/physics_models.md`; the C-scan, sweep and `--quick-json` examples
+  to `docs/quickstart.md` (still run by `tests/test_docs_examples.py`);
+  the feature list to `docs/index.md`, which no longer repeats the
+  README head. Two stale README numbers were not carried over: the
+  example's delamination growth stress is about 244 MPa at interface 5
+  (not 306.9 MPa at interface 11), and the Lovejoy & Scotti hard
+  laminate's growth stress is 227–228 MPa, as `docs/physics_models.md`
+  has it (not 252 MPa).
 
 ### Fixed
 
+- **A CG breakdown in the fe3d solver no longer leaks a numpy
+  `RuntimeWarning`.** When the preconditioned residual product `r . M r`
+  is 0, scipy's CG divides 0 by 0 ("invalid value encountered in scalar
+  divide"; seen with the ILU on macOS / Python 3.12). The solver already
+  rejected the non-finite result and fell back to GMRES and then the
+  direct solve, so the answer was right, but the warning reached the user
+  (and, with `filterwarnings = ["error"]`, failed
+  `test_external_force_with_elimination` on that CI cell). The Krylov
+  solves now run under `np.errstate` for those cases.
+- **Results JSON damage could not be re-run (#170).**
+  `AnalysisResults.to_dict()["damage"]` was a hand-rolled copy of the
+  C-scan layout without `schema_version`, so feeding it (or the CLI's or
+  the app's results JSON `.damage`) to `--cscan` / `damage_state_from_dict`
+  failed with `missing required field: schema_version`. It is now
+  `damage_state_to_dict`. `docs/schemas/` lists the optional
+  `schema_version` of `DamageState`. The app's damage-severity heatmap
+  takes its grid from `fe_mesh.element_grid_shape` instead of recomputing
+  it. The app's config dict (its run cache key, read with
+  `AnalysisConfig.from_dict`) also wrote a C-scan damage block by hand
+  without `schema_version`; it is now `damage_state_to_dict` too.
+- **CLI (#169):** `--mass` and `--impactor-diameter` were silently
+  ignored with `--cscan` (now an error, see *Changed*), and the
+  `--quick` / `--quick-json` help referred to a `--json` option that does
+  not exist.
 - **Sublaminate buckling ignored the delamination orientation (#165).**
   `sublaminate_buckling_load` took the enclosing rectangle as
   `2 * major_mm` along the load and `2 * minor_mm` across it whatever the
@@ -353,6 +521,35 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   150 x 100 mm panel at 5 J on a 10 mm mesh: 0.490 -> 0.469, the growth
   stress now below first-ply failure; 15 and 30 J unchanged; not
   re-measured further here).
+- **fe3d CAI rescaled the delamination growth stress (#166).**
+  `BvidAnalysis` reported `σ₀ × min(1, min(σ_growth, FPF_damaged) /
+  FPF_undamaged)`: the closed-form growth stress, already a far-field
+  stress on the pristine scale, was divided by fe3d's undamaged LaRC05
+  first-ply failure along with the damaged one. Where growth governs fe3d
+  then came out above `semi_analytical`'s growth bound for the same
+  growth stress, by up to `σ₀ / FPF_undamaged`. It is now
+  `min(σ_growth, σ₀ × min(1, FPF_damaged / FPF_undamaged))`, and a note
+  says which channel governs. The new `fe_tier.fe3d_cai_channels` returns
+  the growth record and the first-ply-failure stress, which
+  `BvidAnalysis` reuses instead of recomputing the growth for its notes;
+  `fe3d_cai` keeps its signature. The undamaged first-ply failure is not
+  exactly `σ₀` for any shipped layup (it is a 3D solve with free edges):
+  on 150 x 100 mm panels at a 5 mm mesh it is 0.997 / 0.992 / 1.000 of
+  `σ₀` for 8-ply QI, 16-ply QI and `[0/90]2s` IM7/8552 and 0.837 for
+  AS4/3501-6 QI, whose 90 deg plies fail in matrix compression first.
+  First-ply-failure-governed results are unchanged bit for bit; where
+  growth governs, fe3d now gives the semi-analytical growth stress: 8-ply
+  QI IM7/8552 at 5 J (10 mm mesh) 0.4692 -> 0.4687, AS4/3501-6 QI 0.595 ->
+  0.577, `[45/-45/90]s` IM7/8552 0.552 -> 0.433 (282.9 -> 221.9 MPa;
+  `FPF_undamaged / σ₀` = 0.64), `[±15]2s` 0.396 -> 0.313. `[±45]2s` is
+  first-ply-failure governed and unchanged. Of the three coupons the
+  damage-zone factor is fitted to, the first Lovejoy & Scotti hard
+  laminate goes from first-ply failure, 236.4 MPa (+0.3%), to its growth
+  stress, 227.5 MPa (-3.5% against 235.7 MPa measured); the first NCAMP
+  and Lovejoy & Scotti QI coupons are unchanged (-20.6%, +1.2%).
+  `DAMAGE_ZONE_INPLANE_FACTOR` is not refitted: re-measured, 0.15 still
+  has the lowest mean error of the factors tried (8.4%, against 13.8% /
+  9.0% / 9.9% for 0.13 / 0.17 / 0.20; it was 7.4%).
 - **fe3d TAI dropped a measured fibre-break core smaller than an element,
   and the hole with it (#164).** A C-scan's `fiber_break_radius_mm`
   switched fe3d TAI's fibre-damage hole off in favour of the meshed core,
@@ -626,8 +823,9 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   calibration coupons' areas (2,800-6,500 mm^2) are resolved at 5 mm.
 - **Inputs that gave silent or deep errors**: NaN/inf geometry, ply
   thickness and angles; `ImpactEvent(location_xy_mm=[0, 0])` from JSON
-  (now a tuple, still the panel centre); a delamination outside the panel,
-  counted in the damage area but missed by the fe3d mesh (now
+  (still the panel centre, now deprecated for `None`); a delamination
+  outside the panel, counted in the damage area but missed by the fe3d
+  mesh (now
   `DamageOutsidePanelWarning`).
 - **CLI errors printed tracebacks** (malformed C-scan, invalid config,
   `FE3DSizeError`, a closed pipe); they are one-line errors with a nonzero
@@ -698,6 +896,44 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   library presets construct unchanged. `DamageState(ellipse)`, an
   ellipse not in a list, raises a `ValueError` instead of
   `TypeError: 'DelaminationEllipse' object is not iterable`.
+- **Streamlit app: share links and Expert-mode state (#171).**
+  - A link value that is not a number, not finite, outside its widget's
+    bounds (`?E=500`, `?lx=5`), off the panel (`x0`, `y0`) or not one of a
+    choice widget's options is dropped and named in one warning; it used
+    to be replaced silently by the widget's minimum (0.1 J, 10 mm), and
+    `?E=nan` turned the page into a `ValueError` traceback. The sidebar's
+    `ImpactEvent` / `ImpactorGeometry` construction reports a rejection
+    as an error instead of raising.
+  - The Expert-mode inputs (ply thickness, boundary, impactor shape and
+    mass, impact location) keep their values when Expert mode is toggled
+    off and on, still apply with it off (a caption under the toggle lists
+    any that differ from the defaults), and are carried by the share link
+    (`tp`, `bc`, `sh`, `m`, and `x0`, `y0` for an off-centre impact) and
+    reset by the presets.
+  - Impact location: a **Centre of panel** checkbox, and X / Y inputs
+    measured from the panel corner and bounded to the panel, replace the
+    `(0, 0)`-means-centre inputs, so an off-centre point such as
+    (75, 10) mm can be entered. A centre impact passes
+    `location_xy_mm=None`; an off-centre point at the corner `(0, 0)`,
+    which the library still reads as its deprecated centre sentinel, is
+    an error instead of a silent centre run. When the onset preview cannot
+    be computed (e.g. a point on the panel edge) a caption says why instead
+    of the preview disappearing.
+  - Knockdown Curve tab: the energy grid runs from 0.2 E to
+    max(2 E, 0.2 E + 1 J), ascending (it descended below 1.25 J), and a
+    tier selector defaults to the analysed tier instead of always
+    `empirical`, with the Sweep tab's fe3d run-time warning and DOF cap.
+  - C-scan dent depth and fiber-break radius replace the file's values
+    when **Override file value** is ticked, 0 included; they used to apply
+    only when > 0, so a file's non-zero dent could not be set to 0.
+- Documentation that contradicted the code (#174): `examples/README.md`
+  no longer calls fe3d TAI far more conservative than the closed form,
+  the `AnalysisResults.warnings` docstring no longer says it is always
+  empty, and the semi-analytical aspect-ratio clip and the validation
+  harness's fe3d gate comment and `--max-cases` help describe the current
+  model. `DEPLOYMENT_STREAMLIT.md` is merged into `docs/deployment.md`
+  (the root file is a pointer), and the April 2026 plan and spec moved
+  from `docs/superpowers/` to `docs/archive/`.
 
 ### Removed
 
@@ -708,18 +944,31 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
 - `streamlit` from the core dependencies (now the `app` extra).
 - Leftovers of the removed PyQt6 GUI: `scripts/visual_matrix.py` and
   `docs/BUILD.md`.
+- The unused `_ply_thickness_from_json` helper in `app.py`.
+- Code only tests called (#167): `DamageState.per_interface_area` (sum
+  `e.area_mm2` over `damage.delaminations` by `e.interface_index`
+  instead), `bvidfe.failure.tsai_wu.tsai_wu_strength_uniaxial` (the
+  uniaxial Tsai-Wu index is 1 at the ply strength in that direction;
+  `tsai_wu_index` gives it), and the private scalar duplicates
+  `shape_templates._aspect_ratio` / `_orientation_deg` / `_relative_size`
+  (`_template_arrays` is the implementation) and
+  `fe_mesh._point_in_ellipse` (`_points_in_ellipse`). The fe3d test
+  helpers `QI8` and `impact_cfg` moved to `tests/analysis/_fe3d_fixtures.py`
+  (one test module imported them from another through `sys.path`).
 
 ## [0.2.0] - 2026-05-21
 
-First tagged release after `0.1.0`. Major themes: a fully wired 3-D
-hex-element FE tier (`fe3d`) with eigenvalue buckling and FPF coupons,
+First version-bumped entry after `0.1.0`; never published. It was not
+tagged (only the `v0.2.0-dev1` and `v0.2.0-dev2` pre-release tags exist)
+and never reached PyPI, so `0.3.0` is the first PyPI release. Major
+themes: a fully wired 3-D hex-element FE tier (`fe3d`) with eigenvalue buckling and FPF coupons,
 per-ply thickness throughout the stack, a Streamlit GUI, a validation
 harness exercised in CI (against a synthetic self-check dataset only;
 the published Soutis / Caprino / Sanchez-Saez / NASA datasets are not
 yet digitized, see `validation/README.md`), a `SemiAnalyticalResult` dataclass on
 the semi-analytical path, vectorised LaRC05/Tsai-Wu failure-criterion
 batches, refreshed README/ARCHITECTURE docs, and the OIDC Trusted
-Publishing workflow that produced this release (issue #116). See the
+Publishing workflow (issue #116), which had not yet run. See the
 detailed entries below.
 
 ### Changed
@@ -1428,3 +1677,6 @@ Initial release.
 - `fe3d` CAI uses first-ply-failure on the damaged mesh, not a buckling eigenvalue solve
 - No validated datasets yet (Soutis, Caprino, Sanchez-Saez, NASA digitization pending)
 - PyInstaller standalone packaging not yet built
+
+[Unreleased]: https://github.com/elhajjar1/BVID-FE/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/elhajjar1/BVID-FE/releases/tag/v0.3.0

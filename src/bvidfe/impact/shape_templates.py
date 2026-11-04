@@ -78,23 +78,6 @@ def _axial_angle_deg(theta_deg):
     return 90.0 - np.mod(90.0 - np.asarray(theta_deg, dtype=float), 180.0)
 
 
-def _aspect_ratio(delta_theta_deg: float) -> float:
-    return min(4.0, max(1.0, 1.0 + 0.025 * float(_ply_mismatch_deg(0.0, delta_theta_deg))))
-
-
-def _orientation_deg(impact_side_ply_deg: float, back_side_ply_deg: float) -> float:
-    """Ellipse orientation of the interface between the two plies: the fibre
-    angle of the back-face-side ply (Liu 1988)."""
-    del impact_side_ply_deg  # the impact-face-side ply does not set the axis
-    return float(_axial_angle_deg(back_side_ply_deg))
-
-
-def _relative_size(interface_index: int, n_interfaces: int) -> float:
-    """Weight grows from 0.3 near impact face to 1.0 near back face."""
-    z = (interface_index + 1) / n_interfaces  # 0 < z <= 1
-    return 0.3 + 0.7 * z
-
-
 def _template_arrays(
     layup_deg: List[float], n_interfaces: int
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:

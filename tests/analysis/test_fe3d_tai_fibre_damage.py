@@ -26,9 +26,8 @@ tension, which would count the hole's broken fibres twice.
 
 from __future__ import annotations
 
+import contextlib
 import math
-import sys
-from pathlib import Path
 
 import dataclasses
 
@@ -53,19 +52,17 @@ from bvidfe.failure.soutis_openhole import (
     tai_hole_radius_mm,
 )
 from bvidfe.impact.mapping import ImpactEvent, impact_to_damage
-
-sys.path.insert(0, str(Path(__file__).parent))
-from test_fe3d_inplane_damage import _QI8, _impact_cfg  # noqa: E402
+from tests.analysis._fe3d_fixtures import QI8, impact_cfg
 
 _IM7 = MATERIAL_LIBRARY["IM7/8552"]
-_LAM = Laminate(_IM7, _QI8, 0.152)
+_LAM = Laminate(_IM7, QI8, 0.152)
 _PANEL = PanelGeometry(150.0, 100.0)
 
 
 def _cfg(loading: str, energy_J: float, size_mm: float = 10.0, tier: str = "fe3d"):
     return AnalysisConfig(
         material="IM7/8552",
-        layup_deg=_QI8,
+        layup_deg=QI8,
         ply_thickness_mm=0.152,
         panel=_PANEL,
         loading=loading,
@@ -96,13 +93,13 @@ def test_hole_elements_are_those_under_the_hole():
     R = tai_hole_radius_mm(_IM7, damage, 100.0)
     assert 1.0 < R < 2.5
     hole = fibre_damage_hole_elements(mesh, damage, R)
-    assert hole.sum() == 4 * len(_QI8)
+    assert hole.sum() == 4 * len(QI8)
     centroids = np.array([mesh.node_coords[c].mean(axis=0) for c in mesh.element_connectivity])
     np.testing.assert_allclose(np.abs(centroids[hole, :2] - (75.0, 50.0)), 2.5)
-    assert set(mesh.ply_indices[hole]) == set(range(len(_QI8)))
+    assert set(mesh.ply_indices[hole]) == set(range(len(QI8)))
     assert not fibre_damage_hole_elements(mesh, damage, 0.0).any()
     # A hole larger than an element reaches the next ring.
-    assert fibre_damage_hole_elements(mesh, damage, 6.0).sum() > 4 * len(_QI8)
+    assert fibre_damage_hole_elements(mesh, damage, 6.0).sum() > 4 * len(QI8)
 
 
 def test_tai_notch_is_the_closed_form_hole():
@@ -129,7 +126,7 @@ def test_explicit_fibre_break_core_is_the_hole_not_a_softened_core():
     mesh = build_fe_mesh(cfg, damage)
     assert np.all(mesh.fiber_tension_factors == 1.0)
     core = mesh.in_plane_damage_factors == DAMAGE_FIBER_BREAK_INPLANE_FACTOR
-    assert core.any() and set(mesh.ply_indices[core]) == set(range(len(_QI8)))
+    assert core.any() and set(mesh.ply_indices[core]) == set(range(len(QI8)))
     R, kd = ft.tai_fibre_damage_hole(cfg, damage, _LAM)
     assert (
         R == 6.0 > tai_hole_radius_mm(_IM7, dataclasses.replace(damage, fiber_break_radius_mm=0.0))
@@ -171,7 +168,8 @@ def test_sub_element_fibre_break_core_lowers_fe3d_tai_on_the_default_mesh():
 
 
 def test_unmeshed_core_is_recorded_in_the_results():
-    r = BvidAnalysis(_cscan_cfg("tension", _cscan(15.0, 1.5))).run()
+    with pytest.warns(FiberBreakCoreUnmeshedWarning):
+        r = BvidAnalysis(_cscan_cfg("tension", _cscan(15.0, 1.5))).run()
     assert any(w.startswith("FiberBreakCoreUnmeshedWarning") for w in r.warnings), r.warnings
     assert any(n.startswith("fe3d TAI: fibre damage") for n in r.notes), r.notes
 
@@ -216,9 +214,12 @@ def test_fe3d_tai_falls_with_energy_with_the_closed_form():
 # value is recaptured for #165: fe3d CAI takes min(growth, FPF) and, with
 # the sublaminate buckling rectangle following the ellipse orientation, the
 # growth stress at 5 J fell from 300.5 to 281.8 MPa and now governs there
-# (0.490 -> 0.469); 15 and 30 J stay at first-ply failure.
+# (0.490 -> 0.469); 15 and 30 J stay at first-ply failure. Recaptured for
+# #166: the growth stress is no longer rescaled by sigma0 / FPF_undamaged
+# (601.3 / 600.7 MPa here), so at 5 J the knockdown is the semi_analytical
+# one, 281.8 / 601.3 (0.46916 -> 0.46868); 15 and 30 J are unchanged.
 _CAI_KNOCKDOWN_BEFORE = {
-    5.0: 0.4691595567346301,
+    5.0: 0.46868164181012084,
     15.0: 0.301015353370238,
     30.0: 0.23529319659770684,
 }
@@ -226,7 +227,7 @@ _CAI_KNOCKDOWN_BEFORE = {
 
 @pytest.mark.parametrize("energy_J", [5.0, 15.0, 30.0])
 def test_fe3d_cai_is_unchanged_by_the_tai_fibre_damage(energy_J):
-    r = BvidAnalysis(_impact_cfg("compression", energy_J)).run()
+    r = BvidAnalysis(impact_cfg("compression", energy_J)).run()
     assert r.knockdown == pytest.approx(_CAI_KNOCKDOWN_BEFORE[energy_J], rel=1e-12)
 
 
@@ -238,7 +239,10 @@ _CAI_CORE_KNOCKDOWN_BEFORE = {1.5: 0.301015353370238, 8.0: 0.2884425155093483}
 @pytest.mark.parametrize("fiber_break_radius_mm", [1.5, 8.0])
 def test_fe3d_cai_with_a_fibre_break_core_is_unchanged(fiber_break_radius_mm):
     cfg = _cscan_cfg("compression", _cscan(15.0, fiber_break_radius_mm))
-    r = BvidAnalysis(cfg).run()
+    # The 1.5 mm core holds no element centre on this mesh.
+    unmeshed = fiber_break_radius_mm == 1.5
+    with pytest.warns(FiberBreakCoreUnmeshedWarning) if unmeshed else contextlib.nullcontext():
+        r = BvidAnalysis(cfg).run()
     expected = _CAI_CORE_KNOCKDOWN_BEFORE[fiber_break_radius_mm]
     assert r.knockdown == pytest.approx(expected, rel=1e-12)
 

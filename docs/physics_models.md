@@ -10,6 +10,46 @@ Units throughout: lengths in mm, stresses and moduli in MPa, toughness in
 N/mm, impact energy in J (multiplied by 10³ to get N·mm where it meets a
 toughness).
 
+<!-- Tier summaries: moved from README.md (issue #175). The sections below give the full derivations. -->
+
+## Tier summaries
+
+The three tiers in brief; [Empirical tier](#empirical-tier),
+[Semi-analytical tier](#semi-analytical-tier) and [3D FE tier](#3d-fe-tier)
+below give the details.
+
+### Empirical tier in brief
+
+For CAI, the Soutis knockdown (after Soutis & Curtis 1996) scales the pristine strength by `1 / (1 + k_s·(DPA/A_ref)^m)`, where DPA is the projected damage area and `A_ref` = 15,000 mm² is the area of the 150 × 100 mm ASTM D7137 coupon (`SOUTIS_REFERENCE_AREA_MM2`). The reference area is fixed because impact damage is a local notch: it used to be the analysed panel's area, which sent the knockdown to 1 as the panel grew. The material constants `soutis_k_s` and `soutis_m` default to 4.8 and 0.5 for every preset; `k_s` = 4.8 is fitted to the two gated measured CAI datasets (see [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md)). For TAI, the fibre damage is treated as an equivalent circular hole whose diameter is `tai_notch_fraction` (0.05) times the width of the delamination footprint across the load (delaminations cut no fibres, so the hole is far smaller than the footprint). The Whitney-Nuismer point-stress criterion gives its notched strength, with the orthotropic stress concentration `Kt_inf` from Lekhnitskii, a material characteristic distance `wn_d0_mm` (1 mm) and Tan's (1988) orthotropic finite-width correction for the panel width. `tai_notch_fraction` is fitted to one measured TAI condition (in-sample). On 150 × 100 mm IM7/8552 panels the TAI knockdown is 0.82 / 0.77 / 0.68 at 10 / 15 / 30 J on 8-ply QI (CAI 0.45 / 0.40 / 0.31) and 0.84 / 0.80 / 0.73 on [0/90]2s (CAI 0.45 / 0.39 / 0.31). Both models are closed-form.
+
+### Semi-analytical tier in brief
+
+At each delaminated interface the thinner sublaminate over the largest delamination is treated as a plate over the delamination's enclosing rectangle, and a Rayleigh-Ritz closed form gives its buckling load. Buckling alone does not fail the laminate (a one-ply sublaminate over a BVID-sized delamination buckles at a few MPa, and the one at the governing interface typically at 70-370 MPa on IM7/8552 150×100 mm panels at 5-30 J); the CAI strength is the far-field stress at which the buckled sublaminate grows its delamination, from the thin-film energy release rate `G = h/(2E_f)·(σ−σ_c)(σ+3σ_c)` (Chai, Babcock & Knauss 1981; Hutchinson & Suo 1992) set equal to a Benzeggagh-Kenane mixed-mode toughness (`G_Ic`/`G_IIc` at a 52.1° phase angle, η = 2; 0.48 N/mm for IM7/8552). The weakest interface governs, and the result is capped by the Soutis empirical strength. Whitney-Nuismer is retained for TAI. The governing interface is `AnalysisResults.critical_sublaminate` and its buckling load (N/mm) is in `AnalysisResults.buckling_eigenvalues`.
+
+### 3D FE tier in brief
+
+#### Mesh and delaminated interfaces
+
+A structured hexahedral mesh is built for the damaged laminate. Delaminated interfaces are approximated by a **component-wise stiffness-reduction model** (true cohesive surfaces deferred to a future release): elements at a delaminated interface carry an out-of-plane factor (`DAMAGE_OOP_FACTOR ≈ 0.05`) that scales the through-thickness and transverse-shear stiffness.
+
+#### Damage zone
+
+The damage zone as a whole (every ply under the projected delamination footprint, where matrix cracks and fibre damage accompany the delaminations) is a soft inclusion with in-plane stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.15, fitted to three measured CAI coupons; see [Limitations](#limitations); Soutis & Curtis 1996). The delaminations, and so the zone, are kept inside the impacted panel (`impact_panel`, else `panel`; for an ASTM D7136 coupon the 125 × 75 mm support window): each template ellipse is shrunk, aspect ratio kept, until it fits, and the union is re-solved for the same area. Elements straddling the zone's edge take the factor weighted by their area fraction inside it.
+
+#### TAI fibre-damage hole and fibre-break core
+
+In tension the broken fibres under the impactor are the closed-form tiers' equivalent hole (`tai_hole_radius_mm`, 1–4 mm across at BVID energies), too small for the mesh, so its Whitney-Nuismer knockdown is applied as a stress concentration to the elements under it. The optional fiber-break core under the impact site (`fiber_break_eta`, off in every preset, or `DamageState.fiber_break_radius_mm`) reduces in-plane stiffness the same way; in tension its broken fibres are part of the hole, whose radius is at least the core's, and a core smaller than an element (none at 5 mm below a 3.5 mm radius) is reported in `AnalysisResults.warnings`.
+
+#### Failure
+
+First-ply failure is evaluated on stress rotated into each ply's material frame, using LaRC05 (CAI) and Tsai-Wu (TAI), with the failure index averaged over a 2.5 mm disk within each element layer, each element weighted by the fraction of its area inside the disk (`FPF_AVERAGING_RADIUS_MM`; average-stress criterion, Whitney & Nuismer 1974), so the result converges as the mesh is refined. A damage zone only a few elements across is under-resolved at the default 5 mm mesh (see [Limitations](#limitations)). Damage-zone elements fail at the strain intact material would (strain equivalence; Lemaitre 1992): the criterion sees their effective stress, the in-plane stress the pristine ply would carry at the same strain, so their strength drops with their stiffness. The failure stress is the reaction force on the loaded edge at failure over the gross section, so a softened panel is not credited with load it cannot carry. For CAI, the lower of first-ply failure and the semi-analytical delamination growth stress governs.
+
+#### What buckling does and does not do
+
+Buckling onset (whole panel or sublaminate, from the Navier sine-basis Rayleigh-Ritz closed form, issue #129 — the 3D K_g eigensolve previously used here was retired because 3D Hex on thin laminates locks too aggressively at affordable mesh sizes) is reported in `AnalysisResults.buckling_eigenvalues` but does not set the strength. Whole-panel buckling is left out of the knockdown because CAI fixtures carry anti-buckling guides; its stress is recorded in `AnalysisResults.notes`.
+
+<!-- End of tier summaries moved from README.md. -->
+
 ## Impact-to-damage mapping
 
 When an `AnalysisConfig` carries an `ImpactEvent` rather than a measured
@@ -554,9 +594,10 @@ Delaminated interfaces are approximated by a **component-wise
 stiffness-reduction model** (true cohesive surfaces deferred to a future
 release):
 
-- Elements that touch a delaminated interface plane (the element layers
-  on both sides) and whose centroid lies inside that delamination's ellipse carry
-  an out-of-plane factor `DAMAGE_OOP_FACTOR = 0.05`. It scales the
+- The elements of the two plies bounding a delaminated interface (every
+  element layer of both, so the softened thickness is two plies at any
+  `elements_per_ply`) whose centroid lies inside that delamination's
+  ellipse carry an out-of-plane factor `DAMAGE_OOP_FACTOR = 0.05`. It scales the
   through-thickness and transverse-shear stiffness and the in-plane /
   out-of-plane Poisson coupling.
 - The damage zone as a whole (every ply under the union of the
@@ -693,8 +734,9 @@ expose a criterion choice, and an unknown criterion name raises
   over the gross section `Ly · h`, so a softened panel is not credited with
   load it cannot carry.
 
-For CAI, the lower of first-ply failure and the semi-analytical delamination
-growth stress governs. Buckling onset is reported in
+For CAI, the lower of first-ply failure (normalised by an undamaged fe3d
+run, see [Knockdown definition](#knockdown-definition-and-cross-tier-comparability)) and the semi-analytical
+delamination growth stress governs; `AnalysisResults.notes` says which. Buckling onset is reported in
 `AnalysisResults.buckling_eigenvalues` (MPa) but does not set the strength.
 It is the lower of whole-panel buckling (the Navier closed form above
 applied to the full laminate over `Lx × Ly`) and sublaminate buckling at
@@ -799,13 +841,20 @@ cannot move these in opposite directions.
 | --- | --- | --- |
 | `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point stress on a hole of diameter `tai_notch_fraction` × footprint width, finite-width corrected |
 | `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to the empirical TAI model (identical to `empirical`) |
-| `fe3d` | `σ₀ × min(1, D/U)` with `D`, `U` = `min(σ_growth, FPF_LaRC05)` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged (fibre-damage hole as a notch at the impact site) / undamaged |
+| `fe3d` | `min(σ_growth, σ₀ × min(1, D/U))` with `D`, `U` = `FPF_LaRC05` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged (fibre-damage hole as a notch at the impact site) / undamaged |
 
-fe3d's own failure stresses are not the same kind of quantity as σ₀, so
-fe3d is normalised by an undamaged fe3d run of the same panel (a second FE
-solve; with no delaminations the undamaged growth stress is infinite, so
-`U` is first-ply failure). The raw stresses are recorded in
-`AnalysisResults.notes`.
+fe3d's first-ply-failure stress is not the same kind of quantity as σ₀,
+so it is normalised by an undamaged fe3d run of the same panel (a second
+FE solve). The delamination growth stress is the closed-form far-field
+stress of `semi_analytical` and is compared with the normalised first-ply
+failure as it is. Until issue #166 it was normalised too
+(`σ₀ × min(1, min(σ_growth, D) / U)`), which put fe3d above
+`semi_analytical` wherever growth governs, by up to σ₀ / U: 1.001 on
+an 8-ply QI IM7/8552 panel, where fibre compression sets both, but 1.17
+on AS4/3501-6 QI and 1.57 on a [45/−45/90]s IM7/8552 laminate (10 mm
+mesh), whose undamaged LaRC05 first-ply failure is a matrix mode well
+below the ply-discount σ₀. The raw stresses, and which channel governs,
+are recorded in `AnalysisResults.notes`.
 
 **What this means for users:**
 
@@ -820,9 +869,10 @@ solve; with no delaminations the undamaged growth stress is infinite, so
       at 5 / 15 / 30 J: 0.834 / 0.714 / 0.629 against 0.892 / 0.771 /
       0.684; see [Limitations](#limitations)).
     - For **CAI**, `semi_analytical ≤ empirical` always (the growth stress
-      only lowers the residual). `fe3d` divides by its own undamaged
-      strength (first-ply failure, typically below σ₀), so for the same
-      growth stress its knockdown is higher than `semi_analytical`'s.
+      only lowers the residual). `fe3d`'s first-ply failure is divided by
+      its own undamaged first-ply failure (typically below σ₀), but its
+      growth stress is not, so where growth governs `fe3d` gives the
+      `semi_analytical` growth bound itself.
 - For **energy-scaling studies**, prefer `empirical` (Soutis scales with
   DPA). `fe3d` CAI also falls with damage area, through its softened
   damage zone (16-ply QI at 5 / 15 / 30 J: 0.430 / 0.302 / 0.263, see
@@ -831,6 +881,22 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   governs `semi_analytical`, that tier is flatter in energy: the growth
   stress changes little with delamination size once the sublaminate
   buckles well below it.
+
+<!-- Cross-tier numbers: moved from README.md (issue #175). -->
+
+### Cross-tier numbers and silent fallbacks
+
+fe3d's normalisation by its own undamaged run means an undamaged panel
+gives a knockdown of exactly 1.0 in every tier, and fe3d runs its solve
+twice. In numbers:
+
+- For **CAI**, `semi_analytical ≤ empirical` always (the growth stress only lowers the residual). `fe3d` divides by its own undamaged strength, which is below σ₀ (8-ply QI IM7/8552, 150×100 mm, 5 mm mesh: 599.3 vs 601.3 MPa in compression, 494.5 vs 753.2 MPa in tension; fe3d is first-ply failure, which CLT puts at 601.3 and 502.5 MPa). Only the first-ply failure is scaled by that ratio: where the delamination growth stress governs, `fe3d` gives the same strength as `semi_analytical`'s growth bound (issue #166).
+- For **energy-scaling studies**, prefer `empirical` (Soutis scales with DPA). `fe3d` CAI also falls with damage area, through its softened damage zone (16-ply QI: 0.430/0.302/0.263 at 5/15/30 J, against empirical 0.651/0.417/0.322), but its damage-zone stiffness is fitted to only three CAI coupons; fe3d TAI follows the closed-form TAI (see [Limitations](#limitations)). The delamination growth stress changes little with delamination size once the sublaminate buckles well below it, so where it governs the knockdown is flatter in energy. It governs `semi_analytical` mainly at low energy and on cross-ply laminates: on a 16-ply [0/45/-45/90]2s IM7/8552 200×150 mm panel at 5–10 J (0.500/0.458 against empirical 0.738/0.505; at 15/20 J the Soutis bound governs, 0.428/0.382), on 8-ply QI 150×100 mm panels at 2–5 J (0.469 against 0.546 at 5 J) and on 8-ply cross-ply 150×100 mm panels at 2–15 J (0.424/0.389/0.394 against 0.544/0.447/0.394 at 5/10/15 J). On 16- and 24-ply QI IM7/8552 150×100 mm panels it governs just above the onset energy (16-ply at 5 J: 0.557 against 0.651; 24-ply at 10 J: 0.512 against 0.538) and the Soutis bound from 10 J (16-ply) and 15 J (24-ply).
+- A few silent fallbacks affect interpretation:
+    - `fe3d` CAI ignores whole-panel buckling (CAI fixtures carry anti-buckling guides). A slender panel without guides can buckle well below the reported residual; the panel buckling stress is recorded in `AnalysisResults.notes`.
+    - DPA is globally capped at 80% of panel area (`src/bvidfe/impact/mapping.py`); above this damage threshold all three tiers saturate. The delaminations are also kept inside the impacted panel; on a 150×100 mm IM7/8552 panel that holds the area at about 11,500 mm² from about 110 J on symmetric quasi-isotropic laminates (with a `UserWarning`), before the cap.
+
+<!-- End of cross-tier numbers moved from README.md. -->
 
 ## Limitations
 
@@ -892,10 +958,13 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   damage-zone in-plane factor is uniform over the footprint. Its value,
   0.15, is fitted in-sample to three measured CAI coupons, with the
   delaminations kept inside the ASTM D7136 impact window: it puts the first
-  Lovejoy & Scotti IM7/8552 quasi-isotropic coupon and their first 40-ply
-  hard laminate 1.2% and 0.3% high and the first NCAMP AS4/8552 coupon
-  20.6% low, the lowest mean error (7.4%) of the factors tried (0.13 /
-  0.17 / 0.20 give 13.8% / 10.5% / 12.4%). The NCAMP coupon wants about
+  Lovejoy & Scotti IM7/8552 quasi-isotropic coupon 1.2% high, their first
+  40-ply hard laminate 3.5% low and the first NCAMP AS4/8552 coupon 20.6%
+  low, the lowest mean error (8.4%) of the factors tried (0.13 / 0.17 /
+  0.20 give 13.8% / 9.0% / 9.9%). From 0.15 up the hard laminate is set by
+  its delamination growth stress (227.5 MPa), which the factor does not
+  change; before issue #166 first-ply failure set it (0.3% high at 0.15,
+  mean error 7.4%). The NCAMP coupon wants about
   0.22 and the Lovejoy & Scotti coupons about 0.15, so
   no single factor fits both families within 5%; fe3d strengths are
   qualitative. (With the template before it took ply angles modulo 180°,
@@ -1034,6 +1103,22 @@ solve; with no delaminations the undamaged growth stress is infinite, so
 - `fe3d` CAI ignores whole-panel buckling (CAI fixtures carry anti-buckling
   guides). A slender panel without guides can buckle well below the
   reported residual.
+- **Calibration range.** `soutis_k_s` and the default `olsson_alpha` are calibrated on two CAI datasets (AS4/8552 and IM7/8552, 24- to 40-ply laminates impacted at 30–68 J): `soutis_k_s` on their strengths, `olsson_alpha` on Lovejoy & Scotti's C-scan areas. The predicted damage area is within 14% of every Lovejoy & Scotti C-scan (in-sample) and at a median 1.03× of Hasebe et al.'s, but on Hasebe et al.'s coupons the knockdown still misses the effect of layup. The AS4/3501-6, T700/2510 and T800/epoxy presets have no measured residual-strength comparison; candidate datasets are listed in [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
+- **The onset energy uses a single-term large-deflection plate law**, `P = k_b w + k_m w³`: one assumed mode per edge condition, the membrane coefficient for a central impact used at every impact point, and edges free to slide in-plane on a simply supported panel (held on a clamped one). It is 0.8 J on an 8-ply, 3.3 J on a 16-ply and 5.7 J on a 24-ply 150 × 100 mm IM7/8552 panel, and 1.2 J on an 8-ply 300 × 200 mm one (29 J with the linear plate). The threshold load is checked against measured threshold loads only on 4–6 mm quasi-isotropic laminates, and no measured onset energy is checked (see [Impact-to-damage mapping](#impact-to-damage-mapping)).
+
+<!-- Damage severity heatmap: moved from README.md (issue #175). -->
+
+## Damage severity heatmap
+
+The "Damage Severity" tab in the Streamlit app is **not** a simple count of damaged interfaces, nor is it a continuous physical damage variable (e.g. a Kachanov-style scalar). It is a through-thickness accumulation of the per-element stiffness-reduction metric used by the `fe3d` mesh:
+
+1. Each hex element in the damaged mesh carries an **out-of-plane** stiffness factor `damage_factor`: `1.0` if pristine, or `DAMAGE_OOP_FACTOR ≈ 0.05` if it is intersected by a delamination interface inside an ellipse footprint, or sits inside the fiber-break core. (Every element in a column under a delamination footprint also carries a reduced **in-plane** factor `in_plane_damage_factor = DAMAGE_ZONE_INPLANE_FACTOR = 0.15`, weighted by the fraction of its area inside the footprint where it straddles the edge, and fiber-break-core elements `DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30`.) The out-of-plane and fiber-break factors are **categorical per element** (geometric overlap tests in `bvidfe.analysis.fe_mesh.build_fe_mesh`), not a continuum damage variable.
+2. The heatmap metric is `1 − damage_factor` (the OOP factor) — `0.0` for pristine, `0.95` for fully delaminated.
+3. For each in-plane column `(x, y)` the metric is **summed over the through-thickness elements** to produce the heatmap value (see the "Damage Severity" tab in `app.py`).
+
+The colorbar is therefore in units of "stacked OOP-stiffness loss contributions": `0` means no delamination at any interface in that column. A delaminated interface marks the two elements that touch it, so with one element per ply a column under a single delamination reads `1.9` (2 × 0.95), and a column under delaminations at all `n_plies − 1` interfaces reads `0.95 × n_plies` (7.6 for 8 plies). It is a visualization aid analogous to a C-scan operator's depth-projected damage map, not a quantitative continuum-damage field. The in-plane reduction is a separate channel (`mesh.in_plane_damage_factors`) and is not currently overlaid on the heatmap.
+
+<!-- End of damage severity heatmap moved from README.md. -->
 
 ## References
 
@@ -1119,3 +1204,12 @@ solve; with no delaminations the undamaged growth stress is infinite, so
   delamination fracture toughness of unidirectional glass/epoxy composites
   with mixed-mode bending apparatus. *Composites Science and Technology*,
   56(4), 439-449.
+- NCAMP CAM-RP-2010-002 Rev A (2011). Hexcel 8552 AS4 unitape
+  qualification, sections 2.3.31 and 4.31.
+- Lovejoy & Scotti (2019). Potential Weight Benefits of IM7/8552 Hybrid
+  Thin-Ply Composites for Aircraft Structures. NASA Langley Research
+  Center, NTRS 20200002432.
+- Hasebe, Higuchi, Yokozeki & Takeda (2025). Dataset of compression after
+  impact testing on carbon fiber reinforced plastic laminates. *Data in
+  Brief*, 60, 111509. Per-specimen data: Mendeley Data,
+  doi:10.17632/8scdmfdcfb.3 (CC BY 4.0).

@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
       # Upgrade the installer tooling first: the runner's own pip and
       # setuptools are not BVID-FE dependencies but are in the audited env.
       - run: python -m pip install --upgrade pip setuptools

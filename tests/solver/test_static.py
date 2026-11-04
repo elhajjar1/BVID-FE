@@ -212,6 +212,36 @@ def test_cg_failure_is_rescued_by_gmres(monkeypatch, caplog):
     assert np.linalg.norm(u - u_ref) <= 1e-8 * np.linalg.norm(u_ref)
 
 
+def test_cg_breakdown_falls_back_without_a_numpy_warning(monkeypatch):
+    """CG breaks down when the preconditioned residual product r . M r is 0:
+    its next step divides 0 by 0, which numpy reports as a RuntimeWarning
+    ("invalid value encountered in scalar divide", seen with the real ILU
+    on macOS / Python 3.12 for this cantilever). The solver already falls
+    back on the non-finite result, so the warning is noise and must not
+    escape. A preconditioner mapping each vector to its roll by one makes
+    r . M r = 0 for the single-entry tip load below."""
+    mesh, elements, _ = _small_panel_model(delaminated=False)
+    x = mesh.node_coords[:, 0]
+    bcs = [
+        BoundaryCondition(dof=3 * int(n) + k, value=0.0)
+        for n in np.flatnonzero(x == 0)
+        for k in range(3)
+    ]
+    F = np.zeros(mesh.n_dof)
+    F[3 * int(np.flatnonzero(x == x.max())[-1]) + 2] = 1.0
+
+    class _Orthogonal:
+        def solve(self, v):
+            return np.roll(v, 1)
+
+    monkeypatch.setattr(static, "_ilu", lambda _K: _Orthogonal())
+    u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs, F, method="iterative")
+    u_dir = solve_linear_static(
+        elements, mesh.element_dof_maps, mesh.n_dof, bcs, F, method="direct"
+    )
+    assert np.linalg.norm(u - u_dir) <= 1e-8 * np.linalg.norm(u_dir)
+
+
 def test_ilu_failure_falls_back_to_direct(monkeypatch):
     mesh, elements, bcs = _small_panel_model()
 

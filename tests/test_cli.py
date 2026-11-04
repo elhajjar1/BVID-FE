@@ -111,8 +111,9 @@ def test_cli_rejects_unknown_material():
     assert "IM7/8552" in res.stderr  # at least one valid preset listed
 
 
-def test_cli_rejects_zero_energy():
-    """Issue #7: --energy must reject non-positive values at parse time."""
+def test_cli_rejects_negative_energy():
+    """Issue #7: --energy must reject out-of-range values at parse time.
+    Zero is allowed, as in ``ImpactEvent`` (issue #169)."""
     res = _run_cli(
         "--tier",
         "empirical",
@@ -127,10 +128,10 @@ def test_cli_rejects_zero_energy():
         "--loading",
         "compression",
         "--energy",
-        "0",
+        "-1",
     )
     assert res.returncode == 2
-    assert "must be > 0" in res.stderr
+    assert "must be >= 0" in res.stderr
 
 
 def test_cli_rejects_missing_cscan_path(tmp_path):
