@@ -6,6 +6,21 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- `bvidfe.elements.hex8s.Hex8SolidShellElement`, a solid-shell Hex8 for
+  buckling of thin laminates (#132): Hex8i incompatible modes plus
+  Dvorkin-Bathe assumed transverse shear, a geometric stiffness from a
+  per-Gauss-point stress field, stress recovery that includes the enhanced
+  strain, and batched builds (`solid_shell_stiffness_batch`,
+  `solid_shell_stress_batch`, `geometric_stiffness_batch`). On the
+  canonical 200 x 150 mm 8-ply SSSS panel (one element per ply) it gives
+  11.577 MPa at 5 mm against the exact cross-ply Navier value 11.583
+  (-0.05%), and 12.079 MPa for quasi-isotropic against 12.204 from a
+  converged Rayleigh-Ritz with D16/D26 (-1.0%, transverse-shear
+  flexibility). With G13 and G23 raised 50x it stays within 0.4% of 12.204
+  at 10 mm, where Hex8i alone is 39% stiff. This is an internal building
+  block for FE sublaminate buckling: no tier uses it, and no result
+  changes.
+
 ### Changed
 
 ### Fixed
