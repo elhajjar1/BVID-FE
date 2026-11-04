@@ -259,3 +259,57 @@ def test_unknown_method_raises():
     bcs = uniaxial_x_bcs(node_coords, applied_strain=-0.01)
     with pytest.raises(ValueError, match="unknown method"):
         solve_linear_static(elems, dofs, 24, bcs, method="cholesky")
+
+
+# ------------------------------------------------------- stage log (#110)
+
+
+def _stage_messages(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.name == "bvidfe.fe3d.solver"]
+
+
+@pytest.mark.parametrize(
+    "method, how",
+    [
+        ("direct", r"solve done: direct LU \(\d+\.\d\ds\)"),
+        ("iterative", r"solve done: ILU-CG, \d+ iterations \(\d+\.\d\ds\)"),
+        ("penalty", r"solve done: spsolve \(\d+\.\d\ds\)"),
+    ],
+)
+def test_solve_logs_each_stage_with_dofs_method_and_time(caplog, method, how):
+    """One INFO line at the start and end of assembly, BCs and the solve,
+    with DOF counts, the solver used, its iterations and the wall time."""
+    import re
+
+    mesh, elements, bcs = _small_panel_model()
+    with caplog.at_level("INFO", logger="bvidfe.fe3d.solver"):
+        solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs, method=method)
+    msgs = _stage_messages(caplog)
+    stages = [m.split(":")[0] for m in msgs]
+    assert stages == [
+        "assembly start",
+        "assembly done",
+        "BCs start",
+        "BCs done",
+        "solve start",
+        "solve done",
+    ], msgs
+    assert msgs[0] == f"assembly start: {len(elements)} elements, {mesh.n_dof} DOFs"
+    assert re.fullmatch(r"assembly done: \d+ nonzeros \(\d+\.\d\ds\)", msgs[1])
+    if method != "penalty":
+        n_fixed = len({bc.dof for bc in bcs})
+        assert msgs[3].startswith(
+            f"BCs done: {n_fixed} constrained DOFs eliminated, {mesh.n_dof - n_fixed} free"
+        )
+        assert msgs[4].startswith(f"solve start: method={method}, {mesh.n_dof - n_fixed} free")
+    assert re.fullmatch(how, msgs[5]), msgs[5]
+
+
+def test_solve_log_names_the_fallback_that_produced_the_answer(caplog):
+    mesh, elements, bcs = _small_panel_model()
+    with caplog.at_level("INFO", logger="bvidfe.fe3d.solver"):
+        solve_linear_static(
+            elements, mesh.element_dof_maps, mesh.n_dof, bcs, method="iterative", maxiter=1
+        )
+    (done,) = [m for m in _stage_messages(caplog) if m.startswith("solve done")]
+    assert done.startswith("solve done: direct LU (after 1 ILU-CG and ")

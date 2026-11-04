@@ -266,6 +266,24 @@ The step-by-step procedure is also in `.claude/skills/release/SKILL.md`.
    matches `pyproject.toml`, builds an sdist + wheel, runs
    `twine check --strict`, and uploads to PyPI through OIDC. No manual token
    handling.
+6. Its `sbom` job then installs the uploaded wheel into a clean venv
+   (CPython 3.12, Linux), writes a CycloneDX JSON SBOM of that venv with
+   `cyclonedx-py environment` (the root component is bvidfe, read from
+   the sdist's `pyproject.toml`), and attaches it to the GitHub Release
+   for the tag as `bvidfe-X.Y.Z.cdx.json`, creating the release (notes
+   pointing to `CHANGELOG.md`) if it does not exist yet; edit the notes
+   afterwards if wanted. It is the only job with `contents: write`. If
+   it fails after the PyPI upload, re-run just that job. To produce the
+   same SBOM locally:
+
+   ```bash
+   python -m build
+   python -m venv --without-pip /tmp/bvidfe-env
+   python -m pip --python /tmp/bvidfe-env/bin/python install dist/*.whl
+   pip install cyclonedx-bom==7.5.0
+   cyclonedx-py environment /tmp/bvidfe-env/bin/python --pyproject pyproject.toml \
+     --mc-type library --output-format JSON --output-file bom.cdx.json
+   ```
 
 If the tag/version check fails, delete the tag (`git push --delete
 origin vX.Y.Z` and `git tag -d vX.Y.Z`), fix the version mismatch,

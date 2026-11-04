@@ -97,6 +97,9 @@ The `Publish to PyPI` workflow now runs. It will:
 - Build sdist + wheel
 - Run `twine check`
 - Upload via OIDC
+- Then, in its `sbom` job, attach a CycloneDX SBOM
+  (`bvidfe-X.Y.Z.cdx.json`) to the GitHub Release for the tag, creating
+  the release if it does not exist
 
 Report the workflow URL to the user and stop there. Do **not**
 auto-merge anything else or attempt to monitor the workflow with

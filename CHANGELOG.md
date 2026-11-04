@@ -255,6 +255,24 @@ and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
   hemisphere on a simply supported panel and fe3d at `MeshParams()`. A
   `ValueError` raised by the run (e.g. a `--location` on or outside the
   panel edge) is a one-line error (exit 1), not a traceback.
+- fe3d per-stage progress log (#110): one INFO line at the start and end
+  of each stage of each fe3d run (mesh build, element build, stiffness
+  assembly, BCs, the solve with the solver that produced the answer and
+  its iterations, first-ply-failure evaluation), with DOF counts and wall
+  time, on the `bvidfe.fe3d` and `bvidfe.fe3d.solver` loggers; the damaged
+  and undamaged runs are labelled. The Streamlit app shows the latest
+  stage as the label of an `st.status` block while an fe3d run is in
+  progress and the whole log in it afterwards. Numerical results are
+  unchanged.
+- CycloneDX SBOM on every release (#118): a `sbom` job in
+  `.github/workflows/publish.yml`, after the PyPI upload, installs the
+  uploaded wheel into a clean venv, writes a CycloneDX 1.6 JSON SBOM of
+  it with `cyclonedx-py environment` (bvidfe as the root component, then
+  numpy, scipy and the rest of what `pip install bvidfe==X.Y.Z` pulls),
+  and attaches it to the GitHub Release for the tag as
+  `bvidfe-X.Y.Z.cdx.json`. Only that job can write repo contents; the
+  PyPI job's permissions are unchanged. `cyclonedx-bom` is installed in
+  the job only, not added to the `dev` extra.
 - CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
   `pip-audit` on the installed runtime + dev dependencies on every PR,
   on pushes to main and weekly; any known vulnerability fails it.

@@ -23,6 +23,7 @@ penalty method's own constraint error.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Sequence
 
 import numpy as np
@@ -172,42 +173,56 @@ def solve_spd_reduced(
     (or the ILU cannot be built) a direct sparse LU solves the system.
     ``"direct"`` goes straight to the LU; ``"auto"`` picks direct below
     ``DIRECT_MAX_FREE_DOF`` unknowns and iterative above.
+
+    Logs an INFO line on entry and one on exit (the solver that produced
+    the answer, its iterations and the wall time) on ``bvidfe.fe3d.solver``.
     """
     Kff = sp.csc_matrix(Kff)
     rhs = np.asarray(rhs, dtype=float)
     n = Kff.shape[0]
-    if n == 0:
-        return np.zeros(0)
     if method == "auto":
         method = "direct" if n <= DIRECT_MAX_FREE_DOF else "iterative"
+    t0 = time.perf_counter()
+    _log.info("solve start: method=%s, %d free DOFs, %d nonzeros", method, n, Kff.nnz)
+    x, how = _solve_spd_reduced(Kff, rhs, method, rtol, maxiter)
+    _log.info("solve done: %s (%.2fs)", how, time.perf_counter() - t0)
+    return x
+
+
+def _solve_spd_reduced(
+    Kff: sp.csc_matrix, rhs: np.ndarray, method: str, rtol: float, maxiter: int
+) -> tuple[np.ndarray, str]:
+    """``solve_spd_reduced`` with ``"auto"`` resolved: the solution and a
+    description of the solver that produced it, for the log."""
+    n = Kff.shape[0]
+    if n == 0:
+        return np.zeros(0), "no free DOFs"
     if method == "direct":
-        return _direct(Kff, rhs)
+        return _direct(Kff, rhs), "direct LU"
     if method != "iterative":
         raise ValueError(f"unknown method {method!r}")
     if not np.any(rhs):
-        return np.zeros(n)
+        return np.zeros(n), "zero load, nothing to solve"
 
     try:
         ilu = _ilu(Kff)
     except RuntimeError as exc:  # e.g. an exactly singular pivot
         _log.info("ILU factorisation failed (%s); using the direct solver", exc)
-        return _direct(Kff, rhs)
-    x, n_iter = _krylov(Kff, rhs, ilu, rtol, maxiter)
-    if x is None:
-        _log.info("ILU-CG did not reach rtol=%.0e in %d iterations; trying GMRES", rtol, n_iter)
-        x, n_iter = _krylov(Kff, rhs, ilu, rtol, min(maxiter, GMRES_MAXITER), solver="gmres")
-        if x is None:
-            _log.info(
-                "ILU-GMRES did not reach rtol=%.0e in %d iterations; using the direct solver",
-                rtol,
-                n_iter,
-            )
-            del ilu
-            return _direct(Kff, rhs)
-        _log.debug("ILU-GMRES: %d iterations, %d DOFs", n_iter, n)
-        return x
-    _log.debug("ILU-CG: %d iterations, %d DOFs", n_iter, n)
-    return x
+        return _direct(Kff, rhs), "direct LU (ILU factorisation failed)"
+    x, n_cg = _krylov(Kff, rhs, ilu, rtol, maxiter)
+    if x is not None:
+        return x, f"ILU-CG, {n_cg} iterations"
+    _log.info("ILU-CG did not reach rtol=%.0e in %d iterations; trying GMRES", rtol, n_cg)
+    x, n_gmres = _krylov(Kff, rhs, ilu, rtol, min(maxiter, GMRES_MAXITER), solver="gmres")
+    if x is not None:
+        return x, f"ILU-GMRES, {n_gmres} iterations (after {n_cg} ILU-CG)"
+    _log.info(
+        "ILU-GMRES did not reach rtol=%.0e in %d iterations; using the direct solver",
+        rtol,
+        n_gmres,
+    )
+    del ilu
+    return _direct(Kff, rhs), f"direct LU (after {n_cg} ILU-CG and {n_gmres} ILU-GMRES iterations)"
 
 
 def solve_linear_static(
@@ -248,15 +263,31 @@ def solve_linear_static(
     """
     if method not in _METHODS:
         raise ValueError(f"unknown method {method!r}; valid options are {list(_METHODS)}")
+    t0 = time.perf_counter()
+    _log.info("assembly start: %d elements, %d DOFs", len(elements), n_dof)
     K = assemble_global_stiffness(elements, element_dof_maps, n_dof)
+    _log.info("assembly done: %d nonzeros (%.2fs)", K.nnz, time.perf_counter() - t0)
     F = (
         np.zeros(n_dof)
         if external_force is None
         else np.asarray(external_force, dtype=float).copy()
     )
+    t0 = time.perf_counter()
+    _log.info(
+        "BCs start: %d conditions, %s",
+        len(bcs),
+        "penalty" if method == "penalty" else "elimination",
+    )
     if method == "penalty":
         K_mod, F_mod = apply_dirichlet_penalty(K, F, bcs, penalty=penalty)
-        return np.asarray(spla.spsolve(K_mod.tocsc(), F_mod))
+        _log.info(
+            "BCs done: %.0e penalty on the diagonal (%.2fs)", penalty, time.perf_counter() - t0
+        )
+        t0 = time.perf_counter()
+        _log.info("solve start: method=penalty, %d DOFs", n_dof)
+        u = np.asarray(spla.spsolve(K_mod.tocsc(), F_mod))
+        _log.info("solve done: spsolve (%.2fs)", time.perf_counter() - t0)
+        return u
 
     dofs, values = dirichlet_dofs_and_values(bcs, n_dof)
     u = np.zeros(n_dof)
@@ -270,5 +301,11 @@ def solve_linear_static(
     rhs = F[free] - K_rows[:, dofs] @ values
     Kff = K_rows[:, free].tocsc()
     del K_rows
+    _log.info(
+        "BCs done: %d constrained DOFs eliminated, %d free (%.2fs)",
+        dofs.size,
+        free.size,
+        time.perf_counter() - t0,
+    )
     u[free] = solve_spd_reduced(Kff, rhs, method=method, rtol=rtol, maxiter=maxiter)
     return u

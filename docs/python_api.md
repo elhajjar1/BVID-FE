@@ -485,11 +485,16 @@ et al.'s C-scan areas; treat the others as defaults.
 
 ## Logging
 
-The fe3d tier logs stage-by-stage timing lines under the `bvidfe.fe3d`
-logger: mesh build, element build, the first-ply-failure solve and its
-result, and the closed-form buckling stress. The empirical and
-semi-analytical tiers do not log. The `bvidfe` CLI and the Streamlit app
-print these lines to stderr; as a library, bvidfe attaches only a
+The fe3d tier logs one INFO line at the start and one at the end of each
+stage under the `bvidfe.fe3d` logger (the solver's lines under its child
+`bvidfe.fe3d.solver`): mesh build, element build, stiffness assembly,
+BCs, the linear solve (the solver that produced the answer and its
+iterations), first-ply-failure evaluation and the run's result, for the
+damaged and the undamaged run alike, with DOF counts and wall time; then
+the closed-form buckling stress. The empirical and semi-analytical tiers
+do not log. The `bvidfe` CLI and the Streamlit app print these lines to
+stderr, and the app also shows them in a status block during an fe3d
+run; as a library, bvidfe attaches only a
 `NullHandler`, so from Python call
 `bvidfe.analysis.fe_tier.enable_stderr_logging()` (or configure `logging`
 yourself) to see them.
