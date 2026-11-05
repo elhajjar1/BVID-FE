@@ -174,6 +174,49 @@ Lovejoy & Scotti within about 1%, NCAMP about 21% low. Treat fe3d
 strengths as qualitative. fe3d takes about 20 s on the 24-ply NCAMP
 coupon and about 45 s on the 40-ply hard laminate (5 mm mesh).
 
+**Why fe3d's knockdown does not fall with damage area.** fe3d's CAI
+knockdown is set by the strain concentration at the soft zone's flank,
+where a 0° ply fails in fibre compression. That concentration depends on
+the zone's width and aspect ratio, not its area. In a wide panel the same
+zone gives the same knockdown from 700 to 5,269 mm². On the NCAMP coupon
+the template grows self-similarly until its width reaches the 75 mm
+impact window at about 4,200 mm². Beyond that, all further area goes
+along the load direction, which lowers the flank concentration. fe3d on
+the NCAMP coupon therefore gives a knockdown with a minimum at the cap:
+
+| Damage area (mm²) | 1,400 | 2,783 | 3,500 | 4,200 | 5,269 | 6,023 |
+|---|---|---|---|---|---|---|
+| fe3d knockdown | 0.336 | 0.260 | 0.240 | **0.217** | 0.253 | 0.239 |
+
+- **The coincidence:** the NCAMP coupon (2,783 mm²) and the Lovejoy &
+  Scotti coupons (5,269–6,991 mm²) sit on either side of the minimum, so
+  their near-equal fe3d knockdowns are a coincidence, not a material or
+  laminate effect.
+- **Without the window cap** (the zone bounded only by the coupon edges)
+  the knockdown keeps falling: 0.260 / 0.188 / 0.133 at 2,783 / 5,269 /
+  6,991 mm².
+- **What is not the cause:**
+  - The 2.5 mm averaging disk: radii of 0–20 mm change the 2,783 to
+    5,269 mm² ratio only to 0.97–1.17, against 1.34 measured.
+  - A characteristic-length (Whitney-Nuismer) hole: it is flat above
+    about 1,400 mm² for d0 = 1–4 mm.
+- **What the data cannot separate:** with the width pinned by the window,
+  no elastic zone model makes the knockdown fall with area. The measured
+  fall needs either damage wider than the window or damage severity that
+  rises with energy (6.7 J/mm on the NCAMP coupon, 8.9 J/mm on the Lovejoy
+  & Scotti QI). The two datasets move both together and cannot tell them
+  apart.
+- **What would decide it:** measured damage widths from large-area ASTM
+  C-scans, and an energy series on a single laminate and coupon.
+- **What is not adopted:**
+  - Bounding the footprint by the coupon edges (with the factor refitted
+    to 0.22) brings back the area dependence. It scores NCAMP +0.2%,
+    Lovejoy & Scotti QI +7.0% and hard −14.2%, a 7.1% mean against 7.4%
+    today. It is not adopted: it undoes the confinement that fixed the
+    hard laminate, and no measured widths support it.
+  - Softening only the plies bounding a delamination gives no size
+    effect in 3D.
+
 ### Calibration of `soutis_k_s`
 
 The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_ref)^m)`, with

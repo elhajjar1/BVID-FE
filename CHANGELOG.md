@@ -73,6 +73,16 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **Documented why fe3d's CAI knockdown does not fall with damage area**
+  (documentation only; no results change). The knockdown is set by the
+  strain concentration at the soft zone's flank, which follows the zone's
+  width and shape rather than its area. In an ASTM D7136 coupon the
+  window caps the zone's width at about 4,200 mm², and the knockdown has
+  a minimum there: 0.260 / 0.217 / 0.253 at 2,783 / 4,200 / 5,269 mm² on
+  the NCAMP coupon. The NCAMP and Lovejoy & Scotti coupons sit on either
+  side of it. The candidate fixes and why none is adopted are in
+  `validation/README.md` (*fe3d damage-zone factor*) and in *Limitations*
+  in `docs/physics_models.md`.
 - **The validator reports the knockdown error against the measured
   pristine strength next to the gated strength MAE** (reporting only; no
   gate outcome or existing MAE changes). For each case with a measured

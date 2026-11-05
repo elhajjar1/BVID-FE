@@ -1243,6 +1243,21 @@ form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). A damage area at
   the 80%-of-panel cap would put the soft zone across the loaded edges.
+- **fe3d's CAI knockdown follows mainly the damage zone's width and
+  shape, not its area.**
+  - **Mechanism:** the knockdown is set by the strain concentration at
+    the soft zone's flank, which depends on the zone's aspect ratio and
+    on its width relative to the panel.
+  - **Effect of the window cap:** in an ASTM D7136 coupon the zone's
+    width stops at the 75 mm impact window at about 4,200 mm². Beyond
+    that, extra area lengthens the zone along the load and the knockdown
+    rises again. On the NCAMP coupon it is 0.260 / 0.217 / 0.253 at
+    2,783 / 4,200 / 5,269 mm².
+  - **What it means:** the NCAMP and Lovejoy & Scotti coupons sit on
+    either side of that minimum. fe3d does not reproduce the measured
+    fall in CAI with damage area above about 2,800 mm², and its
+    energy-scaling trend in coupons is not reliable. See
+    `validation/README.md`, *fe3d damage-zone factor*.
 - **`fe3d` TAI takes its fibre damage from the closed form, and is
   validated on one condition only.** Tension strength after impact is
   set by the broken fibres under the impactor (Cantwell & Morton 1991);
