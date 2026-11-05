@@ -11,7 +11,7 @@ composite-after-impact test data.
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.8% | 8.8% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
 | `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 21.5% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
 | `korbelin_m21_t800s_tai` (not gated) | M21/T800S (T800S/3900-2B card) | TAI | 5 | 15% | 3.5% | 3.5% | In-sample for `tai_notch_fraction` (the only TAI fit) |
-| `gonzalez_as4_8552_cai` (reported, not gated) | AS4/8552 | CAI | 19 | 15% | 14.3% | 14.4% | Out of sample: nothing is fitted to it |
+| `gonzalez_as4_8552_cai` (reported, not gated) | AS4/8552 | CAI | 19 | 15% | 14.3% | 14.3% | Out of sample: nothing is fitted to it |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 0.0% (not gated) | Tautological (empirical-tier output) |
 
 These are the MAEs `validate_bvid_public.py` prints (rounded). Three
@@ -572,18 +572,19 @@ one; "vs NCAMP pristine" is the knockdown error against NCAMP's measured
 | Laminate | n | h (mm) | Empirical MAE (bias) | Semi-analytical MAE | Predicted / C-scan area | Bias with measured area | Knockdown bias vs NCAMP pristine | One scale per laminate |
 |---|---|---|---|---|---|---|---|---|
 | L02 quasi-isotropic | 4 | 5.8 | 3.9% (−2.5%) | 3.9% | 1.25× | +5.3% | +0.6% | 1.00 |
-| L03 clustered ×2 | 4 | 5.8 | 5.2% (+1.3%) | 6.6% | 0.80× | −5.9% | +4.6% | 0.95 |
+| L03 clustered ×2 | 4 | 5.8 | 5.2% (+1.3%) | 5.2% | 0.80× | −5.9% | +4.6% | 0.95 |
 | L04 clustered ×4 | 4 | 5.8 | 7.1% (+2.8%) | 7.1% | 0.52× | −19.3% | +6.1% | 0.98 |
-| L06 cross-ply | 4 | 6.8 | 35.9% (+35.9%) | 35.0% | no C-scan | – | no pristine | 0.74 |
+| L06 cross-ply | 4 | 6.8 | 35.9% (+35.9%) | 35.9% | no C-scan | – | no pristine | 0.74 |
 | L05 quasi-isotropic, 48 plies | 3 | 8.8 | 21.2% (−21.2%) | 21.2% | no C-scan | – | −18.7% | 1.25 |
-| All | 19 | | 14.3% (max 41.2%) | 14.4% (max 37.7%) | | | | 3.8% MAE |
+| All | 19 | | 14.3% (max 41.2%) | 14.3% (max 41.2%) | | | | 3.8% MAE |
 
 The replicate floor (coupons at the same laminate and energy) is 2.1%
 over 10 coupons. Which channel governs: in the semi-analytical tier the
-Soutis bound governs 16 coupons and delamination growth 3 (L03 at 28.6
-and 19.3 J, L06 at 19.3 J; growth stress / Soutis 0.90–1.55); growth
-makes L03 at 19.3 J worse (−17% against −8%) and the other two 3–4
-points better. fe3d at the default 5 mm
+Soutis bound governs all 19 coupons, so the two tiers agree. (With the
+straight-sided strip's energy release rate, before the 2D blister,
+delamination growth governed 3: L03 at 28.6 and 19.3 J and L06 at
+19.3 J, making L03 at 19.3 J worse, −17% against −8%, and the other two
+3–4 points better; semi-analytical MAE 14.4%.) fe3d at the default 5 mm
 mesh, on three coupons (not run in CI; first-ply failure governs all
 three): L02-S01 119.7 against 160.3 MPa (−25%), L06-S01 110.1 against
 166.2 MPa (−34%), L05 at 38.6 J 126.1 against 206 MPa (−39%), about 1 to
@@ -777,7 +778,7 @@ pristine strength does not depend on. The reference comes from other
 coupons and another laboratory than the CAI tests, so the knockdown error
 carries a few percent of that uncertainty.
 
-Empirical tier (semi-analytical identical except on Hasebe, as noted):
+Empirical tier (semi-analytical identical on every dataset):
 
 | Dataset / layup | Cases | Strength MAE / bias (gated) | Knockdown MAE / bias vs measured pristine | Pristine error |
 |---|---|---|---|---|
@@ -785,7 +786,7 @@ Empirical tier (semi-analytical identical except on Hasebe, as noted):
 | Lovejoy & Scotti, all | 8 | 8.8% / +1.4% | 13.6% / −3.7% | MAE 6.1% / bias +6.1% |
 | Lovejoy & Scotti, QI 25/50/25 | 4 | 10.2% / +10.2% | 10.0% / +10.0% | +0.2% |
 | Lovejoy & Scotti, hard 50/40/10 | 4 | 7.4% / −7.4% | 17.3% / −17.3% | +11.9% |
-| Hasebe et al. (scored on `P`) | 343 | 21.5% / −6.6% (semi 24.0% / −9.8%) | the same | +101% (−7% r45 to +237% c8) |
+| Hasebe et al. (scored on `P`) | 343 | 21.5% / −6.6% | the same | +101% (−7% r45 to +237% c8) |
 | Körbelin et al., TAI (scored on `P`) | 5 | 3.5% / −1.4% | the same | −3.9% (proxy card) |
 
 On Lovejoy & Scotti the 8.8% is a cancellation. The model puts the hard

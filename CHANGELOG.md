@@ -14,7 +14,7 @@ All notable changes to BVID-FE are documented in this file.
   hemisphere (6 and 15 kg at 58 J), 19.3–57.9 J; quasi-isotropic
   [(45/0/-45/90)4]s and the same layup with plies clustered in pairs and
   fours (C-scan areas, dents), the cross-ply [(0/90)9]s and a 48-ply
-  quasi-isotropic laminate. Empirical 14.3%, semi-analytical 14.4%. The
+  quasi-isotropic laminate. 14.3% in both tiers. The
   5.8 mm quasi-isotropic coupons score 3.9–7.1%, the cross-ply is 36%
   high (as Hasebe et al.'s cross-ply laminates, and opposite to Lovejoy
   & Scotti's hard laminate) and the 48-ply laminate 21% low. Refitting
@@ -113,6 +113,7 @@ All notable changes to BVID-FE are documented in this file.
   | NCAMP | 1.54% | 1.54% |
   | Lovejoy & Scotti | 8.78% | 8.78% |
   | Hasebe et al. (not gated) | 23.97% | 21.53% |
+  | González (Girona, not gated) | 14.42% | 14.29% |
   | Körbelin TAI | 3.49% | 3.49% |
 
   On Hasebe et al.'s set growth governed 176 of 343 coupons and now
