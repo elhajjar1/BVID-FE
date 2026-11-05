@@ -473,7 +473,9 @@ holes: its stress concentration decays faster from the hole edge.
 ## Semi-analytical tier
 
 For TAI this tier calls the same fibre-damage open-hole model as the
-empirical tier, so its tension results are identical. For CAI it adds a
+empirical tier, so its tension results are identical (under a biaxial
+load with lateral compression it adds the growth bound below; see
+[Biaxial loading](#biaxial-loading)). For CAI it adds a
 delamination growth bound.
 
 At each delaminated interface the thinner sublaminate (by thickness; on
@@ -608,7 +610,9 @@ stress along x. Film and laminate share the far-field strain, so with
 laminate's own Poisson contraction), the laminate stress at growth is
 `Ex · σ_g / E_f`. The weakest interface governs, and the result is
 capped by the Soutis empirical strength:
-`σ_CAI = min(Soutis, σ_growth)`.
+`σ_CAI = min(Soutis, σ_growth)`. Under a biaxial load the film is
+compressed along both axes; see
+[Biaxial loading](#biaxial-loading-semi_analytical).
 
 **Numerical limits.**
 
@@ -960,7 +964,7 @@ cannot move these in opposite directions.
 | Tier | CAI residual stress | TAI residual stress |
 | --- | --- | --- |
 | `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point stress on a hole of diameter `tai_notch_fraction` × footprint width, finite-width corrected |
-| `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to the empirical TAI model (identical to `empirical`) |
+| `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to the empirical TAI model (identical to `empirical`; under a lateral compression, β < 0, also `min(…, σ_growth)`, see [Biaxial loading](#biaxial-loading)) |
 | `fe3d` | `min(σ_growth, σ₀ × min(1, D/U))` with `D`, `U` = `FPF_LaRC05` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged (fibre-damage hole as a notch at the impact site) / undamaged |
 
 fe3d's first-ply-failure stress is not the same kind of quantity as σ₀,
@@ -983,7 +987,8 @@ are recorded in `AnalysisResults.notes`.
 - They are **not** numerically interchangeable: each tier captures
   different failure mechanisms.
     - For **TAI**, `empirical` and `semi_analytical` are mathematically
-      identical; `fe3d` uses the same fibre-damage hole and adds the
+      identical (at β = 0 and under biaxial tension; under a lateral
+      compression `semi_analytical ≤ empirical`); `fe3d` uses the same fibre-damage hole and adds the
       matrix-cracked zone around it, so it falls with energy like the
       closed form and sits 2–8% below it (8-ply QI 150 × 100 mm IM7/8552
       at 5 / 15 / 30 J: 0.834 / 0.714 / 0.629 against 0.892 / 0.771 /
@@ -1098,10 +1103,9 @@ boundary conditions fe3d does not have), about 40% more run time.
     nothing at `transverse_stress_ratio ≠ 0` is validated. The results are
     verified (limits, symmetries, closed forms) but not checked against
     measurements. Every biaxial run says so in `AnalysisResults.notes`.
-    Only the `empirical` tier supports a nonzero ratio so far;
-    `semi_analytical` and `fe3d` raise `NotImplementedError` until the
-    follow-up PRs of issue #115 (biaxial sublaminate buckling and growth,
-    and biaxial fe3d boundary conditions).
+    The `empirical` and `semi_analytical` tiers support a nonzero ratio;
+    `fe3d` raises `NotImplementedError` until the follow-up PR of issue
+    #115 (biaxial fe3d boundary conditions).
 
 **Load path.** `AnalysisConfig.transverse_stress_ratio = β` (default `0.0`,
 `−1 ≤ β ≤ 1`) makes the in-plane load a proportional (radial) ray
@@ -1139,7 +1143,8 @@ unloaded and loaded afterwards; impact under preload is out of scope.
 - `biaxial_interaction_factor = λd(β) / λd(0)`: how the lateral stress
   changes the damaged axial strength against the uniaxial CAI or TAI value
   of the same damage (1 = no effect, below 1 = the lateral stress costs
-  strength). λd(0) is a second closed-form evaluation in the same run.
+  strength). λd(0) is a second closed-form evaluation in the same run
+  (for `semi_analytical` a second growth solve).
 
 The three new fields are `None` at β = 0, and a β = 0 run gives the same
 results, notes and warnings as a config without the field
@@ -1212,13 +1217,131 @@ calibrated uniaxial model (QI 0.815 against 0.875; cross-ply 0.51 against
 | +0.5 | 703.8 | 0.395 | 1.170 | 889.6 | 0.767 | 1.176 |
 | +1 | 848.3 | 0.395 | 1.411 | 580.8 | 0.764 | 0.764 |
 
+<a id="biaxial-loading-semi_analytical"></a>
+**semi_analytical: the film's biaxial prestress.** The delaminated
+sublaminate (the film) takes the laminate's strain `ε = a*·(s, s·β, 0)`
+(`a* = h A⁻¹`). Per MPa of |σx| its compressive stresses are
+
+```text
+σf_x = −[A_sub · a* · (s, s·β, 0)]_x / h_sub      (the full x-stress, k at β = 0)
+σf_y = −[A_sub · a* · (0, s·β, 0)]_y / h_sub      (the y-stress of the applied σy only)
+```
+
+This is Option A of the #115 design: the Poisson-mismatch y-stress that
+σx alone puts in the film, and the film shear, are left out, as in the
+uniaxial model, so β → 0 tends to the uniaxial film load. (Keeping them,
+Option B, would change uniaxial growth stresses by up to 1.7%.) For a
+film with the laminate's own stiffness per unit thickness (an isotropic
+ply, or [0/90] in [0/90]2s) `A_sub a* = h_sub I` and the film stress is
+the laminate stress exactly. Both components enter, as the uniform
+prestress `N n` with `n` the unit film load in the ellipse's frame, the
+geometric stiffness of the clamped-ellipse onset Ritz and the prestress
+of the post-buckled film (`_PostbuckledFilm`), whose von Kármán energy
+above already takes a general `n`. The 2D blister of Chai & Babcock
+(1985) is their model of elliptic delaminations under biaxial load, so
+nothing 1D is extrapolated. The film fields of `SublaminateGrowth` are
+along the panel axis the film is more compressed along
+(`film_stress_axis`, new, `"x"` at β = 0), with `film_stress_ratio` the
+compression along the other axis over it; `growth_stress_MPa` is |σx| at
+growth. A film in tension along both axes does not buckle (`inf`).
+
+- **CAI**: `min(kd_Soutis · λ0(β), σ_growth(β))`, the homothetic Soutis
+  bound of the empirical tier and the biaxial growth stress, so
+  `semi_analytical ≤ empirical` at every β.
+- **TAI**: `min(fibre_damage_tai(…, β), σ_growth(β))` (D10 of the
+  design). Under biaxial tension (β > 0) every film is in tension and
+  the result is the empirical tier's. Under lateral compression (β < 0) a
+  film can buckle across the load and grow; `critical_sublaminate` and
+  `buckling_eigenvalues` are then filled in for TAI too.
+- **Whole-panel buckling** along the ray (`panel_buckling_load(…,
+  loading=, transverse_stress_ratio=)`, the simply supported Ritz with
+  both axes in the geometric stiffness, times the uniaxial panel
+  boundary factor) is in the note, not in the residual.
+
+Lateral film compression lowers the onset and the growth load and
+lateral film tension raises them, at a fixed axial film stress. At the
+laminate level a lateral **tension** also raises the film's **axial**
+compression by Poisson's effect (the laminate contracts along x, and a
+0° surface ply takes 28% more axial stress at β = −1 in QI8), so on a
+quasi-isotropic laminate the growth stress can fall under lateral
+tension (8-ply QI, 5 J: 347.7 MPa at β = 0, 346.0 at −0.5, 308.5 at −1,
+where interface 6, a single 0° ply, takes over from interface 5). There
+the pristine strength falls more (to 411.6 MPa at β = −1), so the Soutis
+bound governs. Under biaxial compression the pristine strength rises
+(848.3 MPa at β = 1) while the growth stress does not (325.7 MPa), so
+growth governs and the knockdown falls.
+
+Knockdowns, 150 × 100 mm IM7/8552 panels (0.152 mm plies, 16 mm
+hemisphere, 5.5 kg); in bold where growth governs, with the empirical
+value in brackets:
+
+| Laminate, energy | Loading | β = −1 | −0.5 | 0 | +0.5 | +1 |
+|---|---|---|---|---|---|---|
+| 8-ply QI, 5 J | CAI | 0.546 | 0.546 | 0.546 | **0.480** (0.546) | **0.384** (0.546) |
+| 8-ply QI, 10 J | CAI | 0.448 | 0.448 | 0.448 | 0.448 | **0.394** (0.448) |
+| [0/90]2s, 5 J | CAI | 0.544 | 0.544 | 0.544 | 0.544 | **0.485** (0.544) |
+| [0/90]2s, 10 J | CAI | 0.447 | 0.447 | 0.447 | 0.447 | 0.447 |
+| 8-ply QI, 5 J | TAI | 0.926 | 0.909 | 0.892 | 0.876 | 0.860 |
+| 8-ply QI, 10 J | TAI | 0.841 | 0.830 | 0.820 | 0.809 | 0.799 |
+| [0/90]2s, 5 J | TAI | **0.840** (0.891) | 0.889 | 0.886 | 0.884 | 0.882 |
+| [0/90]2s, 10 J | TAI | **0.704** (0.827) | 0.831 | 0.835 | 0.839 | 0.843 |
+
+In tension with lateral compression the quasi-isotropic films grow far
+above the hole model (1,014 MPa at β = −1, 10 J, against λ0 = 411.6
+MPa), while the cross-ply's [0/90] films, as stiff across the load as
+along it, grow at 578.4 MPa along the major axis of interface 4.
+
+**Interface search.** The uniaxial lower bound (the strip's growth
+stress at the same buckling stress) does not hold under a biaxial load:
+a laterally compressed 2D blister can release more energy than the
+uniaxial strip (cross-ply, 10 J, β = 1: interface 5 grows at 391.3 MPa
+against a strip value of 487.8). So at β ≠ 0 the strip value only orders
+the interfaces, and an interface is skipped only when its buckling onset,
+a lower bound at any load (`G = 0` up to buckling), is above the lowest
+growth stress found. The others are solved in full, not stopped at the
+lowest stress found as at β = 0: under a mixed load the post-buckled
+state can depend on the continuation path, and the jump to such a cap
+can land on another branch (8-ply QI, 20 J, β = −1: a 0° surface film
+then "grew" at the cap, 305.06 MPa, against 305.95 followed from onset).
+So the result is the minimum over every interface exactly, checked on
+8-ply QI, [0/90]2s and 16-ply QI panels at 5, 10 and 20 J, both
+loadings, β = −1, −0.5, −0.05, 0.5 and 1
+(`tests/analysis/test_biaxial_semi_analytical.py`, slow). The biaxial growth search takes about twice as long as the
+uniaxial one on these panels (single-threaded), and a biaxial
+`semi_analytical` CAI run, which also solves the uniaxial growth for
+`biaxial_interaction_factor`, about three times: 1.0–1.8 s against
+0.3–0.6 s at β = 0. A TAI run with lateral compression takes 0.4–0.9 s
+(the uniaxial TAI has no growth search); under biaxial tension nothing
+is solved.
+
+**Post-buckling fold.** Under a mixed load the post-buckled branch can
+fold (the film snaps to another mode) near the toughness: on the 8-ply
+QI panel at 10 J, interface 5, β = −0.05 at about 13.8 times onset. Where
+Newton's method cannot follow the branch past such a fold between a
+state below `G_c` and one above it, the growth stress is taken at the
+fold (the snap), or below it if `G` reaches `G_c` on the branch first.
+The growth stress then moves by 0.6% between β = −0.045 and −0.05. No
+uniaxial result changes: the fallback replaces what was an error.
+
 **Verification** (in the tests): β = 0 bit-identity in all three tiers and
-both load senses; continuity at β = ±1e−9; `unnotched_strength_along(lam,
+both load senses (and, in `semi_analytical`, that no biaxial code runs); continuity at β = ±1e−9; `unnotched_strength_along(lam,
 (±1, 0, 0))` equal to the uniaxial strength for every preset; the 90°
 rotation symmetry (λ0 along (s, sβ) of a layup equals λ0 along (sβ, s) of
 the layup turned by 90°, and the equibiaxial strength does not change when
 the layup turns); the hole field's uniaxial Kt, Kirsch for QI, the closed
-form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
+form `1 + n − kβ`, a traction-free hole and the far field at 100 R. For
+`semi_analytical`: the isotropic clamped circle under equibiaxial
+compression (`j₁,₁² D/R²`, through the whole laminate path) and its
+exact axisymmetric blister at the growth stress (`G = G_c` to 0.2%), the
+isotropic ellipse's equibiaxial onset independent of its orientation and
+between the Rayleigh-quotient bounds, the isotropic simply supported
+square (`2π²D/a²` equibiaxial, half the uniaxial value) and the biaxial
+Navier value for a cross-ply panel (minimiser inside the m, n range),
+monotone lateral-tension stabilisation of the film, `inf` for a film in
+tension along both axes, the 90° rotation of the load and the ellipse,
+continuity at β = ±1e−9, the pruned search against the full minimum,
+pinned knockdowns, and `semi_analytical ≤ empirical` on a β grid
+(`tests/test_cross_tier_consistency.py`).
 
 **Limitations.**
 
@@ -1245,6 +1368,14 @@ form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
 - The TAI factor neglects the `A16`/`A26` coupling of unbalanced layups
   (as `lekhnitskii_kt_infinity` does) and keeps the uniaxial finite-width
   correction.
+- **semi_analytical film load (Option A)**: the y-stress σx puts in the
+  film through the Poisson mismatch, and the film shear, are left out,
+  as in the uniaxial model (follow-up: the full film stress, which
+  changes uniaxial numbers by up to 1.7%). The growth keeps the ellipse's
+  shape and the fixed thin-film mode mix, as uniaxially; the uniaxial
+  growth channel is itself effectively unvalidated. The whole-panel
+  buckling in the note keeps the uniaxial clamped and free panel factors,
+  and a free edge that carries σy is not free.
 
 ## Limitations
 
@@ -1271,10 +1402,13 @@ form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
   on the measured TAI dataset it is 3.6% off, partly in-sample, see the
   fe3d TAI item below).
 - **Biaxial loading (`transverse_stress_ratio ≠ 0`) is experimental and
-  not validated**: no biaxial residual-strength data are known. Only
-  `empirical` supports it; its CAI knockdown is assumed independent of the
-  ratio, its TAI adds the Lekhnitskii far-field σy term at the
-  characteristic point, and the pristine envelope ends, conservatively,
+  not validated**: no biaxial residual-strength data are known.
+  `empirical` and `semi_analytical` support it (`fe3d` not yet); the
+  empirical CAI knockdown is assumed independent of the ratio, its TAI
+  adds the Lekhnitskii far-field σy term at the characteristic point,
+  `semi_analytical` adds the film's lateral stress (the applied σy only,
+  Option A) to the sublaminate buckling and growth, and the pristine
+  envelope ends, conservatively,
   when every ply has cracked under biaxial tension (equibiaxial QI8:
   580.8 MPa against about 1,120 MPa for the fibres). See
   [Biaxial loading](#biaxial-loading).

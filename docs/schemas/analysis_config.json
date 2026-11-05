@@ -386,7 +386,7 @@
     },
     "transverse_stress_ratio": {
       "default": 0.0,
-      "description": "Signed sigma_y / sigma_x of a proportional biaxial in-plane load (sigma_x, sigma_y) = lambda * (s, s * ratio), s = -1 for loading 'compression' and +1 for 'tension'; 0 is the uniaxial load. For |sigma_y| > |sigma_x| rotate the layup by 90 deg and swap Lx_mm and Ly_mm. Only tier 'empirical' supports a nonzero ratio so far. Experimental, not validated (no biaxial residual-strength data); see 'Biaxial loading' in docs/physics_models.md.",
+      "description": "Signed sigma_y / sigma_x of a proportional biaxial in-plane load (sigma_x, sigma_y) = lambda * (s, s * ratio), s = -1 for loading 'compression' and +1 for 'tension'; 0 is the uniaxial load. For |sigma_y| > |sigma_x| rotate the layup by 90 deg and swap Lx_mm and Ly_mm. Tiers 'empirical' and 'semi_analytical' support a nonzero ratio; 'fe3d' does not yet. Experimental, not validated (no biaxial residual-strength data); see 'Biaxial loading' in docs/physics_models.md.",
       "maximum": 1.0,
       "minimum": -1.0,
       "type": "number"

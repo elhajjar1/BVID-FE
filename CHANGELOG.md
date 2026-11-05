@@ -60,8 +60,8 @@ All notable changes to BVID-FE are documented in this file.
     `biaxial_interaction_factor` (residual over the uniaxial residual of the
     same damage), `None` for a uniaxial run, and a `notes` line on every
     biaxial run saying it is experimental and not validated;
-  - `semi_analytical` and `fe3d` raise `NotImplementedError` for a nonzero
-    ratio until their follow-up PRs.
+  - `fe3d` raises `NotImplementedError` for a nonzero ratio until its
+    follow-up PR (`semi_analytical`: see the next entry).
 
   No biaxial residual-strength data are known, so nothing at β ≠ 0 is
   validated; under biaxial tension the pristine envelope ends,
@@ -70,6 +70,49 @@ All notable changes to BVID-FE are documented in this file.
   [Biaxial loading](docs/physics_models.md#biaxial-loading). The JSON
   Schemas are regenerated (the ratio's range and sign convention are in
   the schema).
+- **Biaxial loading in `semi_analytical`, experimental and unvalidated**
+  (issue #115, second part). A nonzero `transverse_stress_ratio` no
+  longer raises on `tier="semi_analytical"`. The delaminated film takes
+  the laminate's biaxial strain: its compression along x is the full
+  x-stress, as before, and along y the y-stress of the applied σy through
+  the sublaminate's `A` (the Poisson-mismatch y-stress of σx and the film
+  shear are left out, as uniaxially). Both enter the geometric stiffness
+  of the clamped-ellipse onset Ritz, the prestress of the post-buckled 2D
+  blister (Chai & Babcock 1985 treat elliptic delaminations under
+  biaxial load) and the simply supported panel Ritz, so lateral
+  compression lowers the growth stress, lateral tension raises it at a
+  fixed axial film stress, and a film in tension along both axes does not
+  buckle. CAI is `min(homothetic Soutis, growth)`; TAI is `min(hole model
+  with F(β), growth)`, so under axial tension with lateral compression a
+  film can buckle across the load and grow (8-ply [0/90]2s IM7/8552,
+  10 J, β = −1: knockdown 0.704 against the empirical 0.827), and
+  `semi_analytical ≤ empirical` at every β. Every biaxial run's note names
+  the growing interface, its film axis and the whole-panel buckling stress
+  along the ray.
+  - `sublaminate_buckling_load`, `sublaminate_growth_stress`,
+    `weakest_sublaminate_growth` and `panel_buckling_load` gain
+    keyword-only `loading` and `transverse_stress_ratio`;
+    `semi_analytical_cai` and `semi_analytical_tai` gain keyword-only
+    `transverse_stress_ratio` (and `semi_analytical_tai` `boundary`).
+  - `SublaminateGrowth` gains `film_stress_axis` (`"x"` or `"y"`, the
+    axis its film fields are along) and `film_stress_ratio`, and
+    `SemiAnalyticalResult` gains `growth`, all last and defaulted.
+  - Under a biaxial load the strip lower bound of the interface search
+    does not hold (a laterally compressed blister can release more than
+    the strip), so interfaces are skipped only when their buckling onset is
+    above the lowest growth stress, and the others are solved in full: the
+    result is the minimum over the interfaces exactly.
+  - Where Newton's method cannot follow the post-buckled branch past a
+    fold (the film snaps to another mode) inside the bracket of the growth
+    root, the growth stress is taken at the fold instead of raising (met
+    only under a biaxial load).
+
+  A biaxial `semi_analytical` CAI run takes about three times a uniaxial
+  one (its growth search about twice, and it also solves the uniaxial
+  growth for `biaxial_interaction_factor`). At
+  β = 0 every function runs its unchanged code and every result is
+  bit-identical. Nothing at β ≠ 0 is validated. See
+  [Biaxial loading](docs/physics_models.md#biaxial-loading).
 - **Biaxial loading in the app, a ratio sweep and an envelope plot**
   (issue #115, experimental and not validated, like the field). No
   analysis result changes; with the ratio at its default 0 the app gives

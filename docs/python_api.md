@@ -132,7 +132,7 @@ bounds it.
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
-| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; only `tier="empirical"` supports a nonzero ratio so far (the other tiers raise `NotImplementedError`). See [Biaxial loading](physics_models.md#biaxial-loading) |
+| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; `tier="empirical"` and `"semi_analytical"` support a nonzero ratio (`"fe3d"` raises `NotImplementedError` so far). See [Biaxial loading](physics_models.md#biaxial-loading) |
 
 `MeshParams` fields (fe3d only):
 
@@ -167,7 +167,7 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `knockdown` | `residual_strength_MPa / pristine_strength_MPa` |
 | `damage`, `dpa_mm2` | The `DamageState` used and its projected damage area (mm²) |
 | `tier_used`, `config_snapshot` | Provenance |
-| `buckling_eigenvalues` | Buckling *onset*, not strength, as a one-element list: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI; `None` for `empirical`, for TAI and for `semi_analytical` without delaminations |
+| `buckling_eigenvalues` | Buckling *onset*, not strength, as a one-element list: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI; `None` for `empirical`, for TAI (except `semi_analytical` under a lateral compression, `transverse_stress_ratio < 0`, where a film can buckle and grow) and for `semi_analytical` without delaminations |
 | `critical_sublaminate` | `semi_analytical` and `fe3d` CAI: interface whose delamination grows at the lowest stress; else `None` |
 | `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here (and, for CAI, the delamination-growth and whole-panel buckling stresses). Impact-mapping regimes are Python warnings, not notes |
 | `warnings` | Every `UserWarning` raised during the run, as `"<WarningClass>: <message>"` (also emitted as Python warnings) |
@@ -237,7 +237,9 @@ Cross-tier expectations:
 - For **CAI**, `semi_analytical.knockdown ≤ empirical.knockdown` always
   (the growth stress only lowers the residual). `fe3d` is independent
   and can sit above or below `empirical`.
-- For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly;
+- For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly
+  (under a biaxial load with lateral compression, `transverse_stress_ratio
+  < 0`, `semi_analytical` can be lower: a laterally compressed film grows);
   `fe3d` differs: it uses the same fibre-damage hole and adds the
   matrix-cracked zone around it, so it falls with energy like the closed
   form and sits 2–8% below it (see the tier table).
@@ -459,7 +461,7 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
 | `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
 | `--loading` | `compression` | `compression` or `tension` |
-| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; `empirical` tier only so far |
+| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; `empirical` and `semi_analytical` tiers (not `fe3d` yet) |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
 | `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |
