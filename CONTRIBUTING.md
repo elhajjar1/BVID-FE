@@ -179,9 +179,10 @@ datasets, the case fields and the calibration history; read its
   - Empirical tier on every dataset, `--gate` (hard gate).
   - Semi-analytical tier on the measured datasets (`--measured`: every
     dataset with `"kind": "measured"`, currently `ncamp_as4_8552_cai`,
-    `lovejoy_scotti_im7_8552_cai`, `hasebe_t800s_3900_2b_cai` and
-    `korbelin_m21_t800s_tai`), `--gate` (hard gate; the Hasebe and Körbelin
-    sets are reported only, `"gate": false`). `synthetic_selfcheck`
+    `lovejoy_scotti_im7_8552_cai`, `hasebe_t800s_3900_2b_cai`,
+    `korbelin_m21_t800s_tai` and `gonzalez_as4_8552_cai`), `--gate` (hard
+    gate; the Hasebe, Körbelin and González sets are reported only,
+    `"gate": false`). `synthetic_selfcheck`
     (`"kind": "synthetic"`) is generated from the empirical tier, so other
     tiers cannot match it.
   - fe3d tier on the first 3 cases of `synthetic_selfcheck` only, as a

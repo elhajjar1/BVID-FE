@@ -6,6 +6,24 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- `validation/datasets/gonzalez_as4_8552_cai.json`, a measured CAI
+  dataset reported but not gated (`"gate": false`): 19 AS4/8552 coupons
+  from E.V. González's Girona PhD thesis (2010, open on TDX; the tests of
+  González et al., Compos Sci Technol 71, 2011), transcribed from its
+  tables, none digitized. ASTM D7136/D7137 coupons, 16 mm 5 kg
+  hemisphere (6 and 15 kg at 58 J), 19.3–57.9 J; quasi-isotropic
+  [(45/0/-45/90)4]s and the same layup with plies clustered in pairs and
+  fours (C-scan areas, dents), the cross-ply [(0/90)9]s and a 48-ply
+  quasi-isotropic laminate. Empirical 14.3%, semi-analytical 14.4%. The
+  5.8 mm quasi-isotropic coupons score 3.9–7.1%, the cross-ply is 36%
+  high (as Hasebe et al.'s cross-ply laminates, and opposite to Lovejoy
+  & Scotti's hard laminate) and the 48-ply laminate 21% low. Refitting
+  the CAI study's layup terms (`Kt∞`, 0° fraction, Ex/Ex_QI, 90°
+  interfaces, thickness) leave-one-dataset-out with it as a fourth
+  dataset, none beats today's knockdown map on held-out data (11.5%
+  against 12.8–16.5%). The thesis's AS4/8552 card differs from the
+  preset (E22, G12, ν12, strengths); the preset is unchanged. See
+  `validation/README.md`.
 - `bvidfe.elements.hex8s.Hex8SolidShellElement`, a solid-shell Hex8 for
   buckling of thin laminates (#132): Hex8i incompatible modes plus
   Dvorkin-Bathe assumed transverse shear, a geometric stiffness from a
