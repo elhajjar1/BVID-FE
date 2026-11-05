@@ -29,6 +29,13 @@
       "gated": false
     },
     {
+      "name": "gonzalez_as4_8552_cai",
+      "reference": "Gonzalez 2010, PhD thesis, Universitat de Girona, hdl.handle.net/10803/22834, Tables 3.12, 4.3, 4.4, 4.8, 4.13",
+      "target_mae_pct": 15,
+      "measured": true,
+      "gated": false
+    },
+    {
       "name": "synthetic_selfcheck",
       "reference": "generated from the empirical tier",
       "target_mae_pct": 1,
@@ -45,11 +52,6 @@
       "name": "nasa_tp3102_t800_3900-2_cai",
       "reference": "NASA TP-3102, drop-weight point",
       "material": "T800/3900-2"
-    },
-    {
-      "name": "girona_as4_8552_cai",
-      "reference": "Gonzalez et al. 2011, Compos Sci Technol 71; Falco et al. 2014, Compos Struct",
-      "material": "AS4/8552"
     }
   ]
 }

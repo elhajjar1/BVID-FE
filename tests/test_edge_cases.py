@@ -104,9 +104,14 @@ def test_damage_driven_tension_returns_reduced_strength():
 
 
 def test_mixed_tier_switch_same_damage_yields_different_knockdown():
-    """Same damage state, run through all three tiers — each gives a distinct number."""
+    """Same damage state, run through all three tiers — each gives a distinct number.
+
+    The delamination is one where growth governs ``semi_analytical``
+    (knockdown 0.623 against 0.675 empirical). With the 2D blister energy
+    release rate the 20 x 12 mm one at interface 3 used before grows above
+    the Soutis bound, so the two tiers tied there."""
     ds = DamageState(
-        [DelaminationEllipse(3, (75, 50), 20, 12, 45)],
+        [DelaminationEllipse(1, (75, 50), 8, 6, 45)],
         dent_depth_mm=0.3,
     )
     base_kwargs = dict(

@@ -9,8 +9,9 @@ composite-after-impact test data.
 |---|---|---|---|---|---|---|---|
 | `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
 | `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.8% | 8.8% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
-| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 24.0% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
+| `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 21.5% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
 | `korbelin_m21_t800s_tai` (not gated) | M21/T800S (T800S/3900-2B card) | TAI | 5 | 15% | 3.5% | 3.5% | In-sample for `tai_notch_fraction` (the only TAI fit) |
+| `gonzalez_as4_8552_cai` (reported, not gated) | AS4/8552 | CAI | 19 | 15% | 14.3% | 14.3% | Out of sample: nothing is fitted to it |
 | `synthetic_selfcheck` | IM7/8552 | CAI + TAI | 12 | 1% | 0.0% (by construction) | 0.0% (not gated) | Tautological (empirical-tier output) |
 
 These are the MAEs `validate_bvid_public.py` prints (rounded). Three
@@ -21,16 +22,23 @@ things the gate does not show:
   [Calibration of `soutis_k_s`](#calibration-of-soutis_k_s) (5.0–8.8%).
   Hasebe et al.'s strengths are not fitted, but the model is known to
   miss them and they are not gated.
-- **The semi-analytical growth channel is not exercised by the gate.**
-  On every NCAMP and Lovejoy & Scotti coupon the Soutis bound is lower
-  than the delamination growth stress (176–177 against 217–219 MPa on
-  NCAMP; 156 against 225–226 MPa and 224 against 271 MPa on Lovejoy &
-  Scotti), so the two tiers give identical numbers there. On Hasebe et
-  al.'s set growth governs 176 of 343 coupons (94 of 157 cross-ply
-  c8/c16/c24, 15 of 27 hard r0, 67 of 132 quasi-isotropic, no soft r45),
-  and on those 176 the semi-analytical MAE is 28.6% against 23.9%
-  empirical (both 19.1% on the other 167). The growth channel is therefore unvalidated, and
-  where it acts it makes the prediction worse. (Before the
+- **The semi-analytical growth channel is not exercised by any
+  dataset.** On every NCAMP and Lovejoy & Scotti coupon the Soutis bound
+  is lower than the delamination growth stress (176–177 against
+  285–287 MPa on NCAMP; 156 against 307–308 MPa and 224 against 408 MPa
+  on Lovejoy & Scotti), and with the energy release rate of the 2D
+  blister (the post-buckled elliptical film) it is lower on every Hasebe
+  et al. coupon too, so the two tiers give identical numbers on all
+  three. The growth channel is therefore unvalidated. With the
+  straight-sided strip's energy release rate the growth stresses were
+  217–219, 225–226 and 271 MPa, and growth governed 176 of the 343
+  Hasebe coupons (94 of 157 cross-ply c8/c16/c24, 15 of 27 hard r0, 67
+  of 132 quasi-isotropic, no soft r45), where it made the prediction
+  worse: 28.6% against 23.9% empirical (both 19.1% on the other 167),
+  24.0% over the set. Per layup the semi-analytical MAE went from 19.8%
+  to 14.1% (c8), 33.0% to 31.1% (c16), 20.7% to 18.2% (c24), 21.6% to
+  19.8% (q8), 26.5% to 24.2% (q16), 39.0% to 37.5% (q24) and 17.8% to
+  15.4% (r0), the empirical numbers; r45 stayed 4.0%. (Before the
   clamped-ellipse sublaminate of #132 the growth stresses were 205–206,
   182 and 227–228 MPa, and growth governed 256 Hasebe coupons: 25.6%
   against 23.0%, 17.2% on the other 87.)
@@ -40,6 +48,11 @@ things the gate does not show:
   closed-form TAI model. fe3d scores 3.6% there (`--tier=fe3d`, not run
   in CI), also partly in-sample: its fibre-damage hole is the closed-form
   one.
+
+The Lovejoy & Scotti strength MAE also rests on a cancellation between
+the knockdown and the pristine strength. Against the measured pristine
+strength its knockdown MAE is 13.6%, not 8.8%; see [Knockdown against the
+measured pristine strength](#knockdown-against-the-measured-pristine-strength).
 
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
 (2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
@@ -168,6 +181,49 @@ Lovejoy & Scotti within about 1%, NCAMP about 21% low. Treat fe3d
 strengths as qualitative. fe3d takes about 20 s on the 24-ply NCAMP
 coupon and about 45 s on the 40-ply hard laminate (5 mm mesh).
 
+**Why fe3d's knockdown does not fall with damage area.** fe3d's CAI
+knockdown is set by the strain concentration at the soft zone's flank,
+where a 0° ply fails in fibre compression. That concentration depends on
+the zone's width and aspect ratio, not its area. In a wide panel the same
+zone gives the same knockdown from 700 to 5,269 mm². On the NCAMP coupon
+the template grows self-similarly until its width reaches the 75 mm
+impact window at about 4,200 mm². Beyond that, all further area goes
+along the load direction, which lowers the flank concentration. fe3d on
+the NCAMP coupon therefore gives a knockdown with a minimum at the cap:
+
+| Damage area (mm²) | 1,400 | 2,783 | 3,500 | 4,200 | 5,269 | 6,023 |
+|---|---|---|---|---|---|---|
+| fe3d knockdown | 0.336 | 0.260 | 0.240 | **0.217** | 0.253 | 0.239 |
+
+- **The coincidence:** the NCAMP coupon (2,783 mm²) and the Lovejoy &
+  Scotti coupons (5,269–6,991 mm²) sit on either side of the minimum, so
+  their near-equal fe3d knockdowns are a coincidence, not a material or
+  laminate effect.
+- **Without the window cap** (the zone bounded only by the coupon edges)
+  the knockdown keeps falling: 0.260 / 0.188 / 0.133 at 2,783 / 5,269 /
+  6,991 mm².
+- **What is not the cause:**
+  - The 2.5 mm averaging disk: radii of 0–20 mm change the 2,783 to
+    5,269 mm² ratio only to 0.97–1.17, against 1.34 measured.
+  - A characteristic-length (Whitney-Nuismer) hole: it is flat above
+    about 1,400 mm² for d0 = 1–4 mm.
+- **What the data cannot separate:** with the width pinned by the window,
+  no elastic zone model makes the knockdown fall with area. The measured
+  fall needs either damage wider than the window or damage severity that
+  rises with energy (6.7 J/mm on the NCAMP coupon, 8.9 J/mm on the Lovejoy
+  & Scotti QI). The two datasets move both together and cannot tell them
+  apart.
+- **What would decide it:** measured damage widths from large-area ASTM
+  C-scans, and an energy series on a single laminate and coupon.
+- **What is not adopted:**
+  - Bounding the footprint by the coupon edges (with the factor refitted
+    to 0.22) brings back the area dependence. It scores NCAMP +0.2%,
+    Lovejoy & Scotti QI +7.0% and hard −14.2%, a 7.1% mean against 7.4%
+    today. It is not adopted: it undoes the confinement that fixed the
+    hard laminate, and no measured widths support it.
+  - Softening only the plies bounding a delamination gives no size
+    effect in 3D.
+
 ### Calibration of `soutis_k_s`
 
 The empirical CAI knockdown is `1 / (1 + k_s (DPA/A_ref)^m)`, with
@@ -278,8 +334,9 @@ Before the refit (linear plate, the constants above) the MAEs were
 1.55% (NCAMP), 8.73% (Lovejoy & Scotti) and 21.19% / 23.07% (Hasebe et
 al., empirical / semi-analytical); after it they are 1.54%, 8.78% and
 21.53% / 23.35% (23.45% semi-analytical once the sublaminate buckling
-rectangle followed the ellipse orientation, #165, and 23.97% with the
-clamped-ellipse sublaminate, #132). The NCAMP damage area
+rectangle followed the ellipse orientation, #165, 23.97% with the
+clamped-ellipse sublaminate, #132, and 21.53% with the 2D blister energy
+release rate). The NCAMP damage area
 is about 2,790 mm² either way.
 
 The in-sample numbers flatter the model. The fair measure is
@@ -380,7 +437,8 @@ dent is a median 0.94× the measured dent over the 308 with a positive one
 
 Why the model misses: the damage area is right, but the knockdown map is
 not. A constant knockdown (the set's mean, 0.73) scores 30.3%, against
-21.5% (empirical) and 24.0% (semi-analytical). The empirical MAE per
+21.5% (empirical and semi-analytical; 24.0% semi-analytical with the
+straight-sided strip's energy release rate). The empirical MAE per
 layup is 14% (c8), 31% (c16), 18% (c24), 20% (q8), 24% (q16), 37% (q24),
 15% (r0) and 4% (r45). The predicted knockdown averages 0.63 against 0.73
 measured. Two things remain:
@@ -457,6 +515,147 @@ impact at one energy only; Itakura et al. 2022 (JSME) is gas-gun
 penetration; Poe's NASA reports cover thick filament-wound rocket motor cases;
 Körbelin's 2022 TUHH thesis ("Damage tolerance of high-performance
 composites", Band 41) was not located online.
+
+**`gonzalez_as4_8552_cai`** is measured data, reported but not gated
+(`"gate": false`) until the maintainer decides: E.V. González's PhD
+thesis (Universitat de Girona, 2010; open on TDX,
+[hdl.handle.net/10803/22834](http://hdl.handle.net/10803/22834)), which
+tabulates per coupon the tests behind González et al., *Compos Sci
+Technol* 71 (2011) 805–817 (ply clustering) and *Compos Struct* 94 (2012)
+3364–3378 (simulation). Only the thesis was read in full; the two papers
+were read as abstracts. Hexply AS4/8552 tape, 150 × 100 mm coupons
+impacted on the ASTM D7136 125 × 75 mm window (four rubber-tipped
+clamps, `impact_panel_*`) by a 16 mm hemispherical tup of 5 kg, then
+tested in an ASTM D7137 fixture. 19 coupons on 5 laminates:
+- L02 quasi-isotropic [(45/0/-45/90)4]s, 32 plies, 5.8 mm, at 38.6, 28.6
+  and 19.3 J (4 coupons);
+- L03 [(45₂/0₂/-45₂/90₂)2]s and L04 [45₄/0₄/-45₄/90₄]s, the same
+  in-plane layup with plies clustered in pairs and fours (4 each);
+- L06 cross-ply [(0/90)9]s, 36 plies, 6.8 mm (4);
+- L05 quasi-isotropic [(45/0/-45/90)6]s, 48 plies, 8.8 mm, at 38.6 J
+  (5 kg) and 58 J (6 and 15 kg) (3).
+
+What is measured and what is not:
+- Every value is transcribed from a table or the text; nothing is
+  digitized. CAI loads: Tables 4.4 and 4.8, L05 from Table 4.13 and
+  section 4.4.4. Laminates, cured ply and plate thickness: Table 3.12.
+  C-scan projected areas: Table 4.3, for L02–L04 only (12 coupons).
+  Dents: the maximum indentation printed over each contour plot
+  (Figs. 4.17 and 4.32), carried on the 9 coupons where the plotted
+  specimen is the CAI specimen.
+- The strength is the failure load over the nominal 100 mm width times
+  the laminate's cured thickness, as the thesis does; per-coupon
+  dimensions are not reported. The thesis's Tables 4.9 and 4.13 print
+  the result a factor 10 low (16.6 for 96 kN / (100 × 5.8 mm) =
+  165.5 MPa).
+- No undamaged compression strength is reported, and the L05 and L06
+  C-scans are images without a scale. The L05 coupons at 38.6 J and the
+  58 J pair are one value each, with the specimen not named.
+- The 16-ply L01 (3.0 mm) is left out: the thesis reports global
+  buckling in the CAI fixture, and its 197 MPa is near the plate's
+  buckling stress.
+
+The thesis's AS4/8552 card (Table 7.1, partly measured on the same
+prepreg roll) differs from the `AS4/8552` preset (NCAMP), which is not
+changed: E22 7.63 against 9.24 GPa, G12 4.36 against 4.83 GPa, ν12 0.35
+against 0.30, Xt 2300 against 1872 MPa (the preset uses NCAMP's
+cross-ply back-out), Xc 1531 against 1398 MPa, Yt 26 against 64 MPa (the
+thesis applies in-situ factors to it), Yc 200 against 268 MPa and S12 78
+against 92 MPa. E11 (128.0 against 127.3 GPa), ν23 (0.45), G_Ic (0.28),
+G_IIc (0.79 N/mm) and the density agree.
+
+Scores (MAE, signed bias, `soutis_k_s` = 4.8; nothing is fitted to this
+dataset). "Measured area" puts the C-scan area in place of the predicted
+one; "vs NCAMP pristine" is the knockdown error against NCAMP's measured
+25/50/25 unnotched compression (560.7 MPa; the model gives 543.2 MPa):
+
+| Laminate | n | h (mm) | Empirical MAE (bias) | Semi-analytical MAE | Predicted / C-scan area | Bias with measured area | Knockdown bias vs NCAMP pristine | One scale per laminate |
+|---|---|---|---|---|---|---|---|---|
+| L02 quasi-isotropic | 4 | 5.8 | 3.9% (−2.5%) | 3.9% | 1.25× | +5.3% | +0.6% | 1.00 |
+| L03 clustered ×2 | 4 | 5.8 | 5.2% (+1.3%) | 5.2% | 0.80× | −5.9% | +4.6% | 0.95 |
+| L04 clustered ×4 | 4 | 5.8 | 7.1% (+2.8%) | 7.1% | 0.52× | −19.3% | +6.1% | 0.98 |
+| L06 cross-ply | 4 | 6.8 | 35.9% (+35.9%) | 35.9% | no C-scan | – | no pristine | 0.74 |
+| L05 quasi-isotropic, 48 plies | 3 | 8.8 | 21.2% (−21.2%) | 21.2% | no C-scan | – | −18.7% | 1.25 |
+| All | 19 | | 14.3% (max 41.2%) | 14.3% (max 41.2%) | | | | 3.8% MAE |
+
+The replicate floor (coupons at the same laminate and energy) is 2.1%
+over 10 coupons. Which channel governs: in the semi-analytical tier the
+Soutis bound governs all 19 coupons, so the two tiers agree. (With the
+straight-sided strip's energy release rate, before the 2D blister,
+delamination growth governed 3: L03 at 28.6 and 19.3 J and L06 at
+19.3 J, making L03 at 19.3 J worse, −17% against −8%, and the other two
+3–4 points better; semi-analytical MAE 14.4%.) fe3d at the default 5 mm
+mesh, on three coupons (not run in CI; first-ply failure governs all
+three): L02-S01 119.7 against 160.3 MPa (−25%), L06-S01 110.1 against
+166.2 MPa (−34%), L05 at 38.6 J 126.1 against 206 MPa (−39%), about 1 to
+1.5 minutes each.
+
+The per-layup pattern:
+- **Clustering.** The 5.8 mm laminates score within 4–7%, but for the
+  wrong reason. The predicted area is the same for all three
+  (3,670 mm² at 38.6 J) while the C-scans grow from 3,022 to 3,955 and
+  6,158 mm² as the plies are clustered, and the CAI strength does not
+  change (the papers' conclusion). With the measured area, the
+  knockdown of L04 is 19% too low. L04-S05 (19.3 J, +17.5%) is the one
+  coupon the thesis singles out as low.
+- **Cross-ply.** The model keeps too much strength: 35.9% high, one
+  scale of 0.74 fits all four coupons (1.7%). The measured CAI of L06
+  is the same as L02's (166–167 against 160–171 MPa at 38.6 J), while
+  the model's pristine strength is 749 against 543 MPa and its
+  knockdowns nearly equal. This agrees with Hasebe et al., whose
+  cross-ply laminates need about 25% less strength than their
+  quasi-isotropic ones relative to the model, and here the coupons are
+  ASTM coupons, so it is not the JIS fixture. It is the opposite of
+  Lovejoy & Scotti's hard 50/40/10 laminate, which needs about 26% more
+  than its quasi-isotropic coupons. fe3d does not show the cross-ply
+  excess: its damaged first-ply failure stress is 110 MPa on L06 and
+  117 MPa on L02, so it puts the cross-ply 8% below the
+  quasi-isotropic coupon, where the measurement is 4% above and the
+  closed-form tiers 39% above.
+- **Thickness.** The 48-ply laminate keeps more strength than the model
+  gives (21% low). Its C-scans are not tabulated; the thesis says that
+  at equal impact they are "quite similar" to L02's, and the predicted
+  area at 38.6 J (3,404 mm²) is close to L02's measured 3,022 mm², so
+  the miss is in the knockdown map, not the area.
+
+Cross-validation of the layup terms with this dataset as a fourth set
+(the CAI study's levers, refitted leave-one-dataset-out: fit on three
+datasets with equal weight, score the fourth; validator scoring,
+predicted area). The last column fits on two of the three ASTM datasets
+(NCAMP, Lovejoy & Scotti, González) and scores the third, leaving
+Hasebe's fixture-limited coupons out:
+
+| Knockdown map | New constants | Held out: NCAMP / L&S / Hasebe / González | Mean | Exponent by fold (without NCAMP / L&S / Hasebe / González) | ASTM-only mean |
+|---|---|---|---|---|---|
+| Today (`k_s` 4.8, m 0.5) | 0 | 1.5 / 8.8 / 21.5 / 14.3 | 11.5 | – | 8.2 |
+| Refit `k_s` | 0 | 2.2 / 8.7 / 21.6 / 14.2 | 11.7 | – | 8.4 |
+| `k_s (Kt∞/3)^p` | 1 | 2.2 / 13.9 / 22.8 / 17.9 | 14.2 | +0.40 / +0.76 / +0.75 / −0.37 | 11.8 |
+| `k_s (f0/0.25)^p`, 0° fraction | 1 | 2.2 / 21.0 / 22.5 / 15.7 | 15.4 | −0.15 / +0.56 / −0.15 / −0.12 | 14.0 |
+| `k_s (Ex/Ex_QI)^p` | 1 | 4.2 / 24.2 / 22.3 / 15.3 | 16.5 | −0.31 / +1.16 / −0.24 / −0.18 | 15.1 |
+| `k_s (1 + p f90)`, 90° interfaces | 1 | 1.5 / 12.3 / 22.1 / 16.2 | 13.0 | +0.44 / +0.51 / +0.48 / −0.10 | 13.7 |
+| `k_s (h/4.5 mm)^q`, thickness | 1 | 3.5 / 10.1 / 23.0 / 14.8 | 12.8 | −0.09 / +0.22 / −0.20 / −0.14 | 14.0 |
+
+No layup term survives: each one makes the held-out mean worse, by 1.3
+to 5.0 points with four datasets and by 3.6 to 6.9 points on the ASTM
+sets alone, and each makes the held-out González error worse too (14.8–17.9%
+against 14.3%). Fitted on all four, `Kt∞` and the 90°-interface fraction
+take González from 14.3% to 10.3% and 7.9% in-sample, but Lovejoy &
+Scotti from 8.8% to 11.6–11.7%. The exponents still change sign between
+folds: the `Kt∞` and 90°-interface exponents are positive whenever
+González's cross-ply is in the fit and negative without it, and the 0°
+fraction and Ex exponents are negative whenever Lovejoy & Scotti's hard
+laminate is in the fit and positive without it. In every candidate the
+hard and the cross-ply laminates sit on the same side of the
+quasi-isotropic one (both have more 0° plies, a higher `Kt∞` and a higher
+Ex), and the data want them moved in opposite directions, the hard
+laminate up and the cross-ply down, so no monotone term in these
+quantities can fit both. The result holds with
+the measured areas (held-out mean 11.5% today against 11.9–16.7%), and
+without L04-S05. Knockdown against NCAMP's measured pristine cannot test
+the layup terms here, as the cross-ply has no measured pristine strength.
+(Computed with the CAI accuracy study's lever scripts, which are not in
+the repository; with the original three datasets they give its 10.6%
+held-out mean.)
 
 **`synthetic_selfcheck`** is tautological: each case is produced by running
 the empirical tier at a known input, so its MAE is ~0% by construction.
@@ -547,6 +746,73 @@ is run on the first three synthetic cases as a smoke run, not a gate: the
 synthetic set is empirical-tier output, so its error there (29.2%) measures
 the difference between the tiers, not fe3d's accuracy.
 
+### Knockdown against the measured pristine strength
+
+The gated MAE scores a strength. A case without `measured_pristine_MPa`
+(NCAMP, Lovejoy & Scotti) is scored on the predicted knockdown times the
+model's own pristine (unnotched) strength, so an error in that pristine
+strength can hide an error in the knockdown, or the other way round. For
+each case with a measured undamaged strength `P`, the validator therefore
+also reports, without gating them:
+- **knockdown error** = predicted knockdown / (measured residual / `P`) − 1;
+- **pristine error** = model pristine strength / `P` − 1.
+
+Each is printed as MAE and mean signed bias, per dataset and per
+`layup_label` (a `knockdown (reported, not gated)` line after the MAE
+line, one `layup` line per group), next to the gated strength MAE and its
+bias. Where no case has a `P` it prints `n/a`. The per-case table gains
+the columns `layup`, `predicted_pristine_MPa`, `measured_pristine_MPa`
+(the `P` used), `measured_knockdown`, `knockdown_error_pct` and
+`pristine_error_pct` (signed), and `knockdown_summary(df)` returns the
+same numbers as a dict. `P` is `measured_pristine_MPa` when the case has
+one (an undamaged coupon of the same test), else `measured_unnotched_MPa`.
+That field is reported only, never scored: the measured unnotched strength
+of the same material and layup family from another source. NCAMP and
+Lovejoy & Scotti test no undamaged coupons, so their cases carry NCAMP's
+RTD unnotched compression, normalized to the cured ply thickness (the
+values of `tests/validation/test_unnotched_strength_ncamp.py`): AS4/8552
+25/50/25 560.7 MPa (CAM-RP-2010-002), IM7/8552 25/50/25 600.2 MPa and
+50/40/10 833.2 MPa (CAM-RP-2009-015). The Lovejoy & Scotti hard laminate
+has the 50/40/10 ply fractions in another stacking, which the ply-discount
+pristine strength does not depend on. The reference comes from other
+coupons and another laboratory than the CAI tests, so the knockdown error
+carries a few percent of that uncertainty.
+
+Empirical tier (semi-analytical identical on every dataset):
+
+| Dataset / layup | Cases | Strength MAE / bias (gated) | Knockdown MAE / bias vs measured pristine | Pristine error |
+|---|---|---|---|---|
+| NCAMP, 25/50/25 | 7 | 1.5% / +0.4% | 3.6% / +3.6% | −3.1% |
+| Lovejoy & Scotti, all | 8 | 8.8% / +1.4% | 13.6% / −3.7% | MAE 6.1% / bias +6.1% |
+| Lovejoy & Scotti, QI 25/50/25 | 4 | 10.2% / +10.2% | 10.0% / +10.0% | +0.2% |
+| Lovejoy & Scotti, hard 50/40/10 | 4 | 7.4% / −7.4% | 17.3% / −17.3% | +11.9% |
+| Hasebe et al. (scored on `P`) | 343 | 21.5% / −6.6% | the same | +101% (−7% r45 to +237% c8) |
+| Körbelin et al., TAI (scored on `P`) | 5 | 3.5% / −1.4% | the same | −3.9% (proxy card) |
+
+On Lovejoy & Scotti the 8.8% is a cancellation. The model puts the hard
+laminate's pristine strength at 932.6 MPa, 11.9% above NCAMP's 833.2 MPa,
+and its knockdown (0.240) 17.3% below the measured one (0.283–0.299
+against NCAMP's pristine strength); the product is 7.4% low. The
+quasi-isotropic coupons have the right pristine strength (+0.2%) and a
+knockdown 10.0% high. Against the measured pristine strength the dataset's
+knockdown MAE is 13.6%, and the knockdown map has a +10% / −17% split
+between the two layups that the strength MAE shows only as +10% / −7%.
+On NCAMP the two errors offset a little the other way: pristine −3.1%,
+knockdown +3.6%, strength bias +0.4%. On a case scored on
+`measured_pristine_MPa` the knockdown error is the signed strength error,
+and the pristine error measures the test rather than the model: Hasebe
+et al.'s undamaged coupons are fixture-limited (above), and only the soft
+r45 laminate, which the fixture does not limit, has a pristine strength
+near the model's.
+
+The IM7/8552 card's `Xc` (1590 MPa, a generic value) is not NCAMP's, and
+the pristine compression strength of every layup scales with it. The
+NCAMP data do not give one `Xc` for both laminates: 1420 MPa puts the
+50/40/10 laminate on 833.2 MPa but the 25/50/25 laminate 10.5% low, and
+1587 MPa fits 25/50/25 only. The pristine error of the hard laminate is
+therefore a layup error of the ply-discount strength as much as a
+material constant.
+
 ## Unnotched (pristine) strength
 
 Every tier divides by the same pristine strength, the unnotched laminate
@@ -584,7 +850,13 @@ needs the inputs listed before it can be scored.
 |---|---|---|---|
 | Sánchez-Sáez et al. 2008 (UC3M open manuscript) | AS4/3501-6 | CAI | Thin, stability-limited 78 mm coupons |
 | NASA TP-3102, drop-weight point | T800/3900-2 | CAI | Single point |
-| González et al. 2011 and Falcó et al. 2014 (Girona) | AS4/8552 | CAI | Ready now that the AS4/8552 preset exists |
+| Falcó et al. 2014, *Compos Struct* 116, 94–103 (Girona, tow-drop gaps in variable-stiffness panels) | AS4/8552? (only the abstract was seen) | CAI | The full text (the Girona repository blocks automated downloads); only its straight-fibre baseline laminates can be modelled |
+
+González et al. 2011 is now `gonzalez_as4_8552_cai`, from the thesis
+that tabulates its coupons. A Girona dataset with a hard (50/40/10-type)
+laminate and a measured undamaged strength would be the most useful next
+step: it is the combination that separates the cross-ply and hard
+laminate corrections above.
 
 The v0.2.0 roadmap this table replaces named four sources that cannot be
 used as listed:
@@ -603,9 +875,15 @@ or `tension`), `boundary` (`simply_supported`, the default, `clamped`,
 `conical`), `measured_dent_mm` and `measured_dpa_mm2` (recorded, not
 scored), `measured_pristine_MPa` (scores the case on predicted knockdown ×
 this undamaged strength, for fixtures that cap the undamaged coupon),
+`measured_unnotched_MPa` (the measured unnotched strength of the same
+material and layup family from another source, for a dataset with no
+undamaged coupons; reported against the knockdown, not scored),
+`layup_label` (the group the knockdown errors are broken down by),
 `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and `impact_boundary` (the
 window the plate was impacted on, when it is not the test panel), and
-`note`.
+`note`. Give a new dataset a measured pristine strength (either field)
+where the source has one, so its knockdown is checked as well as its
+strength.
 
 ## Running
 

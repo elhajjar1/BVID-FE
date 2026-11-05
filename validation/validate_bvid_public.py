@@ -20,7 +20,6 @@ from bvidfe.analysis import AnalysisConfig, BvidAnalysis
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.impact.mapping import ImpactEvent
 
-
 DATASET_DIR = Path(__file__).parent / "datasets"
 
 # Per-tier slack on the dataset's target_mae_pct. ``empirical`` and
@@ -61,6 +60,13 @@ class DatasetCase:
     # leaves out the pristine-strength model: use it where the fixture caps
     # the undamaged coupon well below the laminate's unnotched strength.
     measured_pristine_MPa: Optional[float] = None
+    # Measured unnotched strength of the same material and layup family from
+    # a separate source (e.g. NCAMP qualification), for a dataset that
+    # reports no undamaged coupon. Reported only: it gives the knockdown and
+    # pristine-strength errors (see knockdown_summary), not the score.
+    measured_unnotched_MPa: Optional[float] = None
+    # Layup group the knockdown summary is broken down by ("" = none).
+    layup_label: str = ""
     # Impact panel when the coupon was impacted on a different window than
     # it is tested on (AnalysisConfig.impact_panel); None = the test panel.
     impact_panel_Lx_mm: Optional[float] = None
@@ -91,6 +97,8 @@ def case_from_dict(d: dict) -> DatasetCase:
         measured_dent_mm=d.get("measured_dent_mm"),
         measured_dpa_mm2=d.get("measured_dpa_mm2"),
         measured_pristine_MPa=d.get("measured_pristine_MPa"),
+        measured_unnotched_MPa=d.get("measured_unnotched_MPa"),
+        layup_label=d.get("layup_label", ""),
         impact_panel_Lx_mm=d.get("impact_panel_Lx_mm"),
         impact_panel_Ly_mm=d.get("impact_panel_Ly_mm"),
         impact_boundary=d.get("impact_boundary"),
@@ -119,12 +127,16 @@ def load_dataset(path: Path) -> tuple[str, List[DatasetCase], dict]:
     cases = [case_from_dict(c) for c in obj["cases"]]
     # "gate": false marks a dataset the model is known to miss: its error is
     # reported but does not fail --gate. "gate_note" says why.
-    return name, cases, {
-        "kind": kind,
-        "target_mae_pct": target_mae,
-        "gate": bool(obj.get("gate", True)),
-        "gate_note": obj.get("gate_note", ""),
-    }
+    return (
+        name,
+        cases,
+        {
+            "kind": kind,
+            "target_mae_pct": target_mae,
+            "gate": bool(obj.get("gate", True)),
+            "gate_note": obj.get("gate_note", ""),
+        },
+    )
 
 
 def run_case(case: DatasetCase, tier: str) -> dict:
@@ -157,6 +169,16 @@ def run_case(case: DatasetCase, tier: str) -> dict:
     if case.measured_pristine_MPa is not None:
         predicted = result.knockdown * case.measured_pristine_MPa
     err_pct = 100.0 * abs(predicted - case.measured_strength_MPa) / case.measured_strength_MPa
+    # Reported, not scored: the knockdown and the model's pristine strength
+    # against a measured undamaged strength, when the case has one.
+    pristine = case.measured_pristine_MPa
+    if pristine is None:
+        pristine = case.measured_unnotched_MPa
+    measured_kd = kd_err = pristine_err = None
+    if pristine is not None:
+        measured_kd = case.measured_strength_MPa / pristine
+        kd_err = 100.0 * (result.knockdown / measured_kd - 1.0)
+        pristine_err = 100.0 * (result.pristine_strength_MPa / pristine - 1.0)
     return {
         "material": case.material,
         "energy_J": case.impact_energy_J,
@@ -168,6 +190,12 @@ def run_case(case: DatasetCase, tier: str) -> dict:
         "predicted_dpa_mm2": result.dpa_mm2,
         "predicted_dent_mm": result.damage.dent_depth_mm,
         "measured_dent_mm": case.measured_dent_mm,
+        "layup": case.layup_label,
+        "predicted_pristine_MPa": result.pristine_strength_MPa,
+        "measured_pristine_MPa": pristine,
+        "measured_knockdown": measured_kd,
+        "knockdown_error_pct": kd_err,
+        "pristine_error_pct": pristine_err,
         "note": case.note,
     }
 
@@ -192,6 +220,66 @@ def dent_summary(df: pd.DataFrame) -> Optional[dict]:
         "p10": float(ratio.quantile(0.1)) if len(ratio) else float("nan"),
         "p90": float(ratio.quantile(0.9)) if len(ratio) else float("nan"),
     }
+
+
+def _error_stats(df: pd.DataFrame) -> dict:
+    """Strength, knockdown and pristine errors of a set of rows (see
+    knockdown_summary). The knockdown and pristine entries are None when no
+    row has a measured pristine strength."""
+    signed = 100.0 * (df["predicted_MPa"] / df["measured_MPa"] - 1.0)
+    out: dict = {
+        "n": int(len(df)),
+        "strength_mae_pct": float(df["error_pct"].mean()),
+        "strength_bias_pct": float(signed.mean()),
+    }
+    has = df["measured_pristine_MPa"].notna()
+    out["n_pristine"] = int(has.sum())
+    for key, col in (("knockdown", "knockdown_error_pct"), ("pristine", "pristine_error_pct")):
+        err = pd.to_numeric(df.loc[has, col])
+        out[f"{key}_mae_pct"] = float(err.abs().mean()) if has.any() else None
+        out[f"{key}_bias_pct"] = float(err.mean()) if has.any() else None
+    return out
+
+
+def knockdown_summary(df: pd.DataFrame) -> dict:
+    """The gated strength error next to the knockdown error against the
+    measured pristine strength. Reported only; the gate is on ``error_pct``.
+
+    Per case with a measured pristine strength P (``measured_pristine_MPa``,
+    else ``measured_unnotched_MPa``):
+
+    - knockdown error = predicted knockdown / (measured residual / P) - 1;
+    - pristine error = model pristine strength / P - 1.
+
+    Returns ``{"n", "strength_mae_pct", "strength_bias_pct", "n_pristine",
+    "knockdown_mae_pct", "knockdown_bias_pct", "pristine_mae_pct",
+    "pristine_bias_pct", "by_layup"}`` (percent; MAE is the mean absolute,
+    bias the mean signed error; the knockdown and pristine entries are over
+    the ``n_pristine`` cases and None when there are none). ``by_layup`` maps
+    each ``layup`` label to the same entries for its cases, and is empty
+    when no case has a label. A case scored on ``measured_pristine_MPa`` has
+    a knockdown error equal to its signed strength error."""
+    out = _error_stats(df)
+    labels = df["layup"].fillna("") if "layup" in df else pd.Series([""] * len(df))
+    out["by_layup"] = {
+        str(label): _error_stats(df[labels == label])
+        for label in dict.fromkeys(labels)
+        if label != ""
+    }
+    return out
+
+
+def _format_errors(stats: dict) -> str:
+    def pair(key: str) -> str:
+        if stats[f"{key}_mae_pct"] is None:
+            return "n/a"
+        return f"MAE {stats[f'{key}_mae_pct']:.2f}% bias {stats[f'{key}_bias_pct']:+.2f}%"
+
+    return (
+        f"strength MAE {stats['strength_mae_pct']:.2f}% bias "
+        f"{stats['strength_bias_pct']:+.2f}% | knockdown vs measured pristine "
+        f"{pair('knockdown')} | pristine {pair('pristine')}"
+    )
 
 
 def _discover_datasets() -> List[Path]:
@@ -289,6 +377,14 @@ def main(argv: list[str] | None = None) -> int:
                 f"over {dent['n']} cases with a positive measured dent"
                 + (f"; {dent['n_nonpositive']} measured <= 0" if dent["n_nonpositive"] else "")
             )
+        kd = knockdown_summary(df)
+        print(
+            f"knockdown (reported, not gated): {_format_errors(kd)} "
+            f"({kd['n_pristine']} of {kd['n']} cases with a measured pristine)"
+        )
+        if len(kd["by_layup"]) > 1:
+            for label, stats in kd["by_layup"].items():
+                print(f"  layup {label} ({stats['n']} cases): {_format_errors(stats)}")
         if not meta["gate"]:
             print(f"ADVISORY: {name} is not gated. {meta['gate_note']}".rstrip())
         elif args.gate and mae > multiplier * target:

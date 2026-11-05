@@ -24,7 +24,7 @@ For CAI, the Soutis knockdown (after Soutis & Curtis 1996) scales the pristine s
 
 ### Semi-analytical tier in brief
 
-At each delaminated interface the thinner sublaminate over the largest delamination is treated as a plate clamped along the delamination's elliptical front, and a Rayleigh-Ritz solution gives its buckling load (with the bending-twisting terms D16 and D26 and the bending-extension coupling B). Buckling alone does not fail the laminate (a one-ply sublaminate over the largest, back-face delamination buckles at 7-50 MPa, and the one at the governing interface typically at 100-430 MPa on IM7/8552 150×100 mm panels at 10-30 J); the CAI strength is the far-field stress at which the buckled sublaminate grows its delamination, from the thin-film energy release rate `G = h/(2E_f)·(σ−σ_c)(σ+3σ_c)` (Chai, Babcock & Knauss 1981; Hutchinson & Suo 1992) set equal to a Benzeggagh-Kenane mixed-mode toughness (`G_Ic`/`G_IIc` at a 52.1° phase angle, η = 2; 0.48 N/mm for IM7/8552). The weakest interface governs, and the result is capped by the Soutis empirical strength. Whitney-Nuismer is retained for TAI. The governing interface is `AnalysisResults.critical_sublaminate` and its buckling load (N/mm) is in `AnalysisResults.buckling_eigenvalues`.
+At each delaminated interface the thinner sublaminate over the largest delamination is treated as a plate clamped along the delamination's elliptical front, and a Rayleigh-Ritz solution gives its buckling load (with the bending-twisting terms D16 and D26 and the bending-extension coupling B). Buckling alone does not fail the laminate (the one at the governing interface typically buckles at 20-430 MPa on IM7/8552 150×100 mm panels at 10-30 J); the CAI strength is the far-field stress at which the buckled sublaminate grows its delamination. Past buckling the sublaminate is a 2D blister, a thin film clamped along the elliptical front on a rigid substrate (Chai, Babcock & Knauss 1981; Chai & Babcock 1985), post-buckled by a nonlinear Rayleigh-Ritz solution; the energy it releases as one semi-axis of the ellipse grows is set equal to a Benzeggagh-Kenane mixed-mode toughness (`G_Ic`/`G_IIc` at a 52.1° phase angle, η = 2; 0.48 N/mm for IM7/8552). The weakest interface governs, and the result is capped by the Soutis empirical strength. Whitney-Nuismer is retained for TAI. The governing interface is `AnalysisResults.critical_sublaminate` and its buckling load (N/mm) is in `AnalysisResults.buckling_eigenvalues`.
 
 ### 3D FE tier in brief
 
@@ -521,80 +521,169 @@ to 15–20% for 2-3 ply sublaminates over circles, but not in general.
 
 Buckling alone does not fail the laminate: the sublaminate keeps
 carrying load after it buckles. The CAI strength is the far-field stress
-at which the buckled sublaminate grows its delamination. The single-ply
-sublaminate over the largest (back-face) delamination does buckle at a
-few tens of MPa (7–50 MPa on the panels below), but it is not the one
-that grows first: a thin film needs a high film stress to release `G_c`. At the governing interface the film
-buckling stress is about 100–430 MPa on 150 × 100 mm IM7/8552 panels at
-10–30 J (8-ply [0/45/−45/90]s 100–160 MPa, 16-ply [0/45/−45/90]4
-130–430 MPa, 8-ply [0/90]2s 110–360 MPa), 57–59 MPa on the NCAMP coupons
-and 73–75 MPa (quasi-isotropic) and 159–160 MPa (hard) on Lovejoy &
-Scotti's (the value is in `AnalysisResults.notes` for fe3d). The thin-film energy release rate
-(Chai, Babcock & Knauss 1981; Hutchinson & Suo 1992, straight-sided
-blister)
+at which the buckled sublaminate grows its delamination. A thin film
+over a large delamination buckles at a few tens of MPa but needs a high
+film stress to release `G_c`. At the governing interface the film
+buckling stress is about 20–430 MPa on 150 × 100 mm IM7/8552 panels at
+10–30 J (8-ply [0/45/−45/90]s 19–107 MPa, where the two-ply film at
+interface 5 is the weakest up to 20 J; 16-ply [0/45/−45/90]4
+134–434 MPa; 8-ply [0/90]2s 113–310 MPa), 28–29 MPa on the NCAMP
+coupons and 16 MPa (quasi-isotropic) and 64 MPa (hard) on Lovejoy &
+Scotti's (the value is in `AnalysisResults.notes` for fe3d).
+
+**Energy release rate of the 2D blister.** Past buckling the
+sublaminate is a thin film clamped along the elliptical front on a rigid
+substrate, the thin-film model of Chai, Babcock & Knauss (1981) in two
+dimensions (Chai & Babcock 1985). Its post-buckled state minimises the
+von Kármán potential energy
 
 ```text
-G = h / (2 E_f) · (σ − σ_c)(σ + 3σ_c)
+Π = ½∫ κ·D*·κ dA − ½ N ∫ n·(∇w ∇w) dA + ½∫ ε·A·ε dA,   ε = sym ∇u + ½ ∇w ∇w
 ```
 
-is set equal to the mixed-mode toughness, giving the film stress at growth
+- `D*` and `A` are the sublaminate's reduced bending and extensional
+  stiffnesses in the ellipse's frame. Bending is decoupled from
+  stretching through `D*`, as at onset; the cubic coupling through `B`
+  is left out.
+- `N = σh` is the film force along x, `n` the unit compression along x
+  in the ellipse's frame, as at onset.
+- The deflection `w` and the in-plane displacement `u` vanish on the
+  front (the substrate is rigid and holds the front fixed).
+
+The solution is a nonlinear Rayleigh-Ritz one (`_PostbuckledFilm`). The
+deflection uses the onset basis restricted to the parity of the lowest
+mode, so the buckling stress is the onset one. The in-plane
+displacements are `(1 − (x'/a)² − (y'/b)²) P_i P_j`, at 1.5 times the
+bending basis's degree. Newton's method follows the branch from onset:
+the first step uses Koiter's initial post-buckling amplitude, and each
+later step at most triples `N − N_cr`.
+
+The delamination grows by one semi-axis with its elliptical shape kept
+(Chai & Babcock 1985). The energy released per unit of new delaminated
+area is
 
 ```text
-σ_g = −σ_c + √(4σ_c² + 2 E_f G_c / h)
+G_a = −(∂Π/∂a) / (π b),   G_b = −(∂Π/∂b) / (π a)
 ```
 
-- `σ` is the sublaminate (film) stress along x.
-- `G_c` is the Benzeggagh-Kenane mix `G_Ic + (G_IIc − G_Ic)(sin²ψ)^η` at
-  the thin-film phase angle ψ = 52.1° with η = 2 (0.478 N/mm for IM7/8552
-  and AS4/8552, which share the 8552 toughness values).
-- `E_f` is the film's x-stress per unit laminate x-strain, with the
-  laminate's own Poisson contraction. Film and laminate share the far-field
-  strain, so the laminate stress at growth is `Ex · σ_g / E_f`.
-- The weakest interface governs, and the result is capped by the Soutis
-  empirical strength: `σ_CAI = min(Soutis, σ_growth)`.
+at fixed load. It comes from the explicit dependence of `Π` on `a` and
+`b` at the converged state: the state is stationary in every Ritz
+coefficient, so no re-solve is needed. The film grows when the larger of
+the two reaches `G_c`. `SublaminateGrowth.growth_axis` says which of the
+two it is.
 
-The energy release rate above is Hutchinson & Suo's result for a
-straight-sided film with **clamped** edges, where `σ_c` is the clamped
-film's own Euler stress. The code's `σ_c` is that of a clamped plate too
-(since issue #132; before, a simply supported rectangle times the panel
-boundary factor), but over the elliptical front rather than a
-straight-sided strip; and it uses the laminate `E_f` defined above
-rather than the film's plane-strain modulus.
+Limits, pinned in `tests/analysis/test_blister_energy_release.py`:
+
+- **Circle under equibiaxial compression.** `G` is the exact
+  axisymmetric circular blister (Evans & Hutchinson 1984), solved there
+  independently as a boundary value problem. It matches to 0.02% up to
+  10 times onset, and to 0.06% at 20. Near onset it is Hutchinson &
+  Suo's (1992) closed form `G/G₀ = c₁(1 − (σ_c/σ)²)`, with
+  `G₀ = (1 − ν)hσ²/E` and `c₁ = 1/(1 + 0.9021(1 − ν))`.
+- **Onset.** `G = 0` at buckling and rises with the film stress.
+- **Against the straight-sided strip.** At the same buckling stress, an
+  isotropic film releases less energy than the strip
+  `h/(2Ē)·(σ − σ_c)(σ + 3σ_c)`, because it stretches across the load as
+  it deflects. Under uniaxial compression the circle releases 0.39 of
+  the strip's `G` at 2 times onset and 0.47 at 3, growing across the
+  load. An ellipse elongated across the load comes closer: growth along
+  the load releases 0.50 (2:1) and 0.73 (3.25:1) of it at 3 times onset,
+  and 0.99 at 10:1 and 10 times onset. Far above onset every shape tends
+  to the strip (the circle: 0.98 at 100 times onset).
+- **Direction.** Unless the ellipse is elongated across the load, it
+  grows across the load, as buckled thin-film delaminations do under
+  uniaxial compression (Chai & Babcock 1985; Whitcomb 1989).
+- **Energy derivative.** `G_a` and `G_b` are the derivatives of the
+  post-buckled energy, checked by finite differences of re-solved films.
+
+**Mixed-mode toughness.** `G_c` is the Benzeggagh-Kenane mix
+`G_Ic + (G_IIc − G_Ic)(sin²ψ)^η` at the thin-film phase angle ψ = 52.1°
+(Hutchinson & Suo's value for a film loaded by an edge force alone),
+with η = 2. It is 0.478 N/mm for IM7/8552 and AS4/8552, which share the
+8552 toughness values. The phase angle is not tracked.
+
+**Film stress and laminate stress.** `σ` is the sublaminate (film)
+stress along x. Film and laminate share the far-field strain, so with
+`E_f` the film's x-stress per unit laminate x-strain (with the
+laminate's own Poisson contraction), the laminate stress at growth is
+`Ex · σ_g / E_f`. The weakest interface governs, and the result is
+capped by the Soutis empirical strength:
+`σ_CAI = min(Soutis, σ_growth)`.
+
+**Numerical limits.**
+
+- The continuation stops at 100 times onset, or earlier if Newton's
+  method loses the branch. On the exact circle the Ritz `G` is within
+  0.2% up to there. Beyond it `G` is continued with the strip's shape
+  `(σ − σ_c)(σ + 3σ_c)`, scaled to match at the last state. A very large
+  delamination therefore grows at a size-independent stress, as the
+  strip's does: 1.08 times the strip's `√(2E_f G_c/h)` on a 4-ply
+  quasi-isotropic film.
+- Interfaces are solved in order of a lower bound on their growth
+  stress: the strip's, at the same buckling stress, with the film's
+  uniaxial modulus along x. Interfaces whose bound is above the lowest
+  growth stress found are skipped, and the others are not solved past
+  that stress. On every interface of 15 Hasebe et al., 8 Lovejoy &
+  Scotti and 7 NCAMP coupons the 2D growth stress was at or above its
+  bound, and the result was the full minimum.
+- A `semi_analytical` CAI run takes about 0.5–3 s, against tens of
+  milliseconds with the strip.
+
+**Before the 2D blister**, `G` was the straight-sided (1D) strip's,
+
+```text
+G = h / (2 E_f) · (σ − σ_c)(σ + 3σ_c),    σ_g = −σ_c + √(4σ_c² + 2 E_f G_c / h)
+```
+
+(Chai, Babcock & Knauss 1981; Hutchinson & Suo 1992; `_strip_release_rate`),
+with the clamped ellipse's `σ_c` and `E_f` in place of the plane-strain
+modulus. At the same interface the 2D growth stress is 0.71–1.87 times
+the strip's on the validation coupons. It was below 1 only on single 45°
+plies, whose in-plane stiffness along x, with the shear free, is well
+below `E_f`; none of them is the weakest interface there. At the
+weakest interface it is 1.09–1.47 times the strip's on the panels below,
+and 1.31 (NCAMP), 1.36 (Lovejoy & Scotti quasi-isotropic) and 1.51
+(hard) times on the validation coupons.
 
 The governing interface is `AnalysisResults.critical_sublaminate` and its
 buckling load `N_cr` (N/mm) is in `AnalysisResults.buckling_eigenvalues`.
 With an empty damage state the tier returns `σ₀`.
 
-With the calibrated `soutis_k_s`, the Soutis bound governs on many
-configurations. On 150 × 100 mm IM7/8552 panels (8-ply QI
+With the calibrated `soutis_k_s`, the Soutis bound governs on almost
+every configuration. Take 150 × 100 mm IM7/8552 panels: 8-ply QI
 [0/45/−45/90]s, 16-ply QI [0/45/−45/90]4 as in the synthetic dataset,
-and 8-ply cross-ply [0/90]2s; 0.152 mm plies, 10–30 J; the onset energy
-is 0.8 J on the 8-ply and 3.3 J on the 16-ply panels) the growth
-knockdown is 0.39–0.57 and the Soutis knockdown 0.31–0.49, and Soutis
-governs every one of them (the cross-ply panel comes closest: 0.406
-against 0.394 at 15 J). Closer to onset growth governs the 8-ply panels
-(QI 0.514 against 0.546 at 5 J; cross-ply 0.543 against 0.578 at 4 J,
-and Soutis from 5 J, 0.546 against 0.544) and the 16-ply
-[0/45/−45/90]s × 2 (0.510 against 0.650 at 5 J), but not the 16-ply
-[0/45/−45/90]4 (0.651 at 5 J; its growth stress is above the pristine
-strength there). Before issue #132 growth also governed the 16-ply QI
-panel at 5 J (0.557) and the cross-ply panel at 5–15 J (0.424 / 0.389 /
-0.394).
+16-ply [0/45/−45/90]s × 2, and 8-ply cross-ply [0/90]2s, with 0.152 mm
+plies. The onset energy is 0.8 J on the 8-ply and 3.3 J on the 16-ply
+panels. At 10–30 J:
 
-**The growth channel is effectively unvalidated.** On the NCAMP and
-Lovejoy & Scotti validation cases (`validation/datasets/`), the two
-gated measured datasets, Soutis governs every coupon (growth stress
-217–219 MPa against a 176–177 MPa Soutis bound on NCAMP, 225–226
-against 156 MPa on the Lovejoy & Scotti quasi-isotropic coupons, and 271
-against 224 MPa on their 40-ply hard laminate), so the two tiers give
-the same CAI strengths there and the gate never exercises the growth
-stress. Growth governs on 176 of Hasebe et al.'s 343 coupons (94 of the
-157 cross-ply coupons, 15 of the 27 hard-laminate r0 coupons, and 67 of the 132
-quasi-isotropic ones; no soft r45 coupon), and there it makes the prediction worse: on
-those 176 the MAE is 28.6% against 23.9% for the empirical tier (on the
-other 167 both are 19.1%), so the semi-analytical tier scores 24.0%
-against 21.5% over the whole set. Before issue #132 growth governed 256
-coupons (25.6% against 23.0%; 23.4% over the set).
+- the growth knockdown is 0.53–0.69 and the Soutis knockdown 0.31–0.49;
+- Soutis governs every one of these panels (with the strip the growth
+  knockdown was 0.39–0.57, and the cross-ply panel came closest: 0.406
+  against 0.394 at 15 J).
+
+Closer to onset, growth still governs the 8-ply QI panel at 4 J (0.579
+against 0.580) and the 16-ply [0/45/−45/90]s × 2 at 5 J (0.611 against
+0.650). With the strip it also governed the 8-ply QI at 5 J (0.514), the
+16-ply [0/45/−45/90]s × 2 at 4 and 10 J, and the cross-ply at 4 J
+(0.543).
+
+**The growth channel is unvalidated, and on the validation data it no
+longer acts.** On the NCAMP and Lovejoy & Scotti validation cases
+(`validation/datasets/`), the two gated measured datasets, Soutis
+governs every coupon, by a wide margin:
+
+| Dataset | Growth stress (MPa) | Soutis bound (MPa) | Strip growth stress (MPa) |
+|---|---|---|---|
+| NCAMP | 285–287 | 176–177 | 217–219 |
+| Lovejoy & Scotti, quasi-isotropic | 307–308 | 156 | 225–226 |
+| Lovejoy & Scotti, 40-ply hard | 408 | 224 | 271 |
+
+The two tiers therefore give the same CAI strengths there, and the gate
+never exercises the growth stress. On Hasebe et al.'s 343 coupons growth
+now governs none, so the semi-analytical tier scores the empirical
+21.5%. With the strip, growth governed 176 coupons and made them worse:
+28.6% against 23.9% for the empirical tier on those coupons, and 24.0%
+over the whole set. Before issue #132 it governed 256 coupons.
 
 ## 3D FE tier
 
@@ -1202,11 +1291,12 @@ form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
   at 80 °C lost 0.19 instead of 0.11). With `d₀` = 1 mm the 1–4 mm holes
   are within a few `d₀` of the edge, where the point-stress strength is
   sensitive to `d₀`. See [Empirical tier](#empirical-tier).
-- **The CAI delamination-growth channel is effectively unvalidated.**
-  Soutis governs every coupon of the two gated measured datasets, and on Hasebe
-  et al.'s set, where growth governs 256 of 343 coupons, it raises the
-  error (25.6% against 23.0% on those coupons); see
-  [Semi-analytical tier](#semi-analytical-tier).
+- **The CAI delamination-growth channel is unvalidated.**
+  Soutis governs every coupon of the two gated measured datasets and,
+  with the 2D blister energy release rate, of Hasebe et al.'s set too.
+  With the straight-sided strip, growth governed 176 of Hasebe et al.'s
+  343 coupons and raised the error (28.6% against 23.9% on those
+  coupons); see [Semi-analytical tier](#semi-analytical-tier).
 - **The dent depth is an empirical fit with a factor-of-1.7 scatter.**
   `dent_beta` and `dent_gamma` are fitted to two datasets (IM7/8552 and
   T800S/3900-2B; median predicted / measured 1.01 and 0.94), the shape
@@ -1243,6 +1333,21 @@ form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
   fibres failed at the coupon's side edge, and no single factor fitted
   both families (0.20 left the hard laminate 47% low). A damage area at
   the 80%-of-panel cap would put the soft zone across the loaded edges.
+- **fe3d's CAI knockdown follows mainly the damage zone's width and
+  shape, not its area.**
+  - **Mechanism:** the knockdown is set by the strain concentration at
+    the soft zone's flank, which depends on the zone's aspect ratio and
+    on its width relative to the panel.
+  - **Effect of the window cap:** in an ASTM D7136 coupon the zone's
+    width stops at the 75 mm impact window at about 4,200 mm². Beyond
+    that, extra area lengthens the zone along the load and the knockdown
+    rises again. On the NCAMP coupon it is 0.260 / 0.217 / 0.253 at
+    2,783 / 4,200 / 5,269 mm².
+  - **What it means:** the NCAMP and Lovejoy & Scotti coupons sit on
+    either side of that minimum. fe3d does not reproduce the measured
+    fall in CAI with damage area above about 2,800 mm², and its
+    energy-scaling trend in coupons is not reliable. See
+    `validation/README.md`, *fe3d damage-zone factor*.
 - **`fe3d` TAI takes its fibre damage from the closed form, and is
   validated on one condition only.** Tension strength after impact is
   set by the broken fibres under the impactor (Cantwell & Morton 1991);
@@ -1373,27 +1478,34 @@ form `1 + n − kβ`, a traction-free hole and the far field at 100 R.
     cross-ply compression knockdown kept falling (0.186 / 0.165 at 2.5 /
     2.0 mm).
 
-- **The delamination growth stress is a 1D thin-film estimate.** It uses
-  the straight-sided blister energy release rate, a fixed mixed-mode
-  phase angle (52.1°; at a buckled strip's edge the phase angle moves from
-  about 38° at buckling onset towards mode II as the stress rises), and
-  treats the rest of the laminate as rigid. Its buckling stress is the
+- **The delamination growth stress is a thin-film estimate.** Its
+  energy release rate is that of the post-buckled elliptical film on a
+  rigid substrate (the 2D blister; until this release the straight-sided
+  strip). The rest of the laminate is rigid, and four simplifications
+  remain. The mixed-mode phase angle is fixed at 52.1°: at a buckled
+  film's edge it moves from about 38° near onset towards mode II as the
+  stress rises. The film stress is uniaxial along x, as at onset; the
+  transverse and shear stresses that the laminate strain puts in an
+  anisotropic film are left out. The bending-extension coupling enters
+  only through `D*`. And `G` is that of a semi-axis growing with the
+  elliptical shape kept, an average over the front rather than the local
+  value at the point that grows first. Its buckling stress is the
   clamped ellipse on the rigid substrate: a 3D FE probe of single
   delaminations (#132) puts the substrate's compliance at 0.82–0.92× that
   value, and neighbouring delaminations at other interfaces, which the
   closed form cannot see, can lower it 2–4× more. It
   is least accurate when the weakest sublaminate is near the
-  mid-plane, which is common: the minimum over interfaces often lands on a
-  3-5 ply sublaminate. Once a sublaminate buckles at less than about 0.3×
-  its steady-state growth stress `√(2E_f·G_c/h)`, the growth stress stays
-  between 0.87× and 1× that value, so larger delaminations at the same
-  interface lower it little and can raise it slightly. The growth
-  knockdown therefore follows impact energy mainly when a different
-  interface becomes the weakest. On 150 × 100 mm IM7/8552 panels from 10
-  to 30 J it goes from 0.57 to 0.46 on 16-ply QI [0/45/−45/90]4 (0.56 at
-  15 J; the weakest interface moves from 0 to 11), from 0.46 to 0.46 on
-  8-ply QI [0/45/−45/90]s and from 0.47 to 0.39 on [0/90]2s (0.41 at
-  15 J). In `fe3d` the first-ply failure of the softened damage zone falls
+  mid-plane. Once a sublaminate buckles far below its growth stress,
+  that stress hardly depends on the delamination's size: the two-ply film
+  at interface 5 of the 8-ply QI panel grows at a film stress of
+  563–568 MPa from 4 to 20 J while its buckling stress falls from 117 to
+  19 MPa. The growth knockdown therefore follows impact energy mainly
+  when a different interface becomes the weakest. On 150 × 100 mm
+  IM7/8552 panels from 10 to 30 J it goes from 0.694 to 0.620 on 16-ply
+  QI [0/45/−45/90]4 (0.651 at 15 J; the weakest interface moves from 0
+  to 1), from 0.579 to 0.565 on 8-ply QI [0/45/−45/90]s and from 0.605
+  to 0.530 on [0/90]2s (0.587 at 15 J).
+  In `fe3d` the first-ply failure of the softened damage zone falls
   with energy as well: at 5 / 15 / 30 J (5 mm mesh, every energy above the
   onset) the fe3d CAI knockdown is 0.430 / 0.302 / 0.263 on 16-ply QI
   [0/45/−45/90]4 (damage area 187 / 1,270 / 2,893 mm²; empirical 0.651 /

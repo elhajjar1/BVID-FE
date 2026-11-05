@@ -155,13 +155,15 @@ def _impact_config(material: str, layup: list, tier: str, energy_J: float = 5.0)
 # put fe3d 27% and 3% above semi_analytical at 5 J (282.9 against 221.9 MPa
 # and 298.1 against 288.7 MPa). [+-45]2s is not here: its damaged
 # first-ply failure governs (129 MPa against a 217 MPa growth stress). The
-# AS4/3501-6 case runs at 3 J since the clamped-ellipse sublaminate (#132
-# PR0): at 5 J its growth stress rose to 307.7 MPa, above both first-ply
-# failure (298.1) and the Soutis bound (289.3); at 3 J growth governs both
-# tiers at 309.9 MPa.
+# AS4/3501-6 QI8 case (3 J since the clamped-ellipse sublaminate, #132 PR0)
+# left with the 2D blister energy release rate: its growth stress is now
+# 1.15-1.24x the Soutis bound from 1.5 to 4 J. The 16-ply IM7/8552
+# [0/45/-45/90]s x 2 panel at 5 J takes its place: growth governs both
+# tiers at 367.7 MPa, below the Soutis bound (390.9) and fe3d's first-ply
+# failure (372.4).
 _GROWTH_GOVERNS = [
     pytest.param("IM7/8552", [45, -45, 90, 90, -45, 45], 5.0, id="IM7/8552 [45/-45/90]s"),
-    pytest.param("AS4/3501-6", [0, 45, -45, 90, 90, -45, 45, 0], 3.0, id="AS4/3501-6 QI8"),
+    pytest.param("IM7/8552", [0, 45, -45, 90, 90, -45, 45, 0] * 2, 5.0, id="IM7/8552 QI16"),
 ]
 
 

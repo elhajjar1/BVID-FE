@@ -33,9 +33,10 @@ documentation conventions.
     - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI on an
       equivalent hole for the fibre damage (tens of milliseconds)
     - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz
-      sublaminate buckling + thin-film energy release rate +
-      Benzeggagh-Kenane mixed-mode toughness, weakest interface governs),
-      capped by Soutis; the empirical TAI model (tens of milliseconds)
+      sublaminate buckling + the energy release rate of the post-buckled
+      elliptical film (2D blister) + Benzeggagh-Kenane mixed-mode
+      toughness, weakest interface governs), capped by Soutis; the
+      empirical TAI model (about a second)
     - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
       modelled as a soft inclusion (fibres intact in tension) and, in
       tension, the closed-form fibre-damage hole as a notch at the impact
@@ -53,8 +54,9 @@ documentation conventions.
 - **Six material presets**: AS4/3501-6, AS4/8552, IM7/8552, T700/2510,
   T800S/3900-2B, T800/epoxy
 - **Validation harness** (`validation/`) that scores the tiers against
-  three measured CAI datasets (NCAMP AS4/8552 and Lovejoy & Scotti
-  IM7/8552, gated in CI; Hasebe et al. T800S/3900-2B, reported only) and
+  four measured CAI datasets (NCAMP AS4/8552 and Lovejoy & Scotti
+  IM7/8552, gated in CI; Hasebe et al. T800S/3900-2B and González's
+  AS4/8552, reported only) and
   one TAI condition (Körbelin et al. M21/T800S, reported only); see
   [Validation](#validation) below
 - **CLI** for single runs, several tiers in one call
@@ -86,7 +88,7 @@ commands.
 
 ## Validation
 
-Three measured CAI datasets are in the repository's validation harness;
+Four measured CAI datasets are in the repository's validation harness;
 the first two (ASTM D7136/D7137) are gated in CI:
 
 | Dataset | Material | Coupons | Empirical MAE | Semi-analytical MAE |
@@ -94,8 +96,14 @@ the first two (ASTM D7136/D7137) are gated in CI:
 | NCAMP CAM-RP-2010-002 | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 1.5% | 1.5% |
 | Lovejoy & Scotti (NASA LaRC 2019) | IM7/8552 quasi-isotropic at 54 J and hard laminate at 68 J | 8 | 8.8% | 8.8% |
 | Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 23.4% |
+| González 2010 thesis, Girona (not gated) | AS4/8552 quasi-isotropic (unclustered and clustered, 32 and 48 plies) and cross-ply, ASTM D7136/D7137, 19–58 J | 19 | 14.3% | 14.3% |
 
 MAE is the mean absolute error between predicted and measured CAI strength.
+For NCAMP and Lovejoy & Scotti the predicted strength is the knockdown
+times the model's pristine strength, and the two errors partly cancel:
+against NCAMP's measured unnotched compression the knockdown MAE is 3.6%
+and 13.6% (the hard laminate's pristine strength is 11.9% high, its
+knockdown 17.3% low).
 These errors are in-sample: the Soutis constant `soutis_k_s` = 4.8 and the
 default damage-area constant `olsson_alpha` = 0.0855 were fitted to these two
 datasets. Fitted on one dataset alone, `soutis_k_s` predicts the other with

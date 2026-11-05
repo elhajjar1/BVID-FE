@@ -372,3 +372,144 @@ def test_dent_summary_is_reported_not_gated(capsys):
     assert v.main(["--dataset", "lovejoy_scotti_im7_8552_cai", "--gate"]) == 0
     out = capsys.readouterr().out
     assert "dent (reported, not gated): median predicted / measured = 1.01" in out
+
+
+class _FakeAnalysis:
+    """Stands in for BvidAnalysis: the result is looked up by impact energy,
+    so a synthetic dataset has known knockdowns and pristine strengths."""
+
+    # energy_J -> (knockdown, model pristine strength MPa)
+    RESULTS = {1.0: (0.5, 450.0), 2.0: (0.2, 600.0), 3.0: (0.55, 600.0)}
+
+    def __init__(self, config):
+        self.energy = config.impact.energy_J
+
+    def run(self):
+        from types import SimpleNamespace
+
+        kd, pristine = self.RESULTS[self.energy]
+        return SimpleNamespace(
+            knockdown=kd,
+            pristine_strength_MPa=pristine,
+            residual_strength_MPa=kd * pristine,
+            dpa_mm2=100.0,
+            damage=SimpleNamespace(dent_depth_mm=0.1),
+        )
+
+
+# Case 1: unnotched reference only (scored on the model's strength):
+#   predicted 225 against 200 (+12.5%); knockdown 0.5 against 200 / 500 = 0.4
+#   (+25%); pristine 450 against 500 (-10%).
+# Case 2: scored on measured_pristine_MPa: predicted 0.2 x 400 = 80 against
+#   100 (-20%); knockdown 0.2 against 0.25 (-20%); pristine 600 against 400
+#   (+50%).
+# Case 3: no measured pristine: 330 against 300 (+10%); knockdown n/a.
+_KD_CASES = [
+    {
+        **_CASE,
+        "impact_energy_J": 1.0,
+        "measured_strength_MPa": 200.0,
+        "measured_unnotched_MPa": 500.0,
+        "layup_label": "x",
+    },
+    {
+        **_CASE,
+        "impact_energy_J": 2.0,
+        "measured_strength_MPa": 100.0,
+        "measured_pristine_MPa": 400.0,
+        "layup_label": "x",
+    },
+    {**_CASE, "impact_energy_J": 3.0, "measured_strength_MPa": 300.0, "layup_label": "y"},
+]
+
+
+def test_knockdown_summary_on_a_synthetic_dataset(monkeypatch):
+    v = _load_validator()
+    monkeypatch.setattr(v, "BvidAnalysis", _FakeAnalysis)
+    df = v.run_dataset([v.case_from_dict(c) for c in _KD_CASES], "empirical")
+    assert list(df["error_pct"]) == pytest.approx([12.5, 20.0, 10.0])
+    assert list(df["measured_knockdown"][:2]) == pytest.approx([0.4, 0.25])
+    assert list(df["knockdown_error_pct"][:2]) == pytest.approx([25.0, -20.0])
+    assert list(df["pristine_error_pct"][:2]) == pytest.approx([-10.0, 50.0])
+    assert list(df["measured_pristine_MPa"][:2]) == [500.0, 400.0]
+    assert df["knockdown_error_pct"].isna().tolist() == [False, False, True]
+
+    s = v.knockdown_summary(df)
+    assert (s["n"], s["n_pristine"]) == (3, 2)
+    assert s["strength_mae_pct"] == pytest.approx(42.5 / 3)  # the gated MAE
+    assert s["strength_mae_pct"] == pytest.approx(df["error_pct"].mean())
+    assert s["strength_bias_pct"] == pytest.approx(2.5 / 3)
+    assert (s["knockdown_mae_pct"], s["knockdown_bias_pct"]) == pytest.approx((22.5, 2.5))
+    assert (s["pristine_mae_pct"], s["pristine_bias_pct"]) == pytest.approx((30.0, 20.0))
+
+    assert list(s["by_layup"]) == ["x", "y"]
+    x, y = s["by_layup"]["x"], s["by_layup"]["y"]
+    assert (x["n"], x["strength_mae_pct"], x["strength_bias_pct"]) == pytest.approx(
+        (2, 16.25, -3.75)
+    )
+    assert (x["knockdown_mae_pct"], x["pristine_bias_pct"]) == pytest.approx((22.5, 20.0))
+    assert (y["n"], y["n_pristine"], y["strength_bias_pct"]) == (1, 0, pytest.approx(10.0))
+    assert y["knockdown_mae_pct"] is None and y["pristine_mae_pct"] is None
+
+
+def test_knockdown_summary_without_labels_or_pristine(monkeypatch):
+    v = _load_validator()
+    monkeypatch.setattr(v, "BvidAnalysis", _FakeAnalysis)
+    cases = [{**_CASE, "impact_energy_J": 3.0, "measured_strength_MPa": 300.0}]
+    s = v.knockdown_summary(v.run_dataset([v.case_from_dict(c) for c in cases], "empirical"))
+    assert s["by_layup"] == {} and s["n_pristine"] == 0
+    assert s["knockdown_mae_pct"] is None and s["knockdown_bias_pct"] is None
+
+
+def test_knockdown_errors_are_printed_but_not_gated(tmp_path, monkeypatch, capsys):
+    """The gate stays on the strength MAE (14.2% here, under 1.25 x 12%)
+    although the knockdown MAE (22.5%) is over it."""
+    import json
+
+    v = _load_validator()
+    monkeypatch.setattr(v, "BvidAnalysis", _FakeAnalysis)
+    dataset = {"name": "kd", "kind": "measured", "target_mae_pct": 12.0, "cases": _KD_CASES}
+    (tmp_path / "kd.json").write_text(json.dumps(dataset))
+    monkeypatch.setattr(v, "DATASET_DIR", tmp_path)
+    assert v.main(["--dataset", "kd", "--gate"]) == 0
+    out = capsys.readouterr().out
+    assert "MAE = 14.17%   max error = 20.00%" in out
+    assert (
+        "knockdown (reported, not gated): strength MAE 14.17% bias +0.83% | "
+        "knockdown vs measured pristine MAE 22.50% bias +2.50% | "
+        "pristine MAE 30.00% bias +20.00% (2 of 3 cases with a measured pristine)"
+    ) in out
+    assert "  layup x (2 cases): strength MAE 16.25% bias -3.75%" in out
+    assert (
+        "  layup y (1 cases): strength MAE 10.00% bias +10.00% | "
+        "knockdown vs measured pristine n/a | pristine n/a"
+    ) in out
+    # The new lines follow the existing MAE line.
+    assert out.index("MAE = 14.17%") < out.index("knockdown (reported")
+
+    (tmp_path / "kd.json").write_text(json.dumps({**dataset, "target_mae_pct": 11.0}))
+    assert v.main(["--dataset", "kd", "--gate"]) == 1  # 14.17 > 1.25 x 11
+
+
+def test_astm_datasets_carry_the_ncamp_unnotched_compression():
+    """NCAMP and Lovejoy & Scotti report no undamaged coupon; each case
+    carries NCAMP's RTD unnotched compression for its material and layup
+    family (the values of tests/validation/test_unnotched_strength_ncamp.py),
+    reported against the knockdown, not scored."""
+    from tests.validation.test_unnotched_strength_ncamp import _KSI, _NCAMP_KSI
+
+    v = _load_validator()
+    family = {
+        ("ncamp_as4_8552_cai", "QI 25/50/25"): "25/50/25",
+        ("lovejoy_scotti_im7_8552_cai", "QI 25/50/25"): "25/50/25",
+        ("lovejoy_scotti_im7_8552_cai", "hard 50/40/10"): "50/40/10",
+    }
+    for dataset in ("ncamp_as4_8552_cai", "lovejoy_scotti_im7_8552_cai"):
+        _, cases, _ = v.load_dataset(v.DATASET_DIR / f"{dataset}.json")
+        for c in cases:
+            assert c.measured_pristine_MPa is None, c.note  # not scored on it
+            fam = family[(dataset, c.layup_label)]
+            unc = _NCAMP_KSI[(c.material, fam)][1] * _KSI
+            assert c.measured_unnotched_MPa == pytest.approx(unc, abs=0.05), c.note
+            f0 = sum(a % 180 == 0 for a in c.layup_deg) / len(c.layup_deg)
+            assert f0 == {"25/50/25": 0.25, "50/40/10": 0.5}[fam], c.note
