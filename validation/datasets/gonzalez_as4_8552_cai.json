@@ -42,6 +42,7 @@
         0,
         45
       ],
+      "layup_label": "QI32",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -94,6 +95,7 @@
         0,
         45
       ],
+      "layup_label": "QI32",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -147,6 +149,7 @@
         0,
         45
       ],
+      "layup_label": "QI32",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -200,6 +203,7 @@
         0,
         45
       ],
+      "layup_label": "QI32",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -253,6 +257,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x2",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -305,6 +310,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x2",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -357,6 +363,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x2",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -410,6 +417,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x2",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -463,6 +471,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x4",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -515,6 +524,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x4",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -567,6 +577,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x4",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -620,6 +631,7 @@
         45,
         45
       ],
+      "layup_label": "QI32 clustered x4",
       "ply_thickness_mm": 0.18125,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -677,6 +689,7 @@
         90,
         0
       ],
+      "layup_label": "cross-ply",
       "ply_thickness_mm": 0.1889,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -732,6 +745,7 @@
         90,
         0
       ],
+      "layup_label": "cross-ply",
       "ply_thickness_mm": 0.1889,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -787,6 +801,7 @@
         90,
         0
       ],
+      "layup_label": "cross-ply",
       "ply_thickness_mm": 0.1889,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -843,6 +858,7 @@
         90,
         0
       ],
+      "layup_label": "cross-ply",
       "ply_thickness_mm": 0.1889,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -911,6 +927,7 @@
         0,
         45
       ],
+      "layup_label": "QI48",
       "ply_thickness_mm": 0.1833,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -978,6 +995,7 @@
         0,
         45
       ],
+      "layup_label": "QI48",
       "ply_thickness_mm": 0.1833,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
@@ -1045,6 +1063,7 @@
         0,
         45
       ],
+      "layup_label": "QI48",
       "ply_thickness_mm": 0.1833,
       "panel_Lx_mm": 150.0,
       "panel_Ly_mm": 100.0,
