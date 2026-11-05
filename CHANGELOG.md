@@ -55,6 +55,24 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **The validator reports the knockdown error against the measured
+  pristine strength next to the gated strength MAE** (reporting only; no
+  gate outcome or existing MAE changes). For each case with a measured
+  undamaged strength (`measured_pristine_MPa`, or the new reported-only
+  `measured_unnotched_MPa`) it prints the knockdown error (predicted
+  knockdown / measured knockdown − 1) and the pristine-strength error
+  (model / measured − 1), as MAE and mean signed bias per dataset and per
+  the new `layup_label`, and `n/a` where there is none; the per-case table
+  gains the matching columns and `knockdown_summary(df)` returns them.
+  The NCAMP and Lovejoy & Scotti cases carry NCAMP's RTD unnotched
+  compression (560.7, 600.2 and 833.2 MPa), and every measured dataset a
+  `layup_label`. The Lovejoy & Scotti 8.8% strength MAE is a cancellation:
+  the hard 50/40/10 laminate's pristine strength is 11.9% above NCAMP's
+  and its knockdown 17.3% low, and the dataset's knockdown MAE against the
+  measured pristine strength is 13.6% (NCAMP 3.6%; Hasebe et al. and
+  Körbelin et al. are scored on their measured pristine strength
+  already). See `validation/README.md`, *Knockdown against the measured
+  pristine strength*.
 - **Sublaminate buckling is a clamped ellipse with the coupled
   stiffness, and panel buckling includes D16 / D26 (#132, closed-form
   part).** Results change in `semi_analytical` CAI and in fe3d CAI where

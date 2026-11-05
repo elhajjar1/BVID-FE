@@ -41,6 +41,11 @@ things the gate does not show:
   in CI), also partly in-sample: its fibre-damage hole is the closed-form
   one.
 
+The Lovejoy & Scotti strength MAE also rests on a cancellation between
+the knockdown and the pristine strength. Against the measured pristine
+strength its knockdown MAE is 13.6%, not 8.8%; see [Knockdown against the
+measured pristine strength](#knockdown-against-the-measured-pristine-strength).
+
 **`ncamp_as4_8552_cai`** is measured data: NCAMP CAM-RP-2010-002 Rev A
 (2011), the Hexcel 8552 AS4 unitape qualification report, sections 2.3.31
 and 4.31. It has seven [45/0/-45/90]3s coupons (24 plies, 4.5 mm), tested
@@ -547,6 +552,73 @@ is run on the first three synthetic cases as a smoke run, not a gate: the
 synthetic set is empirical-tier output, so its error there (29.2%) measures
 the difference between the tiers, not fe3d's accuracy.
 
+### Knockdown against the measured pristine strength
+
+The gated MAE scores a strength. A case without `measured_pristine_MPa`
+(NCAMP, Lovejoy & Scotti) is scored on the predicted knockdown times the
+model's own pristine (unnotched) strength, so an error in that pristine
+strength can hide an error in the knockdown, or the other way round. For
+each case with a measured undamaged strength `P`, the validator therefore
+also reports, without gating them:
+- **knockdown error** = predicted knockdown / (measured residual / `P`) − 1;
+- **pristine error** = model pristine strength / `P` − 1.
+
+Each is printed as MAE and mean signed bias, per dataset and per
+`layup_label` (a `knockdown (reported, not gated)` line after the MAE
+line, one `layup` line per group), next to the gated strength MAE and its
+bias. Where no case has a `P` it prints `n/a`. The per-case table gains
+the columns `layup`, `predicted_pristine_MPa`, `measured_pristine_MPa`
+(the `P` used), `measured_knockdown`, `knockdown_error_pct` and
+`pristine_error_pct` (signed), and `knockdown_summary(df)` returns the
+same numbers as a dict. `P` is `measured_pristine_MPa` when the case has
+one (an undamaged coupon of the same test), else `measured_unnotched_MPa`.
+That field is reported only, never scored: the measured unnotched strength
+of the same material and layup family from another source. NCAMP and
+Lovejoy & Scotti test no undamaged coupons, so their cases carry NCAMP's
+RTD unnotched compression, normalized to the cured ply thickness (the
+values of `tests/validation/test_unnotched_strength_ncamp.py`): AS4/8552
+25/50/25 560.7 MPa (CAM-RP-2010-002), IM7/8552 25/50/25 600.2 MPa and
+50/40/10 833.2 MPa (CAM-RP-2009-015). The Lovejoy & Scotti hard laminate
+has the 50/40/10 ply fractions in another stacking, which the ply-discount
+pristine strength does not depend on. The reference comes from other
+coupons and another laboratory than the CAI tests, so the knockdown error
+carries a few percent of that uncertainty.
+
+Empirical tier (semi-analytical identical except on Hasebe, as noted):
+
+| Dataset / layup | Cases | Strength MAE / bias (gated) | Knockdown MAE / bias vs measured pristine | Pristine error |
+|---|---|---|---|---|
+| NCAMP, 25/50/25 | 7 | 1.5% / +0.4% | 3.6% / +3.6% | −3.1% |
+| Lovejoy & Scotti, all | 8 | 8.8% / +1.4% | 13.6% / −3.7% | MAE 6.1% / bias +6.1% |
+| Lovejoy & Scotti, QI 25/50/25 | 4 | 10.2% / +10.2% | 10.0% / +10.0% | +0.2% |
+| Lovejoy & Scotti, hard 50/40/10 | 4 | 7.4% / −7.4% | 17.3% / −17.3% | +11.9% |
+| Hasebe et al. (scored on `P`) | 343 | 21.5% / −6.6% (semi 24.0% / −9.8%) | the same | +101% (−7% r45 to +237% c8) |
+| Körbelin et al., TAI (scored on `P`) | 5 | 3.5% / −1.4% | the same | −3.9% (proxy card) |
+
+On Lovejoy & Scotti the 8.8% is a cancellation. The model puts the hard
+laminate's pristine strength at 932.6 MPa, 11.9% above NCAMP's 833.2 MPa,
+and its knockdown (0.240) 17.3% below the measured one (0.283–0.299
+against NCAMP's pristine strength); the product is 7.4% low. The
+quasi-isotropic coupons have the right pristine strength (+0.2%) and a
+knockdown 10.0% high. Against the measured pristine strength the dataset's
+knockdown MAE is 13.6%, and the knockdown map has a +10% / −17% split
+between the two layups that the strength MAE shows only as +10% / −7%.
+On NCAMP the two errors offset a little the other way: pristine −3.1%,
+knockdown +3.6%, strength bias +0.4%. On a case scored on
+`measured_pristine_MPa` the knockdown error is the signed strength error,
+and the pristine error measures the test rather than the model: Hasebe
+et al.'s undamaged coupons are fixture-limited (above), and only the soft
+r45 laminate, which the fixture does not limit, has a pristine strength
+near the model's.
+
+The IM7/8552 card's `Xc` (1590 MPa, a generic value) is not NCAMP's, and
+the pristine compression strength of every layup scales with it. The
+NCAMP data do not give one `Xc` for both laminates: 1420 MPa puts the
+50/40/10 laminate on 833.2 MPa but the 25/50/25 laminate 10.5% low, and
+1587 MPa fits 25/50/25 only. The pristine error of the hard laminate is
+therefore a layup error of the ply-discount strength as much as a
+material constant.
+
 ## Unnotched (pristine) strength
 
 Every tier divides by the same pristine strength, the unnotched laminate
@@ -603,9 +675,15 @@ or `tension`), `boundary` (`simply_supported`, the default, `clamped`,
 `conical`), `measured_dent_mm` and `measured_dpa_mm2` (recorded, not
 scored), `measured_pristine_MPa` (scores the case on predicted knockdown ×
 this undamaged strength, for fixtures that cap the undamaged coupon),
+`measured_unnotched_MPa` (the measured unnotched strength of the same
+material and layup family from another source, for a dataset with no
+undamaged coupons; reported against the knockdown, not scored),
+`layup_label` (the group the knockdown errors are broken down by),
 `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and `impact_boundary` (the
 window the plate was impacted on, when it is not the test panel), and
-`note`.
+`note`. Give a new dataset a measured pristine strength (either field)
+where the source has one, so its knockdown is checked as well as its
+strength.
 
 ## Running
 

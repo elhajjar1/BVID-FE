@@ -40,6 +40,7 @@
       "loading": "compression",
       "measured_strength_MPa": 357.85,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.12,
       "measured_dpa_mm2": 143.8,
       "note": "q16-39: q16, HemiA, 1.6 J/mm, t = 3.133 mm"
@@ -78,6 +79,7 @@
       "loading": "compression",
       "measured_strength_MPa": 383.07,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.095,
       "measured_dpa_mm2": 133.3,
       "note": "q16-4: q16, HemiA, 2.2 J/mm, t = 3.060 mm"
@@ -116,6 +118,7 @@
       "loading": "compression",
       "measured_strength_MPa": 355.13,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.045,
       "measured_dpa_mm2": 185.1,
       "note": "q16-5: q16, HemiA, 2.2 J/mm, t = 3.025 mm"
@@ -154,6 +157,7 @@
       "loading": "compression",
       "measured_strength_MPa": 418.27,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.122,
       "measured_dpa_mm2": 225.2,
       "note": "q16-6: q16, HemiA, 2.2 J/mm, t = 3.085 mm"
@@ -192,6 +196,7 @@
       "loading": "compression",
       "measured_strength_MPa": 350.89,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.106,
       "measured_dpa_mm2": 213.8,
       "note": "q16-27: q16, HemiA, 2.2 J/mm, t = 3.127 mm"
@@ -230,6 +235,7 @@
       "loading": "compression",
       "measured_strength_MPa": 344.64,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.158,
       "measured_dpa_mm2": 200.2,
       "note": "q16-38: q16, HemiA, 2.7 J/mm, t = 3.129 mm"
@@ -268,6 +274,7 @@
       "loading": "compression",
       "measured_strength_MPa": 297.21,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.159,
       "measured_dpa_mm2": 288.7,
       "note": "q16-1: q16, HemiA, 3.35 J/mm, t = 3.091 mm"
@@ -306,6 +313,7 @@
       "loading": "compression",
       "measured_strength_MPa": 305.0,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.171,
       "measured_dpa_mm2": 340.6,
       "note": "q16-2: q16, HemiA, 3.35 J/mm, t = 3.087 mm"
@@ -344,6 +352,7 @@
       "loading": "compression",
       "measured_strength_MPa": 352.29,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.13,
       "measured_dpa_mm2": 346.9,
       "note": "q16-3: q16, HemiA, 3.35 J/mm, t = 3.062 mm"
@@ -382,6 +391,7 @@
       "loading": "compression",
       "measured_strength_MPa": 346.39,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.113,
       "measured_dpa_mm2": 293.4,
       "note": "q16-25: q16, HemiA, 3.35 J/mm, t = 3.110 mm"
@@ -420,6 +430,7 @@
       "loading": "compression",
       "measured_strength_MPa": 334.5,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.117,
       "measured_dpa_mm2": 310.6,
       "note": "q16-26: q16, HemiA, 3.35 J/mm, t = 3.138 mm"
@@ -458,6 +469,7 @@
       "loading": "compression",
       "measured_strength_MPa": 244.12,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.237,
       "measured_dpa_mm2": 303.7,
       "note": "q16-44: q16, HemiA, 4.4 J/mm, t = 3.100 mm"
@@ -496,6 +508,7 @@
       "loading": "compression",
       "measured_strength_MPa": 322.43,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.19,
       "measured_dpa_mm2": 319.2,
       "note": "q16-45: q16, HemiA, 4.4 J/mm, t = 3.080 mm"
@@ -534,6 +547,7 @@
       "loading": "compression",
       "measured_strength_MPa": 295.12,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.169,
       "measured_dpa_mm2": 304.8,
       "note": "q16-46: q16, HemiA, 4.4 J/mm, t = 3.060 mm"
@@ -572,6 +586,7 @@
       "loading": "compression",
       "measured_strength_MPa": 367.21,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.059,
       "measured_dpa_mm2": 75.2,
       "note": "q16-41: q16, HemiB, 1.6 J/mm, t = 3.136 mm"
@@ -610,6 +625,7 @@
       "loading": "compression",
       "measured_strength_MPa": 413.61,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.112,
       "measured_dpa_mm2": 150.6,
       "note": "q16-22: q16, HemiB, 2.2 J/mm, t = 3.048 mm"
@@ -648,6 +664,7 @@
       "loading": "compression",
       "measured_strength_MPa": 374.14,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.083,
       "measured_dpa_mm2": 148.5,
       "note": "q16-23: q16, HemiB, 2.2 J/mm, t = 3.073 mm"
@@ -686,6 +703,7 @@
       "loading": "compression",
       "measured_strength_MPa": 384.62,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.099,
       "measured_dpa_mm2": 162.9,
       "note": "q16-24: q16, HemiB, 2.2 J/mm, t = 3.080 mm"
@@ -724,6 +742,7 @@
       "loading": "compression",
       "measured_strength_MPa": 355.57,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.102,
       "measured_dpa_mm2": 206.9,
       "note": "q16-31: q16, HemiB, 2.2 J/mm, t = 3.125 mm"
@@ -762,6 +781,7 @@
       "loading": "compression",
       "measured_strength_MPa": 354.05,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.109,
       "measured_dpa_mm2": 230.9,
       "note": "q16-40: q16, HemiB, 2.7 J/mm, t = 3.103 mm"
@@ -800,6 +820,7 @@
       "loading": "compression",
       "measured_strength_MPa": 426.55,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.148,
       "measured_dpa_mm2": 293.0,
       "note": "q16-19: q16, HemiB, 3.35 J/mm, t = 3.106 mm"
@@ -838,6 +859,7 @@
       "loading": "compression",
       "measured_strength_MPa": 363.37,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.144,
       "measured_dpa_mm2": 228.6,
       "note": "q16-20: q16, HemiB, 3.35 J/mm, t = 3.068 mm"
@@ -876,6 +898,7 @@
       "loading": "compression",
       "measured_strength_MPa": 414.73,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.148,
       "measured_dpa_mm2": 249.0,
       "note": "q16-21: q16, HemiB, 3.35 J/mm, t = 3.033 mm"
@@ -914,6 +937,7 @@
       "loading": "compression",
       "measured_strength_MPa": 338.55,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.13,
       "measured_dpa_mm2": 282.3,
       "note": "q16-29: q16, HemiB, 3.35 J/mm, t = 3.127 mm"
@@ -952,6 +976,7 @@
       "loading": "compression",
       "measured_strength_MPa": 325.28,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.09,
       "measured_dpa_mm2": 311.0,
       "note": "q16-30: q16, HemiB, 3.35 J/mm, t = 3.092 mm"
@@ -990,6 +1015,7 @@
       "loading": "compression",
       "measured_strength_MPa": 328.55,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.16,
       "measured_dpa_mm2": 268.1,
       "note": "q16-47: q16, HemiB, 4.4 J/mm, t = 3.080 mm"
@@ -1028,6 +1054,7 @@
       "loading": "compression",
       "measured_strength_MPa": 338.91,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.158,
       "measured_dpa_mm2": 274.6,
       "note": "q16-48: q16, HemiB, 4.4 J/mm, t = 3.080 mm"
@@ -1066,6 +1093,7 @@
       "loading": "compression",
       "measured_strength_MPa": 320.29,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.16,
       "measured_dpa_mm2": 302.6,
       "note": "q16-49: q16, HemiB, 4.4 J/mm, t = 3.090 mm"
@@ -1104,6 +1132,7 @@
       "loading": "compression",
       "measured_strength_MPa": 411.08,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 41.8,
       "note": "q16-16: q16, Flat, 2.2 J/mm, t = 3.085 mm"
@@ -1142,6 +1171,7 @@
       "loading": "compression",
       "measured_strength_MPa": 388.0,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 35.0,
       "note": "q16-17: q16, Flat, 2.2 J/mm, t = 3.096 mm"
@@ -1180,6 +1210,7 @@
       "loading": "compression",
       "measured_strength_MPa": 404.12,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.029,
       "measured_dpa_mm2": 75.4,
       "note": "q16-18: q16, Flat, 2.2 J/mm, t = 3.099 mm"
@@ -1218,6 +1249,7 @@
       "loading": "compression",
       "measured_strength_MPa": 422.35,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 52.9,
       "note": "q16-13: q16, Flat, 3.35 J/mm, t = 3.111 mm"
@@ -1256,6 +1288,7 @@
       "loading": "compression",
       "measured_strength_MPa": 404.25,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 103.9,
       "note": "q16-14: q16, Flat, 3.35 J/mm, t = 3.110 mm"
@@ -1294,6 +1327,7 @@
       "loading": "compression",
       "measured_strength_MPa": 398.93,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 107.2,
       "note": "q16-15: q16, Flat, 3.35 J/mm, t = 3.105 mm"
@@ -1332,6 +1366,7 @@
       "loading": "compression",
       "measured_strength_MPa": 302.28,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.591,
       "measured_dpa_mm2": 118.2,
       "note": "q16-43: q16, Coni60, 1.6 J/mm, t = 3.143 mm"
@@ -1370,6 +1405,7 @@
       "loading": "compression",
       "measured_strength_MPa": 270.6,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.654,
       "measured_dpa_mm2": 255.0,
       "note": "q16-10: q16, Coni60, 2.2 J/mm, t = 3.092 mm"
@@ -1408,6 +1444,7 @@
       "loading": "compression",
       "measured_strength_MPa": 295.59,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.695,
       "measured_dpa_mm2": 211.0,
       "note": "q16-11: q16, Coni60, 2.2 J/mm, t = 3.086 mm"
@@ -1446,6 +1483,7 @@
       "loading": "compression",
       "measured_strength_MPa": 279.48,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.674,
       "measured_dpa_mm2": 181.5,
       "note": "q16-12: q16, Coni60, 2.2 J/mm, t = 3.081 mm"
@@ -1484,6 +1522,7 @@
       "loading": "compression",
       "measured_strength_MPa": 245.53,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 0.795,
       "measured_dpa_mm2": 344.2,
       "note": "q16-42: q16, Coni60, 2.7 J/mm, t = 3.124 mm"
@@ -1522,6 +1561,7 @@
       "loading": "compression",
       "measured_strength_MPa": 222.93,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.427,
       "measured_dpa_mm2": 353.1,
       "note": "q16-7: q16, Coni60, 3.35 J/mm, t = 3.080 mm"
@@ -1560,6 +1600,7 @@
       "loading": "compression",
       "measured_strength_MPa": 261.17,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.234,
       "measured_dpa_mm2": 391.4,
       "note": "q16-8: q16, Coni60, 3.35 J/mm, t = 3.097 mm"
@@ -1598,6 +1639,7 @@
       "loading": "compression",
       "measured_strength_MPa": 228.4,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.31,
       "measured_dpa_mm2": 569.0,
       "note": "q16-9: q16, Coni60, 3.35 J/mm, t = 3.106 mm"
@@ -1636,6 +1678,7 @@
       "loading": "compression",
       "measured_strength_MPa": 221.14,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.244,
       "measured_dpa_mm2": 475.2,
       "note": "q16-28: q16, Coni60, 3.35 J/mm, t = 3.126 mm"
@@ -1674,6 +1717,7 @@
       "loading": "compression",
       "measured_strength_MPa": 226.85,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.415,
       "measured_dpa_mm2": 296.5,
       "note": "q16-53: q16, Coni60, 4.4 J/mm, t = 3.060 mm"
@@ -1712,6 +1756,7 @@
       "loading": "compression",
       "measured_strength_MPa": 210.9,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.549,
       "measured_dpa_mm2": 286.3,
       "note": "q16-54: q16, Coni60, 4.4 J/mm, t = 3.070 mm"
@@ -1750,6 +1795,7 @@
       "loading": "compression",
       "measured_strength_MPa": 216.53,
       "measured_pristine_MPa": 393.49,
+      "layup_label": "q16",
       "measured_dent_mm": 1.455,
       "measured_dpa_mm2": 307.3,
       "note": "q16-55: q16, Coni60, 4.4 J/mm, t = 3.080 mm"
@@ -1796,6 +1842,7 @@
       "loading": "compression",
       "measured_strength_MPa": 378.52,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.076,
       "measured_dpa_mm2": 123.1,
       "note": "q24-37: q24, HemiA, 1.6 J/mm, t = 4.621 mm"
@@ -1842,6 +1889,7 @@
       "loading": "compression",
       "measured_strength_MPa": 363.92,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.15,
       "measured_dpa_mm2": 198.8,
       "note": "q24-4: q24, HemiA, 2.2 J/mm, t = 4.650 mm"
@@ -1888,6 +1936,7 @@
       "loading": "compression",
       "measured_strength_MPa": 353.12,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.157,
       "measured_dpa_mm2": 286.8,
       "note": "q24-5: q24, HemiA, 2.2 J/mm, t = 4.639 mm"
@@ -1934,6 +1983,7 @@
       "loading": "compression",
       "measured_strength_MPa": 348.28,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.163,
       "measured_dpa_mm2": 299.8,
       "note": "q24-6: q24, HemiA, 2.2 J/mm, t = 4.647 mm"
@@ -1980,6 +2030,7 @@
       "loading": "compression",
       "measured_strength_MPa": 358.53,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.178,
       "measured_dpa_mm2": 314.7,
       "note": "q24-36: q24, HemiA, 2.7 J/mm, t = 4.637 mm"
@@ -2026,6 +2077,7 @@
       "loading": "compression",
       "measured_strength_MPa": 322.23,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.17,
       "measured_dpa_mm2": 479.0,
       "note": "q24-1: q24, HemiA, 3.35 J/mm, t = 4.602 mm"
@@ -2072,6 +2124,7 @@
       "loading": "compression",
       "measured_strength_MPa": 329.27,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.184,
       "measured_dpa_mm2": 468.9,
       "note": "q24-2: q24, HemiA, 3.35 J/mm, t = 4.627 mm"
@@ -2118,6 +2171,7 @@
       "loading": "compression",
       "measured_strength_MPa": 311.95,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.185,
       "measured_dpa_mm2": 655.1,
       "note": "q24-3: q24, HemiA, 3.35 J/mm, t = 4.629 mm"
@@ -2164,6 +2218,7 @@
       "loading": "compression",
       "measured_strength_MPa": 331.08,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.2,
       "measured_dpa_mm2": 449.6,
       "note": "q24-25: q24, HemiA, 3.35 J/mm, t = 4.643 mm"
@@ -2210,6 +2265,7 @@
       "loading": "compression",
       "measured_strength_MPa": 315.74,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.167,
       "measured_dpa_mm2": 337.8,
       "note": "q24-52: q24, HemiA, 4.4 J/mm, t = 4.610 mm"
@@ -2256,6 +2312,7 @@
       "loading": "compression",
       "measured_strength_MPa": 431.77,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.082,
       "measured_dpa_mm2": 91.5,
       "note": "q24-39: q24, HemiB, 1.6 J/mm, t = 4.646 mm"
@@ -2302,6 +2359,7 @@
       "loading": "compression",
       "measured_strength_MPa": 415.87,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.135,
       "measured_dpa_mm2": 389.2,
       "note": "q24-22: q24, HemiB, 2.2 J/mm, t = 4.621 mm"
@@ -2348,6 +2406,7 @@
       "loading": "compression",
       "measured_strength_MPa": 379.13,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.063,
       "measured_dpa_mm2": 312.7,
       "note": "q24-23: q24, HemiB, 2.2 J/mm, t = 4.591 mm"
@@ -2394,6 +2453,7 @@
       "loading": "compression",
       "measured_strength_MPa": 428.62,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.134,
       "measured_dpa_mm2": 289.8,
       "note": "q24-24: q24, HemiB, 2.2 J/mm, t = 4.649 mm"
@@ -2440,6 +2500,7 @@
       "loading": "compression",
       "measured_strength_MPa": 375.62,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.106,
       "measured_dpa_mm2": 274.0,
       "note": "q24-28: q24, HemiB, 2.2 J/mm, t = 4.641 mm"
@@ -2486,6 +2547,7 @@
       "loading": "compression",
       "measured_strength_MPa": 372.76,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.148,
       "measured_dpa_mm2": 315.8,
       "note": "q24-29: q24, HemiB, 2.2 J/mm, t = 4.654 mm"
@@ -2532,6 +2594,7 @@
       "loading": "compression",
       "measured_strength_MPa": 338.85,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.154,
       "measured_dpa_mm2": 359.3,
       "note": "q24-38: q24, HemiB, 2.7 J/mm, t = 4.622 mm"
@@ -2578,6 +2641,7 @@
       "loading": "compression",
       "measured_strength_MPa": 342.84,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.15,
       "measured_dpa_mm2": 489.7,
       "note": "q24-19: q24, HemiB, 3.35 J/mm, t = 4.577 mm"
@@ -2624,6 +2688,7 @@
       "loading": "compression",
       "measured_strength_MPa": 337.69,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.147,
       "measured_dpa_mm2": 652.9,
       "note": "q24-20: q24, HemiB, 3.35 J/mm, t = 4.570 mm"
@@ -2670,6 +2735,7 @@
       "loading": "compression",
       "measured_strength_MPa": 384.26,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.176,
       "measured_dpa_mm2": 446.1,
       "note": "q24-21: q24, HemiB, 3.35 J/mm, t = 4.606 mm"
@@ -2716,6 +2782,7 @@
       "loading": "compression",
       "measured_strength_MPa": 320.31,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.151,
       "measured_dpa_mm2": 447.1,
       "note": "q24-27: q24, HemiB, 3.35 J/mm, t = 4.602 mm"
@@ -2762,6 +2829,7 @@
       "loading": "compression",
       "measured_strength_MPa": 136.68,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.198,
       "measured_dpa_mm2": 430.0,
       "note": "q24-48: q24, HemiB, 3.35 J/mm, t = 4.640 mm"
@@ -2808,6 +2876,7 @@
       "loading": "compression",
       "measured_strength_MPa": 146.93,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.161,
       "measured_dpa_mm2": 347.0,
       "note": "q24-49: q24, HemiB, 3.35 J/mm, t = 4.640 mm"
@@ -2854,6 +2923,7 @@
       "loading": "compression",
       "measured_strength_MPa": 144.79,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.133,
       "measured_dpa_mm2": 398.4,
       "note": "q24-50: q24, HemiB, 3.35 J/mm, t = 4.560 mm"
@@ -2900,6 +2970,7 @@
       "loading": "compression",
       "measured_strength_MPa": 302.88,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.251,
       "measured_dpa_mm2": 341.2,
       "note": "q24-53: q24, HemiB, 4.4 J/mm, t = 4.650 mm"
@@ -2946,6 +3017,7 @@
       "loading": "compression",
       "measured_strength_MPa": 306.92,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.237,
       "measured_dpa_mm2": 337.1,
       "note": "q24-54: q24, HemiB, 4.4 J/mm, t = 4.630 mm"
@@ -2992,6 +3064,7 @@
       "loading": "compression",
       "measured_strength_MPa": 455.7,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 100.1,
       "note": "q24-16: q24, Flat, 2.2 J/mm, t = 4.641 mm"
@@ -3038,6 +3111,7 @@
       "loading": "compression",
       "measured_strength_MPa": 450.48,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.044,
       "measured_dpa_mm2": 0.0,
       "note": "q24-17: q24, Flat, 2.2 J/mm, t = 4.644 mm"
@@ -3084,6 +3158,7 @@
       "loading": "compression",
       "measured_strength_MPa": 446.73,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 78.9,
       "note": "q24-18: q24, Flat, 2.2 J/mm, t = 4.628 mm"
@@ -3130,6 +3205,7 @@
       "loading": "compression",
       "measured_strength_MPa": 453.31,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 146.8,
       "note": "q24-13: q24, Flat, 3.35 J/mm, t = 4.610 mm"
@@ -3176,6 +3252,7 @@
       "loading": "compression",
       "measured_strength_MPa": 459.78,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 111.3,
       "note": "q24-14: q24, Flat, 3.35 J/mm, t = 4.630 mm"
@@ -3222,6 +3299,7 @@
       "loading": "compression",
       "measured_strength_MPa": 457.97,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.028,
       "measured_dpa_mm2": 83.5,
       "note": "q24-15: q24, Flat, 3.35 J/mm, t = 4.578 mm"
@@ -3268,6 +3346,7 @@
       "loading": "compression",
       "measured_strength_MPa": 145.16,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.903,
       "measured_dpa_mm2": 147.4,
       "note": "q24-41: q24, Coni60, 1.6 J/mm, t = 4.646 mm"
@@ -3314,6 +3393,7 @@
       "loading": "compression",
       "measured_strength_MPa": 336.42,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.042,
       "measured_dpa_mm2": 198.2,
       "note": "q24-10: q24, Coni60, 2.2 J/mm, t = 4.595 mm"
@@ -3360,6 +3440,7 @@
       "loading": "compression",
       "measured_strength_MPa": 300.36,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.994,
       "measured_dpa_mm2": 399.6,
       "note": "q24-11: q24, Coni60, 2.2 J/mm, t = 4.638 mm"
@@ -3406,6 +3487,7 @@
       "loading": "compression",
       "measured_strength_MPa": 306.55,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.985,
       "measured_dpa_mm2": 224.7,
       "note": "q24-12: q24, Coni60, 2.2 J/mm, t = 4.598 mm"
@@ -3452,6 +3534,7 @@
       "loading": "compression",
       "measured_strength_MPa": 317.53,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 0.842,
       "measured_dpa_mm2": 292.7,
       "note": "q24-26: q24, Coni60, 2.2 J/mm, t = 4.548 mm"
@@ -3498,6 +3581,7 @@
       "loading": "compression",
       "measured_strength_MPa": 116.04,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.18,
       "measured_dpa_mm2": 449.9,
       "note": "q24-40: q24, Coni60, 2.7 J/mm, t = 4.568 mm"
@@ -3544,6 +3628,7 @@
       "loading": "compression",
       "measured_strength_MPa": 270.23,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.23,
       "measured_dpa_mm2": 839.9,
       "note": "q24-7: q24, Coni60, 3.35 J/mm, t = 4.642 mm"
@@ -3590,6 +3675,7 @@
       "loading": "compression",
       "measured_strength_MPa": 262.87,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.397,
       "measured_dpa_mm2": 380.1,
       "note": "q24-8: q24, Coni60, 3.35 J/mm, t = 4.635 mm"
@@ -3636,6 +3722,7 @@
       "loading": "compression",
       "measured_strength_MPa": 262.21,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.295,
       "measured_dpa_mm2": 598.2,
       "note": "q24-9: q24, Coni60, 3.35 J/mm, t = 4.612 mm"
@@ -3682,6 +3769,7 @@
       "loading": "compression",
       "measured_strength_MPa": 113.42,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.193,
       "measured_dpa_mm2": 499.8,
       "note": "q24-42: q24, Coni60, 3.35 J/mm, t = 4.630 mm"
@@ -3728,6 +3816,7 @@
       "loading": "compression",
       "measured_strength_MPa": 113.44,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.366,
       "measured_dpa_mm2": 707.3,
       "note": "q24-43: q24, Coni60, 3.35 J/mm, t = 4.630 mm"
@@ -3774,6 +3863,7 @@
       "loading": "compression",
       "measured_strength_MPa": 109.75,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.368,
       "measured_dpa_mm2": 622.0,
       "note": "q24-44: q24, Coni60, 3.35 J/mm, t = 4.660 mm"
@@ -3820,6 +3910,7 @@
       "loading": "compression",
       "measured_strength_MPa": 225.15,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.201,
       "measured_dpa_mm2": 648.4,
       "note": "q24-57: q24, Coni60, 4.4 J/mm, t = 4.610 mm"
@@ -3866,6 +3957,7 @@
       "loading": "compression",
       "measured_strength_MPa": 239.16,
       "measured_pristine_MPa": 433.71,
+      "layup_label": "q24",
       "measured_dent_mm": 1.515,
       "measured_dpa_mm2": 712.4,
       "note": "q24-58: q24, Coni60, 4.4 J/mm, t = 4.640 mm"
@@ -3896,6 +3988,7 @@
       "loading": "compression",
       "measured_strength_MPa": 247.56,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.055,
       "measured_dpa_mm2": 65.7,
       "note": "q8-35: q8, HemiA, 1.6 J/mm, t = 1.522 mm"
@@ -3926,6 +4019,7 @@
       "loading": "compression",
       "measured_strength_MPa": 235.49,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.104,
       "measured_dpa_mm2": 55.2,
       "note": "q8-4: q8, HemiA, 2.2 J/mm, t = 1.551 mm"
@@ -3956,6 +4050,7 @@
       "loading": "compression",
       "measured_strength_MPa": 236.01,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.076,
       "measured_dpa_mm2": 85.3,
       "note": "q8-5: q8, HemiA, 2.2 J/mm, t = 1.550 mm"
@@ -3986,6 +4081,7 @@
       "loading": "compression",
       "measured_strength_MPa": 242.75,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.109,
       "measured_dpa_mm2": 112.0,
       "note": "q8-6: q8, HemiA, 2.2 J/mm, t = 1.545 mm"
@@ -4016,6 +4112,7 @@
       "loading": "compression",
       "measured_strength_MPa": 235.48,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.219,
       "measured_dpa_mm2": 165.3,
       "note": "q8-34: q8, HemiA, 2.7 J/mm, t = 1.545 mm"
@@ -4046,6 +4143,7 @@
       "loading": "compression",
       "measured_strength_MPa": 241.96,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.12,
       "measured_dpa_mm2": 113.5,
       "note": "q8-41: q8, HemiA, 2.7 J/mm, t = 1.520 mm"
@@ -4076,6 +4174,7 @@
       "loading": "compression",
       "measured_strength_MPa": 252.59,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.2,
       "measured_dpa_mm2": 111.2,
       "note": "q8-42: q8, HemiA, 2.8 J/mm, t = 1.550 mm"
@@ -4106,6 +4205,7 @@
       "loading": "compression",
       "measured_strength_MPa": 215.89,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.225,
       "measured_dpa_mm2": 250.6,
       "note": "q8-1: q8, HemiA, 3.35 J/mm, t = 1.554 mm"
@@ -4136,6 +4236,7 @@
       "loading": "compression",
       "measured_strength_MPa": 219.15,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.2,
       "measured_dpa_mm2": 256.1,
       "note": "q8-2: q8, HemiA, 3.35 J/mm, t = 1.553 mm"
@@ -4166,6 +4267,7 @@
       "loading": "compression",
       "measured_strength_MPa": 241.32,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.173,
       "measured_dpa_mm2": 224.8,
       "note": "q8-3: q8, HemiA, 3.35 J/mm, t = 1.548 mm"
@@ -4196,6 +4298,7 @@
       "loading": "compression",
       "measured_strength_MPa": 225.87,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.191,
       "measured_dpa_mm2": 223.3,
       "note": "q8-40: q8, HemiA, 3.35 J/mm, t = 1.524 mm"
@@ -4226,6 +4329,7 @@
       "loading": "compression",
       "measured_strength_MPa": 243.07,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.237,
       "measured_dpa_mm2": 208.1,
       "note": "q8-43: q8, HemiA, 4.4 J/mm, t = 1.520 mm"
@@ -4256,6 +4360,7 @@
       "loading": "compression",
       "measured_strength_MPa": 227.47,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.292,
       "measured_dpa_mm2": 227.4,
       "note": "q8-44: q8, HemiA, 4.4 J/mm, t = 1.550 mm"
@@ -4286,6 +4391,7 @@
       "loading": "compression",
       "measured_strength_MPa": 225.54,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.16,
       "measured_dpa_mm2": 222.0,
       "note": "q8-51: q8, HemiA, 4.4 J/mm, t = 1.520 mm"
@@ -4316,6 +4422,7 @@
       "loading": "compression",
       "measured_strength_MPa": 248.33,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.079,
       "measured_dpa_mm2": 57.2,
       "note": "q8-37: q8, HemiB, 1.6 J/mm, t = 1.547 mm"
@@ -4346,6 +4453,7 @@
       "loading": "compression",
       "measured_strength_MPa": 235.01,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.054,
       "measured_dpa_mm2": 56.9,
       "note": "q8-22: q8, HemiB, 2.2 J/mm, t = 1.551 mm"
@@ -4376,6 +4484,7 @@
       "loading": "compression",
       "measured_strength_MPa": 238.85,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.058,
       "measured_dpa_mm2": 71.8,
       "note": "q8-23: q8, HemiB, 2.2 J/mm, t = 1.552 mm"
@@ -4406,6 +4515,7 @@
       "loading": "compression",
       "measured_strength_MPa": 254.05,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.068,
       "measured_dpa_mm2": 87.4,
       "note": "q8-24: q8, HemiB, 2.2 J/mm, t = 1.555 mm"
@@ -4436,6 +4546,7 @@
       "loading": "compression",
       "measured_strength_MPa": 252.97,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.061,
       "measured_dpa_mm2": 82.9,
       "note": "q8-36: q8, HemiB, 2.7 J/mm, t = 1.535 mm"
@@ -4466,6 +4577,7 @@
       "loading": "compression",
       "measured_strength_MPa": 235.08,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.097,
       "measured_dpa_mm2": 76.7,
       "note": "q8-19: q8, HemiB, 3.35 J/mm, t = 1.552 mm"
@@ -4496,6 +4608,7 @@
       "loading": "compression",
       "measured_strength_MPa": 255.68,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.088,
       "measured_dpa_mm2": 169.7,
       "note": "q8-20: q8, HemiB, 3.35 J/mm, t = 1.555 mm"
@@ -4526,6 +4639,7 @@
       "loading": "compression",
       "measured_strength_MPa": 250.97,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.05,
       "measured_dpa_mm2": 96.3,
       "note": "q8-21: q8, HemiB, 3.35 J/mm, t = 1.529 mm"
@@ -4556,6 +4670,7 @@
       "loading": "compression",
       "measured_strength_MPa": 254.5,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.097,
       "measured_dpa_mm2": 78.6,
       "note": "q8-45: q8, HemiB, 4.4 J/mm, t = 1.540 mm"
@@ -4586,6 +4701,7 @@
       "loading": "compression",
       "measured_strength_MPa": 240.52,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.054,
       "measured_dpa_mm2": 59.3,
       "note": "q8-46: q8, HemiB, 4.4 J/mm, t = 1.510 mm"
@@ -4616,6 +4732,7 @@
       "loading": "compression",
       "measured_strength_MPa": 264.56,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.092,
       "measured_dpa_mm2": 84.6,
       "note": "q8-47: q8, HemiB, 4.4 J/mm, t = 1.530 mm"
@@ -4646,6 +4763,7 @@
       "loading": "compression",
       "measured_strength_MPa": 249.43,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "q8-16: q8, Flat, 2.2 J/mm, t = 1.539 mm"
@@ -4676,6 +4794,7 @@
       "loading": "compression",
       "measured_strength_MPa": 210.92,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "q8-17: q8, Flat, 2.2 J/mm, t = 1.555 mm"
@@ -4706,6 +4825,7 @@
       "loading": "compression",
       "measured_strength_MPa": 208.21,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "q8-18: q8, Flat, 2.2 J/mm, t = 1.552 mm"
@@ -4736,6 +4856,7 @@
       "loading": "compression",
       "measured_strength_MPa": 219.17,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "q8-13: q8, Flat, 3.35 J/mm, t = 1.523 mm"
@@ -4766,6 +4887,7 @@
       "loading": "compression",
       "measured_strength_MPa": 218.06,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "q8-14: q8, Flat, 3.35 J/mm, t = 1.517 mm"
@@ -4796,6 +4918,7 @@
       "loading": "compression",
       "measured_strength_MPa": 260.09,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "q8-15: q8, Flat, 3.35 J/mm, t = 1.519 mm"
@@ -4826,6 +4949,7 @@
       "loading": "compression",
       "measured_strength_MPa": 198.28,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.042,
       "measured_dpa_mm2": 165.8,
       "note": "q8-39: q8, Coni60, 1.6 J/mm, t = 1.546 mm"
@@ -4856,6 +4980,7 @@
       "loading": "compression",
       "measured_strength_MPa": 204.91,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.095,
       "measured_dpa_mm2": 176.4,
       "note": "q8-10: q8, Coni60, 2.2 J/mm, t = 1.549 mm"
@@ -4886,6 +5011,7 @@
       "loading": "compression",
       "measured_strength_MPa": 219.66,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.084,
       "measured_dpa_mm2": 208.4,
       "note": "q8-11: q8, Coni60, 2.2 J/mm, t = 1.552 mm"
@@ -4916,6 +5042,7 @@
       "loading": "compression",
       "measured_strength_MPa": 204.94,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.024,
       "measured_dpa_mm2": 237.6,
       "note": "q8-12: q8, Coni60, 2.2 J/mm, t = 1.552 mm"
@@ -4946,6 +5073,7 @@
       "loading": "compression",
       "measured_strength_MPa": 209.54,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.213,
       "measured_dpa_mm2": 277.6,
       "note": "q8-27: q8, Coni60, 2.2 J/mm, t = 1.530 mm"
@@ -4976,6 +5104,7 @@
       "loading": "compression",
       "measured_strength_MPa": 193.21,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.326,
       "measured_dpa_mm2": 293.8,
       "note": "q8-38: q8, Coni60, 2.7 J/mm, t = 1.543 mm"
@@ -5006,6 +5135,7 @@
       "loading": "compression",
       "measured_strength_MPa": 190.57,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.393,
       "measured_dpa_mm2": 283.7,
       "note": "q8-7: q8, Coni60, 3.35 J/mm, t = 1.551 mm"
@@ -5036,6 +5166,7 @@
       "loading": "compression",
       "measured_strength_MPa": 184.4,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.632,
       "measured_dpa_mm2": 363.9,
       "note": "q8-8: q8, Coni60, 3.35 J/mm, t = 1.552 mm"
@@ -5066,6 +5197,7 @@
       "loading": "compression",
       "measured_strength_MPa": 212.16,
       "measured_pristine_MPa": 261.17,
+      "layup_label": "q8",
       "measured_dent_mm": 1.594,
       "measured_dpa_mm2": 324.4,
       "note": "q8-9: q8, Coni60, 3.35 J/mm, t = 1.552 mm"
@@ -5108,6 +5240,7 @@
       "loading": "compression",
       "measured_strength_MPa": 426.87,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.072,
       "measured_dpa_mm2": 265.9,
       "note": "r0-4: r0, HemiA, 2.2 J/mm, t = 3.780 mm"
@@ -5150,6 +5283,7 @@
       "loading": "compression",
       "measured_strength_MPa": 406.67,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.181,
       "measured_dpa_mm2": 296.3,
       "note": "r0-5: r0, HemiA, 2.2 J/mm, t = 3.830 mm"
@@ -5192,6 +5326,7 @@
       "loading": "compression",
       "measured_strength_MPa": 396.8,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.167,
       "measured_dpa_mm2": 295.9,
       "note": "r0-6: r0, HemiA, 2.2 J/mm, t = 3.780 mm"
@@ -5234,6 +5369,7 @@
       "loading": "compression",
       "measured_strength_MPa": 385.07,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.216,
       "measured_dpa_mm2": 482.1,
       "note": "r0-1: r0, HemiA, 3.35 J/mm, t = 3.790 mm"
@@ -5276,6 +5412,7 @@
       "loading": "compression",
       "measured_strength_MPa": 350.78,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.223,
       "measured_dpa_mm2": 518.8,
       "note": "r0-2: r0, HemiA, 3.35 J/mm, t = 3.840 mm"
@@ -5318,6 +5455,7 @@
       "loading": "compression",
       "measured_strength_MPa": 360.88,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.219,
       "measured_dpa_mm2": 435.7,
       "note": "r0-3: r0, HemiA, 3.35 J/mm, t = 3.820 mm"
@@ -5360,6 +5498,7 @@
       "loading": "compression",
       "measured_strength_MPa": 320.82,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.299,
       "measured_dpa_mm2": 495.9,
       "note": "r0-25: r0, HemiA, 4.4 J/mm, t = 3.760 mm"
@@ -5402,6 +5541,7 @@
       "loading": "compression",
       "measured_strength_MPa": 358.11,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.236,
       "measured_dpa_mm2": 393.8,
       "note": "r0-26: r0, HemiA, 4.4 J/mm, t = 3.810 mm"
@@ -5444,6 +5584,7 @@
       "loading": "compression",
       "measured_strength_MPa": 317.16,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.243,
       "measured_dpa_mm2": 408.7,
       "note": "r0-27: r0, HemiA, 4.4 J/mm, t = 3.820 mm"
@@ -5486,6 +5627,7 @@
       "loading": "compression",
       "measured_strength_MPa": 522.98,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.109,
       "measured_dpa_mm2": 257.3,
       "note": "r0-10: r0, HemiB, 2.2 J/mm, t = 3.820 mm"
@@ -5528,6 +5670,7 @@
       "loading": "compression",
       "measured_strength_MPa": 539.3,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.106,
       "measured_dpa_mm2": 221.9,
       "note": "r0-11: r0, HemiB, 2.2 J/mm, t = 3.780 mm"
@@ -5570,6 +5713,7 @@
       "loading": "compression",
       "measured_strength_MPa": 510.5,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.139,
       "measured_dpa_mm2": 223.1,
       "note": "r0-12: r0, HemiB, 2.2 J/mm, t = 3.830 mm"
@@ -5612,6 +5756,7 @@
       "loading": "compression",
       "measured_strength_MPa": 406.06,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.204,
       "measured_dpa_mm2": 432.9,
       "note": "r0-7: r0, HemiB, 3.35 J/mm, t = 3.830 mm"
@@ -5654,6 +5799,7 @@
       "loading": "compression",
       "measured_strength_MPa": 447.07,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.205,
       "measured_dpa_mm2": 378.8,
       "note": "r0-8: r0, HemiB, 3.35 J/mm, t = 3.810 mm"
@@ -5696,6 +5842,7 @@
       "loading": "compression",
       "measured_strength_MPa": 428.83,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.164,
       "measured_dpa_mm2": 418.3,
       "note": "r0-9: r0, HemiB, 3.35 J/mm, t = 3.800 mm"
@@ -5738,6 +5885,7 @@
       "loading": "compression",
       "measured_strength_MPa": 370.09,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.24,
       "measured_dpa_mm2": 484.6,
       "note": "r0-28: r0, HemiB, 4.4 J/mm, t = 3.780 mm"
@@ -5780,6 +5928,7 @@
       "loading": "compression",
       "measured_strength_MPa": 371.85,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.187,
       "measured_dpa_mm2": 419.1,
       "note": "r0-29: r0, HemiB, 4.4 J/mm, t = 3.820 mm"
@@ -5822,6 +5971,7 @@
       "loading": "compression",
       "measured_strength_MPa": 335.39,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.139,
       "measured_dpa_mm2": 547.3,
       "note": "r0-30: r0, HemiB, 4.4 J/mm, t = 3.800 mm"
@@ -5864,6 +6014,7 @@
       "loading": "compression",
       "measured_strength_MPa": 358.32,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.755,
       "measured_dpa_mm2": 223.0,
       "note": "r0-16: r0, Coni60, 2.2 J/mm, t = 3.790 mm"
@@ -5906,6 +6057,7 @@
       "loading": "compression",
       "measured_strength_MPa": 363.06,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.862,
       "measured_dpa_mm2": 324.4,
       "note": "r0-17: r0, Coni60, 2.2 J/mm, t = 3.830 mm"
@@ -5948,6 +6100,7 @@
       "loading": "compression",
       "measured_strength_MPa": 336.24,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 0.818,
       "measured_dpa_mm2": 231.9,
       "note": "r0-18: r0, Coni60, 2.2 J/mm, t = 3.830 mm"
@@ -5990,6 +6143,7 @@
       "loading": "compression",
       "measured_strength_MPa": 292.27,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 1.324,
       "measured_dpa_mm2": 621.2,
       "note": "r0-13: r0, Coni60, 3.35 J/mm, t = 3.820 mm"
@@ -6032,6 +6186,7 @@
       "loading": "compression",
       "measured_strength_MPa": 298.44,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 1.167,
       "measured_dpa_mm2": 537.4,
       "note": "r0-14: r0, Coni60, 3.35 J/mm, t = 3.840 mm"
@@ -6074,6 +6229,7 @@
       "loading": "compression",
       "measured_strength_MPa": 322.75,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 1.206,
       "measured_dpa_mm2": 470.2,
       "note": "r0-15: r0, Coni60, 3.35 J/mm, t = 3.750 mm"
@@ -6116,6 +6272,7 @@
       "loading": "compression",
       "measured_strength_MPa": 264.85,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 1.835,
       "measured_dpa_mm2": 525.6,
       "note": "r0-34: r0, Coni60, 4.4 J/mm, t = 3.830 mm"
@@ -6158,6 +6315,7 @@
       "loading": "compression",
       "measured_strength_MPa": 276.94,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 1.575,
       "measured_dpa_mm2": 779.0,
       "note": "r0-35: r0, Coni60, 4.4 J/mm, t = 3.820 mm"
@@ -6200,6 +6358,7 @@
       "loading": "compression",
       "measured_strength_MPa": 268.0,
       "measured_pristine_MPa": 547.88,
+      "layup_label": "r0",
       "measured_dent_mm": 1.536,
       "measured_dpa_mm2": 725.2,
       "note": "r0-36: r0, Coni60, 4.4 J/mm, t = 3.800 mm"
@@ -6242,6 +6401,7 @@
       "loading": "compression",
       "measured_strength_MPa": 244.3,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.127,
       "measured_dpa_mm2": 243.2,
       "note": "r45-4: r45, HemiA, 2.2 J/mm, t = 3.790 mm"
@@ -6284,6 +6444,7 @@
       "loading": "compression",
       "measured_strength_MPa": 248.51,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.079,
       "measured_dpa_mm2": 220.9,
       "note": "r45-5: r45, HemiA, 2.2 J/mm, t = 3.740 mm"
@@ -6326,6 +6487,7 @@
       "loading": "compression",
       "measured_strength_MPa": 261.85,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.125,
       "measured_dpa_mm2": 212.3,
       "note": "r45-6: r45, HemiA, 2.2 J/mm, t = 3.810 mm"
@@ -6368,6 +6530,7 @@
       "loading": "compression",
       "measured_strength_MPa": 233.84,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.219,
       "measured_dpa_mm2": 370.6,
       "note": "r45-1: r45, HemiA, 3.35 J/mm, t = 3.820 mm"
@@ -6410,6 +6573,7 @@
       "loading": "compression",
       "measured_strength_MPa": 232.73,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.202,
       "measured_dpa_mm2": 417.8,
       "note": "r45-2: r45, HemiA, 3.35 J/mm, t = 3.830 mm"
@@ -6452,6 +6616,7 @@
       "loading": "compression",
       "measured_strength_MPa": 231.73,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.206,
       "measured_dpa_mm2": 364.5,
       "note": "r45-3: r45, HemiA, 3.35 J/mm, t = 3.830 mm"
@@ -6494,6 +6659,7 @@
       "loading": "compression",
       "measured_strength_MPa": 219.42,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.16,
       "measured_dpa_mm2": 321.3,
       "note": "r45-25: r45, HemiA, 4.4 J/mm, t = 3.740 mm"
@@ -6536,6 +6702,7 @@
       "loading": "compression",
       "measured_strength_MPa": 206.14,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.242,
       "measured_dpa_mm2": 438.9,
       "note": "r45-26: r45, HemiA, 4.4 J/mm, t = 3.840 mm"
@@ -6578,6 +6745,7 @@
       "loading": "compression",
       "measured_strength_MPa": 206.7,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.243,
       "measured_dpa_mm2": 355.7,
       "note": "r45-27: r45, HemiA, 4.4 J/mm, t = 3.840 mm"
@@ -6620,6 +6788,7 @@
       "loading": "compression",
       "measured_strength_MPa": 317.45,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.115,
       "measured_dpa_mm2": 175.4,
       "note": "r45-10: r45, HemiB, 2.2 J/mm, t = 3.790 mm"
@@ -6662,6 +6831,7 @@
       "loading": "compression",
       "measured_strength_MPa": 314.37,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.103,
       "measured_dpa_mm2": 164.2,
       "note": "r45-11: r45, HemiB, 2.2 J/mm, t = 3.790 mm"
@@ -6704,6 +6874,7 @@
       "loading": "compression",
       "measured_strength_MPa": 279.25,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.159,
       "measured_dpa_mm2": 168.7,
       "note": "r45-12: r45, HemiB, 2.2 J/mm, t = 3.820 mm"
@@ -6746,6 +6917,7 @@
       "loading": "compression",
       "measured_strength_MPa": 242.29,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.17,
       "measured_dpa_mm2": 406.0,
       "note": "r45-7: r45, HemiB, 3.35 J/mm, t = 3.810 mm"
@@ -6788,6 +6960,7 @@
       "loading": "compression",
       "measured_strength_MPa": 244.5,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.149,
       "measured_dpa_mm2": 337.2,
       "note": "r45-8: r45, HemiB, 3.35 J/mm, t = 3.810 mm"
@@ -6830,6 +7003,7 @@
       "loading": "compression",
       "measured_strength_MPa": 242.87,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.214,
       "measured_dpa_mm2": 348.8,
       "note": "r45-9: r45, HemiB, 3.35 J/mm, t = 3.830 mm"
@@ -6872,6 +7046,7 @@
       "loading": "compression",
       "measured_strength_MPa": 210.93,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.175,
       "measured_dpa_mm2": 311.5,
       "note": "r45-28: r45, HemiB, 4.4 J/mm, t = 3.810 mm"
@@ -6914,6 +7089,7 @@
       "loading": "compression",
       "measured_strength_MPa": 212.49,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.223,
       "measured_dpa_mm2": 481.6,
       "note": "r45-29: r45, HemiB, 4.4 J/mm, t = 3.810 mm"
@@ -6956,6 +7132,7 @@
       "loading": "compression",
       "measured_strength_MPa": 216.51,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.161,
       "measured_dpa_mm2": 420.5,
       "note": "r45-30: r45, HemiB, 4.4 J/mm, t = 3.810 mm"
@@ -6998,6 +7175,7 @@
       "loading": "compression",
       "measured_strength_MPa": 244.1,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.7,
       "measured_dpa_mm2": 204.5,
       "note": "r45-16: r45, Coni60, 2.2 J/mm, t = 3.790 mm"
@@ -7040,6 +7218,7 @@
       "loading": "compression",
       "measured_strength_MPa": 240.6,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.786,
       "measured_dpa_mm2": 227.8,
       "note": "r45-17: r45, Coni60, 2.2 J/mm, t = 3.830 mm"
@@ -7082,6 +7261,7 @@
       "loading": "compression",
       "measured_strength_MPa": 242.79,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.859,
       "measured_dpa_mm2": 229.5,
       "note": "r45-18: r45, Coni60, 2.2 J/mm, t = 3.820 mm"
@@ -7124,6 +7304,7 @@
       "loading": "compression",
       "measured_strength_MPa": 207.45,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 1.077,
       "measured_dpa_mm2": 502.6,
       "note": "r45-13: r45, Coni60, 3.35 J/mm, t = 3.810 mm"
@@ -7166,6 +7347,7 @@
       "loading": "compression",
       "measured_strength_MPa": 208.98,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.965,
       "measured_dpa_mm2": 490.6,
       "note": "r45-14: r45, Coni60, 3.35 J/mm, t = 3.820 mm"
@@ -7208,6 +7390,7 @@
       "loading": "compression",
       "measured_strength_MPa": 210.07,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 1.207,
       "measured_dpa_mm2": 543.7,
       "note": "r45-15: r45, Coni60, 3.35 J/mm, t = 3.770 mm"
@@ -7250,6 +7433,7 @@
       "loading": "compression",
       "measured_strength_MPa": 201.85,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 0.975,
       "measured_dpa_mm2": 680.6,
       "note": "r45-34: r45, Coni60, 4.4 J/mm, t = 3.750 mm"
@@ -7292,6 +7476,7 @@
       "loading": "compression",
       "measured_strength_MPa": 198.03,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 1.031,
       "measured_dpa_mm2": 569.9,
       "note": "r45-35: r45, Coni60, 4.4 J/mm, t = 3.820 mm"
@@ -7334,6 +7519,7 @@
       "loading": "compression",
       "measured_strength_MPa": 191.43,
       "measured_pristine_MPa": 405.62,
+      "layup_label": "r45",
       "measured_dent_mm": 1.354,
       "measured_dpa_mm2": 704.6,
       "note": "r45-36: r45, Coni60, 4.4 J/mm, t = 3.810 mm"
@@ -7372,6 +7558,7 @@
       "loading": "compression",
       "measured_strength_MPa": 373.6,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.106,
       "measured_dpa_mm2": 112.4,
       "note": "c16-38: c16, HemiA, 1.6 J/mm, t = 3.129 mm"
@@ -7410,6 +7597,7 @@
       "loading": "compression",
       "measured_strength_MPa": 210.86,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.172,
       "measured_dpa_mm2": 285.6,
       "note": "c16-4: c16, HemiA, 2.2 J/mm, t = 3.089 mm"
@@ -7448,6 +7636,7 @@
       "loading": "compression",
       "measured_strength_MPa": 270.71,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.164,
       "measured_dpa_mm2": 302.8,
       "note": "c16-5: c16, HemiA, 2.2 J/mm, t = 3.087 mm"
@@ -7486,6 +7675,7 @@
       "loading": "compression",
       "measured_strength_MPa": 219.68,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.149,
       "measured_dpa_mm2": 259.5,
       "note": "c16-6: c16, HemiA, 2.2 J/mm, t = 3.095 mm"
@@ -7524,6 +7714,7 @@
       "loading": "compression",
       "measured_strength_MPa": 234.76,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.173,
       "measured_dpa_mm2": 235.6,
       "note": "c16-39: c16, HemiA, 2.7 J/mm, t = 3.133 mm"
@@ -7562,6 +7753,7 @@
       "loading": "compression",
       "measured_strength_MPa": 213.34,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.213,
       "measured_dpa_mm2": 427.4,
       "note": "c16-1: c16, HemiA, 3.35 J/mm, t = 3.075 mm"
@@ -7600,6 +7792,7 @@
       "loading": "compression",
       "measured_strength_MPa": 245.74,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.207,
       "measured_dpa_mm2": 350.4,
       "note": "c16-2: c16, HemiA, 3.35 J/mm, t = 3.066 mm"
@@ -7638,6 +7831,7 @@
       "loading": "compression",
       "measured_strength_MPa": 192.23,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.197,
       "measured_dpa_mm2": 534.2,
       "note": "c16-3: c16, HemiA, 3.35 J/mm, t = 3.090 mm"
@@ -7676,6 +7870,7 @@
       "loading": "compression",
       "measured_strength_MPa": 204.6,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.249,
       "measured_dpa_mm2": 368.7,
       "note": "c16-44: c16, HemiA, 4.4 J/mm, t = 3.150 mm"
@@ -7714,6 +7909,7 @@
       "loading": "compression",
       "measured_strength_MPa": 144.03,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.222,
       "measured_dpa_mm2": 755.2,
       "note": "c16-45: c16, HemiA, 4.4 J/mm, t = 3.120 mm"
@@ -7752,6 +7948,7 @@
       "loading": "compression",
       "measured_strength_MPa": 137.43,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.266,
       "measured_dpa_mm2": 611.1,
       "note": "c16-46: c16, HemiA, 4.4 J/mm, t = 3.140 mm"
@@ -7790,6 +7987,7 @@
       "loading": "compression",
       "measured_strength_MPa": 475.05,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.014,
       "measured_dpa_mm2": 0.0,
       "note": "c16-40: c16, HemiB, 1.66751 J/mm, t = 3.103 mm"
@@ -7828,6 +8026,7 @@
       "loading": "compression",
       "measured_strength_MPa": 493.4,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.093,
       "measured_dpa_mm2": 129.0,
       "note": "c16-28: c16, HemiB, 2.2 J/mm, t = 3.126 mm"
@@ -7866,6 +8065,7 @@
       "loading": "compression",
       "measured_strength_MPa": 477.11,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.088,
       "measured_dpa_mm2": 126.9,
       "note": "c16-29: c16, HemiB, 2.2 J/mm, t = 3.127 mm"
@@ -7904,6 +8104,7 @@
       "loading": "compression",
       "measured_strength_MPa": 508.98,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.031,
       "measured_dpa_mm2": 104.8,
       "note": "c16-30: c16, HemiB, 2.2 J/mm, t = 3.092 mm"
@@ -7942,6 +8143,7 @@
       "loading": "compression",
       "measured_strength_MPa": 275.63,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.189,
       "measured_dpa_mm2": 265.2,
       "note": "c16-41: c16, HemiB, 2.81393 J/mm, t = 3.136 mm"
@@ -7980,6 +8182,7 @@
       "loading": "compression",
       "measured_strength_MPa": 199.53,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.179,
       "measured_dpa_mm2": 438.4,
       "note": "c16-25: c16, HemiB, 3.35 J/mm, t = 3.110 mm"
@@ -8018,6 +8221,7 @@
       "loading": "compression",
       "measured_strength_MPa": 200.62,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.22,
       "measured_dpa_mm2": 396.9,
       "note": "c16-26: c16, HemiB, 3.35 J/mm, t = 3.138 mm"
@@ -8056,6 +8260,7 @@
       "loading": "compression",
       "measured_strength_MPa": 227.7,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.167,
       "measured_dpa_mm2": 365.4,
       "note": "c16-27: c16, HemiB, 3.35 J/mm, t = 3.127 mm"
@@ -8094,6 +8299,7 @@
       "loading": "compression",
       "measured_strength_MPa": 189.17,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.179,
       "measured_dpa_mm2": 644.4,
       "note": "c16-47: c16, HemiB, 4.4 J/mm, t = 3.120 mm"
@@ -8132,6 +8338,7 @@
       "loading": "compression",
       "measured_strength_MPa": 205.48,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.18,
       "measured_dpa_mm2": 527.7,
       "note": "c16-48: c16, HemiB, 4.4 J/mm, t = 3.090 mm"
@@ -8170,6 +8377,7 @@
       "loading": "compression",
       "measured_strength_MPa": 226.71,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.173,
       "measured_dpa_mm2": 520.3,
       "note": "c16-49: c16, HemiB, 4.4 J/mm, t = 3.100 mm"
@@ -8208,6 +8416,7 @@
       "loading": "compression",
       "measured_strength_MPa": 488.58,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.033,
       "measured_dpa_mm2": 136.8,
       "note": "c16-22: c16, HemiC, 2.2 J/mm, t = 3.048 mm"
@@ -8246,6 +8455,7 @@
       "loading": "compression",
       "measured_strength_MPa": 506.43,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.032,
       "measured_dpa_mm2": 131.0,
       "note": "c16-23: c16, HemiC, 2.2 J/mm, t = 3.073 mm"
@@ -8284,6 +8494,7 @@
       "loading": "compression",
       "measured_strength_MPa": 523.44,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.043,
       "measured_dpa_mm2": 141.5,
       "note": "c16-24: c16, HemiC, 2.2 J/mm, t = 3.080 mm"
@@ -8322,6 +8533,7 @@
       "loading": "compression",
       "measured_strength_MPa": 247.97,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.197,
       "measured_dpa_mm2": 492.7,
       "note": "c16-19: c16, HemiC, 3.35 J/mm, t = 3.106 mm"
@@ -8360,6 +8572,7 @@
       "loading": "compression",
       "measured_strength_MPa": 239.3,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.114,
       "measured_dpa_mm2": 448.5,
       "note": "c16-20: c16, HemiC, 3.35 J/mm, t = 3.068 mm"
@@ -8398,6 +8611,7 @@
       "loading": "compression",
       "measured_strength_MPa": 207.71,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.1,
       "measured_dpa_mm2": 408.4,
       "note": "c16-21: c16, HemiC, 3.35 J/mm, t = 3.033 mm"
@@ -8436,6 +8650,7 @@
       "loading": "compression",
       "measured_strength_MPa": 499.26,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 34.4,
       "note": "c16-16: c16, Flat, 2.2 J/mm, t = 3.085 mm"
@@ -8474,6 +8689,7 @@
       "loading": "compression",
       "measured_strength_MPa": 512.54,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.022,
       "measured_dpa_mm2": 30.7,
       "note": "c16-17: c16, Flat, 2.2 J/mm, t = 3.096 mm"
@@ -8512,6 +8728,7 @@
       "loading": "compression",
       "measured_strength_MPa": 542.12,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 18.7,
       "note": "c16-18: c16, Flat, 2.2 J/mm, t = 3.099 mm"
@@ -8550,6 +8767,7 @@
       "loading": "compression",
       "measured_strength_MPa": 510.9,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 129.9,
       "note": "c16-13: c16, Flat, 3.35 J/mm, t = 3.111 mm"
@@ -8588,6 +8806,7 @@
       "loading": "compression",
       "measured_strength_MPa": 508.23,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 143.1,
       "note": "c16-14: c16, Flat, 3.35 J/mm, t = 3.110 mm"
@@ -8626,6 +8845,7 @@
       "loading": "compression",
       "measured_strength_MPa": 485.4,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 152.8,
       "note": "c16-15: c16, Flat, 3.35 J/mm, t = 3.105 mm"
@@ -8664,6 +8884,7 @@
       "loading": "compression",
       "measured_strength_MPa": 322.67,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.59,
       "measured_dpa_mm2": 123.4,
       "note": "c16-42: c16, Coni60, 1.6 J/mm, t = 3.124 mm"
@@ -8702,6 +8923,7 @@
       "loading": "compression",
       "measured_strength_MPa": 245.08,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.067,
       "measured_dpa_mm2": 290.3,
       "note": "c16-10: c16, Coni60, 2.2 J/mm, t = 3.092 mm"
@@ -8740,6 +8962,7 @@
       "loading": "compression",
       "measured_strength_MPa": 226.25,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.666,
       "measured_dpa_mm2": 251.6,
       "note": "c16-11: c16, Coni60, 2.2 J/mm, t = 3.086 mm"
@@ -8778,6 +9001,7 @@
       "loading": "compression",
       "measured_strength_MPa": 268.04,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.76,
       "measured_dpa_mm2": 214.8,
       "note": "c16-12: c16, Coni60, 2.2 J/mm, t = 3.081 mm"
@@ -8816,6 +9040,7 @@
       "loading": "compression",
       "measured_strength_MPa": 238.66,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 0.85,
       "measured_dpa_mm2": 199.9,
       "note": "c16-43: c16, Coni60, 2.7 J/mm, t = 3.143 mm"
@@ -8854,6 +9079,7 @@
       "loading": "compression",
       "measured_strength_MPa": 212.48,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 1.195,
       "measured_dpa_mm2": 381.0,
       "note": "c16-7: c16, Coni60, 3.35 J/mm, t = 3.089 mm"
@@ -8892,6 +9118,7 @@
       "loading": "compression",
       "measured_strength_MPa": 218.19,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 1.17,
       "measured_dpa_mm2": 614.6,
       "note": "c16-8: c16, Coni60, 3.35 J/mm, t = 3.095 mm"
@@ -8930,6 +9157,7 @@
       "loading": "compression",
       "measured_strength_MPa": 180.33,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 1.241,
       "measured_dpa_mm2": 502.4,
       "note": "c16-9: c16, Coni60, 3.35 J/mm, t = 3.095 mm"
@@ -8968,6 +9196,7 @@
       "loading": "compression",
       "measured_strength_MPa": 206.0,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 1.38,
       "measured_dpa_mm2": 362.3,
       "note": "c16-53: c16, Coni60, 4.4 J/mm, t = 3.050 mm"
@@ -9006,6 +9235,7 @@
       "loading": "compression",
       "measured_strength_MPa": 197.53,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 1.519,
       "measured_dpa_mm2": 367.9,
       "note": "c16-54: c16, Coni60, 4.4 J/mm, t = 3.090 mm"
@@ -9044,6 +9274,7 @@
       "loading": "compression",
       "measured_strength_MPa": 195.08,
       "measured_pristine_MPa": 479.99,
+      "layup_label": "c16",
       "measured_dent_mm": 1.415,
       "measured_dpa_mm2": 355.8,
       "note": "c16-55: c16, Coni60, 4.4 J/mm, t = 3.090 mm"
@@ -9090,6 +9321,7 @@
       "loading": "compression",
       "measured_strength_MPa": 592.14,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.056,
       "measured_dpa_mm2": 27.5,
       "note": "c24-19: c24, HemiA, 1.1 J/mm, t = 4.633 mm"
@@ -9136,6 +9368,7 @@
       "loading": "compression",
       "measured_strength_MPa": 494.15,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.017,
       "measured_dpa_mm2": 27.5,
       "note": "c24-20: c24, HemiA, 1.1 J/mm, t = 4.582 mm"
@@ -9182,6 +9415,7 @@
       "loading": "compression",
       "measured_strength_MPa": 535.94,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.006,
       "measured_dpa_mm2": 23.9,
       "note": "c24-21: c24, HemiA, 1.1 J/mm, t = 4.581 mm"
@@ -9228,6 +9462,7 @@
       "loading": "compression",
       "measured_strength_MPa": 351.86,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.117,
       "measured_dpa_mm2": 139.4,
       "note": "c24-45: c24, HemiA, 1.6 J/mm, t = 4.573 mm"
@@ -9274,6 +9509,7 @@
       "loading": "compression",
       "measured_strength_MPa": 324.84,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.168,
       "measured_dpa_mm2": 260.9,
       "note": "c24-4: c24, HemiA, 2.2 J/mm, t = 4.596 mm"
@@ -9320,6 +9556,7 @@
       "loading": "compression",
       "measured_strength_MPa": 310.4,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.062,
       "measured_dpa_mm2": 306.1,
       "note": "c24-5: c24, HemiA, 2.2 J/mm, t = 4.527 mm"
@@ -9366,6 +9603,7 @@
       "loading": "compression",
       "measured_strength_MPa": 291.27,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.157,
       "measured_dpa_mm2": 395.0,
       "note": "c24-6: c24, HemiA, 2.2 J/mm, t = 4.609 mm"
@@ -9412,6 +9650,7 @@
       "loading": "compression",
       "measured_strength_MPa": 319.36,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.173,
       "measured_dpa_mm2": 258.8,
       "note": "c24-8t: c24, HemiA, 2.2 J/mm, t = 4.698 mm"
@@ -9458,6 +9697,7 @@
       "loading": "compression",
       "measured_strength_MPa": 271.09,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.207,
       "measured_dpa_mm2": 363.0,
       "note": "c24-46: c24, HemiA, 2.7 J/mm, t = 4.541 mm"
@@ -9504,6 +9744,7 @@
       "loading": "compression",
       "measured_strength_MPa": 264.85,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.235,
       "measured_dpa_mm2": 411.1,
       "note": "c24-6t: c24, HemiA, 3.3 J/mm, t = 4.689 mm"
@@ -9550,6 +9791,7 @@
       "loading": "compression",
       "measured_strength_MPa": 230.12,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.178,
       "measured_dpa_mm2": 461.1,
       "note": "c24-1: c24, HemiA, 3.35 J/mm, t = 4.579 mm"
@@ -9596,6 +9838,7 @@
       "loading": "compression",
       "measured_strength_MPa": 208.41,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.223,
       "measured_dpa_mm2": 537.5,
       "note": "c24-2: c24, HemiA, 3.35 J/mm, t = 4.595 mm"
@@ -9642,6 +9885,7 @@
       "loading": "compression",
       "measured_strength_MPa": 247.7,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.214,
       "measured_dpa_mm2": 439.4,
       "note": "c24-3: c24, HemiA, 3.35 J/mm, t = 4.588 mm"
@@ -9688,6 +9932,7 @@
       "loading": "compression",
       "measured_strength_MPa": 183.1,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.21,
       "measured_dpa_mm2": 589.0,
       "note": "c24-60: c24, HemiA, 4.4 J/mm, t = 4.870 mm"
@@ -9734,6 +9979,7 @@
       "loading": "compression",
       "measured_strength_MPa": 213.78,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.21,
       "measured_dpa_mm2": 487.6,
       "note": "c24-61: c24, HemiA, 4.4 J/mm, t = 4.630 mm"
@@ -9780,6 +10026,7 @@
       "loading": "compression",
       "measured_strength_MPa": 196.59,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.258,
       "measured_dpa_mm2": 591.0,
       "note": "c24-62: c24, HemiA, 4.4 J/mm, t = 4.620 mm"
@@ -9826,6 +10073,7 @@
       "loading": "compression",
       "measured_strength_MPa": 480.59,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.004,
       "measured_dpa_mm2": 0.0,
       "note": "c24-47: c24, HemiB, 1.66751 J/mm, t = 4.551 mm"
@@ -9872,6 +10120,7 @@
       "loading": "compression",
       "measured_strength_MPa": 403.49,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.091,
       "measured_dpa_mm2": 216.5,
       "note": "c24-35: c24, HemiB, 2.2 J/mm, t = 4.564 mm"
@@ -9918,6 +10167,7 @@
       "loading": "compression",
       "measured_strength_MPa": 376.71,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.119,
       "measured_dpa_mm2": 309.8,
       "note": "c24-36: c24, HemiB, 2.2 J/mm, t = 4.592 mm"
@@ -9964,6 +10214,7 @@
       "loading": "compression",
       "measured_strength_MPa": 381.19,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.159,
       "measured_dpa_mm2": 260.6,
       "note": "c24-37: c24, HemiB, 2.2 J/mm, t = 4.610 mm"
@@ -10010,6 +10261,7 @@
       "loading": "compression",
       "measured_strength_MPa": 300.74,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.117,
       "measured_dpa_mm2": 436.0,
       "note": "c24-48: c24, HemiB, 2.81393 J/mm, t = 4.546 mm"
@@ -10056,6 +10308,7 @@
       "loading": "compression",
       "measured_strength_MPa": 214.54,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.262,
       "measured_dpa_mm2": 558.3,
       "note": "c24-32: c24, HemiB, 3.35 J/mm, t = 4.615 mm"
@@ -10102,6 +10355,7 @@
       "loading": "compression",
       "measured_strength_MPa": 230.41,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.261,
       "measured_dpa_mm2": 558.6,
       "note": "c24-33: c24, HemiB, 3.35 J/mm, t = 4.611 mm"
@@ -10148,6 +10402,7 @@
       "loading": "compression",
       "measured_strength_MPa": 282.22,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.261,
       "measured_dpa_mm2": 467.2,
       "note": "c24-34: c24, HemiB, 3.35 J/mm, t = 4.627 mm"
@@ -10194,6 +10449,7 @@
       "loading": "compression",
       "measured_strength_MPa": 260.62,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.23,
       "measured_dpa_mm2": 497.4,
       "note": "c24-57: c24, HemiB, 3.35 J/mm, t = 4.630 mm"
@@ -10240,6 +10496,7 @@
       "loading": "compression",
       "measured_strength_MPa": 263.09,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.232,
       "measured_dpa_mm2": 573.9,
       "note": "c24-58: c24, HemiB, 3.35 J/mm, t = 4.620 mm"
@@ -10286,6 +10543,7 @@
       "loading": "compression",
       "measured_strength_MPa": 285.09,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.222,
       "measured_dpa_mm2": 455.4,
       "note": "c24-59: c24, HemiB, 3.35 J/mm, t = 4.630 mm"
@@ -10332,6 +10590,7 @@
       "loading": "compression",
       "measured_strength_MPa": 163.92,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.259,
       "measured_dpa_mm2": 726.1,
       "note": "c24-63: c24, HemiB, 4.4 J/mm, t = 4.620 mm"
@@ -10378,6 +10637,7 @@
       "loading": "compression",
       "measured_strength_MPa": 212.44,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.27,
       "measured_dpa_mm2": 406.6,
       "note": "c24-64: c24, HemiB, 4.4 J/mm, t = 4.630 mm"
@@ -10424,6 +10684,7 @@
       "loading": "compression",
       "measured_strength_MPa": 217.94,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.208,
       "measured_dpa_mm2": 438.1,
       "note": "c24-65: c24, HemiB, 4.4 J/mm, t = 4.630 mm"
@@ -10470,6 +10731,7 @@
       "loading": "compression",
       "measured_strength_MPa": 568.28,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.049,
       "measured_dpa_mm2": 118.9,
       "note": "c24-29: c24, HemiC, 2.2 J/mm, t = 4.585 mm"
@@ -10516,6 +10778,7 @@
       "loading": "compression",
       "measured_strength_MPa": 515.43,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": -0.022,
       "measured_dpa_mm2": 148.6,
       "note": "c24-30: c24, HemiC, 2.2 J/mm, t = 4.502 mm"
@@ -10562,6 +10825,7 @@
       "loading": "compression",
       "measured_strength_MPa": 514.96,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.083,
       "measured_dpa_mm2": 101.4,
       "note": "c24-31: c24, HemiC, 2.2 J/mm, t = 4.590 mm"
@@ -10608,6 +10872,7 @@
       "loading": "compression",
       "measured_strength_MPa": 271.91,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.137,
       "measured_dpa_mm2": 635.3,
       "note": "c24-26: c24, HemiC, 3.35 J/mm, t = 4.555 mm"
@@ -10654,6 +10919,7 @@
       "loading": "compression",
       "measured_strength_MPa": 284.42,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.18,
       "measured_dpa_mm2": 684.2,
       "note": "c24-27: c24, HemiC, 3.35 J/mm, t = 4.588 mm"
@@ -10700,6 +10966,7 @@
       "loading": "compression",
       "measured_strength_MPa": 302.88,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.231,
       "measured_dpa_mm2": 576.4,
       "note": "c24-28: c24, HemiC, 3.35 J/mm, t = 4.578 mm"
@@ -10746,6 +11013,7 @@
       "loading": "compression",
       "measured_strength_MPa": 566.05,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 27.1,
       "note": "c24-11t: c24, Flat, 2.2 J/mm, t = 4.623 mm"
@@ -10792,6 +11060,7 @@
       "loading": "compression",
       "measured_strength_MPa": 535.47,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 18.6,
       "note": "c24-16: c24, Flat, 2.2 J/mm, t = 4.600 mm"
@@ -10838,6 +11107,7 @@
       "loading": "compression",
       "measured_strength_MPa": 539.73,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 21.2,
       "note": "c24-17: c24, Flat, 2.2 J/mm, t = 4.623 mm"
@@ -10884,6 +11154,7 @@
       "loading": "compression",
       "measured_strength_MPa": 552.82,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 20.8,
       "note": "c24-18: c24, Flat, 2.2 J/mm, t = 4.623 mm"
@@ -10930,6 +11201,7 @@
       "loading": "compression",
       "measured_strength_MPa": 431.9,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 113.1,
       "note": "c24-12t: c24, Flat, 3.3 J/mm, t = 4.587 mm"
@@ -10976,6 +11248,7 @@
       "loading": "compression",
       "measured_strength_MPa": 491.96,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 142.9,
       "note": "c24-13: c24, Flat, 3.35 J/mm, t = 4.618 mm"
@@ -11022,6 +11295,7 @@
       "loading": "compression",
       "measured_strength_MPa": 549.69,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 135.0,
       "note": "c24-14: c24, Flat, 3.35 J/mm, t = 4.622 mm"
@@ -11068,6 +11342,7 @@
       "loading": "compression",
       "measured_strength_MPa": 480.89,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 123.1,
       "note": "c24-15: c24, Flat, 3.35 J/mm, t = 4.568 mm"
@@ -11114,6 +11389,7 @@
       "loading": "compression",
       "measured_strength_MPa": 410.27,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.373,
       "measured_dpa_mm2": 67.2,
       "note": "c24-23: c24, Coni60, 1.1 J/mm, t = 4.572 mm"
@@ -11160,6 +11436,7 @@
       "loading": "compression",
       "measured_strength_MPa": 405.9,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.565,
       "measured_dpa_mm2": 61.6,
       "note": "c24-24: c24, Coni60, 1.1 J/mm, t = 4.581 mm"
@@ -11206,6 +11483,7 @@
       "loading": "compression",
       "measured_strength_MPa": 426.32,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.42,
       "measured_dpa_mm2": 71.5,
       "note": "c24-25: c24, Coni60, 1.1 J/mm, t = 4.526 mm"
@@ -11252,6 +11530,7 @@
       "loading": "compression",
       "measured_strength_MPa": 364.4,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.675,
       "measured_dpa_mm2": 81.8,
       "note": "c24-49: c24, Coni60, 1.6 J/mm, t = 4.551 mm"
@@ -11298,6 +11577,7 @@
       "loading": "compression",
       "measured_strength_MPa": 299.33,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.942,
       "measured_dpa_mm2": 189.6,
       "note": "c24-10: c24, Coni60, 2.2 J/mm, t = 4.566 mm"
@@ -11344,6 +11624,7 @@
       "loading": "compression",
       "measured_strength_MPa": 358.96,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.026,
       "measured_dpa_mm2": 179.5,
       "note": "c24-10t: c24, Coni60, 2.2 J/mm, t = 4.532 mm"
@@ -11390,6 +11671,7 @@
       "loading": "compression",
       "measured_strength_MPa": 325.32,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.014,
       "measured_dpa_mm2": 126.6,
       "note": "c24-11: c24, Coni60, 2.2 J/mm, t = 4.602 mm"
@@ -11436,6 +11718,7 @@
       "loading": "compression",
       "measured_strength_MPa": 297.11,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.065,
       "measured_dpa_mm2": 131.4,
       "note": "c24-12: c24, Coni60, 2.2 J/mm, t = 4.622 mm"
@@ -11482,6 +11765,7 @@
       "loading": "compression",
       "measured_strength_MPa": 292.14,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 0.944,
       "measured_dpa_mm2": 273.4,
       "note": "c24-50: c24, Coni60, 2.7 J/mm, t = 4.482 mm"
@@ -11528,6 +11812,7 @@
       "loading": "compression",
       "measured_strength_MPa": 278.25,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.213,
       "measured_dpa_mm2": 301.8,
       "note": "c24-9t: c24, Coni60, 3.3 J/mm, t = 4.669 mm"
@@ -11574,6 +11859,7 @@
       "loading": "compression",
       "measured_strength_MPa": 250.28,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.308,
       "measured_dpa_mm2": 614.8,
       "note": "c24-7: c24, Coni60, 3.35 J/mm, t = 4.623 mm"
@@ -11620,6 +11906,7 @@
       "loading": "compression",
       "measured_strength_MPa": 216.31,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.253,
       "measured_dpa_mm2": 528.7,
       "note": "c24-8: c24, Coni60, 3.35 J/mm, t = 4.617 mm"
@@ -11666,6 +11953,7 @@
       "loading": "compression",
       "measured_strength_MPa": 248.41,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.368,
       "measured_dpa_mm2": 454.7,
       "note": "c24-9: c24, Coni60, 3.35 J/mm, t = 4.625 mm"
@@ -11712,6 +12000,7 @@
       "loading": "compression",
       "measured_strength_MPa": 263.29,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.178,
       "measured_dpa_mm2": 524.1,
       "note": "c24-51: c24, Coni60, 3.35 J/mm, t = 4.550 mm"
@@ -11758,6 +12047,7 @@
       "loading": "compression",
       "measured_strength_MPa": 252.3,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.258,
       "measured_dpa_mm2": 343.0,
       "note": "c24-52: c24, Coni60, 3.35 J/mm, t = 4.590 mm"
@@ -11804,6 +12094,7 @@
       "loading": "compression",
       "measured_strength_MPa": 242.3,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.403,
       "measured_dpa_mm2": 534.3,
       "note": "c24-53: c24, Coni60, 3.35 J/mm, t = 4.580 mm"
@@ -11850,6 +12141,7 @@
       "loading": "compression",
       "measured_strength_MPa": 215.27,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.396,
       "measured_dpa_mm2": 621.8,
       "note": "c24-69: c24, Coni60, 4.4 J/mm, t = 4.620 mm"
@@ -11896,6 +12188,7 @@
       "loading": "compression",
       "measured_strength_MPa": 224.01,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.538,
       "measured_dpa_mm2": 672.6,
       "note": "c24-70: c24, Coni60, 4.4 J/mm, t = 4.630 mm"
@@ -11942,6 +12235,7 @@
       "loading": "compression",
       "measured_strength_MPa": 213.38,
       "measured_pristine_MPa": 528.05,
+      "layup_label": "c24",
       "measured_dent_mm": 1.478,
       "measured_dpa_mm2": 690.6,
       "note": "c24-71: c24, Coni60, 4.4 J/mm, t = 4.630 mm"
@@ -11972,6 +12266,7 @@
       "loading": "compression",
       "measured_strength_MPa": 220.57,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.081,
       "measured_dpa_mm2": 116.0,
       "note": "c8-38: c8, HemiA, 1.6 J/mm, t = 1.542 mm"
@@ -12002,6 +12297,7 @@
       "loading": "compression",
       "measured_strength_MPa": 186.24,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.147,
       "measured_dpa_mm2": 98.4,
       "note": "c8-4: c8, HemiA, 2.2 J/mm, t = 1.536 mm"
@@ -12032,6 +12328,7 @@
       "loading": "compression",
       "measured_strength_MPa": 196.91,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.055,
       "measured_dpa_mm2": 98.6,
       "note": "c8-5: c8, HemiA, 2.2 J/mm, t = 1.512 mm"
@@ -12062,6 +12359,7 @@
       "loading": "compression",
       "measured_strength_MPa": 184.7,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.105,
       "measured_dpa_mm2": 88.8,
       "note": "c8-6: c8, HemiA, 2.2 J/mm, t = 1.527 mm"
@@ -12092,6 +12390,7 @@
       "loading": "compression",
       "measured_strength_MPa": 216.37,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.109,
       "measured_dpa_mm2": 64.4,
       "note": "c8-8t: c8, HemiA, 2.2 J/mm, t = 1.564 mm"
@@ -12122,6 +12421,7 @@
       "loading": "compression",
       "measured_strength_MPa": 168.52,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.149,
       "measured_dpa_mm2": 236.3,
       "note": "c8-39: c8, HemiA, 2.7 J/mm, t = 1.543 mm"
@@ -12152,6 +12452,7 @@
       "loading": "compression",
       "measured_strength_MPa": 189.6,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.154,
       "measured_dpa_mm2": 97.1,
       "note": "c8-44: c8, HemiA, 2.9 J/mm, t = 1.540 mm"
@@ -12182,6 +12483,7 @@
       "loading": "compression",
       "measured_strength_MPa": 193.13,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.16,
       "measured_dpa_mm2": 103.7,
       "note": "c8-45: c8, HemiA, 2.9 J/mm, t = 1.520 mm"
@@ -12212,6 +12514,7 @@
       "loading": "compression",
       "measured_strength_MPa": 204.91,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.414,
       "measured_dpa_mm2": 88.5,
       "note": "c8-46: c8, HemiA, 2.9 J/mm, t = 1.510 mm"
@@ -12242,6 +12545,7 @@
       "loading": "compression",
       "measured_strength_MPa": 199.8,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.177,
       "measured_dpa_mm2": 140.5,
       "note": "c8-6t: c8, HemiA, 3.3 J/mm, t = 1.568 mm"
@@ -12272,6 +12576,7 @@
       "loading": "compression",
       "measured_strength_MPa": 163.86,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.158,
       "measured_dpa_mm2": 146.0,
       "note": "c8-2: c8, HemiA, 3.35 J/mm, t = 1.529 mm"
@@ -12302,6 +12607,7 @@
       "loading": "compression",
       "measured_strength_MPa": 213.1,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.192,
       "measured_dpa_mm2": 118.7,
       "note": "c8-3: c8, HemiA, 3.35 J/mm, t = 1.524 mm"
@@ -12332,6 +12638,7 @@
       "loading": "compression",
       "measured_strength_MPa": 158.71,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.166,
       "measured_dpa_mm2": 188.2,
       "note": "c8-53: c8, HemiA, 4.4 J/mm, t = 1.530 mm"
@@ -12362,6 +12669,7 @@
       "loading": "compression",
       "measured_strength_MPa": 162.89,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.153,
       "measured_dpa_mm2": 201.1,
       "note": "c8-54: c8, HemiA, 4.4 J/mm, t = 1.550 mm"
@@ -12392,6 +12700,7 @@
       "loading": "compression",
       "measured_strength_MPa": 183.09,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.18,
       "measured_dpa_mm2": 145.8,
       "note": "c8-55: c8, HemiA, 4.4 J/mm, t = 1.550 mm"
@@ -12422,6 +12731,7 @@
       "loading": "compression",
       "measured_strength_MPa": 210.63,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.009,
       "measured_dpa_mm2": 0.0,
       "note": "c8-40: c8, HemiB, 1.66751 J/mm, t = 1.523 mm"
@@ -12452,6 +12762,7 @@
       "loading": "compression",
       "measured_strength_MPa": 282.83,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.022,
       "measured_dpa_mm2": 39.8,
       "note": "c8-28: c8, HemiB, 2.2 J/mm, t = 1.527 mm"
@@ -12482,6 +12793,7 @@
       "loading": "compression",
       "measured_strength_MPa": 274.05,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.027,
       "measured_dpa_mm2": 43.5,
       "note": "c8-29: c8, HemiB, 2.2 J/mm, t = 1.530 mm"
@@ -12512,6 +12824,7 @@
       "loading": "compression",
       "measured_strength_MPa": 274.7,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.06,
       "measured_dpa_mm2": 41.2,
       "note": "c8-30: c8, HemiB, 2.2 J/mm, t = 1.506 mm"
@@ -12542,6 +12855,7 @@
       "loading": "compression",
       "measured_strength_MPa": 265.48,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.071,
       "measured_dpa_mm2": 106.2,
       "note": "c8-41: c8, HemiB, 2.81393 J/mm, t = 1.529 mm"
@@ -12572,6 +12886,7 @@
       "loading": "compression",
       "measured_strength_MPa": 269.52,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.035,
       "measured_dpa_mm2": 70.5,
       "note": "c8-25: c8, HemiB, 3.35 J/mm, t = 1.499 mm"
@@ -12602,6 +12917,7 @@
       "loading": "compression",
       "measured_strength_MPa": 271.96,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.055,
       "measured_dpa_mm2": 79.6,
       "note": "c8-26: c8, HemiB, 3.35 J/mm, t = 1.508 mm"
@@ -12632,6 +12948,7 @@
       "loading": "compression",
       "measured_strength_MPa": 260.14,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.084,
       "measured_dpa_mm2": 68.3,
       "note": "c8-27: c8, HemiB, 3.35 J/mm, t = 1.532 mm"
@@ -12662,6 +12979,7 @@
       "loading": "compression",
       "measured_strength_MPa": 261.56,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.109,
       "measured_dpa_mm2": 56.0,
       "note": "c8-47: c8, HemiB, 4.4 J/mm, t = 1.530 mm"
@@ -12692,6 +13010,7 @@
       "loading": "compression",
       "measured_strength_MPa": 265.55,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.084,
       "measured_dpa_mm2": 67.1,
       "note": "c8-48: c8, HemiB, 4.4 J/mm, t = 1.520 mm"
@@ -12722,6 +13041,7 @@
       "loading": "compression",
       "measured_strength_MPa": 267.14,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.085,
       "measured_dpa_mm2": 55.7,
       "note": "c8-49: c8, HemiB, 4.4 J/mm, t = 1.530 mm"
@@ -12752,6 +13072,7 @@
       "loading": "compression",
       "measured_strength_MPa": 272.77,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.02,
       "measured_dpa_mm2": 69.8,
       "note": "c8-22: c8, HemiC, 2.2 J/mm, t = 1.520 mm"
@@ -12782,6 +13103,7 @@
       "loading": "compression",
       "measured_strength_MPa": 262.4,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.036,
       "measured_dpa_mm2": 58.3,
       "note": "c8-23: c8, HemiC, 2.2 J/mm, t = 1.517 mm"
@@ -12812,6 +13134,7 @@
       "loading": "compression",
       "measured_strength_MPa": 259.85,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.05,
       "measured_dpa_mm2": 49.7,
       "note": "c8-24: c8, HemiC, 2.2 J/mm, t = 1.522 mm"
@@ -12842,6 +13165,7 @@
       "loading": "compression",
       "measured_strength_MPa": 254.65,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.09,
       "measured_dpa_mm2": 94.0,
       "note": "c8-19: c8, HemiC, 3.35 J/mm, t = 1.550 mm"
@@ -12872,6 +13196,7 @@
       "loading": "compression",
       "measured_strength_MPa": 209.17,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.079,
       "measured_dpa_mm2": 135.0,
       "note": "c8-20: c8, HemiC, 3.35 J/mm, t = 1.528 mm"
@@ -12902,6 +13227,7 @@
       "loading": "compression",
       "measured_strength_MPa": 263.1,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.012,
       "measured_dpa_mm2": 82.7,
       "note": "c8-21: c8, HemiC, 3.35 J/mm, t = 1.509 mm"
@@ -12932,6 +13258,7 @@
       "loading": "compression",
       "measured_strength_MPa": 262.6,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "c8-11t: c8, Flat, 2.2 J/mm, t = 1.533 mm"
@@ -12962,6 +13289,7 @@
       "loading": "compression",
       "measured_strength_MPa": 264.16,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.004,
       "measured_dpa_mm2": 0.0,
       "note": "c8-16: c8, Flat, 2.2 J/mm, t = 1.533 mm"
@@ -12992,6 +13320,7 @@
       "loading": "compression",
       "measured_strength_MPa": 274.5,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "c8-17: c8, Flat, 2.2 J/mm, t = 1.544 mm"
@@ -13022,6 +13351,7 @@
       "loading": "compression",
       "measured_strength_MPa": 270.34,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 0.0,
       "note": "c8-18: c8, Flat, 2.2 J/mm, t = 1.546 mm"
@@ -13052,6 +13382,7 @@
       "loading": "compression",
       "measured_strength_MPa": 258.15,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.009,
       "measured_dpa_mm2": 22.4,
       "note": "c8-12t: c8, Flat, 3.3 J/mm, t = 1.542 mm"
@@ -13082,6 +13413,7 @@
       "loading": "compression",
       "measured_strength_MPa": 266.56,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 6.2,
       "note": "c8-13: c8, Flat, 3.35 J/mm, t = 1.542 mm"
@@ -13112,6 +13444,7 @@
       "loading": "compression",
       "measured_strength_MPa": 264.99,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 5.8,
       "note": "c8-14: c8, Flat, 3.35 J/mm, t = 1.549 mm"
@@ -13142,6 +13475,7 @@
       "loading": "compression",
       "measured_strength_MPa": 275.7,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.0,
       "measured_dpa_mm2": 11.9,
       "note": "c8-15: c8, Flat, 3.35 J/mm, t = 1.519 mm"
@@ -13172,6 +13506,7 @@
       "loading": "compression",
       "measured_strength_MPa": 197.57,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 0.345,
       "measured_dpa_mm2": 143.4,
       "note": "c8-42: c8, Coni60, 1.6 J/mm, t = 1.545 mm"
@@ -13202,6 +13537,7 @@
       "loading": "compression",
       "measured_strength_MPa": 204.17,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.164,
       "measured_dpa_mm2": 124.6,
       "note": "c8-10t: c8, Coni60, 2.2 J/mm, t = 1.515 mm"
@@ -13232,6 +13568,7 @@
       "loading": "compression",
       "measured_strength_MPa": 196.73,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.02,
       "measured_dpa_mm2": 170.4,
       "note": "c8-11: c8, Coni60, 2.2 J/mm, t = 1.527 mm"
@@ -13262,6 +13599,7 @@
       "loading": "compression",
       "measured_strength_MPa": 197.97,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.101,
       "measured_dpa_mm2": 153.8,
       "note": "c8-12: c8, Coni60, 2.2 J/mm, t = 1.544 mm"
@@ -13292,6 +13630,7 @@
       "loading": "compression",
       "measured_strength_MPa": 199.83,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.384,
       "measured_dpa_mm2": 318.3,
       "note": "c8-43: c8, Coni60, 2.7 J/mm, t = 1.542 mm"
@@ -13322,6 +13661,7 @@
       "loading": "compression",
       "measured_strength_MPa": 190.13,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.732,
       "measured_dpa_mm2": 275.1,
       "note": "c8-9t: c8, Coni60, 3.3 J/mm, t = 1.567 mm"
@@ -13352,6 +13692,7 @@
       "loading": "compression",
       "measured_strength_MPa": 170.6,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.284,
       "measured_dpa_mm2": 255.8,
       "note": "c8-7: c8, Coni60, 3.35 J/mm, t = 1.540 mm"
@@ -13382,6 +13723,7 @@
       "loading": "compression",
       "measured_strength_MPa": 182.5,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.427,
       "measured_dpa_mm2": 245.8,
       "note": "c8-8: c8, Coni60, 3.35 J/mm, t = 1.536 mm"
@@ -13412,6 +13754,7 @@
       "loading": "compression",
       "measured_strength_MPa": 201.09,
       "measured_pristine_MPa": 277.41,
+      "layup_label": "c8",
       "measured_dent_mm": 1.883,
       "measured_dpa_mm2": 279.4,
       "note": "c8-9: c8, Coni60, 3.35 J/mm, t = 1.528 mm"

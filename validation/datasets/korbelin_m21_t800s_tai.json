@@ -40,6 +40,7 @@
       "loading": "tension",
       "measured_strength_MPa": 884.1,
       "measured_pristine_MPa": 1045.3,
+      "layup_label": "QI 25/50/25",
       "measured_dent_mm": 0.151,
       "measured_dpa_mm2": 1199.0,
       "note": "M21/T800S (T800S/3900-2B proxy), 25 J at 20 C, coupon 1 of 5 (Fig. 17)"
@@ -78,6 +79,7 @@
       "loading": "tension",
       "measured_strength_MPa": 897.7,
       "measured_pristine_MPa": 1045.3,
+      "layup_label": "QI 25/50/25",
       "measured_dent_mm": 0.151,
       "measured_dpa_mm2": 1199.0,
       "note": "M21/T800S (T800S/3900-2B proxy), 25 J at 20 C, coupon 2 of 5 (Fig. 17)"
@@ -116,6 +118,7 @@
       "loading": "tension",
       "measured_strength_MPa": 918.7,
       "measured_pristine_MPa": 1045.3,
+      "layup_label": "QI 25/50/25",
       "measured_dent_mm": 0.151,
       "measured_dpa_mm2": 1199.0,
       "note": "M21/T800S (T800S/3900-2B proxy), 25 J at 20 C, coupon 3 of 5 (Fig. 17)"
@@ -154,6 +157,7 @@
       "loading": "tension",
       "measured_strength_MPa": 931.6,
       "measured_pristine_MPa": 1045.3,
+      "layup_label": "QI 25/50/25",
       "measured_dent_mm": 0.151,
       "measured_dpa_mm2": 1199.0,
       "note": "M21/T800S (T800S/3900-2B proxy), 25 J at 20 C, coupon 4 of 5 (Fig. 17)"
@@ -192,6 +196,7 @@
       "loading": "tension",
       "measured_strength_MPa": 1014.2,
       "measured_pristine_MPa": 1045.3,
+      "layup_label": "QI 25/50/25",
       "measured_dent_mm": 0.151,
       "measured_dpa_mm2": 1199.0,
       "note": "M21/T800S (T800S/3900-2B proxy), 25 J at 20 C, coupon 5 of 5 (Fig. 17)"

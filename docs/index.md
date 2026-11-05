@@ -96,6 +96,11 @@ the first two (ASTM D7136/D7137) are gated in CI:
 | Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 23.4% |
 
 MAE is the mean absolute error between predicted and measured CAI strength.
+For NCAMP and Lovejoy & Scotti the predicted strength is the knockdown
+times the model's pristine strength, and the two errors partly cancel:
+against NCAMP's measured unnotched compression the knockdown MAE is 3.6%
+and 13.6% (the hard laminate's pristine strength is 11.9% high, its
+knockdown 17.3% low).
 These errors are in-sample: the Soutis constant `soutis_k_s` = 4.8 and the
 default damage-area constant `olsson_alpha` = 0.0855 were fitted to these two
 datasets. Fitted on one dataset alone, `soutis_k_s` predicts the other with

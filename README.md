@@ -95,6 +95,8 @@ The [Quickstart](https://elhajjar1.github.io/BVID-FE/quickstart/) covers C-scan 
 | `hasebe_t800s_3900_2b_cai` (Hasebe et al. 2025), not gated | T800S/3900-2B, 8 layups (8–24 plies), 12.7–31.8 mm hemispheres, a 15.9 mm flat-ended impactor and a 60° cone at 2–21 J; 80×50 mm JIS K 7089 coupons | 343 | 81–592 | 21.5% (max 143.1%) | 24.0% (max 143.1%) |
 | `korbelin_m21_t800s_tai` (Körbelin et al. 2020), TAI, not gated | M21/T800S [45/0/-45/90]2s at 25 J, 250×60 mm tension coupons (T800S/3900-2B card) | 5 | 884–1014 (tension) | 3.5% (max 9.8%), in-sample | 3.5% (max 9.8%) |
 
+The NCAMP and Lovejoy & Scotti strengths are the predicted knockdown times the model's pristine strength, so the two errors can cancel. Scored as a knockdown against NCAMP's measured unnotched compression, the knockdown MAE is 3.6% (NCAMP) and 13.6% (Lovejoy & Scotti): the hard 50/40/10 laminate's pristine strength is 11.9% high and offsets a knockdown 17.3% too low. Hasebe and Körbelin are already scored on their measured pristine strength. The validator prints both numbers.
+
 These errors are in-sample: `soutis_k_s` and the default `olsson_alpha` were fitted to the two gated datasets and `tai_notch_fraction` to the TAI one; fitted on one CAI dataset alone, `soutis_k_s` predicts the other with an MAE of 5.0–8.8%, so expect about 5–9% on a new material or layup. Sources, calibration and the fe3d results are in [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md).
 
 ## Limitations
