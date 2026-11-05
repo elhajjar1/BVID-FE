@@ -73,6 +73,69 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **The delamination growth stress uses the 2D blister's energy release
+  rate, not the straight-sided strip's.** Results change in
+  `semi_analytical` CAI, and in fe3d CAI where growth governs. No fitted
+  constant is added.
+  - Past buckling the sublaminate is a thin film clamped along the
+    elliptical front on a rigid substrate (Chai, Babcock & Knauss 1981;
+    Chai & Babcock 1985). Its post-buckled state is a nonlinear (von
+    Kármán) Rayleigh-Ritz solution on the onset basis, with `D*` and the
+    sublaminate's `A` (`_PostbuckledFilm`).
+  - `G` is the energy released as one semi-axis grows with the ellipse
+    kept; the film grows when the larger of the two reaches `G_c`.
+    `SublaminateGrowth.growth_axis` (new, `"major"` or `"minor"`) says
+    which.
+  - It reproduces the exact axisymmetric circular blister (Evans &
+    Hutchinson 1984) to 0.02% up to 10 times onset, and Hutchinson &
+    Suo's (1992) `c₁ (1 − (σ_c/σ)²)` near onset. It tends to the strip
+    for an ellipse elongated across the load (0.99 of it at 10:1, 10 times
+    onset) and for any shape far above onset. Unless the ellipse is
+    elongated across the load, it grows across the load.
+  - At the same buckling stress it releases less than the strip (0.39–0.47
+    of it for a circle under uniaxial load at 2–3 times onset), so growth
+    stresses rise: 1.31x on NCAMP (285–287 MPa), 1.36x and 1.51x on
+    Lovejoy & Scotti's quasi-isotropic (307–308) and hard (408) coupons,
+    and 1.09–1.47x at the weakest interface of 150 x 100 mm IM7/8552
+    template panels at 4–30 J. Thin films with a single 45° ply, which
+    shear under the load, can go below the strip (down to 0.71x).
+  - The mixed-mode phase angle stays at 52.1°. The strip is kept as
+    `_strip_release_rate` / `_strip_growth_film_stress` for reference.
+  - Interfaces are solved in order of a lower bound (the strip with the
+    film's uniaxial modulus), and are skipped once the bound passes the
+    lowest growth stress found. A `semi_analytical` CAI run takes about
+    0.5–3 s instead of tens of milliseconds.
+
+  Validation (`--tier=semi_analytical --measured`):
+
+  | Dataset | Before | After |
+  |---|---|---|
+  | NCAMP | 1.54% | 1.54% |
+  | Lovejoy & Scotti | 8.78% | 8.78% |
+  | Hasebe et al. (not gated) | 23.97% | 21.53% |
+  | Körbelin TAI | 3.49% | 3.49% |
+
+  On Hasebe et al.'s set growth governed 176 of 343 coupons and now
+  governs none, so the tier scores the empirical number. The per-layup
+  MAE drops 1.5–5.7 points on c8, c16, c24, q8, q16, q24 and r0, and r45
+  stays 4.0%. The growth channel thus acts on no validation coupon and
+  stays unvalidated.
+
+  On the template panels:
+  - Soutis now governs the 8-ply QI panel at 5 J (knockdown 0.514 →
+    0.546; growth 309.1 → 347.7 MPa);
+  - the weakest interface at 10 J moves from 4 to 5 (film buckling
+    stress 156.1 → 40.3 MPa);
+  - `semi_analytical_cai` on `examples/sample_cscan.json` reports
+    interface 5 instead of 4 (266 MPa, Soutis);
+  - the CLI snapshot `semi_analytical_quasi_iso_quad_10J` goes from 0.5049
+    to 0.5054 (Soutis now governs).
+
+  The fe3d calibration coupons are unchanged: first-ply failure governs
+  all three (knockdown 0.2597 / 0.2471 / 0.2534). The AS4/3501-6 QI8
+  growth-governs case in `test_fe3d_knockdown_normalization.py` no longer
+  has growth governing at any energy, and is replaced by the 16-ply
+  IM7/8552 [0/45/−45/90]s × 2 at 5 J.
 - **Documented why fe3d's CAI knockdown does not fall with damage area**
   (documentation only; no results change). The knockdown is set by the
   strain concentration at the soft zone's flank, which follows the zone's

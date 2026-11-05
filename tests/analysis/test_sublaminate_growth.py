@@ -4,14 +4,17 @@ The delaminated sublaminate buckling at all does not fail the laminate: a
 thin sublaminate over a 30 mm delamination buckles at a few MPa, so taking
 buckling onset as the compressive strength gave CAI knockdowns of 0.002-0.04
 against measured values of 0.3-0.6. The laminate fails when the buckled
-sublaminate releases enough energy to grow the delamination (Chai, Babcock &
-Knauss 1981; Hutchinson & Suo 1992):
+sublaminate releases enough energy to grow the delamination, G = G_c, with
+G_c the Benzeggagh-Kenane mix of G_Ic and G_IIc at the thin-film phase angle
+(52.1 deg, eta = 2). G is that of the post-buckled elliptical film, a 2D
+blister (``test_blister_energy_release.py``); until the 2D blister it was the
+straight-sided strip's (Chai, Babcock & Knauss 1981; Hutchinson & Suo 1992),
 
-    G = h / (2 E_f) * (sigma - sigma_c) * (sigma + 3 sigma_c) = G_c
+    G = h / (2 E_f) * (sigma - sigma_c) * (sigma + 3 sigma_c),
 
 with sigma the film stress, sigma_c the film buckling stress, h the
-sublaminate thickness and E_f the film modulus. G_c is the Benzeggagh-Kenane
-mix of G_Ic and G_IIc at the thin-film phase angle (52.1 deg, eta = 2).
+sublaminate thickness and E_f the film modulus, kept as
+``_strip_release_rate`` for reference.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ import pytest
 from bvidfe import AnalysisConfig, BvidAnalysis, MeshParams
 from bvidfe.analysis.semi_analytical import (
     SublaminateGrowth,
+    _strip_growth_film_stress,
+    _strip_release_rate,
     mixed_mode_toughness,
     semi_analytical_cai,
     sublaminate_buckling_load,
@@ -66,14 +71,31 @@ def test_mixed_mode_toughness_between_mode_i_and_mode_ii(name):
     assert m.G_Ic < mixed_mode_toughness(m) < m.G_IIc
 
 
-def test_growth_stress_releases_exactly_the_mixed_mode_toughness():
+def test_strip_reference_releases_exactly_the_mixed_mode_toughness():
+    """The straight-sided strip (the growth law before the 2D blister)."""
+    _, h, E_f, _ = _film_terms(_QI16, 3)
+    sigma_c = 120.0
+    sigma = _strip_growth_film_stress(sigma_c, E_f, mixed_mode_toughness(_M), h)
+    G = h / (2.0 * E_f) * (sigma - sigma_c) * (sigma + 3.0 * sigma_c)
+    assert G == pytest.approx(mixed_mode_toughness(_M), rel=1e-12)
+    assert _strip_release_rate(sigma, sigma_c, E_f, h) == pytest.approx(G, rel=1e-12)
+    assert _strip_release_rate(sigma_c, sigma_c, E_f, h) == 0.0
+    assert sigma > sigma_c  # growth needs a buckled film
+
+
+def test_2d_growth_stress_is_above_the_strips_on_this_sublaminate():
+    """The 2D blister releases less energy than the strip at the same
+    buckling stress, so it grows at a higher film stress: 417.3 against
+    272.3 MPa (1.53x) for this 4-ply film over a near-circular 20 x 15 mm
+    ellipse, which buckles at 106.8 MPa and grows across the load."""
     ell = DelaminationEllipse(3, (0.0, 0.0), 20.0, 15.0, 0.0)
     lam, h, E_f, _ = _film_terms(_QI16, 3)
     g = sublaminate_growth_stress(lam, ell)
-    sigma, sigma_c = g.film_growth_stress_MPa, g.film_buckling_stress_MPa
-    G = h / (2.0 * E_f) * (sigma - sigma_c) * (sigma + 3.0 * sigma_c)
-    assert G == pytest.approx(mixed_mode_toughness(_M), rel=1e-9)
-    assert sigma > sigma_c  # growth needs a buckled film
+    strip = _strip_growth_film_stress(g.film_buckling_stress_MPa, E_f, mixed_mode_toughness(_M), h)
+    assert g.film_growth_stress_MPa > g.film_buckling_stress_MPa
+    assert g.film_growth_stress_MPa == pytest.approx(417.32, abs=0.01)
+    assert g.film_growth_stress_MPa / strip == pytest.approx(1.532, abs=1e-3)
+    assert g.growth_axis == "minor"
 
 
 def test_film_buckling_stress_is_sublaminate_buckling_load_over_thickness():
@@ -94,15 +116,22 @@ def test_growth_stress_converts_film_stress_to_laminate_stress():
     assert g.growth_stress_MPa == pytest.approx(Ex * g.film_growth_stress_MPa / E_f, rel=1e-9)
 
 
-def test_large_delamination_reaches_the_steady_state_growth_stress():
-    """When the film buckles at a negligible stress, growth occurs at the
-    stress whose stored film energy equals G_c: sqrt(2 E_f G_c / h)."""
-    ell = DelaminationEllipse(3, (0.0, 0.0), 4000.0, 3000.0, 0.0)
+def test_large_delamination_reaches_a_steady_state_growth_stress():
+    """When the film buckles at a negligible stress, the growth stress no
+    longer depends on the delamination's size. For the strip it is the
+    stress whose stored film energy equals G_c, sqrt(2 E_f G_c / h); the 2D
+    blister's (continued past 100x onset with the strip's shape) is 1.08x
+    that here."""
     lam, h, E_f, _ = _film_terms(_QI16, 3)
-    g = sublaminate_growth_stress(lam, ell)
     steady = math.sqrt(2.0 * E_f * mixed_mode_toughness(_M) / h)
+    assert _strip_growth_film_stress(1e-6 * steady, E_f, mixed_mode_toughness(_M), h) == (
+        pytest.approx(steady, rel=1e-5)
+    )
+    g = sublaminate_growth_stress(lam, DelaminationEllipse(3, (0.0, 0.0), 4000.0, 3000.0, 0.0))
+    g2 = sublaminate_growth_stress(lam, DelaminationEllipse(3, (0.0, 0.0), 8000.0, 6000.0, 0.0))
     assert g.film_buckling_stress_MPa < 1e-3 * steady
-    assert g.film_growth_stress_MPa == pytest.approx(steady, rel=1e-3)
+    assert g2.film_growth_stress_MPa == pytest.approx(g.film_growth_stress_MPa, rel=1e-3)
+    assert g.film_growth_stress_MPa / steady == pytest.approx(1.08, abs=0.01)
 
 
 def test_weakest_growth_is_the_minimum_over_interfaces():
@@ -114,10 +143,15 @@ def test_weakest_growth_is_the_minimum_over_interfaces():
     damage = DamageState([small_at_3, large_at_3, at_7, at_14], dent_depth_mm=0.3)
     weakest = weakest_sublaminate_growth(lam, damage)
     assert isinstance(weakest, SublaminateGrowth)
-    # The largest ellipse at each interface is the one that grows.
+    # The largest ellipse at each interface is the one that grows. The
+    # interfaces that cannot be the weakest are not solved, and the others
+    # stop at the lowest stress found so far, so the result agrees with the
+    # full minimum to the root finder's tolerance.
     per_interface = [sublaminate_growth_stress(lam, e) for e in (large_at_3, at_7, at_14)]
     expected = min(per_interface, key=lambda g: g.growth_stress_MPa)
-    assert weakest == expected
+    assert weakest.interface_index == expected.interface_index
+    assert weakest.growth_stress_MPa == pytest.approx(expected.growth_stress_MPa, rel=1e-6)
+    assert weakest.growth_axis == expected.growth_axis
 
 
 def test_weakest_growth_is_none_without_delaminations():

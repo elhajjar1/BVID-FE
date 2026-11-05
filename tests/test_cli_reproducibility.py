@@ -123,9 +123,11 @@ CANONICAL_RUNS: list[tuple[str, list[str], dict[str, Any]]] = [
             # falls to 275.5 MPa and governs: 0.458. With the sublaminate a
             # clamped ellipse on the coupled stiffness D* (#132 PR0) the
             # growth stress at interface 12 rises to 303.6 MPa, again a hair
-            # under the Soutis bound: 0.505.
-            "knockdown": 0.5048792739912767,
-            "residual_strength_MPa": 303.5771772860004,
+            # under the Soutis bound: 0.505. With the 2D blister energy
+            # release rate the growth stress rises above it and the Soutis
+            # bound governs: 0.505 (303.6 -> 303.9 MPa).
+            "knockdown": 0.505411959964827,
+            "residual_strength_MPa": 303.89747426106106,
             "pristine_strength_MPa": 601.2866697539372,
             "dpa_mm2": 623.454803186882,
             "tier_used": "semi_analytical",

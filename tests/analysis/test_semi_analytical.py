@@ -415,14 +415,14 @@ def test_tai_width_still_uses_the_extents():
 
 def test_template_damage_growth_end_to_end_pins():
     """End-to-end regression pins on 150 x 100 mm IM7/8552 panels (16 mm,
-    5.5 kg impactor), re-pinned for the clamped-ellipse sublaminate (#132
-    PR0; the #165 values on the enclosing rectangle in brackets). 8-ply QI
-    at 5 J: growth governs at 309.1 MPa, interface 5 (281.8, interface 4):
-    knockdown 0.514 (0.469). At 10 J the film buckling stress at the
-    governing interface 4 is 156.1 MPa (78.4) and Soutis governs (0.448
-    both). On the [0/90]2s panel the growth stress rose above the Soutis
-    bound at 5 and 10 J: 0.544 / 0.447 (0.424 / 0.389 with growth
-    governing)."""
+    5.5 kg impactor), re-pinned for the 2D blister energy release rate (the
+    straight-sided strip's values in brackets). 8-ply QI at 5 J: the
+    weakest delamination, interface 5, grows at 347.7 MPa (309.1), knockdown
+    0.578 (0.514), across the load, so the Soutis bound, 0.546, now governs.
+    At 10 J the weakest is the two-ply film at interface 5, which buckles at
+    40.3 MPa and grows at 347.9 MPa (interface 4, buckling at 156.1 MPa and
+    growing at 278.6); Soutis governs both (0.448). On the [0/90]2s panel
+    Soutis governs at 5 and 10 J: 0.544 / 0.447 (unchanged)."""
     from bvidfe import AnalysisConfig, BvidAnalysis
     from bvidfe.analysis.semi_analytical import weakest_sublaminate_growth
     from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
@@ -441,14 +441,17 @@ def test_template_damage_growth_end_to_end_pins():
         return BvidAnalysis(cfg).run()
 
     r5 = run(_QI8, 5.0)
-    assert r5.knockdown == pytest.approx(0.514, abs=5e-4)
-    assert r5.residual_strength_MPa == pytest.approx(309.1, abs=0.1)
+    assert r5.knockdown == pytest.approx(0.546, abs=5e-4)
     assert r5.critical_sublaminate == 5
+    g5 = weakest_sublaminate_growth(_lam8(), r5.damage)
+    assert g5.growth_stress_MPa / r5.pristine_strength_MPa == pytest.approx(0.578, abs=5e-4)
+    assert g5.growth_stress_MPa > r5.residual_strength_MPa  # Soutis governs
+    assert g5.growth_axis == "minor"
     r10 = run(_QI8, 10.0)
     assert r10.knockdown == pytest.approx(0.448, abs=5e-4)
     g10 = weakest_sublaminate_growth(_lam8(), r10.damage)
-    assert g10.interface_index == 4
-    assert g10.film_buckling_stress_MPa == pytest.approx(156.1, abs=0.1)
+    assert g10.interface_index == 5
+    assert g10.film_buckling_stress_MPa == pytest.approx(40.3, abs=0.1)
     assert g10.growth_stress_MPa > r10.residual_strength_MPa  # Soutis governs
     xp = [0, 90, 0, 90, 90, 0, 90, 0]
     for energy, knockdown in ((5.0, 0.544), (10.0, 0.447)):

@@ -33,9 +33,10 @@ documentation conventions.
     - *Empirical*: Soutis CAI knockdown + Whitney-Nuismer TAI on an
       equivalent hole for the fibre damage (tens of milliseconds)
     - *Semi-analytical*: buckling-driven delamination growth (Rayleigh-Ritz
-      sublaminate buckling + thin-film energy release rate +
-      Benzeggagh-Kenane mixed-mode toughness, weakest interface governs),
-      capped by Soutis; the empirical TAI model (tens of milliseconds)
+      sublaminate buckling + the energy release rate of the post-buckled
+      elliptical film (2D blister) + Benzeggagh-Kenane mixed-mode
+      toughness, weakest interface governs), capped by Soutis; the
+      empirical TAI model (about a second)
     - *3D FE*: first-ply failure on a hexahedral mesh with the damage zone
       modelled as a soft inclusion (fibres intact in tension) and, in
       tension, the closed-form fibre-damage hole as a notch at the impact
