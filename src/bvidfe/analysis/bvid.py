@@ -19,6 +19,8 @@ from bvidfe.analysis.fe_tier import (
 from bvidfe.analysis.results import AnalysisResults
 from bvidfe.analysis.semi_analytical import (
     SemiAnalyticalResult,
+    _semi_analytical_tai_result,
+    panel_buckling_load,
     semi_analytical_cai,
     semi_analytical_tai,
 )
@@ -133,10 +135,12 @@ def _biaxial_note(
     transverse_stress_ratio: float,
     residual_uniaxial_MPa: float,
     interaction_factor: float,
+    semi_detail: str = "",
 ) -> str:
     """``AnalysisResults.notes`` entry of every biaxial run (D12 of the
     #115 design): experimental and unvalidated, the load ray, and the tier's
-    assumption."""
+    assumption (for ``semi_analytical`` followed by ``semi_detail``, see
+    :func:`_semi_biaxial_detail`)."""
     beta = transverse_stress_ratio
     s = 1 if loading == "tension" else -1
     note = (
@@ -161,10 +165,68 @@ def _biaxial_note(
             "; empirical TAI adds the far-field sigma_y term at the hole's "
             "characteristic point (see the TAI note)"
         )
+    elif tier == "semi_analytical":
+        bound = (
+            "the homothetic Soutis bound of the empirical tier"
+            if loading == "compression"
+            else "the fibre-damage hole with the far-field sigma_y term (see the TAI note)"
+        )
+        note += (
+            "; semi_analytical puts the film's lateral stress (the applied sigma_y "
+            "through the sublaminate's A; the Poisson-mismatch part is left out, as "
+            "in the uniaxial model) into the clamped-ellipse buckling and the 2D "
+            f"blister, and takes the lower of {bound} and the growth stress" + semi_detail
+        )
     return note + (
         f"; biaxial_interaction_factor {interaction_factor:.3f} = residual over the "
         f"uniaxial residual strength {residual_uniaxial_MPa:.1f} MPa."
     )
+
+
+def _semi_biaxial_detail(
+    sa_result: SemiAnalyticalResult,
+    lam: Laminate,
+    cfg: AnalysisConfig,
+) -> str:
+    """The growing interface and the whole-panel buckling load of a biaxial
+    ``semi_analytical`` run, for :func:`_biaxial_note`."""
+    growth = sa_result.growth
+    if growth is None:
+        detail = (
+            ": no delamination grows (every film is in tension along both axes)"
+            if cfg.loading == "tension"
+            else ": no delamination grows"
+        )
+    else:
+        other = "y" if growth.film_stress_axis == "x" else "x"
+        detail = (
+            f": interface {growth.interface_index} grows at |sigma_x| = "
+            f"{growth.growth_stress_MPa:.1f} MPa along its {growth.growth_axis} axis; its "
+            f"film is more compressed along {growth.film_stress_axis}, with "
+            f"{growth.film_stress_ratio:+.3f} times that compression along {other}, and "
+            f"buckles at a film stress of {growth.film_buckling_stress_MPa:.1f} MPa"
+        )
+    panel = cfg.panel
+    N_panel = panel_buckling_load(
+        lam,
+        panel.Lx_mm,
+        panel.Ly_mm,
+        panel.boundary,
+        loading=cfg.loading,
+        transverse_stress_ratio=cfg.transverse_stress_ratio,
+    )
+    if math.isfinite(N_panel):
+        factor = (
+            ""
+            if panel.boundary == "simply_supported"
+            else f" times the {panel.boundary} panel factor, a uniaxial ratio"
+        )
+        detail += (
+            f"; the whole panel buckles at |sigma_x| = {N_panel / lam.thickness_mm:.1f} MPa "
+            f"along the ray (simply supported Rayleigh-Ritz{factor}; reported only, "
+            f"not in the residual)"
+        )
+    return detail
 
 
 def _fe3d_stiffness(Ex_damaged: float, Ex_undamaged: float, sense: str) -> tuple[float, str]:
@@ -285,7 +347,7 @@ class BvidAnalysis:
             critical_interface = None
             field_results = None
         elif self.config.tier == "semi_analytical":
-            sa_result = self._semi_analytical(lam, damage, sigma_0)
+            sa_result = self._semi_analytical(lam, damage, sigma_0, beta)
             sigma = sa_result.residual_strength_MPa
             critical_interface = sa_result.critical_interface_index
             N_cr = sa_result.critical_buckling_load_N
@@ -303,19 +365,31 @@ class BvidAnalysis:
         sigma_y: float | None = None
         interaction_factor: float | None = None
         if beta != 0:
-            # Only the empirical tier gets here (require_tier_supports_ratio).
-            # Its uniaxial residual on the same damage is a second closed-form
-            # evaluation.
+            # Only the closed-form tiers get here (require_tier_supports_ratio).
+            # Their uniaxial residual on the same damage is a second
+            # evaluation (for semi_analytical a second growth solve).
             s = 1.0 if self.config.loading == "tension" else -1.0
             sigma_0_uniaxial = _pristine_strength(lam, self.config.loading)
-            sigma_uniaxial = self._empirical(lam, damage, sigma_0_uniaxial, 0.0)
+            semi_detail = ""
+            if self.config.tier == "semi_analytical":
+                sigma_uniaxial = self._semi_analytical(
+                    lam, damage, sigma_0_uniaxial
+                ).residual_strength_MPa
+                semi_detail = _semi_biaxial_detail(sa_result, lam, self.config)
+            else:
+                sigma_uniaxial = self._empirical(lam, damage, sigma_0_uniaxial, 0.0)
             interaction_factor = float(sigma / sigma_uniaxial if sigma_uniaxial > 0 else 0.0)
             sigma_y_0 = float(s * beta * sigma_0)
             sigma_y = float(s * beta * sigma)
             notes.insert(
                 0,
                 _biaxial_note(
-                    self.config.tier, self.config.loading, beta, sigma_uniaxial, interaction_factor
+                    self.config.tier,
+                    self.config.loading,
+                    beta,
+                    sigma_uniaxial,
+                    interaction_factor,
+                    semi_detail,
                 ),
             )
         if self.config.loading == "tension" and self.config.tier != "fe3d":
@@ -484,10 +558,38 @@ class BvidAnalysis:
         )
 
     def _semi_analytical(
-        self, lam: Laminate, damage: DamageState, sigma_0: float
+        self,
+        lam: Laminate,
+        damage: DamageState,
+        sigma_0: float,
+        transverse_stress_ratio: float = 0.0,
     ) -> SemiAnalyticalResult:
+        """semi_analytical residual strength for the pristine strength
+        ``sigma_0`` along the load ray. Biaxial (``transverse_stress_ratio
+        != 0``, experimental): the growth stress of the biaxial film load,
+        against the homothetic Soutis bound in compression and the hole
+        model with ``F(beta)`` in tension (where a laterally compressed
+        film, ``beta < 0``, can grow too)."""
+        boundary = self.config.panel.boundary
+        if transverse_stress_ratio != 0:
+            if self.config.loading == "compression":
+                return semi_analytical_cai(
+                    lam,
+                    damage,
+                    sigma_0,
+                    boundary=boundary,
+                    transverse_stress_ratio=transverse_stress_ratio,
+                )
+            return _semi_analytical_tai_result(
+                lam,
+                damage,
+                sigma_0,
+                self.config.panel.Ly_mm,
+                boundary=boundary,
+                transverse_stress_ratio=transverse_stress_ratio,
+            )
         if self.config.loading == "compression":
-            return semi_analytical_cai(lam, damage, sigma_0, boundary=self.config.panel.boundary)
+            return semi_analytical_cai(lam, damage, sigma_0, boundary=boundary)
         # tension: no sublaminate buckling channel — wrap the scalar result
         # so callers consume a uniform ``SemiAnalyticalResult`` shape.
         sigma = semi_analytical_tai(lam, damage, sigma_0, self.config.panel.Ly_mm)

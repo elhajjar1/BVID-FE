@@ -101,3 +101,32 @@ def test_residual_never_exceeds_pristine():
     for tier in ("empirical", "semi_analytical"):
         r = _run(tier)
         assert r.residual_strength_MPa <= r.pristine_strength_MPa + 1e-6
+
+
+# --- biaxial load (issue #115) ---------------------------------------------
+
+
+def _run_biaxial(tier: str, loading: str, beta: float, layup=None):
+    kw = _base_kwargs(loading)
+    if layup is not None:
+        kw["layup_deg"] = layup
+    return BvidAnalysis(AnalysisConfig(tier=tier, transverse_stress_ratio=beta, **kw)).run()
+
+
+@pytest.mark.parametrize("layup", [None, [0, 90, 0, 90, 90, 0, 90, 0]])
+@pytest.mark.parametrize("loading", ["compression", "tension"])
+@pytest.mark.parametrize("beta", [-1.0, -0.5, 0.5, 1.0])
+def test_biaxial_semi_analytical_le_empirical(layup, loading, beta):
+    """Along every load ray the two closed-form tiers share the pristine
+    strength, and semi_analytical takes the lower of the empirical tier's
+    result (homothetic Soutis in compression, the hole model with F(beta) in
+    tension) and the biaxial growth stress, so it is never above it. Under
+    biaxial tension (beta > 0) no film is compressed and the two are
+    equal."""
+    e = _run_biaxial("empirical", loading, beta, layup)
+    s = _run_biaxial("semi_analytical", loading, beta, layup)
+    assert e.pristine_strength_MPa == s.pristine_strength_MPa
+    assert s.knockdown <= e.knockdown + 1e-12
+    if loading == "tension" and beta > 0:
+        assert s.knockdown == e.knockdown
+    assert 0.0 < s.knockdown <= 1.0

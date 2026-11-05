@@ -269,8 +269,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="EXPERIMENTAL, unvalidated: biaxial in-plane load, the signed ratio "
         "sigma_y/sigma_x in [-1, 1] (0 = uniaxial). The sign of sigma_x is "
         "--loading's; e.g. --loading compression --transverse-stress-ratio 1 is "
-        "equibiaxial compression. Only the empirical tier supports a nonzero "
-        "ratio so far (AnalysisConfig.transverse_stress_ratio).",
+        "equibiaxial compression. The empirical and semi_analytical tiers support "
+        "a nonzero ratio; fe3d does not yet (AnalysisConfig.transverse_stress_ratio).",
     )
     p.add_argument(
         "--tier",

@@ -1,5 +1,6 @@
 """Biaxial loading in the empirical tier (issue #115, PR 1), and the
-``NotImplementedError`` of the tiers that do not model it yet."""
+``NotImplementedError`` of the tier that does not model it yet (fe3d; the
+semi_analytical tier is in test_biaxial_semi_analytical.py)."""
 
 from __future__ import annotations
 
@@ -184,7 +185,7 @@ def test_fibre_damage_tai_needs_the_laminate_for_a_ratio():
         fibre_damage_tai(_IM7, damage, 1.0, 3.0, 100.0, transverse_stress_ratio=0.5)
 
 
-@pytest.mark.parametrize("tier", ["semi_analytical", "fe3d"])
+@pytest.mark.parametrize("tier", ["fe3d"])
 @pytest.mark.parametrize("loading", ["compression", "tension"])
 def test_tiers_without_a_biaxial_model_refuse_a_ratio(tier, loading, monkeypatch):
     """No silent uniaxial fallback; the message names the follow-up PR. It
@@ -201,8 +202,8 @@ def test_tiers_without_a_biaxial_model_refuse_a_ratio(tier, loading, monkeypatch
     assert time.perf_counter() - t0 < 5.0
     msg = str(exc.value)
     assert f"tier={tier!r}" in msg and "#115" in msg
-    assert ("PR 2" if tier == "semi_analytical" else "PR 3") in msg
-    assert "tier='empirical'" in msg
+    assert "PR 3" in msg
+    assert "tier='empirical' or 'semi_analytical'" in msg
 
 
 @pytest.mark.parametrize(

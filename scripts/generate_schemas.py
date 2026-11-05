@@ -123,7 +123,8 @@ _FIELD_EXTRAS: Dict[type, Dict[str, Dict[str, Any]]] = {
             "load (sigma_x, sigma_y) = lambda * (s, s * ratio), s = -1 for loading "
             "'compression' and +1 for 'tension'; 0 is the uniaxial load. For "
             "|sigma_y| > |sigma_x| rotate the layup by 90 deg and swap Lx_mm and Ly_mm. "
-            "Only tier 'empirical' supports a nonzero ratio so far. " + _BIAXIAL_NOTE,
+            "Tiers 'empirical' and 'semi_analytical' support a nonzero ratio; 'fe3d' "
+            "does not yet. " + _BIAXIAL_NOTE,
         },
     },
     AnalysisResults: {

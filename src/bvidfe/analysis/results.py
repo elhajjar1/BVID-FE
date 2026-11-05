@@ -121,7 +121,8 @@ class AnalysisResults:
     sublaminate buckling load (N/mm) at ``critical_sublaminate`` for
     semi_analytical, and the lower of whole-panel and sublaminate buckling
     stress (MPa) for fe3d. ``critical_sublaminate`` is the interface whose
-    delamination grows at the lowest stress (CAI only).
+    delamination grows at the lowest stress (CAI, and semi_analytical TAI
+    under a lateral compression, ``transverse_stress_ratio < 0``).
 
     Attributes
     ----------
@@ -144,12 +145,16 @@ class AnalysisResults:
         expanded to a dict), for provenance.
     buckling_eigenvalues : list of float, optional
         One value: N/mm for semi_analytical CAI, MPa for fe3d CAI. ``None``
-        for the empirical tier, for tension, and when there is no
-        delamination (semi_analytical) or no positive buckling stress (fe3d).
+        for the empirical tier, for tension (except semi_analytical under a
+        lateral compression, where a film can buckle and grow), and when
+        there is no delamination (semi_analytical) or no positive buckling
+        stress (fe3d). On a biaxial semi_analytical run the force is along
+        the panel axis the film is more compressed along.
     critical_sublaminate : int, optional
         Interface index from
         :func:`~bvidfe.analysis.semi_analytical.weakest_sublaminate_growth`
-        for semi_analytical and fe3d CAI; ``None`` otherwise.
+        for semi_analytical and fe3d CAI, and semi_analytical TAI when a
+        laterally compressed film can grow; ``None`` otherwise.
     field_results : FieldResults, optional
         Always ``None`` at present.
     notes : list of str
