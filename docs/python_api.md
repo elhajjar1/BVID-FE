@@ -132,6 +132,7 @@ bounds it.
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
+| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; only `tier="empirical"` supports a nonzero ratio so far (the other tiers raise `NotImplementedError`). See [Biaxial loading](physics_models.md#biaxial-loading) |
 
 `MeshParams` fields (fe3d only):
 
@@ -174,6 +175,8 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `pristine_E11_MPa`, `pristine_E22_MPa`, `pristine_G12_MPa` | CLT membrane moduli of the intact laminate (MPa) in the panel axes (`Ex`, `Ey`, `Gxy` of `Laminate.effective_engineering_constants`), every tier |
 | `residual_E11_MPa`, `E11_knockdown` | `fe3d` only: the damaged over undamaged panel's secant axial modulus, in the run's loading sense, applied to `pristine_E11_MPa`; `None` for the closed-form tiers. Not validated against stiffness data ([Residual stiffness](physics_models.md#residual-stiffness)) |
 | `residual_E22_MPa`, `E22_knockdown`, `residual_G12_MPa`, `G12_knockdown` | Not computed by any tier yet: `None` |
+| `pristine_transverse_stress_MPa`, `residual_transverse_stress_MPa` | Biaxial runs only (`transverse_stress_ratio ≠ 0`, experimental): the signed σy at pristine and damaged failure along the load ray; `None` otherwise. The strength fields are then \|σx\| at failure along the ray |
+| `biaxial_interaction_factor` | Biaxial runs only: `residual_strength_MPa` over the same damage's uniaxial residual strength (1 = no effect of the lateral stress); `None` otherwise |
 
 `result.summary()` returns a printable block and `result.to_dict()` a
 JSON-serialisable dict (every field but `field_results`, the damage in the
@@ -200,8 +203,8 @@ for `damage`, and raises `ValueError` for an unknown or missing key.
 | tier | Runtime | Validation status | Good for |
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated (`soutis_k_s` and the default `olsson_alpha`) on two measured datasets: MAE 1.5% (NCAMP AS4/8552) and 8.8% (Lovejoy & Scotti IM7/8552); expect about 5–9% on a new material, and 22% on Hasebe et al.'s T800S/3900-2B coupons (not gated; a constant knockdown scores 30%). TAI not validated: `tai_notch_fraction` is fitted to one measured condition (3.5% MAE in-sample). | Design allowables, energy sweeps, quick screening. Soutis scales with DPA. |
-| `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (23% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
-| `fe3d` | Seconds to a minute (two FE solves; about 4 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 20 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 3.5%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), and the broken fibres are the closed-form equivalent hole, applied as a notch at the impact site (below the mesh): 0.870 against 0.889 on the one measured TAI dataset (MAE 3.6%, partly in-sample, the hole size being fitted to it), falling with energy 2–8% below the closed-form TAI (0.965 and nearly flat in energy without the hole; 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
+| `semi_analytical` | Tens of milliseconds | Same datasets: MAE 1.5% and 8.8% (24% on Hasebe et al.'s coupons). Identical to `empirical` for TAI. | Checking whether delamination growth governs before the Soutis bound; never less conservative than `empirical` for CAI. |
+| `fe3d` | Seconds to a minute (two FE solves; about 4 s for the 8-ply 150×100 mm panel at the default 5 mm mesh, about 20 s at 2.5 mm, longer for thick laminates) | **Qualitative** — the damage-zone stiffness (×0.15) is fitted in-sample to three measured CAI coupons, quasi-isotropic and hard (Lovejoy & Scotti within 1.2%, NCAMP 21% low; no single factor fits both datasets within 5%); not run on the measured datasets in CI. **TAI:** the damage zone keeps its fibres in tension (delaminations cut none), and the broken fibres are the closed-form equivalent hole, applied as a notch at the impact site (below the mesh): 0.870 against 0.889 on the one measured TAI dataset (MAE 3.6%, partly in-sample, the hole size being fitted to it), falling with energy 2–8% below the closed-form TAI (0.965 and nearly flat in energy without the hole; 0.335, 62% low, when the zone was softened in every direction) | Stress-field context, damage-through-thickness (CAI). Knockdown falls with damage area but has no notch-size effect. For damage areas below about 1,000 mm² use `MeshParams(in_plane_size_mm=2.5)` or finer: at 5 mm such a zone is under-resolved (knockdown up to about 25% high); at about 1,500 mm² 5 mm is within about 3–10% of 2 mm. |
 
 ## Knockdown semantics
 
@@ -349,7 +352,7 @@ print(unnotched_strength(lam, "compression"))    # 601.28... MPa (pristine stren
 print(lam.effective_engineering_constants())     # (Ex, Ey, Gxy, nu_xy): 62434 MPa, 62434 MPa, 23885 MPa, 0.307
 
 g = weakest_sublaminate_growth(lam, load_cscan_json("examples/sample_cscan.json"))
-print(g.interface_index, g.growth_stress_MPa)    # 4 275.88... MPa
+print(g.interface_index, g.growth_stress_MPa)    # 4 275.48... MPa
 ```
 
 `weakest_sublaminate_growth` returns a `SublaminateGrowth` with the
@@ -369,7 +372,7 @@ sigma_0 = unnotched_strength(lam, "compression")
 dpa = damage.projected_damage_area_mm2
 print(SOUTIS_REFERENCE_AREA_MM2)                  # 15000.0 (the 150 x 100 mm coupon)
 print(f"{soutis_cai(lam.material, dpa, SOUTIS_REFERENCE_AREA_MM2, sigma_0):.0f}")   # 266 MPa
-r = semi_analytical_cai(lam, damage, sigma_0, boundary="clamped")
+r = semi_analytical_cai(lam, damage, sigma_0)
 print(f"{r.residual_strength_MPa:.0f}", r.critical_interface_index)   # 266 4
 ```
 
@@ -382,7 +385,9 @@ A_ref_mm2=SOUTIS_REFERENCE_AREA_MM2, boundary="simply_supported")` returns
 a `SemiAnalyticalResult` (`residual_strength_MPa`,
 `critical_interface_index`, `critical_buckling_load_N` in N/mm), the
 lower of that Soutis bound and the delamination growth stress; `boundary`
-scales the sublaminate buckling load (clamped ×1.9, free ×0.5).
+is validated but does not change the result (the sublaminate is clamped
+by its delamination front; until #132 it scaled the sublaminate buckling
+load by 1.9 for clamped and 0.5 for free panels).
 `fibre_damage_tai(m, damage, sigma_pristine_MPa, Kt_inf, panel_width_mm)`
 (same module) is the TAI counterpart: Whitney-Nuismer point stress on a
 hole of diameter `m.tai_notch_fraction` × `transverse_damage_width_mm(damage)`,
@@ -416,6 +421,7 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
 | `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
 | `--loading` | `compression` | `compression` or `tension` |
+| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; `empirical` tier only so far |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
 | `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |

@@ -163,7 +163,8 @@ def test_sublaminate_selection_uses_thickness_not_ply_count():
     function must return the buckling load of the *lower* sublaminate.
     """
     from bvidfe.analysis.semi_analytical import (
-        _sublaminate_D_matrix,
+        _clamped_ellipse_load_factor,
+        _reduced_bending_stiffness,
         semi_analytical_cai,
         sublaminate_buckling_load,
         weakest_sublaminate_growth,
@@ -182,41 +183,22 @@ def test_sublaminate_selection_uses_thickness_not_ply_count():
     assert sum(upper_t) > sum(lower_t)  # upper geometrically thicker
     assert len(upper_layup) < len(lower_layup)  # but has fewer plies
 
-    # D matrices of each candidate sublaminate — the geometrically thinner
-    # stack (lower) has much smaller D11/D22 because D scales as t^3.
-    D_upper = _sublaminate_D_matrix(m, upper_layup, upper_t)
-    D_lower = _sublaminate_D_matrix(m, lower_layup, lower_t)
+    # Coupled bending stiffness D* of each candidate sublaminate — the
+    # geometrically thinner stack (lower) is much softer because D scales
+    # as t^3.
+    D_upper = _reduced_bending_stiffness(m, upper_layup, upper_t)
+    D_lower = _reduced_bending_stiffness(m, lower_layup, lower_t)
     assert D_lower[0, 0] < D_upper[0, 0]
     assert D_lower[1, 1] < D_upper[1, 1]
 
-    # Buckling load with the function under test. Use an ellipse large
-    # enough that the (a/b)^4 aspect-ratio clip never fires.
     ell = DelaminationEllipse(1, (0.0, 0.0), major_mm=20.0, minor_mm=15.0, orientation_deg=0.0)
     N = sublaminate_buckling_load(lam, ell)
 
-    # Reference loads from each candidate sublaminate's D matrix, evaluated
-    # with the same closed-form (m, n) in [1..5] x [1..5] minimisation that
-    # ``sublaminate_buckling_load`` uses internally.
-    def _ref_Ncr(D, a, b):
-        D11, D22, D12, D66 = D[0, 0], D[1, 1], D[0, 1], D[2, 2]
-        pi2 = math.pi * math.pi
-        aspect = a / b
-        best = math.inf
-        for mm in range(1, 6):
-            for nn in range(1, 6):
-                num = (
-                    D11 * mm**4
-                    + 2.0 * (D12 + 2.0 * D66) * (mm * aspect) ** 2 * nn**2
-                    + D22 * (aspect * nn) ** 4
-                )
-                cand = (pi2 / a**2) * num / mm**2
-                if cand < best:
-                    best = cand
-        return best
-
-    # (a, b) are FULL plate side lengths (= 2 * ellipse semi-axes); see #29.
-    N_upper_ref = _ref_Ncr(D_upper, 2.0 * ell.major_mm, 2.0 * ell.minor_mm)
-    N_lower_ref = _ref_Ncr(D_lower, 2.0 * ell.major_mm, 2.0 * ell.minor_mm)
+    # Reference loads from each candidate sublaminate's D*, on the same
+    # clamped ellipse (semi-axes 20 x 15 mm) ``sublaminate_buckling_load``
+    # uses.
+    N_upper_ref = _clamped_ellipse_load_factor(D_upper, 20.0, 15.0, 1.0, 0.0, 0.0)
+    N_lower_ref = _clamped_ellipse_load_factor(D_lower, 20.0, 15.0, 1.0, 0.0, 0.0)
     assert N_lower_ref < N_upper_ref  # thinner stack buckles at lower load
 
     # The function must report the *lower* (geometrically thinner)

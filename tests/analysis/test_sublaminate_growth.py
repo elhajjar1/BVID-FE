@@ -175,9 +175,9 @@ def _fe3d_cfg(damage: DamageState, Lx: float = 200.0, Ly: float = 150.0) -> Anal
 
 
 def test_fe3d_compression_knockdown_excludes_whole_panel_buckling():
-    """An 8-ply 200x150 mm panel buckles as a whole at ~12.6 MPa. With panel
+    """An 8-ply 200x150 mm panel buckles as a whole at ~12.2 MPa. With panel
     buckling in both the damaged and undamaged strengths, any delamination
-    that grows above 12.6 MPa was invisible (knockdown 1.0). Panel buckling
+    that grows above 12.2 MPa was invisible (knockdown 1.0). Panel buckling
     is a test-fixture effect (CAI fixtures carry anti-buckling guides), so
     it is reported in the notes but kept out of the knockdown."""
     damage = DamageState([DelaminationEllipse(3, (100.0, 75.0), 15.0, 10.0, 0.0)], 0.0)

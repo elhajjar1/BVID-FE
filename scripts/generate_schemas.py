@@ -106,6 +106,44 @@ _EXTRA_PROPERTIES: Dict[type, Dict[str, Any]] = {
 }
 
 
+# Keywords added to one field's schema beyond its type: a range the type
+# cannot express, and a description where the meaning is not obvious from the
+# name. Keyed by dataclass, then field name.
+_BIAXIAL_NOTE = (
+    "Experimental, not validated (no biaxial residual-strength data); "
+    "see 'Biaxial loading' in docs/physics_models.md."
+)
+_FIELD_EXTRAS: Dict[type, Dict[str, Dict[str, Any]]] = {
+    AnalysisConfig: {
+        "transverse_stress_ratio": {
+            "minimum": -1.0,
+            "maximum": 1.0,
+            "default": 0.0,
+            "description": "Signed sigma_y / sigma_x of a proportional biaxial in-plane "
+            "load (sigma_x, sigma_y) = lambda * (s, s * ratio), s = -1 for loading "
+            "'compression' and +1 for 'tension'; 0 is the uniaxial load. For "
+            "|sigma_y| > |sigma_x| rotate the layup by 90 deg and swap Lx_mm and Ly_mm. "
+            "Only tier 'empirical' supports a nonzero ratio so far. " + _BIAXIAL_NOTE,
+        },
+    },
+    AnalysisResults: {
+        "pristine_transverse_stress_MPa": {
+            "description": "Signed sigma_y (MPa) at pristine failure along the biaxial "
+            "load ray; null when transverse_stress_ratio is 0. " + _BIAXIAL_NOTE,
+        },
+        "residual_transverse_stress_MPa": {
+            "description": "Signed sigma_y (MPa) at damaged failure along the biaxial "
+            "load ray; null when transverse_stress_ratio is 0. " + _BIAXIAL_NOTE,
+        },
+        "biaxial_interaction_factor": {
+            "description": "residual_strength_MPa over the same damaged panel's "
+            "uniaxial residual strength; null when transverse_stress_ratio is 0. "
+            + _BIAXIAL_NOTE,
+        },
+    },
+}
+
+
 def _type_to_schema(tp: Any, defs: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a Python type annotation to a JSON Schema fragment.
 
@@ -211,7 +249,10 @@ def _dataclass_schema_body(cls: type, defs: Dict[str, Any]) -> Dict[str, Any]:
     required: List[str] = []
     for f in dataclasses.fields(cls):
         ann = hints.get(f.name, f.type)
-        properties[f.name] = _type_to_schema(ann, defs)
+        properties[f.name] = {
+            **_type_to_schema(ann, defs),
+            **_FIELD_EXTRAS.get(cls, {}).get(f.name, {}),
+        }
         # A field is required when it has no default AND no default_factory.
         if (
             f.default is dataclasses.MISSING

@@ -92,8 +92,8 @@ unnotched laminate strength from classical lamination theory. In this case
 the Soutis bound (225.4 MPa) is below the delamination growth stress, so
 the semi-analytical result equals the empirical one. Below the onset
 energy (about 3.3 J here) no damage is predicted and the knockdown is 1.
-The weakest sublaminate here grows its delamination at about 244 MPa
-(interface 5). The per-interface ellipses are in
+The weakest sublaminate here grows its delamination at about 311 MPa
+(interface 11). The per-interface ellipses are in
 `result.damage.delaminations`, the governing interface in
 `result.critical_sublaminate`, and the runtime notes in `result.notes`.
 
@@ -143,8 +143,9 @@ print(results_df[["energy_J", "knockdown", "dpa_mm2"]].round(3))
 | Tier | Runtime | Validation status | Use it for |
 |---|---|---|---|
 | `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.5% and 8.8%, about 5–9% cross-dataset). 22% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated: its one constant is fitted to a single measured condition (3.5% MAE in-sample). | Screening, energy sweeps, design trade studies |
-| `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 23% on Hasebe et al. TAI identical to `empirical` (not validated). | Checking whether delamination growth governs (low energy, cross-ply laminates) |
-| `fe3d` | About 4 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves), about 20 s at 2.5 mm; longer for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted in-sample to three measured CAI coupons (Lovejoy & Scotti within 3.5%, NCAMP 21% low); not run on the measured datasets in CI. **TAI** keeps the zone's fibres intact (delaminations cut none) and takes the broken fibres from the closed-form equivalent hole, so it falls with energy 2–8% below the closed-form TAI: 3.6% MAE on the one measured TAI dataset, partly in-sample (the hole size is fitted to it). Use a 2.5 mm mesh or finer for damage areas below about 1,000 mm², and 1.25 mm for a zone under about 20 mm across in a coupon only 30–40 mm wide | Stress-field context and damage through the thickness; not for allowables |
+| `semi_analytical` | Tens of milliseconds | Same CAI datasets and errors (the Soutis bound governs every one of their coupons); 24% on Hasebe et al. TAI identical to `empirical` (not validated). | Checking whether delamination growth governs (low energy, cross-ply laminates) |
+| `fe3d` | About 4 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves), about 20 s at 2.5 mm; longer for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted in-sample to three measured CAI coupons (Lovejoy & Scotti within 1.2%, NCAMP 21% low); not run on the measured datasets in CI. **TAI** keeps the zone's fibres intact (delaminations cut none) and takes the broken fibres from the closed-form equivalent hole, so it falls with energy 2–8% below the closed-form TAI: 3.6% MAE on the one measured TAI dataset, partly in-sample (the hole size is fitted to it). Use a 2.5 mm mesh or finer for damage areas below about 1,000 mm², and 1.25 mm for a zone under about 20 mm across in a coupon only 30–40 mm wide | Stress-field context and damage through the thickness; not for allowables |
+| Biaxial (`transverse_stress_ratio ≠ 0`), `empirical` only so far | As the tier | **Experimental, not validated**: no biaxial residual-strength data exist to validate it. The pristine envelope is CLT ply discount along the load ray, the empirical CAI knockdown is assumed independent of the ratio, and TAI adds the Lekhnitskii lateral-stress term at the hole. `semi_analytical` and `fe3d` raise `NotImplementedError` for a nonzero ratio until follow-up PRs of #115 ([Biaxial loading](physics_models.md#biaxial-loading)) | How a lateral stress might move the residual strength; not for allowables |
 
 See [Python API → Tier choice](python_api.md#tier-choice) and
 [Physics Models](physics_models.md) for what each tier solves.

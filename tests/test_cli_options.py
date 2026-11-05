@@ -317,3 +317,50 @@ def test_energy_rejects_negative_and_non_finite(capsys, bad, match):
     code, out, err = _main(["--energy", bad], capsys)
     assert code == 2
     assert match in err
+
+
+# ------------------------------------------------- transverse stress ratio
+
+
+def test_transverse_stress_ratio_defaults_to_uniaxial(capsys):
+    data = _json(["--energy", "10"], capsys)
+    assert data["config_snapshot"]["transverse_stress_ratio"] == 0.0
+    assert data["biaxial_interaction_factor"] is None
+    explicit = _json(["--energy", "10", "--transverse-stress-ratio", "0"], capsys)
+    assert explicit == data
+
+
+@pytest.mark.parametrize("loading", ["compression", "tension"])
+def test_transverse_stress_ratio_reaches_the_config(loading, capsys):
+    data = _json(
+        ["--energy", "10", "--loading", loading, "--transverse-stress-ratio", "-0.5"], capsys
+    )
+    assert data["config_snapshot"]["transverse_stress_ratio"] == -0.5
+    assert data["biaxial_interaction_factor"] is not None
+    assert data["notes"][0].startswith("Biaxial sigma_y/sigma_x = -0.50: experimental")
+    quick = _main(
+        ["--energy", "10", "--loading", loading, "--transverse-stress-ratio", "-0.5", "--quick"],
+        capsys,
+    )
+    assert quick[0] == 0 and float(quick[1]) == pytest.approx(data["knockdown"], abs=1e-6)
+
+
+@pytest.mark.parametrize("value", ["1.5", "-2", "nan", "inf", "x"])
+def test_transverse_stress_ratio_out_of_range_is_a_usage_error(value, capsys):
+    code, _, err = _main(["--energy", "10", "--transverse-stress-ratio", value], capsys)
+    assert code == 2
+    assert "--transverse-stress-ratio" in err
+
+
+def test_transverse_stress_ratio_help_says_experimental():
+    text = " ".join(cli._build_parser().format_help().split())
+    assert "--transverse-stress-ratio" in text and "EXPERIMENTAL" in text
+
+
+@pytest.mark.parametrize("tier", ["semi_analytical", "fe3d", "empirical,semi_analytical"])
+def test_transverse_stress_ratio_on_an_unsupported_tier_is_an_error(tier, capsys):
+    code, out, err = _main(
+        ["--energy", "10", "--tier", tier, "--transverse-stress-ratio", "0.5"], capsys
+    )
+    assert code == 1 and out == ""
+    assert "not yet supported" in err and "#115" in err

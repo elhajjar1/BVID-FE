@@ -60,7 +60,7 @@ import numpy as np
 from scipy.ndimage import convolve
 
 from bvidfe._types import _CRITERION_NAMES, CriterionName
-from bvidfe.analysis.config import AnalysisConfig
+from bvidfe.analysis.config import AnalysisConfig, require_tier_supports_ratio
 from bvidfe.analysis.fe_mesh import (
     FeMesh,
     build_fe_mesh,
@@ -357,6 +357,7 @@ def _fe3d_preflight(
         ``t0`` is ``time.time()`` captured before the mesh build, suitable
         for relative timing logs in the caller.
     """
+    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     _guard_problem_size(cfg)
     label = _run_label(label, damage)
     t0 = time.time()
@@ -900,15 +901,17 @@ def fe3d_cai_buckling(
     locks too aggressively for thin laminates at practical mesh sizes.
     Investigation also showed that even a proper static-prestress
     reformulation did not converge to closed-form within an order of
-    magnitude. The Rayleigh-Ritz closed form (Timoshenko & Gere §9.2;
-    Reddy 4.4.4) is exact for SSSS orthotropic rectangles, so the buckling
-    channel now delegates to it via
-    :func:`bvidfe.analysis.semi_analytical.panel_buckling_load`.
+    magnitude. The buckling channel now delegates to the Rayleigh-Ritz
+    solution for the simply supported rectangle with D16 and D26
+    (:func:`bvidfe.analysis.semi_analytical.panel_buckling_load`; exact on
+    the Navier closed form when D16 = D26 = 0, #132), times the panel
+    boundary factor.
 
     For damaged panels the sublaminate-over-delamination check from
-    :func:`bvidfe.analysis.semi_analytical.sublaminate_buckling_load` also
-    runs; the minimum of the full-panel and worst-sublaminate buckling
-    stress is returned.
+    :func:`bvidfe.analysis.semi_analytical.sublaminate_buckling_load` (the
+    clamped ellipse with the coupled stiffness D*, #132) also runs; the
+    minimum of the full-panel and worst-sublaminate buckling stress is
+    returned.
 
     This is buckling *onset* and does not set the fe3d residual strength
     (see :func:`fe3d_cai`): a buckled sublaminate keeps carrying load until
@@ -920,6 +923,7 @@ def fe3d_cai_buckling(
     (``"fe3d buckling onset ... closed-form Rayleigh-Ritz ..."``, #133) or
     a degenerate closed form.
     """
+    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     boundary = cfg.panel.boundary
     notes: List[str] = []
 
@@ -1095,6 +1099,7 @@ def tai_fibre_damage_hole(
     mesh; the meshed core does not soften the fibres as well
     (``fe_mesh.apply_damage``, issue #164). ``None`` without
     delaminations."""
+    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     if not damage.delaminations:
         return None
     width = cfg.panel.Ly_mm

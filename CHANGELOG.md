@@ -6,7 +6,126 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- `bvidfe.elements.hex8s.Hex8SolidShellElement`, a solid-shell Hex8 for
+  buckling of thin laminates (#132): Hex8i incompatible modes plus
+  Dvorkin-Bathe assumed transverse shear, a geometric stiffness from a
+  per-Gauss-point stress field, stress recovery that includes the enhanced
+  strain, and batched builds (`solid_shell_stiffness_batch`,
+  `solid_shell_stress_batch`, `geometric_stiffness_batch`). On the
+  canonical 200 x 150 mm 8-ply SSSS panel (one element per ply) it gives
+  11.577 MPa at 5 mm against the exact cross-ply Navier value 11.583
+  (-0.05%), and 12.079 MPa for quasi-isotropic against 12.204 from a
+  converged Rayleigh-Ritz with D16/D26 (-1.0%, transverse-shear
+  flexibility). With G13 and G23 raised 50x it stays within 0.4% of 12.204
+  at 10 mm, where Hex8i alone is 39% stiff. This is an internal building
+  block for FE sublaminate buckling: no tier uses it, and no result
+  changes.
+- **Biaxial in-plane loading, experimental and unvalidated** (issue #115,
+  first part). `AnalysisConfig.transverse_stress_ratio` (CLI
+  `--transverse-stress-ratio`, default `0.0`, the last field, so positional
+  construction is unchanged) is the signed ratio β = σy/σx of a
+  proportional load `(σx, σy) = λ·(s, s·β)`, `s` the sign of `loading`,
+  with `−1 ≤ β ≤ 1` (a larger ratio is rejected with the rotate-the-layup,
+  swap-`Lx_mm`/`Ly_mm` workaround). The strength fields stay |σx| at
+  failure along the ray:
+  - the pristine strength is the ply-discount envelope along the ray
+    (`unnotched_strength(lam, loading, transverse_stress_ratio)`, and
+    `unnotched_strength_along(lam, direction)` for any in-plane direction);
+  - the `empirical` tier keeps the Soutis CAI knockdown independent of the
+    ratio (homothetic) and multiplies the TAI hole's point-stress knockdown
+    by the Lekhnitskii far-field σy term at the characteristic point, `F(β)`
+    (new `bvidfe.failure.lekhnitskii`: the orthotropic open-hole stress
+    field and `biaxial_point_stress_factor`; `fibre_damage_tai` gains
+    keyword-only `transverse_stress_ratio` and `laminate`);
+  - new `AnalysisResults` fields `pristine_transverse_stress_MPa`,
+    `residual_transverse_stress_MPa` (signed σy at failure) and
+    `biaxial_interaction_factor` (residual over the uniaxial residual of the
+    same damage), `None` for a uniaxial run, and a `notes` line on every
+    biaxial run saying it is experimental and not validated;
+  - `semi_analytical` and `fe3d` raise `NotImplementedError` for a nonzero
+    ratio until their follow-up PRs.
+
+  No biaxial residual-strength data are known, so nothing at β ≠ 0 is
+  validated; under biaxial tension the pristine envelope ends,
+  conservatively, when every ply has cracked. At β = 0 every result is
+  unchanged; `config_snapshot` and the JSON output gain the new keys. See
+  [Biaxial loading](docs/physics_models.md#biaxial-loading). The JSON
+  Schemas are regenerated (the ratio's range and sign convention are in
+  the schema).
+
 ### Changed
+
+- **Sublaminate buckling is a clamped ellipse with the coupled
+  stiffness, and panel buckling includes D16 / D26 (#132, closed-form
+  part).** Results change in `semi_analytical` CAI and in fe3d CAI where
+  the delamination growth stress governs.
+  - `sublaminate_buckling_load` treats the sublaminate as a plate clamped
+    along the delamination front, the ellipse itself (semi-axes
+    `major_mm` x `minor_mm` at `orientation_deg`), with a Rayleigh-Ritz
+    solution in the ellipse's frame that includes D16 and D26 and the
+    bending-extension coupling, `D* = D - B A^-1 B`. It was the simply
+    supported rectangle enclosing the ellipse (Navier closed form, D16,
+    D26 and B ignored) times a factor from the panel's edge condition.
+    That estimate was up to 3.5x low for one-ply films and for rotated,
+    slender ellipses, whose bounding box is far larger than the ellipse,
+    and up to 2x high for unsymmetric 2-3 ply sublaminates. The clamped
+    film is also the edge condition the thin-film energy release rate
+    assumes. Examples: a [0/45] sublaminate over a 12 mm radius circle,
+    36.4 -> 49.4 MPa; the 20 x 8 mm ellipse at interface 2 of the 8-ply
+    QI laminate, 78.4 -> 77.7 N/mm along the load and 39.5 -> 70.7 N/mm
+    across it.
+  - The panel's `boundary` no longer scales the sublaminate buckling load
+    (it was x1.9 clamped, x0.5 free): the sublaminate's edges are the
+    delamination front. `boundary` is still accepted and validated by
+    `sublaminate_buckling_load`, `sublaminate_growth_stress`,
+    `weakest_sublaminate_growth` and `semi_analytical_cai`, so
+    `semi_analytical` CAI no longer depends on it except through the
+    damage area.
+  - The aspect-ratio clip of `DegenerateThinSublaminateWarning` is now
+    10:1 (longer over shorter semi-axis, either orientation; was 50:1
+    along the load), the range the clamped-ellipse basis is converged on;
+    the shorter semi-axis is widened to it. The impact template never
+    exceeds 3.25:1.
+  - `panel_buckling_load` (the fe3d whole-panel buckling onset) is a
+    Rayleigh-Ritz solution with D16 and D26 for the simply supported
+    rectangle, still times the boundary factor (1.9 clamped, 0.5 free).
+    It equals the Navier closed form on cross-ply and unidirectional
+    laminates and is lower otherwise: 12.58 -> 12.20 MPa on the canonical
+    200 x 150 mm 8-ply QI IM7/8552 panel, 28.25 -> 27.34 MPa on
+    150 x 100 mm.
+  - The private `_sublaminate_D_matrix` and `_rayleigh_ritz_N_cr` are
+    replaced by `_reduced_bending_stiffness`,
+    `_clamped_ellipse_load_factor` and `_ssss_ritz_N_cr`.
+
+  Results (IM7/8552, 0.152 mm plies, simply supported 150 x 100 mm,
+  16 mm 5.5 kg impactor; semi-analytical CAI knockdown, before -> after):
+
+  | Case | Before | After |
+  |---|---|---|
+  | 8-ply QI [0/45/-45/90]s, 5 J | 0.469 (growth) | 0.514 (growth) |
+  | same, 10 J | 0.448 (Soutis) | 0.448 (Soutis) |
+  | 8-ply [0/90]2s, 5 / 10 / 15 J | 0.424 / 0.389 / 0.394 (growth) | 0.544 / 0.447 / 0.394 (Soutis) |
+  | 16-ply QI [0/45/-45/90]4, 5 J | 0.557 (growth) | 0.651 (Soutis) |
+  | 16-ply [0/45/-45/90]s x 2, 200 x 150 mm, 10 J (CLI snapshot) | 0.458 | 0.505 |
+  | 24-ply QI [0/45/-45/90]6, 10 J | 0.512 (growth) | 0.538 (Soutis) |
+
+  The growth stress rises most just above the onset energy, where the
+  delaminations are small and the film buckling stress approaches the
+  steady-state growth stress; from about 10 J it moves by a few percent.
+  Validation MAE (`--tier=semi_analytical --measured`): NCAMP 1.54% and
+  Lovejoy & Scotti 8.78% unchanged (Soutis governs every coupon; their
+  growth stresses rose from 205-206 / 182 / 227-228 MPa to 217-219 / 225-226 /
+  271 MPa), Hasebe et al. 23.45% -> 23.97% (not gated; growth now governs
+  176 of 343 coupons instead of 256), Körbelin TAI unchanged;
+  `synthetic_selfcheck` 1.20% -> 0.00%. fe3d CAI calibration coupons
+  (5 mm mesh): NCAMP #0 -20.6% and Lovejoy & Scotti QI #0 +1.2% unchanged
+  (first-ply failure governs); the hard laminate #4 moves from its growth
+  stress (227.5 MPa, -3.5%) to first-ply failure (236.4 MPa, +0.3%),
+  mean error 8.4% -> 7.4%. `DAMAGE_ZONE_INPLANE_FACTOR` is not refitted
+  (still 0.15): re-measured, the factor sweep gives mean errors of 13.8% /
+  7.4% / 10.5% / 13.7% at 0.13 / 0.15 / 0.17 / 0.20 (was 13.8% / 8.4% /
+  9.0% / 9.9%), so 0.15 stays the lowest. These changes came after 0.3.0 was prepared; its notes
+  describe the code before them.
 
 ### Fixed
 
