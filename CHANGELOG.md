@@ -70,6 +70,39 @@ All notable changes to BVID-FE are documented in this file.
   [Biaxial loading](docs/physics_models.md#biaxial-loading). The JSON
   Schemas are regenerated (the ratio's range and sign convention are in
   the schema).
+- **Biaxial loading in the app, a ratio sweep and an envelope plot**
+  (issue #115, experimental and not validated, like the field). No
+  analysis result changes; with the ratio at its default 0 the app gives
+  the same numbers, share links and NCR Markdown as before.
+  - `sweep_transverse_ratios(base_cfg, ratios, csv_path=None, *,
+    on_error="raise", progress_callback=None)` in
+    `bvidfe.sweep.parametric_sweep` sweeps `transverse_stress_ratio` at the
+    config's `loading` and `tier`, with impact or C-scan damage. Columns:
+    `transverse_stress_ratio`, the other sweeps' columns, then
+    `residual_sigma_y_MPa`, `pristine_sigma_y_MPa`,
+    `biaxial_interaction_factor` and `error`. Each row equals a
+    `BvidAnalysis` run at that ratio (at 0, σy = 0 and the factor 1 by
+    definition). A tier that raises `NotImplementedError` at a nonzero
+    ratio is a failed point under `on_error`. The other sweeps' columns are
+    unchanged.
+  - `bvidfe.viz.plots_2d.biaxial_envelope_plot(df_compression,
+    df_tension)` draws the pristine and damaged (σx, σy) failure points of
+    the two halves of the envelope, one colour per tier.
+  - Streamlit: a **σy/σx (experimental)** input under Analysis (range
+    [−1, 1], default 0, share-link key `tr`, written only when nonzero;
+    the presets reset it to 0). A biaxial run's Summary shows σy at
+    pristine and residual failure and the interaction factor, with a
+    not-validated warning. The Sweep tab can sweep the ratio for one or
+    both loading senses and draws the envelope, with a CSV download. A
+    tier without a biaxial model yet gets a message, not a traceback, in
+    the run, the Knockdown Curve tab and both sweeps.
+  - The NCR (`bvidfe.report.ncr.build_ncr`) records `loading` and
+    `transverse_stress_ratio` in its JSON, and for a biaxial run the ratio,
+    σy at failure and the interaction factor in its Markdown;
+    `recommend_disposition` flags a biaxial result as not validated.
+  - Docs: a biaxial example in the Quickstart, `sweep_transverse_ratios`
+    and `biaxial_envelope_plot` in the Python API, both run by the docs
+    tests.
 
 ### Changed
 

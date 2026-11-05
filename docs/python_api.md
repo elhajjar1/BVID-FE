@@ -276,6 +276,36 @@ same way), and `progress_callback=` (called as
 replaces a per-ply list. Each impact warning category is shown once per
 sweep.
 
+`sweep_transverse_ratios(config, ratios)` sweeps the biaxial ratio
+`transverse_stress_ratio` (σy/σx, each in [−1, 1]) at the config's
+`loading` and `tier`; it is **experimental and not validated**, like the
+field. It takes the same `csv_path=`, `on_error=` and
+`progress_callback=` (`inputs` is `{"transverse_stress_ratio": β}`) and
+works with impact or C-scan damage. Its columns are
+`transverse_stress_ratio`, the columns above (`residual_MPa` and
+`pristine_MPa` are |σx| at failure along the load ray), then
+`residual_sigma_y_MPa` and `pristine_sigma_y_MPa` (the signed σy at
+damaged and pristine failure), `biaxial_interaction_factor` and `error`.
+A row equals a `BvidAnalysis` run at that ratio; at β = 0, whose result
+fields are `None`, the sweep writes σy = 0 and an interaction factor of
+1. A tier without a biaxial model yet raises `NotImplementedError` at a
+nonzero ratio, which `on_error="skip"` or `"warn"` records in `error`.
+Run it once per `loading` for both halves of the envelope:
+
+```python
+from dataclasses import replace
+from bvidfe.sweep.parametric_sweep import sweep_transverse_ratios
+
+ratios = [-1, 0, 1]
+df_c = sweep_transverse_ratios(config, ratios)   # config is loading="compression"
+df_t = sweep_transverse_ratios(replace(config, loading="tension"), ratios)
+print(df_c[["transverse_stress_ratio", "residual_MPa", "residual_sigma_y_MPa"]].round(1))
+#    transverse_stress_ratio  residual_MPa  residual_sigma_y_MPa
+# 0                     -1.0         184.2                 184.2
+# 1                      0.0         269.1                   0.0
+# 2                      1.0         379.7                -379.7
+```
+
 ## Visualization
 
 ```python
@@ -283,16 +313,24 @@ from bvidfe.viz.plots_2d import (
     plot_damage_map,           # ellipse footprints + panel outline
     plot_knockdown_curve,      # single tier
     plot_tier_comparison,      # overlaid multi-tier
+    biaxial_envelope_plot,     # (sigma_x, sigma_y) failure points of a ratio sweep
 )
 
 fig = plot_damage_map(result.damage, config.panel)
 fig.savefig("damage_map.png", dpi=300)
+biaxial_envelope_plot(df_c, df_t).savefig("biaxial_envelope.png")   # the ratio sweeps above
 ```
 
 `plot_knockdown_curve(energies_J, knockdowns, tier_label="")` and
 `plot_tier_comparison(energies_J, {"empirical": [...], ...})` take plain
-sequences, for example two columns of a sweep DataFrame. All three return
-a matplotlib Figure.
+sequences, for example two columns of a sweep DataFrame.
+`biaxial_envelope_plot(df_compression=None, df_tension=None)` takes
+`sweep_transverse_ratios` frames run with `loading="compression"` (the
+σx < 0 half) and `"tension"` (σx > 0), either of them optional: the
+pristine envelope in grey and the damaged one in each `tier_used`'s
+colour, failed rows left out; experimental and not validated, so not an
+allowable. All four return a matplotlib Figure and take `fig=` to draw
+into an existing one.
 
 For an interactive 3D view of the damaged hex mesh (the same figure the
 Streamlit app's "3D Damage" tab shows), build the mesh and render it with

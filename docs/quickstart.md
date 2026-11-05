@@ -138,6 +138,51 @@ results_df = sweep_energies(
 print(results_df[["energy_J", "knockdown", "dpa_mm2"]].round(3))
 ```
 
+### Biaxial loading (experimental, not validated)
+
+`transverse_stress_ratio` adds a lateral stress σy proportional to σx:
+the load is `(σx, σy) = λ·(s, s·β)` with `s` the sign of `loading` and
+`β` between −1 and 1. No biaxial residual-strength data exist to check
+it, so treat the numbers as a trend, never as an allowable; a tier
+without a biaxial model yet raises `NotImplementedError`. Here an axial
+compression with a lateral tension of half its size (β = −0.5), on the
+16-ply panel above:
+
+```python
+from dataclasses import replace
+
+biax = replace(cfg, tier="empirical", transverse_stress_ratio=-0.5)
+biax_result = BvidAnalysis(biax).run()
+print(f"|σx| {biax_result.residual_strength_MPa:.1f} MPa, "
+      f"σy {biax_result.residual_transverse_stress_MPa:.1f} MPa, "
+      f"interaction {biax_result.biaxial_interaction_factor:.3f}")
+# |σx| 191.9 MPa, σy 95.9 MPa, interaction 0.851
+```
+
+The strengths are |σx| at failure along the load ray, the σy fields are
+signed, and `biaxial_interaction_factor` is the residual strength over
+the uniaxial residual of the same damage (225.4 MPa here): the lateral
+tension costs 15%. `sweep_transverse_ratios` runs a list of ratios, one
+`loading` at a time, and `biaxial_envelope_plot` draws the pristine and
+damaged failure points of both halves:
+
+```python
+from bvidfe.sweep.parametric_sweep import sweep_transverse_ratios
+from bvidfe.viz.plots_2d import biaxial_envelope_plot
+
+ratios = [-1, -0.5, 0, 0.5, 1]
+df_compression = sweep_transverse_ratios(biax, ratios)
+df_tension = sweep_transverse_ratios(replace(biax, loading="tension"), ratios)
+print(df_compression["biaxial_interaction_factor"].round(3).tolist())
+# [0.685, 0.851, 1.0, 1.17, 1.411]
+biaxial_envelope_plot(df_compression, df_tension).savefig("biaxial_envelope.png")
+```
+
+In the app, the same input is **σy/σx (experimental)** under Analysis,
+and the Sweep tab's **σy/σx ratio** sweep draws the envelope. See
+[Biaxial loading](physics_models.md#biaxial-loading) for the models and
+their assumptions.
+
 ### Which tier?
 
 | Tier | Runtime | Validation status | Use it for |
@@ -145,7 +190,7 @@ print(results_df[["energy_J", "knockdown", "dpa_mm2"]].round(3))
 | `empirical` | Tens of milliseconds | CAI calibrated on two measured datasets (NCAMP AS4/8552 and Lovejoy & Scotti IM7/8552; in-sample MAE 1.5% and 8.8%, about 5–9% cross-dataset). 22% on Hasebe et al.'s T800S/3900-2B coupons (reported, not gated). TAI not validated: its one constant is fitted to a single measured condition (3.5% MAE in-sample). | Screening, energy sweeps, design trade studies |
 | `semi_analytical` | About 0.5–3 s (a nonlinear post-buckling solve per candidate interface) | Same CAI datasets and errors (the Soutis bound governs every one of their coupons, and of Hasebe et al.'s: 22%). TAI identical to `empirical` (not validated). | Checking whether delamination growth governs (near the onset energy) |
 | `fe3d` | About 4 s for an 8-ply 150 × 100 mm panel at the default 5 mm mesh (two FE solves), about 20 s at 2.5 mm; longer for thick laminates | **Qualitative.** Its damage-zone stiffness is fitted in-sample to three measured CAI coupons (Lovejoy & Scotti within 1.2%, NCAMP 21% low); not run on the measured datasets in CI. **TAI** keeps the zone's fibres intact (delaminations cut none) and takes the broken fibres from the closed-form equivalent hole, so it falls with energy 2–8% below the closed-form TAI: 3.6% MAE on the one measured TAI dataset, partly in-sample (the hole size is fitted to it). Use a 2.5 mm mesh or finer for damage areas below about 1,000 mm², and 1.25 mm for a zone under about 20 mm across in a coupon only 30–40 mm wide | Stress-field context and damage through the thickness; not for allowables |
-| Biaxial (`transverse_stress_ratio ≠ 0`), `empirical` only so far | As the tier | **Experimental, not validated**: no biaxial residual-strength data exist to validate it. The pristine envelope is CLT ply discount along the load ray, the empirical CAI knockdown is assumed independent of the ratio, and TAI adds the Lekhnitskii lateral-stress term at the hole. `semi_analytical` and `fe3d` raise `NotImplementedError` for a nonzero ratio until follow-up PRs of #115 ([Biaxial loading](physics_models.md#biaxial-loading)) | How a lateral stress might move the residual strength; not for allowables |
+| Biaxial (`transverse_stress_ratio ≠ 0`), `empirical` only so far | As the tier | **Experimental, not validated**: no biaxial residual-strength data exist to validate it. The pristine envelope is CLT ply discount along the load ray, the empirical CAI knockdown is assumed independent of the ratio, and TAI adds the Lekhnitskii lateral-stress term at the hole. `semi_analytical` and `fe3d` raise `NotImplementedError` for a nonzero ratio until follow-up PRs of #115 ([Biaxial loading](physics_models.md#biaxial-loading)) | How a lateral stress might move the residual strength: `AnalysisConfig.transverse_stress_ratio`, the CLI's `--transverse-stress-ratio`, the `sweep_transverse_ratios` sweep and `biaxial_envelope_plot`, and the app's **σy/σx (experimental)** input and ratio sweep; not for allowables |
 
 See [Python API → Tier choice](python_api.md#tier-choice) and
 [Physics Models](physics_models.md) for what each tier solves.

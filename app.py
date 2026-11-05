@@ -73,8 +73,15 @@ from bvidfe.report.ncr import (  # noqa: E402
     recommend_disposition,
 )
 from bvidfe.core.laminate import Laminate  # noqa: E402
-from bvidfe.sweep.parametric_sweep import sweep_energies  # noqa: E402
-from bvidfe.viz.plots_2d import plot_damage_map, plot_knockdown_curve  # noqa: E402
+from bvidfe.sweep.parametric_sweep import (  # noqa: E402
+    sweep_energies,
+    sweep_transverse_ratios,
+)
+from bvidfe.viz.plots_2d import (  # noqa: E402
+    biaxial_envelope_plot,
+    plot_damage_map,
+    plot_knockdown_curve,
+)
 from bvidfe.viz.plotly_3d import mesh_damage_figure  # noqa: E402
 
 # fe3d stage logs to the terminal running `streamlit run` (idempotent across reruns).
@@ -145,7 +152,24 @@ _DF_FORMATS = {
     "pristine_MPa": "{:.1f}",
     "dpa_mm2": "{:.1f}",
     "dent_mm": "{:.3f}",
+    "transverse_stress_ratio": "{:+.2f}",
+    "residual_sigma_y_MPa": "{:.1f}",
+    "pristine_sigma_y_MPa": "{:.1f}",
+    "biaxial_interaction_factor": "{:.3f}",
 }
+
+# Biaxial loading (issue #115): the sidebar's sigma_y / sigma_x ratio and the
+# Sweep tab's ratio sweep. Experimental and not validated, in every tier; a
+# tier without a biaxial model raises NotImplementedError, which the page
+# reports instead of crashing (see ``_unsupported_tier_note``).
+BIAXIAL_CAVEAT = (
+    "Biaxial loading is **experimental and not validated**: no biaxial "
+    "residual-strength data exist to check it. Do not use these numbers or "
+    "the envelope as allowables."
+)
+DEFAULT_SWEEP_RATIOS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+SWEEP_ENERGY = "Impact energy"
+SWEEP_RATIO = "σy/σx ratio (experimental)"
 
 
 # ---------------------------------------------------------------------------
@@ -160,9 +184,9 @@ _DF_FORMATS = {
 # rewrite of the controlled keys.
 #
 # URL state uses short keys (``mat``, ``lay``, ``lx``, ``ly``, ``E``, ``d``,
-# ``t``, ``ld`` and the expert-mode ``tp``, ``bc``, ``sh``, ``m``, ``x0``,
-# ``y0``) so a shared link stays well under the 2 kB safe ceiling for
-# common browsers. On app load, if the URL carries known keys, we hydrate
+# ``t``, ``ld``, the biaxial ratio ``tr`` and the expert-mode ``tp``, ``bc``,
+# ``sh``, ``m``, ``x0``, ``y0``) so a shared link stays well under the 2 kB
+# safe ceiling for common browsers. On app load, if the URL carries known keys, we hydrate
 # session state from them BEFORE widgets render (same mechanism as presets).
 
 # Expert-mode widget values (session-state key -> default). These widgets
@@ -190,6 +214,7 @@ PRESETS: dict[str, dict] = {
         "diameter_mm": 16.0,
         "tier": "empirical",
         "loading": "compression",
+        "transverse_stress_ratio": 0.0,
         "input_mode": "Impact event",
         **_EXPERT_DEFAULTS,
     },
@@ -202,6 +227,7 @@ PRESETS: dict[str, dict] = {
         "diameter_mm": 16.0,
         "tier": "semi_analytical",
         "loading": "compression",
+        "transverse_stress_ratio": 0.0,
         "input_mode": "Impact event",
         **_EXPERT_DEFAULTS,
     },
@@ -214,6 +240,7 @@ PRESETS: dict[str, dict] = {
         "diameter_mm": 16.0,
         "tier": "fe3d",
         "loading": "compression",
+        "transverse_stress_ratio": 0.0,
         "input_mode": "Impact event",
         **_EXPERT_DEFAULTS,
     },
@@ -232,6 +259,7 @@ _URL_TO_STATE: dict[str, tuple[str, type]] = {
     "d": ("diameter_mm", float),
     "t": ("tier", str),
     "ld": ("loading", str),
+    "tr": ("transverse_stress_ratio", float),
     "tp": ("ply_thickness_mm", float),
     "bc": ("boundary", str),
     "sh": ("impactor_shape", str),
@@ -250,6 +278,7 @@ _STATE_BOUNDS: dict[str, tuple[float, float]] = {
     "diameter_mm": (1.0, 100.0),
     "ply_thickness_mm": (0.01, 2.0),
     "mass_kg": (0.01, 100.0),
+    "transverse_stress_ratio": (-1.0, 1.0),
 }
 
 # Allowed values of each choice widget.
@@ -386,7 +415,8 @@ def _sync_query_params() -> None:
 
     The shareable subset (material, layup, panel and boundary, ply
     thickness, impact energy, impactor diameter / shape / mass, tier,
-    loading, and the impact location when it is not the panel centre) is
+    loading, the biaxial ratio ``tr`` when it is not 0, and the impact
+    location when it is not the panel centre) is
     encoded — short keys keep URLs under the ~2 kB safe ceiling. Values are
     stringified; Streamlit handles URL escaping for us.
     """
@@ -406,6 +436,9 @@ def _sync_query_params() -> None:
             "sh": str(ss.get("impactor_shape", _EXPERT_DEFAULTS["impactor_shape"])),
             "m": f"{float(ss.get('mass_kg', _EXPERT_DEFAULTS['mass_kg'])):g}",
         }
+        tr = float(ss.get("transverse_stress_ratio", 0.0))
+        if tr != 0:
+            new_qp["tr"] = f"{tr:g}"
         if not ss.get("loc_centre", True):
             new_qp["x0"] = f"{float(ss.get('loc_x_mm', 0.0)):g}"
             new_qp["y0"] = f"{float(ss.get('loc_y_mm', 0.0)):g}"
@@ -583,6 +616,7 @@ def _config_dict(
     impact_event: ImpactEvent | None,
     damage_state: DamageState | None,
     mesh_params: MeshParams | None,
+    transverse_stress_ratio: float = 0.0,
 ) -> dict:
     """The sidebar's config as a JSON-safe dict, the run's cache key; it
     loads with ``AnalysisConfig.from_dict``. ``damage`` is
@@ -620,7 +654,148 @@ def _config_dict(
                 "in_plane_size_mm": mesh_params.in_plane_size_mm,
             }
         ),
+        "transverse_stress_ratio": float(transverse_stress_ratio),
     }
+
+
+def _unsupported_tier_note(df: pd.DataFrame, tier: str) -> str | None:
+    """A message for a sweep whose failed points all raised
+    ``NotImplementedError`` (a tier without a model for the configuration,
+    such as a nonzero sigma_y / sigma_x ratio), or ``None``. Read from the
+    sweep's ``error`` column, so it follows whatever the library supports."""
+    errors = df["error"].dropna()
+    errors = errors[errors != ""]
+    if errors.empty or not all(e.startswith("NotImplementedError") for e in errors):
+        return None
+    detail = errors.iloc[0].split(": ", 1)[-1]
+    return (
+        f"**{tier}** cannot run {len(errors)} of these point(s) yet: {detail} "
+        "The points it can run are shown."
+    )
+
+
+def _fe3d_mesh_too_big(cfg: AnalysisConfig) -> bool:
+    """Report (``st.error``) and return ``True`` when ``cfg``'s fe3d mesh
+    cannot be estimated or exceeds ``FE3D_MAX_DOF``."""
+    try:
+        stats = estimate_fe_mesh_size(replace(cfg, tier="fe3d"))
+    except Exception as exc:
+        st.error(f"Failed to estimate fe3d mesh size: {exc}")
+        return True
+    if stats["n_dof"] > FE3D_MAX_DOF:
+        st.error(
+            f"fe3d mesh has {stats['n_elements']:,} elements "
+            f"({stats['n_dof']:,} DOFs), exceeding the safe cap "
+            f"of {FE3D_MAX_DOF:,}. Increase **In-plane size** or "
+            f"reduce **Elements per ply** in the sidebar."
+        )
+        return True
+    return False
+
+
+def _parse_ratios(text: str) -> list[float]:
+    """Parse the ratio sweep's comma-separated sigma_y / sigma_x list;
+    ``ValueError`` for a non-number, a non-finite value, a value outside
+    ``[-1, 1]`` or more than ``MAX_SWEEP_POINTS`` values."""
+    tokens = [x.strip() for x in text.replace(";", ",").split(",") if x.strip()]
+    try:
+        ratios = [float(t) for t in tokens]
+    except ValueError:
+        raise ValueError("ratios must be a comma-separated list of numbers") from None
+    if not ratios:
+        raise ValueError("enter at least one ratio")
+    if not all(math.isfinite(r) and -1.0 <= r <= 1.0 for r in ratios):
+        raise ValueError("each ratio must be a finite number between -1 and 1")
+    if len(ratios) > MAX_SWEEP_POINTS:
+        raise ValueError(f"the sweep is capped at {MAX_SWEEP_POINTS} ratios (got {len(ratios)})")
+    return ratios
+
+
+def _ratio_sweep_section(config_dict: dict) -> None:
+    """The Sweep tab's sigma_y / sigma_x sweep (issue #115): runs
+    ``sweep_transverse_ratios`` for one or both loading senses and draws
+    ``biaxial_envelope_plot``. Works with impact or C-scan damage."""
+    st.warning(BIAXIAL_CAVEAT)
+    base_cfg = _config_from_dict(config_dict)
+    ratios_text = st.text_input(
+        "σy/σx ratios (comma-separated, each in [-1, 1])",
+        value=", ".join(f"{r:g}" for r in DEFAULT_SWEEP_RATIOS),
+        key="ratio_sweep_text",
+    )
+    ratio_tier = st.selectbox(
+        "Tier for sweep",
+        TIERS,
+        index=TIERS.index(base_cfg.tier) if base_cfg.tier in TIERS else 0,
+        key="ratio_sweep_tier",
+        help=_SWEEP_TIER_HELP,
+    )
+    both = st.checkbox(
+        "Both loading senses (compression and tension halves of the envelope)",
+        value=True,
+        key="ratio_sweep_both",
+        help=f"Off: the sidebar's loading only ({base_cfg.loading}).",
+    )
+    if not st.button("Run ratio sweep", type="primary", key="ratio_sweep_run"):
+        return
+    try:
+        ratios = _parse_ratios(ratios_text)
+    except ValueError as exc:
+        st.error(f"Invalid ratios: {exc}.")
+        return
+    if ratio_tier == "fe3d" and _fe3d_mesh_too_big(base_cfg):
+        return
+    loadings = ["compression", "tension"] if both else [base_cfg.loading]
+    total = len(ratios) * len(loadings)
+    prog = st.progress(0.0, text=f"0/{total} starting…")
+    frames: dict[str, pd.DataFrame] = {}
+    try:
+        with st.spinner(f"Running {total}-point {ratio_tier} ratio sweep…"):
+            for k, ld in enumerate(loadings):
+
+                def _on_point(i: int, n: int, inputs: dict, k: int = k, ld: str = ld) -> None:
+                    beta = inputs.get("transverse_stress_ratio", 0.0)
+                    prog.progress(
+                        (k * n + i) / total,
+                        text=f"{k * n + i}/{total}: {ld}, σy/σx={beta:+.2f}",
+                    )
+
+                cfg = replace(base_cfg, tier=ratio_tier, loading=ld)
+                frames[ld] = sweep_transverse_ratios(
+                    cfg, ratios, on_error="skip", progress_callback=_on_point
+                )
+    except Exception as exc:
+        st.error(f"Sweep failed: {exc}")
+        return
+    prog.empty()
+    df = pd.concat([f.assign(loading=ld) for ld, f in frames.items()], ignore_index=True)
+    df = df[["loading", *[c for c in df.columns if c != "loading"]]]
+    note = _unsupported_tier_note(df, ratio_tier)
+    if note:
+        st.warning(note)
+    failed = df[df["error"].notna() & (df["error"] != "")]
+    if df["knockdown"].isna().all():
+        st.error("Every sweep point failed — check the sidebar configuration and the ratios.")
+        st.dataframe(failed[["loading", "transverse_stress_ratio", "error"]], width="stretch")
+        return
+    if not failed.empty and not note:
+        st.warning(f"⚠ {len(failed)} point(s) failed:")
+        st.dataframe(failed[["loading", "transverse_stress_ratio", "error"]], width="stretch")
+    fig = biaxial_envelope_plot(frames.get("compression"), frames.get("tension"))
+    st.pyplot(fig, width="content")
+    st.caption(
+        "Each point is the failure stress along one load ray σy/σx = β: grey "
+        "the pristine laminate (ply discount), coloured the damaged panel. The "
+        "strength columns are |σx| at failure; σy is signed."
+    )
+    _show_df(df)
+    csv_buf = io.StringIO()
+    df.to_csv(csv_buf, index=False)
+    st.download_button(
+        "Download ratio sweep CSV",
+        data=csv_buf.getvalue(),
+        file_name=f"bvidfe_ratio_sweep_{ratio_tier}.csv",
+        mime="text/csv",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1039,6 +1214,30 @@ with st.sidebar:
         key="loading",
         help="CAI = compression-after-impact, TAI = tension-after-impact.",
     )
+    if "transverse_stress_ratio" not in st.session_state:
+        st.session_state["transverse_stress_ratio"] = 0.0
+    transverse_stress_ratio = st.number_input(
+        "σy/σx (experimental)",
+        min_value=-1.0,
+        max_value=1.0,
+        step=0.1,
+        format="%.2f",
+        key="transverse_stress_ratio",
+        help=(
+            "**Experimental, not validated** biaxial in-plane load: the signed "
+            "ratio β = σy/σx of a proportional load, σy taking the loading's "
+            "sign for β > 0 (compression with β = 1 is equibiaxial compression) "
+            "and the other sign for β < 0. 0 (default) is the uniaxial load. The "
+            "strengths are then |σx| at failure along the load ray. No biaxial "
+            "residual-strength data validate it; a tier without a biaxial model "
+            "yet says so when it runs (`AnalysisConfig.transverse_stress_ratio`)."
+        ),
+    )
+    if transverse_stress_ratio != 0:
+        st.caption(
+            f"σy/σx = {transverse_stress_ratio:+.2f}: experimental, not validated; "
+            "not for allowables."
+        )
 
     mesh_params: MeshParams | None = None
     if tier == "fe3d":
@@ -1106,6 +1305,7 @@ if config_valid:
         impact_event=impact_event,
         damage_state=damage_state,
         mesh_params=mesh_params,
+        transverse_stress_ratio=float(transverse_stress_ratio),
     )
 
 
@@ -1243,6 +1443,16 @@ if run_clicked:
                     # ``st.toast`` is fairly new; never let UX sugar
                     # block a successful analysis from rendering.
                     pass
+            except NotImplementedError as exc:
+                # A tier without a model for this configuration (e.g. a
+                # nonzero sigma_y / sigma_x before the tier supports it).
+                st.session_state["last_result"] = None
+                hint = (
+                    " Change the tier, or set σy/σx to 0, and run again."
+                    if float(transverse_stress_ratio) != 0
+                    else ""
+                )
+                st.error(f"Tier **{tier}** cannot run this configuration yet: {exc}{hint}")
             except Exception as exc:
                 st.session_state["last_result"] = None
                 st.error(f"Analysis failed: {exc}")
@@ -1314,6 +1524,33 @@ with tabs[0]:
                     help="fe3d's damaged over undamaged panel axial modulus, applied to "
                     "the CLT modulus. Unvalidated: no stiffness measurement backs it.",
                 )
+        if result_dict.get("biaxial_interaction_factor") is not None:
+            beta = payload["config"].transverse_stress_ratio
+            st.warning(
+                f"Biaxial load σy/σx = {beta:+.2f}. {BIAXIAL_CAVEAT} The "
+                "strengths above are |σx| at failure along the load ray."
+            )
+            col_p, col_r, col_f = st.columns(3)
+            col_p.metric(
+                "σy at pristine failure",
+                f"{result_dict['pristine_transverse_stress_MPa']:.1f} MPa",
+                help="Signed σy when the pristine laminate fails along the load ray "
+                "(ply-discount envelope). Experimental, not validated.",
+            )
+            col_r.metric(
+                "σy at residual failure",
+                f"{result_dict['residual_transverse_stress_MPa']:.1f} MPa",
+                help="Signed σy when the damaged panel fails along the load ray. "
+                "Experimental, not validated.",
+            )
+            col_f.metric(
+                "Biaxial interaction factor",
+                f"{result_dict['biaxial_interaction_factor']:.3f}",
+                help="Residual strength along this ray over the same damage's "
+                "uniaxial residual strength (1 = the lateral stress has no effect, "
+                "below 1 = it costs strength, above 1 = it adds strength). "
+                "Experimental, not validated.",
+            )
         st.text(payload["summary_text"])
         if payload["notes"]:
             st.warning("Runtime notes:\n\n" + "\n\n".join(payload["notes"]))
@@ -1389,6 +1626,9 @@ with tabs[2]:
             try:
                 with st.spinner(f"Computing {curve_tier} knockdown sweep…"):
                     df = _sweep_cached(payload["config_dict"], curve_tier, sweep_E)
+                note = _unsupported_tier_note(df, curve_tier)
+                if note:
+                    st.warning(note)
                 ok = df.dropna(subset=["knockdown"])
                 fig = plot_knockdown_curve(
                     ok["energy_J"].tolist(),
@@ -1511,9 +1751,23 @@ with tabs[5]:
 # --- Sweep tab ------------------------------------------------------------
 
 with tabs[6]:
-    st.subheader("Parametric energy sweep")
+    st.subheader("Parametric sweep")
+    sweep_kind = st.radio(
+        "Sweep over",
+        [SWEEP_ENERGY, SWEEP_RATIO],
+        horizontal=True,
+        key="sweep_kind",
+        help=(
+            "**Impact energy** — knockdown against energy at the sidebar's "
+            "σy/σx.\n\n**σy/σx ratio** — the biaxial failure envelope: the "
+            "pristine and damaged (σx, σy) failure points over a list of "
+            "ratios, at the sidebar's damage. Experimental, not validated."
+        ),
+    )
     if not config_valid or config_dict is None:
         st.info("Fix the sidebar inputs before running a sweep.")
+    elif sweep_kind == SWEEP_RATIO:
+        _ratio_sweep_section(config_dict)
     elif input_mode != "Impact event":
         st.info("Energy sweeps require **Impact event** mode in the sidebar.")
     else:
@@ -1593,6 +1847,9 @@ with tabs[6]:
                         failed_df = df[df["error"].notna() & (df["error"] != "")]
                     else:  # defensive — schema is fixed by parametric_sweep
                         failed_df = df.loc[df["knockdown"].isna()]
+                    note = _unsupported_tier_note(df, sweep_tier)
+                    if note:
+                        st.warning(note)
                     if df["knockdown"].isna().all():
                         st.error(
                             "Every sweep point failed — check the sidebar "

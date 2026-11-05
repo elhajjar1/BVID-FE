@@ -18,6 +18,11 @@ design damage-tolerance value for the barely-visible dent depth, not a
 requirement. A program must replace both with its own damage-tolerance
 substantiation, and a qualified MRB issues the disposition: the output is
 always marked as proposed and requiring review.
+
+A biaxial analysis (``AnalysisConfig.transverse_stress_ratio`` != 0,
+experimental and not validated, issue #115) is recorded as such: the NCR
+gives the ratio and the sigma_y at failure, and the recommendation carries
+a flag that its knockdown is not validated.
 """
 
 from __future__ import annotations
@@ -117,6 +122,14 @@ def recommend_disposition(
             f"{n_delam} delamination(s) modelled — assess sublaminate "
             "stability and growth under spectrum/limit load."
         )
+    if result_dict.get("biaxial_interaction_factor") is not None:
+        ratio = result_dict.get("config_snapshot", {}).get("transverse_stress_ratio")
+        ratio_txt = "" if ratio is None else f" σy/σx = {float(ratio):+.2f}"
+        flags.append(
+            f"Biaxial load{ratio_txt} — EXPERIMENTAL, NOT VALIDATED: no biaxial "
+            "residual-strength data back this knockdown; substantiate it by test "
+            "or a validated analysis before relying on it."
+        )
 
     if fbr > 0.0:
         path = "Repair"
@@ -212,6 +225,9 @@ def build_ncr(
             "dent_depth_mm": result_dict["damage"]["dent_depth_mm"],
             "fiber_break_radius_mm": result_dict["damage"]["fiber_break_radius_mm"],
             "n_delaminations": len(result_dict["damage"]["delaminations"]),
+            "pristine_transverse_stress_MPa": result_dict.get("pristine_transverse_stress_MPa"),
+            "residual_transverse_stress_MPa": result_dict.get("residual_transverse_stress_MPa"),
+            "biaxial_interaction_factor": result_dict.get("biaxial_interaction_factor"),
             "notes": list(result_dict.get("notes", [])),
             "warnings": list(result_dict.get("warnings", [])),
         }
@@ -240,6 +256,8 @@ def build_ncr(
             "panel_Lx_mm": cfg.panel.Lx_mm,
             "panel_Ly_mm": cfg.panel.Ly_mm,
             "panel_boundary": cfg.panel.boundary,
+            "loading": cfg.loading,
+            "transverse_stress_ratio": cfg.transverse_stress_ratio,
         },
         "engineering_analysis": analysis,
         "proposed_disposition": rec,
@@ -283,6 +301,11 @@ def build_ncr(
     lines.append(f"- **Layup:** {layup_str} ({len(cfg.layup_deg)} plies)")
     lines.append(f"- **Ply thickness:** {_format_ply_thickness(cfg.ply_thickness_mm)}")
     lines.append(f"- **Panel:** {cfg.panel.Lx_mm:g} × {cfg.panel.Ly_mm:g} mm, {cfg.panel.boundary}")
+    if cfg.transverse_stress_ratio != 0:
+        lines.append(
+            f"- **Biaxial load:** σy/σx = {cfg.transverse_stress_ratio:+.2f} "
+            f"({cfg.loading}) — experimental, not validated"
+        )
     lines.append("")
     lines.append("## 4. Engineering analysis (BVID-FE)")
     lines.append("")
@@ -302,6 +325,16 @@ def build_ncr(
         lines.append(f"- **Dent depth:** {analysis['dent_depth_mm']:.3f} mm")
         lines.append(f"- **Fiber-break radius:** {analysis['fiber_break_radius_mm']:.2f} mm")
         lines.append(f"- **Delaminations modelled:** {analysis['n_delaminations']}")
+        if analysis["biaxial_interaction_factor"] is not None:
+            lines.append(
+                f"- **σy at failure (experimental):** "
+                f"{analysis['pristine_transverse_stress_MPa']:.1f} MPa pristine, "
+                f"{analysis['residual_transverse_stress_MPa']:.1f} MPa residual"
+            )
+            lines.append(
+                f"- **Biaxial interaction factor (experimental):** "
+                f"{analysis['biaxial_interaction_factor']:.3f}"
+            )
         if analysis["notes"]:
             lines.append("- **Runtime notes:**")
             for n in analysis["notes"]:
