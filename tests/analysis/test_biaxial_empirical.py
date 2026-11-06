@@ -1,10 +1,10 @@
-"""Biaxial loading in the empirical tier (issue #115, PR 1), and the
-``NotImplementedError`` of the tiers that do not model it yet."""
+"""Biaxial loading in the empirical tier (issue #115, PR 1); the
+semi_analytical tier is in test_biaxial_semi_analytical.py, fe3d in
+test_fe3d_biaxial.py."""
 
 from __future__ import annotations
 
 import math
-import time
 
 import pytest
 
@@ -184,27 +184,6 @@ def test_fibre_damage_tai_needs_the_laminate_for_a_ratio():
         fibre_damage_tai(_IM7, damage, 1.0, 3.0, 100.0, transverse_stress_ratio=0.5)
 
 
-@pytest.mark.parametrize("tier", ["semi_analytical", "fe3d"])
-@pytest.mark.parametrize("loading", ["compression", "tension"])
-def test_tiers_without_a_biaxial_model_refuse_a_ratio(tier, loading, monkeypatch):
-    """No silent uniaxial fallback; the message names the follow-up PR. It
-    is raised before any fe3d solve."""
-
-    def no_solve(*a, **k):
-        raise AssertionError("fe3d solved")
-
-    monkeypatch.setattr(fe_tier, "solve_linear_static", no_solve)
-    cfg = _cfg(loading, 0.5, tier=tier, mesh=MeshParams(in_plane_size_mm=10.0))
-    t0 = time.perf_counter()
-    with pytest.raises(NotImplementedError) as exc:
-        _run(cfg)
-    assert time.perf_counter() - t0 < 5.0
-    msg = str(exc.value)
-    assert f"tier={tier!r}" in msg and "#115" in msg
-    assert ("PR 2" if tier == "semi_analytical" else "PR 3") in msg
-    assert "tier='empirical'" in msg
-
-
 @pytest.mark.parametrize(
     "call",
     [
@@ -214,15 +193,17 @@ def test_tiers_without_a_biaxial_model_refuse_a_ratio(tier, loading, monkeypatch
         lambda c, d, lam: fe_tier.tai_fibre_damage_hole(c, d, lam),
     ],
 )
-def test_fe3d_entry_points_refuse_a_ratio_too(call):
+def test_fe3d_entry_points_take_a_ratio(call):
+    """Every tier models biaxial loading since PR 3 of #115 (fe3d: see
+    tests/analysis/test_fe3d_biaxial.py); the fe3d entry points no longer
+    refuse a ratio."""
     cfg = _cfg("compression", -0.3, tier="fe3d", mesh=MeshParams(in_plane_size_mm=10.0))
     damage = DamageState([DelaminationEllipse(2, (75.0, 50.0), 20.0, 12.0, 0.0)])
-    with pytest.raises(NotImplementedError, match="#115"):
-        call(cfg, damage, Laminate(_IM7, QI8, 0.152))
+    assert call(cfg, damage, Laminate(_IM7, QI8, 0.152)) is not None
 
 
 @pytest.mark.parametrize("tier", ["semi_analytical", "fe3d"])
-def test_tiers_without_a_biaxial_model_run_at_zero_ratio(tier):
+def test_other_tiers_run_at_zero_ratio(tier):
     cfg = _cfg("compression", 0.0, 5.0, tier=tier, mesh=MeshParams(in_plane_size_mm=10.0))
     r = _run(cfg)
     assert 0 < r.knockdown <= 1 and r.biaxial_interaction_factor is None

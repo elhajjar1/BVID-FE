@@ -636,3 +636,167 @@ def test_stage_handler_updates_the_label_live_for_its_own_thread_only(monkeypatc
         "mesh build start",
         "solve done: direct LU (0.05s)",
     ]
+
+
+# ---------------------------------------------------------------------------
+# Biaxial loading: the sigma_y / sigma_x input, URL key ``tr``, Summary,
+# ratio sweep and NCR (issue #115)
+# ---------------------------------------------------------------------------
+
+
+def _fake_unsupported_tier(monkeypatch, tier: str) -> None:
+    """Make ``tier`` raise ``NotImplementedError`` at a nonzero ratio, as a
+    tier without a biaxial model does, whichever tiers support it today."""
+    from bvidfe.analysis import BvidAnalysis
+
+    real = BvidAnalysis.run
+
+    def _run(self):
+        if self.config.tier == tier and self.config.transverse_stress_ratio != 0:
+            raise NotImplementedError(f"transverse_stress_ratio != 0 is not supported by {tier}")
+        return real(self)
+
+    monkeypatch.setattr(BvidAnalysis, "run", _run)
+    streamlit.cache_data.clear()
+
+
+def _sweep_tab_select_ratio(at):
+    at.radio(key="sweep_kind").set_value("σy/σx ratio (experimental)").run()
+    _no_exception(at)
+    return at
+
+
+def _run_ratio_sweep(at):
+    (button,) = [b for b in at.button if b.label == "Run ratio sweep"]
+    return button.click().run()
+
+
+def test_default_ratio_is_zero_and_the_app_is_unchanged(_no_stats) -> None:
+    """With the default 0: no ``tr`` in the URL, a uniaxial run, no biaxial
+    metrics or caveat, and an NCR without a biaxial line."""
+    at = _app_test()
+    _no_exception(at)
+    widget = at.number_input(key="transverse_stress_ratio")
+    assert widget.label == "σy/σx (experimental)"
+    assert (widget.value, widget.min, widget.max) == (0.0, -1.0, 1.0)
+    assert "tr" not in at.query_params
+    at = _run_analysis(at)
+    _no_exception(at)
+    payload = at.session_state["last_result"]
+    assert payload["config"].transverse_stress_ratio == 0.0
+    assert payload["result_dict"]["biaxial_interaction_factor"] is None
+    labels = {m.label for m in at.metric}
+    assert "Biaxial interaction factor" not in labels
+    assert not [w.value for w in at.warning if "Biaxial" in w.value]
+    ncr_md = [md.value for md in at.markdown if "Nonconformance Report" in md.value]
+    assert ncr_md and "Biaxial" not in ncr_md[0]
+
+
+def test_url_tr_runs_a_biaxial_analysis_and_round_trips(_no_stats) -> None:
+    from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+
+    at = _app_test({"tr": "0.5", "ld": "tension"})
+    _no_exception(at)
+    assert not [w.value for w in at.warning if "shared link" in w.value]
+    assert at.number_input(key="transverse_stress_ratio").value == 0.5
+    assert at.query_params["tr"] == "0.5"
+    assert any("experimental, not validated" in c.value for c in at.caption)
+    at = _run_analysis(at)
+    _no_exception(at)
+    payload = at.session_state["last_result"]
+    cfg = payload["config"]
+    assert (cfg.transverse_stress_ratio, cfg.loading) == (0.5, "tension")
+    assert payload["config_dict"]["transverse_stress_ratio"] == 0.5
+    expected = BvidAnalysis(AnalysisConfig.from_dict(payload["config_dict"])).run()
+    metrics = {m.label: m.value for m in at.metric}
+    assert metrics["σy at pristine failure"] == (
+        f"{expected.pristine_transverse_stress_MPa:.1f} MPa"
+    )
+    assert metrics["σy at residual failure"] == (
+        f"{expected.residual_transverse_stress_MPa:.1f} MPa"
+    )
+    assert metrics["Biaxial interaction factor"] == f"{expected.biaxial_interaction_factor:.3f}"
+    assert any("σy/σx = +0.50" in w.value and "not validated" in w.value for w in at.warning)
+    # The NCR export records the ratio and flags it.
+    ncr_md = [md.value for md in at.markdown if "Nonconformance Report" in md.value]
+    assert ncr_md and "σy/σx = +0.50 (tension)" in ncr_md[0]
+    assert "NOT VALIDATED" in ncr_md[0]
+
+
+@pytest.mark.parametrize("value", ["1.5", "-2", "nan", "abc"])
+def test_url_tr_out_of_range_is_dropped(_no_stats, value) -> None:
+    at = _app_test({"tr": value})
+    _no_exception(at)
+    assert any(f"tr={value}" in w.value for w in at.warning), [w.value for w in at.warning]
+    assert at.number_input(key="transverse_stress_ratio").value == 0.0
+    assert "tr" not in at.query_params
+
+
+def test_preset_resets_the_ratio(_no_stats) -> None:
+    at = _app_test({"tr": "-0.5"})
+    at.selectbox(key="preset_choice").set_value("Empirical quick (IM7/8552 quasi-iso, 20 J)").run()
+    _no_exception(at)
+    assert at.number_input(key="transverse_stress_ratio").value == 0.0
+
+
+def test_unsupported_tier_shows_a_message_not_a_traceback(_no_stats, monkeypatch) -> None:
+    _fake_unsupported_tier(monkeypatch, "semi_analytical")
+    at = _run_analysis(_app_test({"tr": "0.5", "t": "semi_analytical"}))
+    _no_exception(at)
+    assert at.session_state["last_result"] is None
+    (err,) = [e.value for e in at.error if "cannot run this configuration" in e.value]
+    assert "semi_analytical" in err and "set σy/σx to 0" in err
+
+
+def test_ratio_sweep_tab_draws_the_envelope(_no_stats) -> None:
+    at = _sweep_tab_select_ratio(_app_test())
+    assert any("not validated" in w.value for w in at.warning)
+    at.text_input(key="ratio_sweep_text").set_value("-1, 0, 0.5").run()
+    at = _run_ratio_sweep(at)
+    _no_exception(at)
+    assert not at.error, [e.value for e in at.error]
+    tables = [d.value for d in at.dataframe if "transverse_stress_ratio" in d.value.columns]
+    assert tables, "no ratio-sweep table rendered"
+    df = tables[0]
+    assert df["loading"].tolist() == ["compression"] * 3 + ["tension"] * 3
+    assert df["transverse_stress_ratio"].tolist() == [-1.0, 0.0, 0.5] * 2
+    assert df["error"].isna().all()
+    assert {"residual_sigma_y_MPa", "pristine_sigma_y_MPa", "biaxial_interaction_factor"} <= set(
+        df.columns
+    )
+
+
+def test_ratio_sweep_rejects_bad_ratios(_no_stats) -> None:
+    at = _sweep_tab_select_ratio(_app_test())
+    at.text_input(key="ratio_sweep_text").set_value("0, 1.5").run()
+    at = _run_ratio_sweep(at)
+    _no_exception(at)
+    assert any("Invalid ratios" in e.value and "between -1 and 1" in e.value for e in at.error)
+
+
+def test_ratio_sweep_on_an_unsupported_tier_says_so(_no_stats, monkeypatch) -> None:
+    _fake_unsupported_tier(monkeypatch, "semi_analytical")
+    at = _sweep_tab_select_ratio(_app_test())
+    at.selectbox(key="ratio_sweep_tier").set_value("semi_analytical").run()
+    at.checkbox(key="ratio_sweep_both").uncheck().run()
+    at = _run_ratio_sweep(at)
+    _no_exception(at)
+    assert any(
+        "semi_analytical" in w.value and "cannot run 4 of these point(s)" in w.value
+        for w in at.warning
+    ), [w.value for w in at.warning]
+    tables = [d.value for d in at.dataframe if "transverse_stress_ratio" in d.value.columns]
+    df = tables[0]
+    assert df.loc[df["transverse_stress_ratio"] == 0.0, "error"].isna().all()
+    assert df.loc[df["transverse_stress_ratio"] != 0.0, "error"].notna().all()
+
+
+def test_ratio_sweep_does_not_need_impact_mode(_no_stats) -> None:
+    """The energy sweep needs Impact event mode, the ratio sweep only a
+    complete config: with C-scan mode and no file it asks for the inputs."""
+    at = _app_test()
+    at.radio(key="input_mode").set_value("C-scan inspection").run()
+    _no_exception(at)
+    at = _sweep_tab_select_ratio(at)
+    assert any("Fix the sidebar inputs" in i.value for i in at.info)
+    assert not any("require **Impact event** mode" in i.value for i in at.info)

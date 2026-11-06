@@ -25,6 +25,9 @@ import math
 import pytest
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.analysis.semi_analytical import weakest_sublaminate_growth
+from bvidfe.core.laminate import Laminate
+from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.damage.state import DamageState
 from bvidfe.impact.mapping import ImpactEvent
@@ -101,3 +104,72 @@ def test_residual_never_exceeds_pristine():
     for tier in ("empirical", "semi_analytical"):
         r = _run(tier)
         assert r.residual_strength_MPa <= r.pristine_strength_MPa + 1e-6
+
+
+# --- biaxial load (issue #115) ---------------------------------------------
+
+
+def _run_biaxial(tier: str, loading: str, beta: float, layup=None):
+    kw = _base_kwargs(loading)
+    if layup is not None:
+        kw["layup_deg"] = layup
+    return BvidAnalysis(AnalysisConfig(tier=tier, transverse_stress_ratio=beta, **kw)).run()
+
+
+@pytest.mark.parametrize("layup", [None, [0, 90, 0, 90, 90, 0, 90, 0]])
+@pytest.mark.parametrize("loading", ["compression", "tension"])
+@pytest.mark.parametrize("beta", [-1.0, -0.5, 0.5, 1.0])
+def test_biaxial_semi_analytical_le_empirical(layup, loading, beta):
+    """Along every load ray the two closed-form tiers share the pristine
+    strength, and semi_analytical takes the lower of the empirical tier's
+    result (homothetic Soutis in compression, the hole model with F(beta) in
+    tension) and the biaxial growth stress, so it is never above it. Under
+    biaxial tension (beta > 0) no film is compressed and the two are
+    equal."""
+    e = _run_biaxial("empirical", loading, beta, layup)
+    s = _run_biaxial("semi_analytical", loading, beta, layup)
+    assert e.pristine_strength_MPa == s.pristine_strength_MPa
+    assert s.knockdown <= e.knockdown + 1e-12
+    if loading == "tension" and beta > 0:
+        assert s.knockdown == e.knockdown
+    assert 0.0 < s.knockdown <= 1.0
+
+
+@pytest.mark.parametrize(
+    ("loading", "beta"), [("compression", -1.0), ("tension", -1.0), ("tension", 0.5)]
+)
+def test_biaxial_fe3d_shares_pristine_and_growth_with_semi_analytical(loading, beta):
+    """fe3d at a nonzero ratio (10 mm mesh, to stay fast): the pristine
+    envelope point is every tier's, and its growth channel is
+    semi_analytical's biaxial growth stress, on the same interface, so its
+    residual is never above that growth stress."""
+    from bvidfe.analysis import MeshParams
+
+    kw = _base_kwargs(loading)
+    s = BvidAnalysis(
+        AnalysisConfig(tier="semi_analytical", transverse_stress_ratio=beta, **kw)
+    ).run()
+    f = BvidAnalysis(
+        AnalysisConfig(
+            tier="fe3d",
+            transverse_stress_ratio=beta,
+            mesh=MeshParams(in_plane_size_mm=10.0),
+            **kw,
+        )
+    ).run()
+    assert f.pristine_strength_MPa == s.pristine_strength_MPa
+    assert f.critical_sublaminate == s.critical_sublaminate
+    growth = weakest_sublaminate_growth(
+        Laminate(MATERIAL_LIBRARY["IM7/8552"], kw["layup_deg"], 0.152),
+        f.damage,
+        loading=loading,
+        transverse_stress_ratio=beta,
+    )
+    assert growth is not None
+    if loading == "tension" and beta > 0:
+        assert f.critical_sublaminate is None and math.isinf(growth.growth_stress_MPa)
+    else:
+        assert f.critical_sublaminate == growth.interface_index
+        assert f.residual_strength_MPa <= growth.growth_stress_MPa
+        assert f"grows at {growth.growth_stress_MPa:.1f} MPa" in " ".join(f.notes)
+    assert 0.0 < f.knockdown <= 1.0

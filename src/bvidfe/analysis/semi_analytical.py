@@ -36,6 +36,24 @@ delaminated interfaces (:func:`weakest_sublaminate_growth`).
 :func:`semi_analytical_cai` takes the lower of that and the Soutis bound
 of the empirical tier. In tension (:func:`semi_analytical_tai`) the tier
 is the empirical fibre-damage open-hole model unchanged.
+
+Biaxial loading (``transverse_stress_ratio = beta != 0``, issue #115;
+experimental and not validated): the laminate is loaded along the ray
+``(sigma_x, sigma_y) = lambda (s, s beta)``. The film takes the laminate's
+strain; its compression along x is the x-row of ``A_sub a* (s, s beta, 0)
+/ h`` and along y the y-row of ``A_sub a* (0, s beta, 0) / h`` (the
+y-stress of the applied ``sigma_y`` only: the Poisson-mismatch y-stress of
+``sigma_x`` and the film shear stay out, as at the uniaxial load; Option A
+of the #115 design). That biaxial film prestress enters the clamped-ellipse
+onset Ritz, the post-buckled film and the whole-panel Ritz, so at a fixed
+axial film stress lateral compression lowers the growth load and lateral
+tension raises it (a lateral laminate tension also raises the film's axial
+stress, by Poisson's effect); a film in tension along both axes does not
+buckle. Under ``loading="tension"`` a
+laterally compressed film (``beta < 0``) can buckle and grow, and
+:func:`semi_analytical_tai` takes the lower of the hole model and that
+growth stress. At ``beta == 0`` (and ``loading="compression"`` for the
+growth functions) every function runs its uniaxial code unchanged.
 """
 
 from __future__ import annotations
@@ -44,14 +62,14 @@ import functools
 import math
 import warnings
 from dataclasses import dataclass
-from typing import Optional, Sequence, Union
+from typing import Callable, Optional, Sequence, Union
 
 import numpy as np
 import scipy.linalg
 from numpy.polynomial import legendre
 
-from bvidfe._types import BoundaryKind
-from bvidfe._validation import require_choice
+from bvidfe._types import _LOADING_MODES, BoundaryKind, LoadingMode
+from bvidfe._validation import require_choice, require_finite
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import OrthotropicMaterial
 from bvidfe.damage.state import DamageState, DelaminationEllipse
@@ -82,11 +100,16 @@ class SemiAnalyticalResult:
         Sublaminate buckling force per unit width (N/mm) at the critical
         interface. ``None`` when there is no damage or when the buckling
         sublaminate is degenerate (zero plies).
+    growth : SublaminateGrowth | None
+        The weakest delamination's growth on a biaxial run
+        (``transverse_stress_ratio != 0``, issue #115), for its film axis
+        and ratio; ``None`` at the uniaxial load and when nothing grows.
     """
 
     residual_strength_MPa: float
     critical_interface_index: int | None = None
     critical_buckling_load_N: float | None = None
+    growth: Optional["SublaminateGrowth"] = None
 
 
 # Whole-panel buckling coefficient multiplier on the simply supported
@@ -156,6 +179,17 @@ class SublaminateGrowth:
         The semi-axis of the ellipse whose growth releases ``G_c`` first:
         ``"major"`` (``major_mm``, along ``orientation_deg``) or
         ``"minor"``. ``None`` when the sublaminate is degenerate.
+    film_stress_axis : str
+        The panel axis (``"x"`` or ``"y"``) along which the film is more
+        compressed, and along which ``buckling_load_N_per_mm`` and the two
+        film stresses are measured. ``"x"`` at the uniaxial load; ``"y"``
+        only under a biaxial load (``transverse_stress_ratio != 0``) that
+        compresses the film more along y, e.g. axial tension with lateral
+        compression.
+    film_stress_ratio : float
+        The film's compressive stress along the other panel axis over that
+        along ``film_stress_axis`` (at most 1; negative when the other
+        axis is in tension). ``0.0`` at the uniaxial load.
     """
 
     interface_index: int
@@ -164,6 +198,8 @@ class SublaminateGrowth:
     film_growth_stress_MPa: float
     growth_stress_MPa: float
     growth_axis: Optional[str] = None
+    film_stress_axis: str = "x"
+    film_stress_ratio: float = 0.0
 
 
 def mixed_mode_toughness(material: OrthotropicMaterial) -> float:
@@ -196,6 +232,9 @@ def sublaminate_buckling_load(
     lam: Laminate,
     ellipse: DelaminationEllipse,
     boundary: BoundaryKind = "simply_supported",
+    *,
+    loading: LoadingMode = "compression",
+    transverse_stress_ratio: float = 0.0,
 ) -> float:
     """Critical buckling force per unit width N_cr (N/mm) for the thinner
     sublaminate at the given delamination interface.
@@ -241,6 +280,18 @@ def sublaminate_buckling_load(
         One of ``"simply_supported"``, ``"clamped"``, ``"free"``; any other
         value raises ``ValueError``. Does not change the result (see
         above).
+    loading, transverse_stress_ratio
+        The far-field load ray ``(sigma_x, sigma_y) = lambda (s, s beta)``,
+        ``s = -1`` for ``"compression"`` and ``+1`` for ``"tension"``
+        (keyword only; experimental for ``beta != 0``, issue #115). The
+        default, uniaxial compression, is the load above, computed by the
+        unchanged code. Otherwise the film is under the biaxial
+        compression of :func:`_film_compression_per_unit_load` (both
+        axes in the Ritz geometric stiffness), and the result is the
+        film's compressive force per unit width along the panel axis it
+        is more compressed along (``SublaminateGrowth.film_stress_axis``)
+        at buckling; ``inf`` when the film is in tension along both axes
+        (e.g. under uniaxial or biaxial tension).
 
     The ellipse aspect ratio (longer over shorter semi-axis) is clipped to
     ``_MAX_SUBLAMINATE_ASPECT`` (10), the domain the Ritz basis is
@@ -263,7 +314,88 @@ def sublaminate_buckling_load(
     if film is None:
         return float("inf")
     D_star, _, a, b, (n_xx, n_yy, n_xy) = film
-    return _clamped_ellipse_load_factor(D_star, a, b, n_xx, n_yy, n_xy)
+    if _is_uniaxial_compression(loading, transverse_stress_ratio):
+        return _clamped_ellipse_load_factor(D_star, a, b, n_xx, n_yy, n_xy)
+    load = _biaxial_film_load(
+        _film_compression_per_unit_load(
+            lam, ellipse.interface_index, loading, transverse_stress_ratio
+        ),
+        (n_xx, n_yy, n_xy),
+    )
+    if load is None:
+        return float("inf")
+    return _clamped_ellipse_load_factor(D_star, a, b, *load.unit)
+
+
+def _is_uniaxial_compression(loading: str, transverse_stress_ratio: float) -> bool:
+    """``True`` for the uniaxial compression every function computed before
+    biaxial loading (#115), which then runs its unchanged code; validates
+    both arguments."""
+    require_choice(loading, _LOADING_MODES, "loading")
+    require_finite(transverse_stress_ratio, "transverse_stress_ratio")
+    return loading == "compression" and transverse_stress_ratio == 0
+
+
+def _film_compression_per_unit_load(
+    lam: Laminate, interface_index: int, loading: str, transverse_stress_ratio: float
+) -> tuple[float, float]:
+    """Compressive stress (MPa) of the thinner sublaminate at
+    ``interface_index`` along the panel's x and y axes per MPa of
+    ``|sigma_x|`` on the load ray ``(s, s beta, 0)`` (Option A of the #115
+    design). Film and laminate share the laminate's strain ``a* (s, s beta,
+    0)`` (``a* = h A^-1``, 1/MPa): the x-stress is the x-row of ``A_sub``
+    times that strain over ``h_sub``, as at the uniaxial load (where it is
+    ``k``); the y-stress is the y-row of ``A_sub`` times the strain of the
+    applied ``sigma_y`` alone. The Poisson-mismatch y-stress of ``sigma_x``
+    and the film shear are left out, as at the uniaxial load, so that
+    ``beta -> 0`` tends to the uniaxial film load (Option B, the full film
+    stress, would change uniaxial results by up to 1.7%)."""
+    sub_layup, sub_thicknesses = _thinner_sublaminate(lam, interface_index)
+    h = float(sum(sub_thicknesses))
+    s = 1.0 if loading == "tension" else -1.0
+    A_lam, _, _ = lam.abd_matrices()
+    a_star = np.linalg.solve(A_lam, np.eye(3)) * lam.thickness_mm  # 1/MPa
+    A_sub, _, _ = Laminate(lam.material, sub_layup, sub_thicknesses).abd_matrices()
+    strain = a_star @ np.array([s, s * transverse_stress_ratio, 0.0])
+    lateral_strain = a_star @ np.array([0.0, s * transverse_stress_ratio, 0.0])
+    return -float(A_sub[0] @ strain) / h, -float(A_sub[1] @ lateral_strain) / h
+
+
+@dataclass(frozen=True)
+class _BiaxialFilmLoad:
+    """The film load of :func:`_biaxial_film_load`: the panel axis the film
+    is more compressed along, its compressive stress per MPa of
+    ``|sigma_x|`` along that axis (``k > 0``), the compression along the
+    other axis over ``k``, and the unit film load in the ellipse's frame
+    (compression positive, 1 along ``axis``)."""
+
+    axis: str
+    k: float
+    ratio: float
+    unit: tuple[float, float, float]
+
+
+def _biaxial_film_load(
+    compression_xy: tuple[float, float], x_unit: tuple[float, float, float]
+) -> Optional[_BiaxialFilmLoad]:
+    """The film load for the compressive film stresses ``compression_xy``
+    along the panel's x and y per MPa of ``|sigma_x|``
+    (:func:`_film_compression_per_unit_load`), with ``x_unit`` the unit
+    compression along x in the ellipse's frame (from
+    :func:`_sublaminate_film`). ``None`` when the film is not in
+    compression along either axis: it cannot buckle."""
+    c_x, c_y = compression_xy
+    axis = "x" if c_x >= c_y else "y"
+    k, other = (c_x, c_y) if axis == "x" else (c_y, c_x)
+    if not (math.isfinite(k) and math.isfinite(other) and k > 0):
+        return None
+    ratio = other / k
+    n_xx, n_yy, n_xy = x_unit
+    # Compression along y in the ellipse's frame: y = (sin t, cos t).
+    y_unit = (n_yy, n_xx, -n_xy)
+    main, side = (x_unit, y_unit) if axis == "x" else (y_unit, x_unit)
+    unit = (main[0] + ratio * side[0], main[1] + ratio * side[1], main[2] + ratio * side[2])
+    return _BiaxialFilmLoad(axis, k, ratio, unit)
 
 
 def _sublaminate_film(
@@ -496,11 +628,49 @@ def _ssss_ritz_N_cr(D: np.ndarray, a: float, b: float) -> float:
     12.20 MPa). The x basis grows with the Navier half-wave count
     ``(a/b) (D22/D11)^(1/4)``.
     """
-    D11, D22, D12, D66, D16, D26 = D[0, 0], D[1, 1], D[0, 1], D[2, 2], D[0, 2], D[1, 2]
+    D11, D22 = D[0, 0], D[1, 1]
     half_waves = (a / b) * (D22 / D11) ** 0.25
     n_x = min(_PANEL_MAX_TERMS, _PANEL_BASE_TERMS + 3 * math.ceil(half_waves))
-    Jx = _ss_beam_integrals(n_x)
-    Jy = _ss_beam_integrals(_PANEL_BASE_TERMS)
+    K, Ix, Iy = _ssss_ritz_matrices(D, a, b, n_x, _PANEL_BASE_TERMS)
+    G = np.kron(Ix(1, 1), Iy(0, 0))
+    n = K.shape[0]
+    mu = scipy.linalg.eigh(G, K, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0]
+    return float(1.0 / mu) if mu > 0 else float("inf")
+
+
+def _ssss_ritz_load_factor(D: np.ndarray, a: float, b: float, n_x: float, n_y: float) -> float:
+    """Rayleigh-Ritz buckling load factor of the simply supported ``a`` x
+    ``b`` rectangle of :func:`_ssss_ritz_N_cr` under the biaxial
+    compression ``lambda (n_x, n_y)`` (N/mm, compression positive, either
+    may be negative): the lowest ``lambda``, ``inf`` when the plate is in
+    tension along both axes. Each basis grows with the Navier half-wave
+    count along its axis when that axis is compressed. With D16 = D26 = 0
+    it is the biaxial Navier value ``min over m, n of pi^2 [D11 m^4 / a^4
+    + 2 (D12 + 2 D66) m^2 n^2 / (a^2 b^2) + D22 n^4 / b^4] / (n_x m^2 /
+    a^2 + n_y n^2 / b^2)`` over the positive denominators (Timoshenko &
+    Gere §9.2; isotropic square under equibiaxial compression
+    ``2 pi^2 D / a^2``)."""
+    D11, D22 = D[0, 0], D[1, 1]
+    half_waves_x = (a / b) * (D22 / D11) ** 0.25 if n_x > 0 else 0.0
+    half_waves_y = (b / a) * (D11 / D22) ** 0.25 if n_y > 0 else 0.0
+    terms_x = min(_PANEL_MAX_TERMS, _PANEL_BASE_TERMS + 3 * math.ceil(half_waves_x))
+    terms_y = min(_PANEL_MAX_TERMS, _PANEL_BASE_TERMS + 3 * math.ceil(half_waves_y))
+    K, Ix, Iy = _ssss_ritz_matrices(D, a, b, terms_x, terms_y)
+    G = n_x * np.kron(Ix(1, 1), Iy(0, 0)) + n_y * np.kron(Ix(0, 0), Iy(1, 1))
+    n = K.shape[0]
+    mu = scipy.linalg.eigh(G, K, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0]
+    return float(1.0 / mu) if mu > 0 else float("inf")
+
+
+def _ssss_ritz_matrices(
+    D: np.ndarray, a: float, b: float, terms_x: int, terms_y: int
+) -> tuple[np.ndarray, Callable[[int, int], np.ndarray], Callable[[int, int], np.ndarray]]:
+    """Bending stiffness matrix of the simply supported rectangle's Ritz
+    basis (``terms_x`` x ``terms_y`` functions) and its 1D integral
+    tables ``Ix(r, t)``, ``Iy(r, t)`` in mm."""
+    D11, D22, D12, D66, D16, D26 = D[0, 0], D[1, 1], D[0, 1], D[2, 2], D[0, 2], D[1, 2]
+    Jx = _ss_beam_integrals(terms_x)
+    Jy = _ss_beam_integrals(terms_y)
 
     def Ix(r: int, t: int) -> np.ndarray:
         # dx = (a/2) ds and d/dx = (2/a) d/ds.
@@ -518,10 +688,7 @@ def _ssss_ritz_N_cr(D: np.ndarray, a: float, b: float) -> float:
         + 2.0 * D16 * (k(Ix(2, 1), Iy(0, 1)) + k(Ix(1, 2), Iy(1, 0)))
         + 2.0 * D26 * (k(Ix(0, 1), Iy(2, 1)) + k(Ix(1, 0), Iy(1, 2)))
     )
-    G = k(Ix(1, 1), Iy(0, 0))
-    n = K.shape[0]
-    mu = scipy.linalg.eigh(G, K, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0]
-    return float(1.0 / mu) if mu > 0 else float("inf")
+    return K, Ix, Iy
 
 
 def panel_buckling_load(
@@ -529,6 +696,9 @@ def panel_buckling_load(
     Lx_mm: float,
     Ly_mm: float,
     boundary: BoundaryKind = "simply_supported",
+    *,
+    loading: LoadingMode = "compression",
+    transverse_stress_ratio: float = 0.0,
 ) -> float:
     """Full-panel buckling force per unit width N_cr (N/mm) for the intact
     laminate under uniaxial compression along x.
@@ -543,13 +713,27 @@ def panel_buckling_load(
 
     The load direction is fixed at +x (the compression axis); a/b > 1 simply
     means the panel is longer along the load direction than wide.
+
+    ``loading`` and ``transverse_stress_ratio`` (keyword only;
+    experimental for ``beta != 0``, issue #115) set the load ray
+    ``(sigma_x, sigma_y) = lambda (s, s beta)``, ``s = -1`` for
+    ``"compression"``. The default is the uniaxial compression above,
+    computed by the unchanged code; otherwise the result is ``|N_x|`` at
+    buckling along the ray (:func:`_ssss_ritz_load_factor`; ``inf`` when
+    the panel is in tension along both axes), times the same boundary
+    factor, a uniaxial ratio that is only an approximation for a biaxial
+    load (and a free edge carrying ``sigma_y`` is not a free edge).
     """
     if Lx_mm <= 0 or Ly_mm <= 0:
         return float("inf")
     # A typo used to fall back silently to the simply-supported factor.
     require_choice(boundary, _BOUNDARY_BUCKLING_FACTOR, "boundary")
     _, _, D = lam.abd_matrices()
-    return _ssss_ritz_N_cr(D, Lx_mm, Ly_mm) * _BOUNDARY_BUCKLING_FACTOR[boundary]
+    if _is_uniaxial_compression(loading, transverse_stress_ratio):
+        return _ssss_ritz_N_cr(D, Lx_mm, Ly_mm) * _BOUNDARY_BUCKLING_FACTOR[boundary]
+    s = 1.0 if loading == "tension" else -1.0
+    N = _ssss_ritz_load_factor(D, Lx_mm, Ly_mm, -s, -s * transverse_stress_ratio)
+    return N * _BOUNDARY_BUCKLING_FACTOR[boundary]
 
 
 def find_critical_interface(damage: DamageState, lam: Laminate) -> Optional[int]:
@@ -1008,7 +1192,20 @@ class _PostbuckledFilm:
         side = 0
         for _ in range(100):
             r = hi - f_hi * (hi - lo) / (f_hi - f_lo)
-            f_r, axis_r = f(r)
+            try:
+                f_r, axis_r = f(r)
+            except _ContinuationError:
+                # The branch from lo folds below r: past the fold the film
+                # snaps to another mode (as the state at hi did). Unless G
+                # reaches G_c on the branch below the fold, the delamination
+                # grows at the snap, the last state solved below r. (Only
+                # met under a biaxial load so far.)
+                r_fold = max(N for N, _ in self._states if N < r * self.N_cr) / self.N_cr
+                f_fold, axis_fold = f(r_fold)
+                if f_fold < 0.0:
+                    return r_fold * self.N_cr, axis_fold
+                hi, f_hi, axis, side = r_fold, f_fold, axis_fold, 0
+                continue
             if f_r == 0.0 or hi - lo <= 1e-12 * hi:
                 hi, axis = r, axis_r
                 break
@@ -1049,18 +1246,33 @@ def _strip_growth_film_stress(sigma_c: float, E_f: float, G_c: float, h: float) 
 class _GrowthTerms:
     """What :func:`sublaminate_growth_stress` needs besides the 2D solve:
     the buckling load (N/mm), film thickness (mm), film stress per unit
-    laminate stress ``k``, and the film's uniaxial modulus along x (MPa)."""
+    laminate stress ``k``, and the film's uniaxial modulus along x (MPa).
+
+    Under a biaxial load (#115) ``N_cr``, ``k`` and ``E_x_film`` are along
+    the panel axis ``axis`` the film is more compressed along, ``ratio`` is
+    the film compression along the other axis over ``k``, and
+    ``film_load`` the unit film load in the ellipse's frame (``None``: the
+    uniaxial one of :func:`_sublaminate_film`)."""
 
     interface_index: int
     N_cr: float
     h: float
     k: float
     E_x_film: float
+    axis: str = "x"
+    ratio: float = 0.0
+    film_load: Optional[tuple[float, float, float]] = None
 
 
 def _growth_terms(
-    lam: Laminate, ellipse: DelaminationEllipse, boundary: BoundaryKind
+    lam: Laminate,
+    ellipse: DelaminationEllipse,
+    boundary: BoundaryKind,
+    loading: LoadingMode = "compression",
+    transverse_stress_ratio: float = 0.0,
 ) -> _GrowthTerms:
+    if not _is_uniaxial_compression(loading, transverse_stress_ratio):
+        return _biaxial_growth_terms(lam, ellipse, boundary, loading, transverse_stress_ratio)
     i = ellipse.interface_index
     sub_layup, sub_thicknesses = _thinner_sublaminate(lam, i)
     N_cr = sublaminate_buckling_load(lam, ellipse, boundary=boundary)
@@ -1075,6 +1287,41 @@ def _growth_terms(
         k = 0.0
     E_x_film = 1.0 / (float(np.linalg.solve(A_sub, np.eye(3))[0, 0]) * h)
     return _GrowthTerms(i, N_cr, h, k, E_x_film)
+
+
+def _biaxial_growth_terms(
+    lam: Laminate,
+    ellipse: DelaminationEllipse,
+    boundary: BoundaryKind,
+    loading: LoadingMode,
+    transverse_stress_ratio: float,
+) -> _GrowthTerms:
+    """:class:`_GrowthTerms` under the biaxial load ray (#115): the film
+    load of :func:`_film_compression_per_unit_load`, with ``N_cr``, ``k``
+    and the uniaxial film modulus along the axis the film is more
+    compressed along. ``N_cr = inf`` and ``k = nan`` (no growth) when the
+    film is in tension along both axes or degenerate."""
+    i = ellipse.interface_index
+    sub_layup, sub_thicknesses = _thinner_sublaminate(lam, i)
+    h = float(sum(sub_thicknesses))
+    N_cr = sublaminate_buckling_load(
+        lam,
+        ellipse,
+        boundary=boundary,
+        loading=loading,
+        transverse_stress_ratio=transverse_stress_ratio,
+    )
+    film = _sublaminate_film(lam, ellipse)
+    if film is None or h <= 0 or not math.isfinite(N_cr) or N_cr <= 0:
+        return _GrowthTerms(i, math.inf, h, math.nan, math.nan)
+    load = _biaxial_film_load(
+        _film_compression_per_unit_load(lam, i, loading, transverse_stress_ratio), film[4]
+    )
+    assert load is not None  # N_cr is finite
+    A_sub, _, _ = Laminate(lam.material, sub_layup, sub_thicknesses).abd_matrices()
+    j = 0 if load.axis == "x" else 1
+    E_film = 1.0 / (float(np.linalg.solve(A_sub, np.eye(3))[j, j]) * h)
+    return _GrowthTerms(i, N_cr, h, load.k, E_film, load.axis, load.ratio, load.unit)
 
 
 def _growth_stress_lower_bound(terms: _GrowthTerms, G_c: float) -> float:
@@ -1100,12 +1347,19 @@ def _growth_from_terms(
     A growth stress above ``cap_MPa`` is not solved for: it is ``inf``."""
     i, N_cr, h, k = terms.interface_index, terms.N_cr, terms.h, terms.k
     if not math.isfinite(k):
-        return SublaminateGrowth(i, N_cr, math.inf, math.inf, math.inf)
+        return SublaminateGrowth(
+            i, N_cr, math.inf, math.inf, math.inf, None, terms.axis, terms.ratio
+        )
     if k <= 0:
-        return SublaminateGrowth(i, N_cr, N_cr / h, math.inf, math.inf)
+        return SublaminateGrowth(
+            i, N_cr, N_cr / h, math.inf, math.inf, None, terms.axis, terms.ratio
+        )
     film_terms = _sublaminate_film(lam, ellipse)
     assert film_terms is not None  # N_cr is finite
     D_star, A_sub, a, b, (n_xx, n_yy, n_xy) = film_terms
+    if terms.film_load is not None:
+        # Biaxial (#115): the film load along both axes, 1 along terms.axis.
+        n_xx, n_yy, n_xy = terms.film_load
     film = _PostbuckledFilm(D_star, A_sub, a, b, n_xx, n_yy, n_xy)
     N_g, axis = film.growth_load(mixed_mode_toughness(lam.material), N_cap=cap_MPa * k * h)
     sigma_g = N_g / h
@@ -1116,6 +1370,8 @@ def _growth_from_terms(
         film_growth_stress_MPa=sigma_g,
         growth_stress_MPa=sigma_g / k,
         growth_axis=("major", "minor")[axis] if math.isfinite(sigma_g) else None,
+        film_stress_axis=terms.axis,
+        film_stress_ratio=terms.ratio,
     )
 
 
@@ -1123,6 +1379,9 @@ def sublaminate_growth_stress(
     lam: Laminate,
     ellipse: DelaminationEllipse,
     boundary: BoundaryKind = "simply_supported",
+    *,
+    loading: LoadingMode = "compression",
+    transverse_stress_ratio: float = 0.0,
 ) -> SublaminateGrowth:
     """Far-field compressive stress at which a delamination grows (MPa).
 
@@ -1158,16 +1417,37 @@ def sublaminate_growth_stress(
     rest of the laminate; it is least accurate for sublaminates near the
     mid-plane.
 
+    **Biaxial load** (``loading`` and ``transverse_stress_ratio``, keyword
+    only; experimental and not validated, issue #115): the far-field load
+    is the ray ``(sigma_x, sigma_y) = lambda (s, s beta)``, ``s = -1`` for
+    ``"compression"`` and ``+1`` for ``"tension"``. The film is under the
+    compression of :func:`_film_compression_per_unit_load` along both
+    axes (the y-stress of the applied ``sigma_y`` through the sublaminate's
+    ``A``; the Poisson-mismatch y-stress and the film shear left out, as
+    above), in the geometric stiffness of the onset Ritz and in the
+    prestress of the post-buckled film, so lateral compression lowers the
+    growth stress and lateral tension raises it. ``growth_stress_MPa`` is
+    ``|sigma_x|`` at growth, the film fields are along the axis the film is
+    more compressed along (``film_stress_axis``, with
+    ``film_stress_ratio``), and a film in tension along both axes does not
+    buckle (``inf``): under ``loading="tension"`` only a laterally
+    compressed film (``beta < 0``) can grow. The default, uniaxial
+    compression, runs the unchanged code.
+
     Returns a :class:`SublaminateGrowth` with ``growth_stress_MPa = inf``
     when the sublaminate is degenerate (no plies, zero-area ellipse).
     """
-    return _growth_from_terms(lam, ellipse, _growth_terms(lam, ellipse, boundary))
+    terms = _growth_terms(lam, ellipse, boundary, loading, transverse_stress_ratio)
+    return _growth_from_terms(lam, ellipse, terms)
 
 
 def weakest_sublaminate_growth(
     lam: Laminate,
     damage: DamageState,
     boundary: BoundaryKind = "simply_supported",
+    *,
+    loading: LoadingMode = "compression",
+    transverse_stress_ratio: float = 0.0,
 ) -> Optional[SublaminateGrowth]:
     """The delamination that grows at the lowest far-field stress.
 
@@ -1178,7 +1458,18 @@ def weakest_sublaminate_growth(
     (:func:`_growth_stress_lower_bound`), and those whose bound is above
     the lowest growth stress found are not solved; nor is the growth
     stress of one past the lowest found so far.
+
+    ``loading`` and ``transverse_stress_ratio`` (keyword only) are the load
+    ray of :func:`sublaminate_growth_stress`. Under a biaxial load the
+    strip bound is no lower bound (a laterally compressed 2D blister can
+    release more energy than the uniaxial strip), so interfaces are only
+    taken in its order, the skip uses the one bound that holds at any
+    load (no delamination grows before its sublaminate buckles, ``N_cr /
+    (k h)``), and the others are solved in full (see
+    :func:`_weakest_biaxial_growth`): the result is the minimum over the
+    interfaces exactly.
     """
+    uniaxial = _is_uniaxial_compression(loading, transverse_stress_ratio)
     largest: dict[int, DelaminationEllipse] = {}
     for e in damage.delaminations:
         current = largest.get(e.interface_index)
@@ -1187,6 +1478,8 @@ def weakest_sublaminate_growth(
     if not largest:
         return None
     G_c = mixed_mode_toughness(lam.material)
+    if not uniaxial:
+        return _weakest_biaxial_growth(lam, largest, boundary, loading, transverse_stress_ratio)
     terms = {i: _growth_terms(lam, largest[i], boundary) for i in sorted(largest)}
     order = sorted(terms, key=lambda i: (_growth_stress_lower_bound(terms[i], G_c), i))
     best: Optional[SublaminateGrowth] = None
@@ -1203,12 +1496,59 @@ def weakest_sublaminate_growth(
     return best
 
 
+def _onset_stress(terms: _GrowthTerms) -> float:
+    """``|sigma_x|`` (MPa) at which the sublaminate of ``terms`` buckles: a
+    lower bound on its growth stress at any load (``G = 0`` up to
+    buckling)."""
+    if not (math.isfinite(terms.k) and terms.k > 0):
+        return math.inf
+    return terms.N_cr / (terms.k * terms.h)
+
+
+def _weakest_biaxial_growth(
+    lam: Laminate,
+    largest: dict[int, DelaminationEllipse],
+    boundary: BoundaryKind,
+    loading: LoadingMode,
+    transverse_stress_ratio: float,
+) -> SublaminateGrowth:
+    """:func:`weakest_sublaminate_growth` under a biaxial load: interfaces
+    in order of the strip estimate (an ordering only), skipped when their
+    buckling onset is above the lowest growth stress found, and otherwise
+    solved in full. A capped solve is not used: under a mixed load the
+    post-buckled state can depend on the continuation path, and the jump
+    to the cap can land on another branch (8-ply QI, 20 J, beta = -1: a
+    0 deg surface film then "grew" at the cap, 305.06 MPa, against 305.95
+    followed from onset), so the result is exactly the minimum over the
+    interfaces of :func:`sublaminate_growth_stress`."""
+    G_c = mixed_mode_toughness(lam.material)
+    terms = {
+        i: _growth_terms(lam, largest[i], boundary, loading, transverse_stress_ratio)
+        for i in sorted(largest)
+    }
+    order = sorted(terms, key=lambda i: (_growth_stress_lower_bound(terms[i], G_c), i))
+    best: Optional[SublaminateGrowth] = None
+    for i in order:
+        if best is not None and _onset_stress(terms[i]) > best.growth_stress_MPa:
+            continue
+        g = _growth_from_terms(lam, largest[i], terms[i])
+        if best is None or (g.growth_stress_MPa, i) < (
+            best.growth_stress_MPa,
+            best.interface_index,
+        ):
+            best = g
+    assert best is not None
+    return best
+
+
 def semi_analytical_cai(
     lam: Laminate,
     damage: DamageState,
     sigma_pristine_MPa: float,
     A_ref_mm2: float = SOUTIS_REFERENCE_AREA_MM2,
     boundary: BoundaryKind = "simply_supported",
+    *,
+    transverse_stress_ratio: float = 0.0,
 ) -> SemiAnalyticalResult:
     """Semi-analytical compression-after-impact residual strength (MPa).
 
@@ -1246,6 +1586,15 @@ def semi_analytical_cai(
         but it does not change the result: the sublaminate is clamped by
         the delamination front whatever the panel's edges (#132; it used
         to scale the sublaminate buckling load by 1.9 or 0.5).
+    transverse_stress_ratio : float
+        Keyword only; experimental and not validated (issue #115). The
+        load ray ``(sigma_x, sigma_y) = lambda (-1, -beta)``: the growth
+        stress is that of the biaxial load
+        (:func:`weakest_sublaminate_growth`), the Soutis bound is the
+        homothetic one of the empirical tier (its knockdown on
+        ``sigma_pristine_MPa``, which is then the pristine strength along
+        the ray), so the result stays at or below the empirical tier's.
+        ``0.0``: the uniaxial code unchanged.
 
     Returns
     -------
@@ -1276,13 +1625,23 @@ def semi_analytical_cai(
     sigma_soutis = soutis_cai(lam.material, dpa, A_ref_mm2, sigma_pristine_MPa)
 
     # Delamination growth bound (damage.delaminations is non-empty here)
-    weakest = weakest_sublaminate_growth(lam, damage, boundary=boundary)
+    if transverse_stress_ratio == 0:
+        weakest = weakest_sublaminate_growth(lam, damage, boundary=boundary)
+    else:
+        weakest = weakest_sublaminate_growth(
+            lam, damage, boundary=boundary, transverse_stress_ratio=transverse_stress_ratio
+        )
     assert weakest is not None
     N_cr = weakest.buckling_load_N_per_mm
     return SemiAnalyticalResult(
         residual_strength_MPa=float(min(sigma_soutis, weakest.growth_stress_MPa)),
         critical_interface_index=weakest.interface_index,
         critical_buckling_load_N=N_cr if math.isfinite(N_cr) else None,
+        growth=(
+            weakest
+            if transverse_stress_ratio != 0 and math.isfinite(weakest.growth_stress_MPa)
+            else None
+        ),
     )
 
 
@@ -1291,6 +1650,9 @@ def semi_analytical_tai(
     damage: DamageState,
     sigma_pristine_MPa: float,
     panel_width_mm: Optional[float] = None,
+    *,
+    boundary: BoundaryKind = "simply_supported",
+    transverse_stress_ratio: float = 0.0,
 ) -> float:
     """Semi-analytical tension-after-impact residual strength.
 
@@ -1299,6 +1661,66 @@ def semi_analytical_tai(
     panel ``panel_width_mm`` wide across the load (``None``: infinite
     plate). A cohesive-zone notch model with in-situ ply strength is not
     implemented.
+
+    ``transverse_stress_ratio`` (keyword only; experimental and not
+    validated, issue #115) loads the panel along ``(sigma_x, sigma_y) =
+    lambda (1, beta)``: the hole model takes the Lekhnitskii factor of the
+    empirical tier, and a laterally compressed film (``beta < 0``) can
+    buckle and grow its delamination, so the result is the lower of the
+    two (:func:`_semi_analytical_tai_result`); for ``beta > 0`` every film
+    is in tension and it is the empirical tier's. ``boundary`` is
+    validated only, as in :func:`semi_analytical_cai`.
     """
+    if transverse_stress_ratio == 0:
+        Kt_inf = lekhnitskii_kt_infinity(lam)
+        return fibre_damage_tai(lam.material, damage, sigma_pristine_MPa, Kt_inf, panel_width_mm)
+    return _semi_analytical_tai_result(
+        lam,
+        damage,
+        sigma_pristine_MPa,
+        panel_width_mm,
+        boundary=boundary,
+        transverse_stress_ratio=transverse_stress_ratio,
+    ).residual_strength_MPa
+
+
+def _semi_analytical_tai_result(
+    lam: Laminate,
+    damage: DamageState,
+    sigma_pristine_MPa: float,
+    panel_width_mm: Optional[float],
+    *,
+    boundary: BoundaryKind,
+    transverse_stress_ratio: float,
+) -> SemiAnalyticalResult:
+    """Biaxial :func:`semi_analytical_tai` (``transverse_stress_ratio !=
+    0``) with the growing interface: ``min(fibre_damage_tai(..., beta),
+    growth stress)``. The interface fields are ``None`` unless a
+    delamination grows (a film is compressed along some axis)."""
+    require_choice(boundary, _BOUNDARY_BUCKLING_FACTOR, "boundary")
     Kt_inf = lekhnitskii_kt_infinity(lam)
-    return fibre_damage_tai(lam.material, damage, sigma_pristine_MPa, Kt_inf, panel_width_mm)
+    sigma_hole = fibre_damage_tai(
+        lam.material,
+        damage,
+        sigma_pristine_MPa,
+        Kt_inf,
+        panel_width_mm,
+        transverse_stress_ratio=transverse_stress_ratio,
+        laminate=lam,
+    )
+    weakest = weakest_sublaminate_growth(
+        lam,
+        damage,
+        boundary=boundary,
+        loading="tension",
+        transverse_stress_ratio=transverse_stress_ratio,
+    )
+    if weakest is None or not math.isfinite(weakest.growth_stress_MPa):
+        return SemiAnalyticalResult(residual_strength_MPa=sigma_hole)
+    N_cr = weakest.buckling_load_N_per_mm
+    return SemiAnalyticalResult(
+        residual_strength_MPa=float(min(sigma_hole, weakest.growth_stress_MPa)),
+        critical_interface_index=weakest.interface_index,
+        critical_buckling_load_N=N_cr if math.isfinite(N_cr) else None,
+        growth=weakest,
+    )

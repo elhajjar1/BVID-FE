@@ -42,6 +42,18 @@ is the panel's secant axial modulus (:func:`axial_secant_modulus`;
 return it beside the strength). ``BvidAnalysis`` divides the damaged value
 by the undamaged one for the E11 knockdown, at no extra solve.
 
+Biaxial in-plane loading (``AnalysisConfig.transverse_stress_ratio`` =
+beta != 0, issue #115; experimental, not validated): each mesh gets a second
+linear solve, between y platens with the x faces held
+(:func:`~bvidfe.solver.boundary.transverse_platen_bcs`), and the two are
+superposed so that the face-averaged reaction stresses are in the ratio
+``sigma_y = beta sigma_x`` (``_ratio_displacement``); first-ply failure is
+scaled along that ray as in the uniaxial solve, the growth channel is
+``semi_analytical``'s biaxial one, and the TAI notch takes the empirical
+tier's Lekhnitskii factor ``F(beta)``. ``beta == 0`` runs the one uniaxial
+solve unchanged. The basis solves do not depend on beta, so
+:func:`fe3d_basis_cache` lets several ratios share them.
+
 Problems above ``FE3D_MAX_DOF`` degrees of freedom (150,000, or the
 ``BVIDFE_FE3D_MAX_DOF`` environment variable) raise :class:`FE3DSizeError`.
 Stage timings go to stderr on the ``bvidfe.fe3d`` logger, at the level set
@@ -54,13 +66,16 @@ import logging
 import os
 import sys
 import time
-from typing import List, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+from typing import Iterator, List, Optional
 
 import numpy as np
 from scipy.ndimage import convolve
 
 from bvidfe._types import _CRITERION_NAMES, CriterionName
-from bvidfe.analysis.config import AnalysisConfig, require_tier_supports_ratio
+from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.fe_mesh import (
     FeMesh,
     build_fe_mesh,
@@ -86,7 +101,7 @@ from bvidfe.analysis.semi_analytical import (
     sublaminate_buckling_load,
     weakest_sublaminate_growth,
 )
-from bvidfe.solver.boundary import uniaxial_x_bcs
+from bvidfe.solver.boundary import transverse_platen_bcs, uniaxial_x_bcs
 from bvidfe.solver.static import solve_linear_static
 
 # Module-level logger, one line per FE stage. As a library, bvidfe only adds
@@ -357,7 +372,6 @@ def _fe3d_preflight(
         ``t0`` is ``time.time()`` captured before the mesh build, suitable
         for relative timing logs in the caller.
     """
-    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     _guard_problem_size(cfg)
     label = _run_label(label, damage)
     t0 = time.time()
@@ -675,22 +689,155 @@ def _critical_strain_multiplier_pointwise(
     return c_crit_min
 
 
-def _loaded_edge_force(mesh: FeMesh, elements: List[Hex8Element], u: np.ndarray) -> float:
-    """Magnitude of the x reaction force (N) on the loaded x_max face.
+def _edge_force(
+    mesh: FeMesh, elements: List[Hex8Element], u: np.ndarray, axis: int, component: int
+) -> float:
+    """Signed force (N) along ``component`` (0/1/2 = x/y/z) on the face at
+    the maximum coordinate along ``axis`` (0 = the ``x_max`` face, 1 =
+    ``y_max``).
 
     The reaction at a constrained DOF is the internal force ``(K u)_i``,
     summed here from the element internal forces ``K_e u_e`` of the elements
-    touching the face, so no global matrix is assembled.
+    touching the face, so no global matrix is assembled. On a free face the
+    sum is zero up to the solver tolerance.
     """
-    x = mesh.node_coords[:, 0]
-    on_face = np.abs(x - x.max()) < 1e-9
+    c = mesh.node_coords[:, axis]
+    on_face = np.abs(c - c.max()) < 1e-9
     force = 0.0
     for eidx in np.flatnonzero(on_face[mesh.element_connectivity].any(axis=1)):
         dof_map = mesh.element_dof_maps[eidx]
         f_elem = elements[eidx].stiffness_matrix() @ u[dof_map]
         local = np.flatnonzero(on_face[mesh.element_connectivity[eidx]])
-        force += float(f_elem[3 * local].sum())
-    return abs(force)
+        force += float(f_elem[3 * local + component].sum())
+    return force
+
+
+def _loaded_edge_force(mesh: FeMesh, elements: List[Hex8Element], u: np.ndarray) -> float:
+    """Magnitude of the x reaction force (N) on the loaded x_max face
+    (``_edge_force`` along x on the ``x_max`` face)."""
+    return abs(_edge_force(mesh, elements, u, axis=0, component=0))
+
+
+@dataclass
+class _Fe3dBasis:
+    """The linear solves of one fe3d mesh that every load ratio shares.
+
+    A biaxial in-plane load (issue #115) is the superposition of two basis
+    solves at the same reference strain ``strain_sign * strain_cap``: X,
+    today's uniaxial solve (``uniaxial_x_bcs``: x platens, ``y`` faces
+    free), and Y (``transverse_platen_bcs``: y platens, ``x`` faces held at
+    ``u_x = 0``), solved only for a nonzero ratio
+    (``_add_transverse_basis``). The forces are the signed face forces of
+    ``_edge_force``: ``force_x`` and ``force_xy`` (x and y, zero up to the
+    solver tolerance on the free face) of X, ``force_yx`` and
+    ``force_yy`` of Y. See ``_ratio_displacement``.
+    """
+
+    mesh: FeMesh
+    elements: List[Hex8Element]
+    strain_sign: int
+    strain_cap: float
+    u_x: np.ndarray
+    force_x: float
+    u_y: Optional[np.ndarray] = None
+    force_xy: float = 0.0
+    force_yx: float = 0.0
+    force_yy: float = 0.0
+
+
+def _solve_basis_x(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    strain_sign: int,
+    strain_cap: float,
+) -> _Fe3dBasis:
+    """Basis X of ``_Fe3dBasis``: the uniaxial reference solve."""
+    u = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
+    return _Fe3dBasis(
+        mesh, elements, strain_sign, strain_cap, u, _edge_force(mesh, elements, u, 0, 0)
+    )
+
+
+def _add_transverse_basis(basis: _Fe3dBasis) -> None:
+    """Solve basis Y of ``basis`` (once; a no-op when it is there)."""
+    if basis.u_y is not None:
+        return
+    mesh, elements = basis.mesh, basis.elements
+    _log.info("transverse basis solve (biaxial load): y platens")
+    bcs = transverse_platen_bcs(mesh.node_coords, basis.strain_sign * basis.strain_cap)
+    u_y = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
+    basis.force_xy = _edge_force(mesh, elements, basis.u_x, 1, 1)
+    basis.force_yx = _edge_force(mesh, elements, u_y, 0, 0)
+    basis.force_yy = _edge_force(mesh, elements, u_y, 1, 1)
+    basis.u_y = u_y
+
+
+def _ratio_displacement(
+    cfg: AnalysisConfig, basis: _Fe3dBasis, lam: Laminate, transverse_stress_ratio: float
+) -> tuple[np.ndarray, float, float]:
+    """``(u, F_x, sigma_y)`` of the reference state at the ratio ``beta``:
+    the displacement, the signed x force on the ``x_max`` face (N) and
+    the signed average sigma_y over the ``y`` face section ``Lx * h``
+    (MPa).
+
+    ``beta == 0``: basis X as it is (``sigma_y`` 0, the ``y`` faces being
+    free). Otherwise ``u = u_X + b u_Y`` with ``b`` the multiplier that
+    makes the reaction-averaged stresses, ``sigma_x = (F_Xx + b F_Yx) /
+    A_x`` and ``sigma_y = (F_Xy + b F_Yy) / A_y`` with ``A_x = Ly h`` and
+    ``A_y = Lx h``, satisfy ``sigma_y = beta sigma_x``:
+
+        b = (beta F_Xx / A_x - F_Xy / A_y) / (F_Yy / A_y - beta F_Yx / A_x)
+
+    (``F_Xy``, the free face's force, is zero up to the solver tolerance;
+    keeping it makes the ratio exact to round-off). The denominator is
+    about ``eps (Q22 - beta Q12)`` of the laminate, far from zero for
+    ``|beta| <= 1``. The ratio holds on average over each face; near the
+    softened damage zone the local ratio differs, by design.
+    """
+    if transverse_stress_ratio == 0:
+        return basis.u_x, basis.force_x, 0.0
+    _add_transverse_basis(basis)
+    assert basis.u_y is not None
+    beta = transverse_stress_ratio
+    area_x = cfg.panel.Ly_mm * lam.thickness_mm
+    area_y = cfg.panel.Lx_mm * lam.thickness_mm
+    b = (beta * basis.force_x / area_x - basis.force_xy / area_y) / (
+        basis.force_yy / area_y - beta * basis.force_yx / area_x
+    )
+    force_x = basis.force_x + b * basis.force_yx
+    sigma_y = (basis.force_xy + b * basis.force_yy) / area_y
+    return basis.u_x + b * basis.u_y, force_x, sigma_y
+
+
+def _basis_failure_stress_and_modulus(
+    cfg: AnalysisConfig,
+    basis: _Fe3dBasis,
+    lam: Laminate,
+    criterion: CriterionName,
+    notch: np.ndarray | None = None,
+    transverse_stress_ratio: float = 0.0,
+) -> tuple[float, float]:
+    """``(|sigma_x| at first-ply failure, E_x)`` (MPa) along the load ray
+    of ``transverse_stress_ratio`` from ``basis``; see
+    ``_first_ply_failure_stress_and_modulus``. The solve is linear and the
+    path proportional, so the analytic scaling of
+    ``_critical_strain_multiplier`` holds for the superposed state as for
+    the uniaxial one. ``E_x`` is basis X's (the uniaxial secant
+    modulus) at any ratio."""
+    u_ref, force_x, _ = _ratio_displacement(cfg, basis, lam, transverse_stress_ratio)
+    mesh, elements = basis.mesh, basis.elements
+    t0 = time.time()
+    _log.info("FPF evaluation start: %s, %d elements", criterion, len(elements))
+    c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion, notch=notch)
+    if not np.isfinite(c_crit) or c_crit <= 0:
+        c_crit = 1.0  # nothing failed up to strain_cap
+    c_crit = min(c_crit, 1.0)
+    area = cfg.panel.Ly_mm * lam.thickness_mm
+    force = abs(force_x)
+    sigma = c_crit * force / area
+    _t(f"FPF evaluation done: failure stress {sigma:.1f} MPa", t0)
+    return sigma, abs(basis.force_x) / area / basis.strain_cap
 
 
 def _first_ply_failure_stress(
@@ -727,24 +874,24 @@ def _first_ply_failure_stress_and_modulus(
     criterion: CriterionName,
     strain_cap: float = 0.05,
     notch: np.ndarray | None = None,
+    *,
+    transverse_stress_ratio: float = 0.0,
 ) -> tuple[float, float]:
     """``(_first_ply_failure_stress, E_x)``: the failure stress and, from
     the same solve, the panel's secant axial modulus ``E_x`` (MPa), the
     loaded-edge reaction force at the reference end strain over the gross
-    section ``Ly * h`` and that strain (``axial_secant_modulus``)."""
+    section ``Ly * h`` and that strain (``axial_secant_modulus``).
+
+    ``transverse_stress_ratio`` (experimental, issue #115): the failure
+    stress is ``|sigma_x|`` at first-ply failure along the load ray
+    ``sigma_y = beta sigma_x``, from the superposition of two basis solves
+    (``_Fe3dBasis``, ``_ratio_displacement``); ``beta == 0`` is the one
+    uniaxial solve. ``E_x`` stays the uniaxial one."""
     _require_known_criterion(criterion)
-    u_ref = _reference_displacement(cfg, mesh, elements, strain_sign, strain_cap)
-    t0 = time.time()
-    _log.info("FPF evaluation start: %s, %d elements", criterion, len(elements))
-    c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion, notch=notch)
-    if not np.isfinite(c_crit) or c_crit <= 0:
-        c_crit = 1.0  # nothing failed up to strain_cap
-    c_crit = min(c_crit, 1.0)
-    area = cfg.panel.Ly_mm * lam.thickness_mm
-    force = _loaded_edge_force(mesh, elements, u_ref)
-    sigma = c_crit * force / area
-    _t(f"FPF evaluation done: failure stress {sigma:.1f} MPa", t0)
-    return sigma, force / area / strain_cap
+    basis = _solve_basis_x(cfg, mesh, elements, strain_sign, strain_cap)
+    return _basis_failure_stress_and_modulus(
+        cfg, basis, lam, criterion, notch, transverse_stress_ratio
+    )
 
 
 def axial_secant_modulus(
@@ -840,6 +987,119 @@ def _solve_failure_strain_analytic_scalar_ref(
     return min(strain_cap, c_crit_min * strain_cap)
 
 
+class Fe3dBasisCache:
+    """Basis solves (``_Fe3dBasis``) kept for reuse across load ratios.
+
+    The basis solves of a mesh do not depend on the ratio
+    ``transverse_stress_ratio`` (issue #115), so every ratio of the same
+    config, damage state and loading sense can share them: within
+    :func:`fe3d_basis_cache` the fe3d entry points look a mesh's basis up
+    here before they build the mesh and solve. Entries are keyed by what
+    the mesh, its elements and the boundary conditions are built from (the
+    panel, mesh parameters, laminate and damage state, the stiffness model
+    of the loading sense and the reference strain), and hold the mesh, its
+    elements and one or two displacement vectors; the oldest is dropped
+    beyond ``max_entries``."""
+
+    def __init__(self, max_entries: int = 2) -> None:
+        if max_entries < 1:
+            raise ValueError(f"max_entries must be >= 1 (got {max_entries})")
+        self.max_entries = max_entries
+        self._entries: dict[tuple, _Fe3dBasis] = {}
+
+    def get(self, key: tuple) -> Optional[_Fe3dBasis]:
+        return self._entries.get(key)
+
+    def put(self, key: tuple, basis: _Fe3dBasis) -> None:
+        self._entries[key] = basis
+        while len(self._entries) > self.max_entries:
+            del self._entries[next(iter(self._entries))]
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+
+_ACTIVE_BASIS_CACHE: ContextVar[Optional[Fe3dBasisCache]] = ContextVar(
+    "bvidfe_fe3d_basis_cache", default=None
+)
+
+
+@contextmanager
+def fe3d_basis_cache(
+    cache: Optional[Fe3dBasisCache] = None, *, max_entries: int = 2
+) -> Iterator[Fe3dBasisCache]:
+    """Reuse fe3d basis solves across load ratios inside the block.
+
+    With no ``cache``, an active one (an enclosing block's) is reused, or a
+    new one of ``max_entries`` entries is made. ``BvidAnalysis`` opens one
+    on a biaxial run, so the uniaxial residual it reports beside the
+    biaxial one costs no solve; ``sweep_transverse_ratios`` keeps one for
+    the whole sweep, so N ratios of an fe3d config cost the basis solves of
+    the damaged and the undamaged mesh once. Outside a block every call
+    builds and solves its own mesh, as before."""
+    active = _ACTIVE_BASIS_CACHE.get()
+    if cache is None and active is not None:
+        yield active
+        return
+    if cache is None:
+        cache = Fe3dBasisCache(max_entries)
+    token = _ACTIVE_BASIS_CACHE.set(cache)
+    try:
+        yield cache
+    finally:
+        _ACTIVE_BASIS_CACHE.reset(token)
+
+
+def _fe3d_basis(
+    cfg: AnalysisConfig,
+    damage: DamageState,
+    lam: Laminate,
+    *,
+    label: str,
+    tension: bool,
+    strain_sign: int,
+    strain_cap: float = 0.05,
+) -> tuple[_Fe3dBasis, float]:
+    """``(basis, t0)``: the mesh, elements and basis solves for ``cfg``
+    and ``damage`` (``_fe3d_preflight`` and ``_solve_basis_x``, plus
+    basis Y for a nonzero ``cfg.transverse_stress_ratio``), from the
+    active :func:`fe3d_basis_cache` when it holds them. ``t0`` is the
+    start time for the caller's total-time log."""
+    cache = _ACTIVE_BASIS_CACHE.get()
+    basis = None
+    key: tuple = ()
+    if cache is not None:
+        # Everything the mesh, the elements and the boundary conditions are
+        # built from (not the ratio, the tier or how the damage was given).
+        key = (
+            repr(cfg.panel),
+            repr(cfg.mesh),
+            repr(cfg.layup_deg),
+            repr(cfg.ply_thickness_mm),
+            repr(lam.material),
+            repr(lam.layup_deg),
+            repr(lam.ply_thicknesses_mm),
+            repr(damage),
+            tension,
+            strain_sign,
+            strain_cap,
+        )
+        basis = cache.get(key)
+    if basis is None:
+        mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label=label, tension=tension)
+        basis = _solve_basis_x(cfg, mesh, elements, strain_sign, strain_cap)
+        if cache is not None:
+            cache.put(key, basis)
+    else:
+        t0 = time.time()
+        _log.info(
+            "%s: reusing the mesh and basis solves of an earlier ratio", _run_label(label, damage)
+        )
+    if cfg.transverse_stress_ratio != 0:
+        _add_transverse_basis(basis)
+    return basis, t0
+
+
 def _fe3d_cai_first_ply_failure(
     cfg: AnalysisConfig,
     damage: DamageState,
@@ -873,9 +1133,10 @@ def _fe3d_cai_first_ply_failure_and_modulus(
     ``"tsai_wu"`` or ``"puck"`` to use those criteria instead. Unknown names
     raise ``ValueError``.
     """
-    mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d FPF")
-    sigma, modulus = _first_ply_failure_stress_and_modulus(
-        cfg, mesh, elements, lam, strain_sign=-1, criterion=criterion
+    _require_known_criterion(criterion)
+    basis, t0 = _fe3d_basis(cfg, damage, lam, label="fe3d FPF", tension=False, strain_sign=-1)
+    sigma, modulus = _basis_failure_stress_and_modulus(
+        cfg, basis, lam, criterion, transverse_stress_ratio=cfg.transverse_stress_ratio
     )
     _log.info(
         "%s done: first-ply failure at %.1f MPa (total %.2fs)",
@@ -922,17 +1183,33 @@ def fe3d_cai_buckling(
     the buckling onset with where it occurs and that it is the closed form
     (``"fe3d buckling onset ... closed-form Rayleigh-Ritz ..."``, #133) or
     a degenerate closed form.
+
+    Biaxial (``cfg.transverse_stress_ratio != 0``): both closed forms are
+    along the load ray (``loading="compression"``,
+    ``transverse_stress_ratio``), and the stresses are ``|sigma_x|`` along
+    it for the panel and the film stress along its more compressed axis
+    for the sublaminate.
     """
-    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
     boundary = cfg.panel.boundary
+    beta = cfg.transverse_stress_ratio
+    # Biaxial (issue #115): the load ray in both closed forms (at beta == 0
+    # they run their unchanged uniaxial code).
+    along = "" if beta == 0 else " (|sigma_x| along the load ray)"
     notes: List[str] = []
 
     t_total = float(sum(lam.ply_thicknesses_mm))
-    N_cr_panel = panel_buckling_load(lam, cfg.panel.Lx_mm, cfg.panel.Ly_mm, boundary)
+    N_cr_panel = panel_buckling_load(
+        lam,
+        cfg.panel.Lx_mm,
+        cfg.panel.Ly_mm,
+        boundary,
+        loading="compression",
+        transverse_stress_ratio=beta,
+    )
     sigma_critical = N_cr_panel / t_total if t_total > 0 else float("inf")
     if np.isfinite(sigma_critical):
         notes.append(
-            f"fe3d whole-panel buckling at {sigma_critical:.1f} MPa is excluded from the "
+            f"fe3d whole-panel buckling at {sigma_critical:.1f} MPa{along} is excluded from the "
             f"knockdown (CAI fixtures carry anti-buckling guides)"
         )
 
@@ -942,7 +1219,13 @@ def fe3d_cai_buckling(
         if crit_idx is not None:
             ellipses = [e for e in damage.delaminations if e.interface_index == crit_idx]
             critical_ellipse = max(ellipses, key=lambda e: e.area_mm2)
-            N_cr_sub = sublaminate_buckling_load(lam, critical_ellipse, boundary=boundary)
+            N_cr_sub = sublaminate_buckling_load(
+                lam,
+                critical_ellipse,
+                boundary=boundary,
+                loading="compression",
+                transverse_stress_ratio=beta,
+            )
             thicknesses = lam.ply_thicknesses_mm
             upper_t = sum(thicknesses[: crit_idx + 1])
             lower_t = sum(thicknesses[crit_idx + 1 :])
@@ -1008,8 +1291,22 @@ def fe3d_cai_channels_and_modulus(
     panel's secant axial modulus in compression ``E_x`` (MPa, see
     :func:`axial_secant_modulus`): ``(growth, sigma_fpf, E_x)``.
     ``BvidAnalysis`` divides the damaged ``E_x`` by the undamaged one for
-    the E11 knockdown (issue #114)."""
-    growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    the E11 knockdown (issue #114).
+
+    Biaxial (``cfg.transverse_stress_ratio != 0``): the growth is that of
+    the compression ray (:func:`weakest_sublaminate_growth` with the ratio,
+    as ``semi_analytical`` computes it) and ``sigma_fpf`` is ``|sigma_x|``
+    at first-ply failure along the ray (``_ratio_displacement``); ``E_x``
+    stays the uniaxial modulus."""
+    if cfg.transverse_stress_ratio == 0:
+        growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    else:
+        growth = weakest_sublaminate_growth(
+            lam,
+            damage,
+            boundary=cfg.panel.boundary,
+            transverse_stress_ratio=cfg.transverse_stress_ratio,
+        )
     sigma_fpf, modulus = _fe3d_cai_first_ply_failure_and_modulus(
         cfg, damage, lam, sigma_pristine_MPa
     )
@@ -1058,6 +1355,11 @@ def fe3d_tai(
     fibre-break core (``fiber_break_radius_mm``) sets the hole's minimum
     radius, as in the closed-form tiers. Raises :class:`FE3DSizeError`
     above the size cap.
+
+    Biaxial (``cfg.transverse_stress_ratio != 0``): ``|sigma_x|`` at
+    first-ply failure along the load ray, the hole's knockdown times the
+    Lekhnitskii factor ``F(beta)`` (``tai_fibre_damage_hole``). The growth
+    channel of a laterally compressed film is added by ``BvidAnalysis``.
     """
     return fe3d_tai_and_modulus(cfg, damage, lam, sigma_pristine_MPa)[0]
 
@@ -1073,10 +1375,10 @@ def fe3d_tai_and_modulus(
     :func:`axial_secant_modulus`). The fibre-damage hole is a notch on the
     stress only (``_tai_fibre_damage_notch``), so it does not lower
     ``E_x``."""
-    mesh, elements, t0 = _fe3d_preflight(cfg, damage, lam, label="fe3d TAI", tension=True)
-    notch = _tai_fibre_damage_notch(cfg, damage, lam, mesh)
-    sigma, modulus = _first_ply_failure_stress_and_modulus(
-        cfg, mesh, elements, lam, strain_sign=+1, criterion="tsai_wu", notch=notch
+    basis, t0 = _fe3d_basis(cfg, damage, lam, label="fe3d TAI", tension=True, strain_sign=+1)
+    notch = _tai_fibre_damage_notch(cfg, damage, lam, basis.mesh)
+    sigma, modulus = _basis_failure_stress_and_modulus(
+        cfg, basis, lam, "tsai_wu", notch, cfg.transverse_stress_ratio
     )
     _log.info(
         "%s done: first-ply failure at %.1f MPa (total %.2fs)",
@@ -1098,15 +1400,24 @@ def tai_fibre_damage_hole(
     fibre-break core (a C-scan file) is covered by the hole whatever the
     mesh; the meshed core does not soften the fibres as well
     (``fe_mesh.apply_damage``, issue #164). ``None`` without
-    delaminations."""
-    require_tier_supports_ratio("fe3d", cfg.transverse_stress_ratio)
+    delaminations. On a biaxial config (``cfg.transverse_stress_ratio !=
+    0``) the knockdown is multiplied by the Lekhnitskii factor ``F(beta)``
+    of the empirical tier (``fibre_damage_tai`` with the ratio), so the
+    notch is ``1 / (k_h F)``: the same law, no new constant."""
     if not damage.delaminations:
         return None
     width = cfg.panel.Ly_mm
     R = tai_hole_radius_mm(lam.material, damage, width)
     if R <= 0:
         return None
-    kd = fibre_damage_tai(lam.material, damage, 1.0, lekhnitskii_kt_infinity(lam), width)
+    Kt_inf = lekhnitskii_kt_infinity(lam)
+    beta = cfg.transverse_stress_ratio
+    if beta == 0:
+        kd = fibre_damage_tai(lam.material, damage, 1.0, Kt_inf, width)
+    else:
+        kd = fibre_damage_tai(
+            lam.material, damage, 1.0, Kt_inf, width, transverse_stress_ratio=beta, laminate=lam
+        )
     return R, kd
 
 

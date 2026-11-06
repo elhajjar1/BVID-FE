@@ -269,8 +269,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="EXPERIMENTAL, unvalidated: biaxial in-plane load, the signed ratio "
         "sigma_y/sigma_x in [-1, 1] (0 = uniaxial). The sign of sigma_x is "
         "--loading's; e.g. --loading compression --transverse-stress-ratio 1 is "
-        "equibiaxial compression. Only the empirical tier supports a nonzero "
-        "ratio so far (AnalysisConfig.transverse_stress_ratio).",
+        "equibiaxial compression. Every tier supports a nonzero ratio "
+        "(AnalysisConfig.transverse_stress_ratio).",
     )
     p.add_argument(
         "--tier",
@@ -522,7 +522,7 @@ def _main(argv: Sequence[str] | None) -> int:
     except (FE3DSizeError, NotImplementedError, ValueError) as exc:
         # ValueError: an input only the run can reject, e.g. a --location on
         # or outside the panel edge. NotImplementedError: a tier without a
-        # biaxial model yet for --transverse-stress-ratio != 0.
+        # model for the configuration (none at present).
         return _error(str(exc))
     multi = len(results) > 1
 

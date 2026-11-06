@@ -208,3 +208,38 @@ def test_recommendation_from_a_real_result() -> None:
     assert rec["recommended_path"] in {UAI, SUBSTANTIATE, REPAIR, SCRAP}
     md, _ = build_ncr(FORM, cfg, result, rec)
     assert f"{result['knockdown']:.3f}" in md
+
+
+# ---------------------------------------------------------------------------
+# Biaxial loading (issue #115): recorded, and flagged as not validated
+# ---------------------------------------------------------------------------
+
+
+def test_uniaxial_ncr_records_the_ratio_and_markdown_is_unchanged() -> None:
+    result = BvidAnalysis(_cfg()).run().to_dict()
+    rec = recommend_disposition(result)
+    md, d = build_ncr(FORM, _cfg(), result, rec)
+    assert d["material_configuration"]["transverse_stress_ratio"] == 0.0
+    assert d["material_configuration"]["loading"] == "compression"
+    assert d["engineering_analysis"]["biaxial_interaction_factor"] is None
+    assert "Biaxial" not in md and "σy" not in md
+    assert not any("Biaxial" in f for f in rec["flags"])
+
+
+def test_biaxial_ncr_records_ratio_sigma_y_and_flags_it() -> None:
+    from dataclasses import replace
+
+    cfg = replace(_cfg(), transverse_stress_ratio=-0.5)
+    result = BvidAnalysis(cfg).run().to_dict()
+    rec = recommend_disposition(result)
+    (flag,) = [f for f in rec["flags"] if f.startswith("Biaxial load")]
+    assert "σy/σx = -0.50" in flag and "NOT VALIDATED" in flag
+    md, d = build_ncr(FORM, cfg, result, rec)
+    assert d["material_configuration"]["transverse_stress_ratio"] == -0.5
+    analysis = d["engineering_analysis"]
+    assert analysis["biaxial_interaction_factor"] == result["biaxial_interaction_factor"]
+    assert analysis["residual_transverse_stress_MPa"] == result["residual_transverse_stress_MPa"]
+    assert "**Biaxial load:** σy/σx = -0.50 (compression) — experimental, not validated" in md
+    assert f"{result['residual_transverse_stress_MPa']:.1f} MPa residual" in md
+    assert f"{result['biaxial_interaction_factor']:.3f}" in md
+    assert flag in md

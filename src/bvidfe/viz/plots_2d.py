@@ -1,4 +1,5 @@
-"""2D matplotlib plots for BVID-FE: damage map, knockdown curve, tier comparison.
+"""2D matplotlib plots for BVID-FE: damage map, knockdown curve, tier comparison
+and the (experimental) biaxial failure envelope.
 
 All plot functions accept an optional ``fig`` argument. When ``fig`` is ``None``
 (default) they create a fresh ``Figure`` via ``plt.subplots`` — convenient for
@@ -10,7 +11,7 @@ its own figure and canvas instead of swapping in a pyplot-managed one.
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, Optional, Sequence
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -19,6 +20,9 @@ from matplotlib.figure import Figure
 from bvidfe.core.geometry import PanelGeometry
 from bvidfe.damage.state import DamageState
 from bvidfe.viz.style import COLORS, ELLIPSE_CMAP, FIGSIZE_LANDSCAPE, FIGSIZE_SQUARE
+
+if TYPE_CHECKING:  # pragma: no cover
+    import pandas as pd
 
 
 def _prepare_axes(fig: Optional[Figure], figsize):
@@ -179,5 +183,102 @@ def plot_tier_comparison(
     ax.grid(True, linestyle="--", alpha=0.3)
     ax.legend()
     ax.set_title(title or "BVID tier comparison")
+    fig.tight_layout()
+    return fig
+
+
+def _envelope_points(df: "pd.DataFrame", s: float, strength_col: str, sigma_y_col: str):
+    """``(ratio, sigma_x, sigma_y)`` arrays of the successful rows of a
+    ``sweep_transverse_ratios`` frame, ordered by ratio; ``sigma_x`` is the
+    signed axial stress ``s * |sigma_x|``."""
+    ok = df.dropna(subset=[strength_col, sigma_y_col]).sort_values("transverse_stress_ratio")
+    return (
+        ok["transverse_stress_ratio"].to_numpy(dtype=float),
+        s * ok[strength_col].to_numpy(dtype=float),
+        ok[sigma_y_col].to_numpy(dtype=float),
+    )
+
+
+def biaxial_envelope_plot(
+    df_compression: Optional["pd.DataFrame"] = None,
+    df_tension: Optional["pd.DataFrame"] = None,
+    title: str | None = None,
+    fig: Optional[Figure] = None,
+):
+    """Pristine and damaged (sigma_x, sigma_y) failure points of a biaxial
+    ratio sweep. **Experimental, not validated** (issue #115): no biaxial
+    residual-strength data exist, so the envelope is not an allowable.
+
+    ``df_compression`` and ``df_tension`` are
+    :func:`~bvidfe.sweep.parametric_sweep.sweep_transverse_ratios` frames
+    run with ``loading="compression"`` (sigma_x < 0, the left half) and
+    ``"tension"`` (sigma_x > 0, the right half); either may be ``None``,
+    not both. Each point is the failure stress along one load ray
+    ``sigma_y / sigma_x = transverse_stress_ratio``: the pristine envelope
+    (``pristine_MPa``, ``pristine_sigma_y_MPa``) in grey and the damaged one
+    (``residual_MPa``, ``residual_sigma_y_MPa``) per ``tier_used``, in the
+    tier's colour. The pristine envelope is the same for every tier and is
+    drawn once. Failed rows (NaN) are left out. If ``fig`` is provided it
+    is cleared and reused; otherwise a new Figure is created.
+    """
+    frames = [(df, s) for df, s in ((df_compression, -1.0), (df_tension, 1.0)) if df is not None]
+    if not frames:
+        raise ValueError("biaxial_envelope_plot needs df_compression, df_tension or both")
+    fig, ax = _prepare_axes(fig, FIGSIZE_SQUARE)
+    ax.axhline(0.0, color="black", linewidth=0.8, alpha=0.6)
+    ax.axvline(0.0, color="black", linewidth=0.8, alpha=0.6)
+
+    n_points = 0
+    labelled: set[str] = set()
+    for df, s in frames:
+        _, sx, sy = _envelope_points(df, s, "pristine_MPa", "pristine_sigma_y_MPa")
+        if len(sx):
+            ax.plot(
+                sx,
+                sy,
+                "--o",
+                color=COLORS["pristine"],
+                linewidth=2.0,
+                markersize=8,
+                markerfacecolor="white",
+                label=None if "pristine" in labelled else "pristine",
+            )
+            labelled.add("pristine")
+        tiers = [t for t in dict.fromkeys(df["tier_used"].dropna()) if t]
+        for tier in tiers:
+            _, sx, sy = _envelope_points(
+                df[df["tier_used"] == tier], s, "residual_MPa", "residual_sigma_y_MPa"
+            )
+            n_points += len(sx)
+            label = f"damaged ({tier})"
+            ax.plot(
+                sx,
+                sy,
+                "-o",
+                color=COLORS.get(tier, COLORS["knockdown"]),
+                linewidth=2.0,
+                markersize=8,
+                label=None if label in labelled else label,
+            )
+            labelled.add(label)
+
+    if n_points == 0:
+        ax.text(
+            0.5,
+            0.5,
+            "no successful sweep points",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            color="grey",
+            fontsize=14,
+        )
+    else:
+        ax.legend(loc="best", framealpha=0.85)
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.set_xlabel("σx at failure [MPa]")
+    ax.set_ylabel("σy at failure [MPa]")
+    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.set_title(title or "Biaxial failure envelope\n(experimental, not validated)")
     fig.tight_layout()
     return fig

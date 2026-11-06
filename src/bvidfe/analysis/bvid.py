@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import math
 import warnings
+from contextlib import nullcontext
 from copy import deepcopy
 from dataclasses import asdict, replace
-from typing import Union
+from typing import ContextManager, Union
 
 from bvidfe._types import LoadingMode
-from bvidfe.analysis.config import AnalysisConfig, require_tier_supports_ratio
+from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.fe_tier import (
+    fe3d_basis_cache,
     fe3d_cai_buckling,
     fe3d_cai_channels_and_modulus,
     fe3d_tai_and_modulus,
@@ -19,8 +21,12 @@ from bvidfe.analysis.fe_tier import (
 from bvidfe.analysis.results import AnalysisResults
 from bvidfe.analysis.semi_analytical import (
     SemiAnalyticalResult,
+    SublaminateGrowth,
+    _semi_analytical_tai_result,
+    panel_buckling_load,
     semi_analytical_cai,
     semi_analytical_tai,
+    weakest_sublaminate_growth,
 )
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
@@ -133,10 +139,12 @@ def _biaxial_note(
     transverse_stress_ratio: float,
     residual_uniaxial_MPa: float,
     interaction_factor: float,
+    semi_detail: str = "",
 ) -> str:
     """``AnalysisResults.notes`` entry of every biaxial run (D12 of the
     #115 design): experimental and unvalidated, the load ray, and the tier's
-    assumption."""
+    assumption (for ``semi_analytical`` followed by ``semi_detail``, see
+    :func:`_semi_biaxial_detail`)."""
     beta = transverse_stress_ratio
     s = 1 if loading == "tension" else -1
     note = (
@@ -161,10 +169,84 @@ def _biaxial_note(
             "; empirical TAI adds the far-field sigma_y term at the hole's "
             "characteristic point (see the TAI note)"
         )
+    elif tier == "semi_analytical":
+        bound = (
+            "the homothetic Soutis bound of the empirical tier"
+            if loading == "compression"
+            else "the fibre-damage hole with the far-field sigma_y term (see the TAI note)"
+        )
+        note += (
+            "; semi_analytical puts the film's lateral stress (the applied sigma_y "
+            "through the sublaminate's A; the Poisson-mismatch part is left out, as "
+            "in the uniaxial model) into the clamped-ellipse buckling and the 2D "
+            f"blister, and takes the lower of {bound} and the growth stress" + semi_detail
+        )
+    elif tier == "fe3d":
+        channels = (
+            "takes the lower of that and semi_analytical's biaxial growth stress"
+            if loading == "compression"
+            else "notches the fibre damage by 1 / (knockdown x F) (see the TAI note), and "
+            "takes the lower of that and semi_analytical's biaxial growth stress when a "
+            "film is compressed along some axis"
+        )
+        note += (
+            "; fe3d superposes two linear solves of each mesh, x platens with the y "
+            "edges free and y platens with the x faces held, to the ratio of the "
+            "face-averaged reaction stresses (near the damage the local ratio differs), "
+            "scales first-ply failure along the ray, and " + channels + "; the damage "
+            "zone is softened for the sense of sigma_x alone, as in the uniaxial model, "
+            "and E11_knockdown is the uniaxial (x solve) one"
+        )
     return note + (
         f"; biaxial_interaction_factor {interaction_factor:.3f} = residual over the "
         f"uniaxial residual strength {residual_uniaxial_MPa:.1f} MPa."
     )
+
+
+def _semi_biaxial_detail(
+    sa_result: SemiAnalyticalResult,
+    lam: Laminate,
+    cfg: AnalysisConfig,
+) -> str:
+    """The growing interface and the whole-panel buckling load of a biaxial
+    ``semi_analytical`` run, for :func:`_biaxial_note`."""
+    growth = sa_result.growth
+    if growth is None:
+        detail = (
+            ": no delamination grows (every film is in tension along both axes)"
+            if cfg.loading == "tension"
+            else ": no delamination grows"
+        )
+    else:
+        other = "y" if growth.film_stress_axis == "x" else "x"
+        detail = (
+            f": interface {growth.interface_index} grows at |sigma_x| = "
+            f"{growth.growth_stress_MPa:.1f} MPa along its {growth.growth_axis} axis; its "
+            f"film is more compressed along {growth.film_stress_axis}, with "
+            f"{growth.film_stress_ratio:+.3f} times that compression along {other}, and "
+            f"buckles at a film stress of {growth.film_buckling_stress_MPa:.1f} MPa"
+        )
+    panel = cfg.panel
+    N_panel = panel_buckling_load(
+        lam,
+        panel.Lx_mm,
+        panel.Ly_mm,
+        panel.boundary,
+        loading=cfg.loading,
+        transverse_stress_ratio=cfg.transverse_stress_ratio,
+    )
+    if math.isfinite(N_panel):
+        factor = (
+            ""
+            if panel.boundary == "simply_supported"
+            else f" times the {panel.boundary} panel factor, a uniaxial ratio"
+        )
+        detail += (
+            f"; the whole panel buckles at |sigma_x| = {N_panel / lam.thickness_mm:.1f} MPa "
+            f"along the ray (simply supported Rayleigh-Ritz{factor}; reported only, "
+            f"not in the residual)"
+        )
+    return detail
 
 
 def _fe3d_stiffness(Ex_damaged: float, Ex_undamaged: float, sense: str) -> tuple[float, str]:
@@ -180,6 +262,27 @@ def _fe3d_stiffness(Ex_damaged: float, Ex_undamaged: float, sense: str) -> tuple
         f"not compute E22 or G12, and no stiffness measurement validates it"
     )
     return knockdown, note
+
+
+def _growth_stress(growth: SublaminateGrowth | None) -> float:
+    """The growth stress of ``growth`` (MPa), ``inf`` for ``None``."""
+    return growth.growth_stress_MPa if growth is not None else math.inf
+
+
+def _fe3d_growth_note(growth: SublaminateGrowth, transverse_stress_ratio: float) -> str:
+    """``AnalysisResults.notes`` entry of fe3d's delamination growth
+    channel; on a biaxial run also the film axis."""
+    note = (
+        f"fe3d delamination growth: interface {growth.interface_index} grows at "
+        f"{growth.growth_stress_MPa:.1f} MPa (its sublaminate buckles at a film "
+        f"stress of {growth.film_buckling_stress_MPa:.1f} MPa)"
+    )
+    if transverse_stress_ratio != 0:
+        note += (
+            f"; biaxial: |sigma_x| along the load ray, the film more compressed along "
+            f"{growth.film_stress_axis} (semi_analytical's biaxial growth stress)"
+        )
+    return note
 
 
 def _config_snapshot_dict(cfg: AnalysisConfig) -> dict:
@@ -266,7 +369,6 @@ class BvidAnalysis:
 
     def _run(self) -> AnalysisResults:
         beta = self.config.transverse_stress_ratio
-        require_tier_supports_ratio(self.config.tier, beta)
         mat = _resolve_material(self.config.material)
         lam = Laminate(
             material=mat,
@@ -278,6 +380,7 @@ class BvidAnalysis:
         sigma_0 = _pristine_strength(lam, self.config.loading, beta)
         notes: list[str] = []
         E11_knockdown: float | None = None
+        fe3d_uniaxial: float | None = None
 
         if self.config.tier == "empirical":
             sigma = self._empirical(lam, damage, sigma_0, beta)
@@ -285,16 +388,21 @@ class BvidAnalysis:
             critical_interface = None
             field_results = None
         elif self.config.tier == "semi_analytical":
-            sa_result = self._semi_analytical(lam, damage, sigma_0)
+            sa_result = self._semi_analytical(lam, damage, sigma_0, beta)
             sigma = sa_result.residual_strength_MPa
             critical_interface = sa_result.critical_interface_index
             N_cr = sa_result.critical_buckling_load_N
             buckling_eigs = [N_cr] if N_cr is not None else None
             field_results = None
         elif self.config.tier == "fe3d":
-            sigma, buckling_eigs, critical_interface, fe3d_notes, E11_knockdown = self._fe3d(
-                lam, damage, sigma_0
-            )
+            (
+                sigma,
+                buckling_eigs,
+                critical_interface,
+                fe3d_notes,
+                E11_knockdown,
+                fe3d_uniaxial,
+            ) = self._fe3d(lam, damage, sigma_0)
             notes.extend(fe3d_notes)
             field_results = None
         else:
@@ -303,19 +411,33 @@ class BvidAnalysis:
         sigma_y: float | None = None
         interaction_factor: float | None = None
         if beta != 0:
-            # Only the empirical tier gets here (require_tier_supports_ratio).
-            # Its uniaxial residual on the same damage is a second closed-form
-            # evaluation.
+            # The uniaxial residual on the same damage: for the closed-form
+            # tiers a second evaluation (for semi_analytical a second growth
+            # solve), for fe3d from the basis X solves of the run itself.
             s = 1.0 if self.config.loading == "tension" else -1.0
             sigma_0_uniaxial = _pristine_strength(lam, self.config.loading)
-            sigma_uniaxial = self._empirical(lam, damage, sigma_0_uniaxial, 0.0)
+            semi_detail = ""
+            if fe3d_uniaxial is not None:
+                sigma_uniaxial = fe3d_uniaxial
+            elif self.config.tier == "semi_analytical":
+                sigma_uniaxial = self._semi_analytical(
+                    lam, damage, sigma_0_uniaxial
+                ).residual_strength_MPa
+                semi_detail = _semi_biaxial_detail(sa_result, lam, self.config)
+            else:
+                sigma_uniaxial = self._empirical(lam, damage, sigma_0_uniaxial, 0.0)
             interaction_factor = float(sigma / sigma_uniaxial if sigma_uniaxial > 0 else 0.0)
             sigma_y_0 = float(s * beta * sigma_0)
             sigma_y = float(s * beta * sigma)
             notes.insert(
                 0,
                 _biaxial_note(
-                    self.config.tier, self.config.loading, beta, sigma_uniaxial, interaction_factor
+                    self.config.tier,
+                    self.config.loading,
+                    beta,
+                    sigma_uniaxial,
+                    interaction_factor,
+                    semi_detail,
                 ),
             )
         if self.config.loading == "tension" and self.config.tier != "fe3d":
@@ -348,7 +470,7 @@ class BvidAnalysis:
 
     def _fe3d(
         self, lam: Laminate, damage: DamageState, sigma_0: float
-    ) -> tuple[float, list[float] | None, int | None, list[str], float]:
+    ) -> tuple[float, list[float] | None, int | None, list[str], float, float | None]:
         """fe3d residual strength on the shared pristine scale.
 
         fe3d's first-ply-failure stress (on the 3D mesh) is not the same
@@ -373,19 +495,56 @@ class BvidAnalysis:
         undamaged panel's secant axial modulus (loaded-edge reaction force
         at the same end strain), recorded in ``notes`` with the raw moduli.
 
+        Biaxial (``transverse_stress_ratio != 0``, experimental, issue
+        #115): each mesh also gets the transverse basis solve, and the
+        failure stresses are ``|sigma_x|`` at first-ply failure along the
+        load ray (``fe_tier._ratio_displacement``); the growth stress is
+        ``semi_analytical``'s biaxial one. The uniaxial residual, for
+        ``biaxial_interaction_factor``, comes from the same meshes' x
+        solves (an ``fe3d_basis_cache``), so the run solves four systems,
+        not six.
+
         Returns ``(residual_MPa, buckling_eigenvalues, critical_interface,
-        notes, E11_knockdown)``.
+        notes, E11_knockdown, uniaxial_residual_MPa)``, the last ``None``
+        at ``transverse_stress_ratio == 0``.
         """
         undamaged = DamageState(delaminations=[], dent_depth_mm=0.0)
-        if self.config.loading != "compression":
-            return self._fe3d_tai(lam, damage, undamaged, sigma_0)
+        if self.config.transverse_stress_ratio == 0:
+            cache: ContextManager = nullcontext()
+        else:
+            # One entry: each mesh's ratio and uniaxial evaluations are
+            # consecutive, so the damaged mesh is released before the
+            # undamaged one is built (an enclosing sweep's cache is reused).
+            cache = fe3d_basis_cache(max_entries=1)
+        with cache:
+            if self.config.loading != "compression":
+                return self._fe3d_tai(lam, damage, undamaged, sigma_0)
+            return self._fe3d_cai(lam, damage, undamaged, sigma_0)
 
-        growth, fpf_damaged, Ex_damaged = fe3d_cai_channels_and_modulus(
-            self.config, damage, lam, math.inf
-        )
+    def _fe3d_cai(
+        self, lam: Laminate, damage: DamageState, undamaged: DamageState, sigma_0: float
+    ) -> tuple[float, list[float] | None, int | None, list[str], float, float | None]:
+        """fe3d compression after impact, see ``_fe3d``."""
+        cfg = self.config
+        beta = cfg.transverse_stress_ratio
+        cfg_uniaxial = replace(cfg, transverse_stress_ratio=0.0)
+        growth, fpf_damaged, Ex_damaged = fe3d_cai_channels_and_modulus(cfg, damage, lam, math.inf)
+        if beta != 0:
+            growth_0, fpf_damaged_0, _ = fe3d_cai_channels_and_modulus(
+                cfg_uniaxial, damage, lam, math.inf
+            )
         _, fpf_undamaged, Ex_undamaged = fe3d_cai_channels_and_modulus(
-            self.config, undamaged, lam, math.inf
+            cfg, undamaged, lam, math.inf
         )
+        uniaxial: float | None = None
+        if beta != 0:
+            _, fpf_undamaged_0, _ = fe3d_cai_channels_and_modulus(
+                cfg_uniaxial, undamaged, lam, math.inf
+            )
+            uniaxial = min(
+                _growth_stress(growth_0),
+                _pristine_strength(lam, cfg.loading) * min(1.0, fpf_damaged_0 / fpf_undamaged_0),
+            )
         sigma_fpf = sigma_0 * min(1.0, fpf_damaged / fpf_undamaged)
         notes = [
             f"fe3d first-ply failure = damaged {fpf_damaged:.1f} MPa / undamaged "
@@ -395,15 +554,10 @@ class BvidAnalysis:
         E11_knockdown, stiffness_note = _fe3d_stiffness(Ex_damaged, Ex_undamaged, "compression")
         notes.append(stiffness_note)
         critical_interface = None
-        sigma_growth = math.inf
-        if growth is not None and math.isfinite(growth.growth_stress_MPa):
+        sigma_growth = _growth_stress(growth)
+        if growth is not None and math.isfinite(sigma_growth):
             critical_interface = growth.interface_index
-            sigma_growth = growth.growth_stress_MPa
-            notes.append(
-                f"fe3d delamination growth: interface {growth.interface_index} grows at "
-                f"{growth.growth_stress_MPa:.1f} MPa (its sublaminate buckles at a film "
-                f"stress of {growth.film_buckling_stress_MPa:.1f} MPa)"
-            )
+            notes.append(_fe3d_growth_note(growth, beta))
         if sigma_growth < sigma_fpf:
             notes.append(
                 f"fe3d CAI: delamination growth governs ({sigma_growth:.1f} MPa, below "
@@ -419,7 +573,7 @@ class BvidAnalysis:
                 f"fe3d CAI: first-ply failure governs ({sigma_fpf:.1f} MPa; no "
                 f"delamination grows)"
             )
-        _, lambda_crit, buckling_notes = fe3d_cai_buckling(self.config, damage, lam, math.inf)
+        _, lambda_crit, buckling_notes = fe3d_cai_buckling(cfg, damage, lam, math.inf)
         notes.extend(buckling_notes)
         buckling_eigs = [lambda_crit] if lambda_crit > 0 else None
         return (
@@ -428,17 +582,35 @@ class BvidAnalysis:
             critical_interface,
             notes,
             E11_knockdown,
+            None if uniaxial is None else float(uniaxial),
         )
 
     def _fe3d_tai(
         self, lam: Laminate, damage: DamageState, undamaged: DamageState, sigma_0: float
-    ) -> tuple[float, list[float] | None, int | None, list[str], float]:
+    ) -> tuple[float, list[float] | None, int | None, list[str], float, float | None]:
         """fe3d tension after impact: fe3d's damaged over undamaged
         first-ply failure (``fe3d_tai``, uncapped so that two results above
         ``_pristine_strength`` still keep their true ratio), applied to
-        ``sigma_0``; the E11 knockdown in tension as in ``_fe3d``."""
-        sigma_damaged, Ex_damaged = fe3d_tai_and_modulus(self.config, damage, lam, math.inf)
-        sigma_undamaged, Ex_undamaged = fe3d_tai_and_modulus(self.config, undamaged, lam, math.inf)
+        ``sigma_0``; the E11 knockdown in tension as in ``_fe3d``.
+
+        Biaxial (``transverse_stress_ratio != 0``, see ``_fe3d``): the
+        fibre-damage notch takes the empirical tier's ``F(beta)``, and
+        when a film is compressed along some axis (``beta < 0``) the
+        residual is the lower of that and ``semi_analytical``'s biaxial
+        growth stress, as in compression."""
+        cfg = self.config
+        beta = cfg.transverse_stress_ratio
+        cfg_uniaxial = replace(cfg, transverse_stress_ratio=0.0)
+        sigma_damaged, Ex_damaged = fe3d_tai_and_modulus(cfg, damage, lam, math.inf)
+        if beta != 0:
+            sigma_damaged_0, _ = fe3d_tai_and_modulus(cfg_uniaxial, damage, lam, math.inf)
+        sigma_undamaged, Ex_undamaged = fe3d_tai_and_modulus(cfg, undamaged, lam, math.inf)
+        uniaxial: float | None = None
+        if beta != 0:
+            sigma_undamaged_0, _ = fe3d_tai_and_modulus(cfg_uniaxial, undamaged, lam, math.inf)
+            uniaxial = _pristine_strength(lam, cfg.loading) * min(
+                1.0, sigma_damaged_0 / sigma_undamaged_0
+            )
         knockdown = min(1.0, sigma_damaged / sigma_undamaged)
         notes = [
             f"fe3d knockdown = damaged {sigma_damaged:.1f} MPa / undamaged "
@@ -447,20 +619,56 @@ class BvidAnalysis:
         ]
         E11_knockdown, stiffness_note = _fe3d_stiffness(Ex_damaged, Ex_undamaged, "tension")
         notes.append(stiffness_note)
-        hole = tai_fibre_damage_hole(self.config, damage, lam)
+        hole = tai_fibre_damage_hole(cfg, damage, lam)
         if hole is not None:
             size = (
                 "the damage state's fibre-break core, not meshed"
                 if damage.fiber_break_radius_mm >= hole[0]
                 else "below the mesh"
             )
+            biaxial = "" if beta == 0 else " (1 / (knockdown x F), F as in the TAI note)"
             notes.append(
                 f"fe3d TAI: fibre damage as the closed-form equivalent hole "
                 f"({2 * hole[0]:.2f} mm across, {size}), a Whitney-Nuismer "
-                f"notch x{1 / hole[1]:.3f} on the stress of the elements under it"
+                f"notch x{1 / hole[1]:.3f}{biaxial} on the stress of the elements under it"
             )
-            notes.append(_tai_note(lam, damage, self.config.panel.Ly_mm))
-        return sigma_0 * knockdown, None, None, notes, E11_knockdown
+            notes.append(_tai_note(lam, damage, cfg.panel.Ly_mm, beta))
+        sigma = sigma_0 * knockdown
+        critical_interface = None
+        if beta != 0:
+            # The same call as semi_analytical's (_semi_analytical_tai_result).
+            growth = weakest_sublaminate_growth(
+                lam,
+                damage,
+                boundary=cfg.panel.boundary,
+                loading="tension",
+                transverse_stress_ratio=beta,
+            )
+            sigma_growth = _growth_stress(growth)
+            if growth is not None and math.isfinite(sigma_growth):
+                critical_interface = growth.interface_index
+                notes.append(_fe3d_growth_note(growth, beta))
+                governs = (
+                    f"delamination growth governs ({sigma_growth:.1f} MPa, below first-ply "
+                    f"failure at {sigma:.1f} MPa)"
+                    if sigma_growth < sigma
+                    else f"first-ply failure governs ({sigma:.1f} MPa, below delamination "
+                    f"growth at {sigma_growth:.1f} MPa)"
+                )
+                notes.append(f"fe3d TAI: {governs}")
+                sigma = min(sigma, sigma_growth)
+            elif damage.delaminations:
+                notes.append(
+                    "fe3d TAI: no delamination grows (every film is in tension along both axes)"
+                )
+        return (
+            float(sigma),
+            None,
+            critical_interface,
+            notes,
+            E11_knockdown,
+            None if uniaxial is None else float(uniaxial),
+        )
 
     def _resolve_damage(self, lam: Laminate) -> DamageState:
         if self.config.damage is not None:
@@ -484,10 +692,38 @@ class BvidAnalysis:
         )
 
     def _semi_analytical(
-        self, lam: Laminate, damage: DamageState, sigma_0: float
+        self,
+        lam: Laminate,
+        damage: DamageState,
+        sigma_0: float,
+        transverse_stress_ratio: float = 0.0,
     ) -> SemiAnalyticalResult:
+        """semi_analytical residual strength for the pristine strength
+        ``sigma_0`` along the load ray. Biaxial (``transverse_stress_ratio
+        != 0``, experimental): the growth stress of the biaxial film load,
+        against the homothetic Soutis bound in compression and the hole
+        model with ``F(beta)`` in tension (where a laterally compressed
+        film, ``beta < 0``, can grow too)."""
+        boundary = self.config.panel.boundary
+        if transverse_stress_ratio != 0:
+            if self.config.loading == "compression":
+                return semi_analytical_cai(
+                    lam,
+                    damage,
+                    sigma_0,
+                    boundary=boundary,
+                    transverse_stress_ratio=transverse_stress_ratio,
+                )
+            return _semi_analytical_tai_result(
+                lam,
+                damage,
+                sigma_0,
+                self.config.panel.Ly_mm,
+                boundary=boundary,
+                transverse_stress_ratio=transverse_stress_ratio,
+            )
         if self.config.loading == "compression":
-            return semi_analytical_cai(lam, damage, sigma_0, boundary=self.config.panel.boundary)
+            return semi_analytical_cai(lam, damage, sigma_0, boundary=boundary)
         # tension: no sublaminate buckling channel — wrap the scalar result
         # so callers consume a uniform ``SemiAnalyticalResult`` shape.
         sigma = semi_analytical_tai(lam, damage, sigma_0, self.config.panel.Ly_mm)

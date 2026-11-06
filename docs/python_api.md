@@ -132,7 +132,7 @@ bounds it.
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
-| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; only `tier="empirical"` supports a nonzero ratio so far (the other tiers raise `NotImplementedError`). See [Biaxial loading](physics_models.md#biaxial-loading) |
+| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; every tier supports a nonzero ratio (`"fe3d"` with four FE solves instead of two). See [Biaxial loading](physics_models.md#biaxial-loading) |
 
 `MeshParams` fields (fe3d only):
 
@@ -167,8 +167,8 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `knockdown` | `residual_strength_MPa / pristine_strength_MPa` |
 | `damage`, `dpa_mm2` | The `DamageState` used and its projected damage area (mm²) |
 | `tier_used`, `config_snapshot` | Provenance |
-| `buckling_eigenvalues` | Buckling *onset*, not strength, as a one-element list: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI; `None` for `empirical`, for TAI and for `semi_analytical` without delaminations |
-| `critical_sublaminate` | `semi_analytical` and `fe3d` CAI: interface whose delamination grows at the lowest stress; else `None` |
+| `buckling_eigenvalues` | Buckling *onset*, not strength, as a one-element list: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI; `None` for `empirical`, for TAI (except `semi_analytical` under a lateral compression, `transverse_stress_ratio < 0`, where a film can buckle and grow) and for `semi_analytical` without delaminations |
+| `critical_sublaminate` | `semi_analytical` and `fe3d` CAI, and their TAI under a lateral compression (`transverse_stress_ratio < 0`) when a film grows: interface whose delamination grows at the lowest stress; else `None` |
 | `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here (and, for CAI, the delamination-growth and whole-panel buckling stresses). Impact-mapping regimes are Python warnings, not notes |
 | `warnings` | Every `UserWarning` raised during the run, as `"<WarningClass>: <message>"` (also emitted as Python warnings) |
 | `field_results` | Always `None` for now |
@@ -237,7 +237,9 @@ Cross-tier expectations:
 - For **CAI**, `semi_analytical.knockdown ≤ empirical.knockdown` always
   (the growth stress only lowers the residual). `fe3d` is independent
   and can sit above or below `empirical`.
-- For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly;
+- For **TAI**, `empirical.knockdown == semi_analytical.knockdown` exactly
+  (under a biaxial load with lateral compression, `transverse_stress_ratio
+  < 0`, `semi_analytical` can be lower: a laterally compressed film grows);
   `fe3d` differs: it uses the same fibre-damage hole and adds the
   matrix-cracked zone around it, so it falls with energy like the closed
   form and sits 2–8% below it (see the tier table).
@@ -276,6 +278,41 @@ same way), and `progress_callback=` (called as
 replaces a per-ply list. Each impact warning category is shown once per
 sweep.
 
+`sweep_transverse_ratios(config, ratios)` sweeps the biaxial ratio
+`transverse_stress_ratio` (σy/σx, each in [−1, 1]) at the config's
+`loading` and `tier`; it is **experimental and not validated**, like the
+field. It takes the same `csv_path=`, `on_error=` and
+`progress_callback=` (`inputs` is `{"transverse_stress_ratio": β}`) and
+works with impact or C-scan damage. Its columns are
+`transverse_stress_ratio`, the columns above (`residual_MPa` and
+`pristine_MPa` are |σx| at failure along the load ray), then
+`residual_sigma_y_MPa` and `pristine_sigma_y_MPa` (the signed σy at
+damaged and pristine failure), `biaxial_interaction_factor` and `error`.
+A row equals a `BvidAnalysis` run at that ratio; at β = 0, whose result
+fields are `None`, the sweep writes σy = 0 and an interaction factor of
+1. For `tier="fe3d"` the sweep keeps the basis solves of the damaged and
+the undamaged mesh (they do not depend on the ratio), so any number of
+ratios costs four FE solves and two mesh builds (for a loop of your own,
+`with bvidfe.analysis.fe_tier.fe3d_basis_cache():` around the runs does
+the same). A tier that raises
+`NotImplementedError` at a ratio (none at present) is a failed point
+under `on_error="skip"` or `"warn"`.
+Run it once per `loading` for both halves of the envelope:
+
+```python
+from dataclasses import replace
+from bvidfe.sweep.parametric_sweep import sweep_transverse_ratios
+
+ratios = [-1, 0, 1]
+df_c = sweep_transverse_ratios(config, ratios)   # config is loading="compression"
+df_t = sweep_transverse_ratios(replace(config, loading="tension"), ratios)
+print(df_c[["transverse_stress_ratio", "residual_MPa", "residual_sigma_y_MPa"]].round(1))
+#    transverse_stress_ratio  residual_MPa  residual_sigma_y_MPa
+# 0                     -1.0         184.2                 184.2
+# 1                      0.0         269.1                   0.0
+# 2                      1.0         379.7                -379.7
+```
+
 ## Visualization
 
 ```python
@@ -283,16 +320,24 @@ from bvidfe.viz.plots_2d import (
     plot_damage_map,           # ellipse footprints + panel outline
     plot_knockdown_curve,      # single tier
     plot_tier_comparison,      # overlaid multi-tier
+    biaxial_envelope_plot,     # (sigma_x, sigma_y) failure points of a ratio sweep
 )
 
 fig = plot_damage_map(result.damage, config.panel)
 fig.savefig("damage_map.png", dpi=300)
+biaxial_envelope_plot(df_c, df_t).savefig("biaxial_envelope.png")   # the ratio sweeps above
 ```
 
 `plot_knockdown_curve(energies_J, knockdowns, tier_label="")` and
 `plot_tier_comparison(energies_J, {"empirical": [...], ...})` take plain
-sequences, for example two columns of a sweep DataFrame. All three return
-a matplotlib Figure.
+sequences, for example two columns of a sweep DataFrame.
+`biaxial_envelope_plot(df_compression=None, df_tension=None)` takes
+`sweep_transverse_ratios` frames run with `loading="compression"` (the
+σx < 0 half) and `"tension"` (σx > 0), either of them optional: the
+pristine envelope in grey and the damaged one in each `tier_used`'s
+colour, failed rows left out; experimental and not validated, so not an
+allowable. All four return a matplotlib Figure and take `fig=` to draw
+into an existing one.
 
 For an interactive 3D view of the damaged hex mesh (the same figure the
 Streamlit app's "3D Damage" tab shows), build the mesh and render it with
@@ -421,7 +466,7 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
 | `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
 | `--loading` | `compression` | `compression` or `tension` |
-| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; `empirical` tier only so far |
+| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; every tier |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
 | `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |

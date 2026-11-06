@@ -123,30 +123,6 @@ def _validate_transverse_stress_ratio(value: Any) -> float:
     return beta + 0.0
 
 
-#: Tiers that do not model biaxial loading yet (issue #115): they raise
-#: ``NotImplementedError`` for ``transverse_stress_ratio != 0`` rather than
-#: silently run the uniaxial model. The value names the follow-up PR.
-_UNIAXIAL_ONLY_TIERS = {
-    "semi_analytical": "PR 2 of #115 (biaxial sublaminate buckling and growth)",
-    "fe3d": "PR 3 of #115 (biaxial fe3d boundary conditions)",
-}
-
-
-def require_tier_supports_ratio(tier: str, transverse_stress_ratio: float) -> None:
-    """Raise ``NotImplementedError`` for ``transverse_stress_ratio != 0`` on a
-    tier without a biaxial model yet (``semi_analytical``, ``fe3d``), naming
-    the follow-up PR; ``BvidAnalysis.run`` and the fe3d entry points call it
-    so that no tier silently runs the uniaxial model for a biaxial config."""
-    if transverse_stress_ratio != 0 and tier in _UNIAXIAL_ONLY_TIERS:
-        raise NotImplementedError(
-            f"transverse_stress_ratio != 0 (biaxial loading, here "
-            f"{transverse_stress_ratio:g}) is not yet supported by tier={tier!r}; it "
-            f"is planned in the follow-up {_UNIAXIAL_ONLY_TIERS[tier]}. Use "
-            f"tier='empirical' (experimental at transverse_stress_ratio != 0) or "
-            f"transverse_stress_ratio=0.0."
-        )
-
-
 def _material_from_json(value: Any) -> Any:
     """A preset name or an ``OrthotropicMaterial`` as is; a dict (as
     ``config_snapshot`` writes a custom material) as
@@ -221,8 +197,7 @@ class AnalysisConfig:
         load with lateral stress of the other sign). ``-1 <= beta <= 1``;
         default ``0.0``, the uniaxial load, which gives exactly the results
         of a config without the field. The strength fields stay ``|sigma_x|``
-        at failure along the ray. Only ``tier="empirical"`` supports
-        ``beta != 0`` so far; the other tiers raise ``NotImplementedError``.
+        at failure along the ray. Every tier supports ``beta != 0``.
         No biaxial residual-strength data validate it; see "Biaxial
         loading" in docs/physics_models.md.
 

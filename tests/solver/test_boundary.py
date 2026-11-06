@@ -8,6 +8,7 @@ from bvidfe.solver.boundary import (
     BoundaryCondition,
     apply_dirichlet_penalty,
     mid_surface_z,
+    transverse_platen_bcs,
     uniaxial_x_bcs,
 )
 from bvidfe.solver.static import solve_linear_static
@@ -194,3 +195,67 @@ def test_mid_surface_restraint_carries_no_load_on_a_symmetric_laminate():
     axial = abs(reaction[3 * np.flatnonzero(x_max)].sum())
     support = [b.dof for b in bcs if b.dof % 3 != 0]
     assert np.abs(reaction[support]).max() < 1e-9 * axial
+
+
+# --- transverse_platen_bcs (biaxial fe3d basis Y, issue #115) ---------------
+
+
+def test_transverse_platen_bcs_dof_sets():
+    """u_y on every y-face node (0 on y_min, strain x Ly on y_max), u_x = 0
+    on every x-face node, u_z = 0 on the mid-surface layer only, no
+    single-node restraint and no DOF constrained twice."""
+    coords = _grid(np.linspace(0, 4, 5), np.linspace(0, 2, 3), np.linspace(0, 0.8, 5))
+    bcs = transverse_platen_bcs(coords, applied_strain=-0.01)
+    assert len({b.dof for b in bcs}) == len(bcs)
+    x, y, z = coords.T
+
+    uy = _constrained(bcs, 1)
+    assert set(uy) == set(np.flatnonzero((y == 0) | (y == 2)))
+    for n, value in uy.items():
+        assert value == pytest.approx(-0.02 if y[n] == 2 else 0.0)
+
+    ux = _constrained(bcs, 0)
+    assert set(ux) == set(np.flatnonzero((x == 0) | (x == 4)))
+    assert set(ux.values()) == {0.0}
+
+    uz = _constrained(bcs, 2)
+    assert set(uz) == set(np.flatnonzero(np.isclose(z, 0.4)))
+    assert set(uz.values()) == {0.0}
+    assert len(bcs) == len(uy) + len(ux) + len(uz)
+
+
+def test_transverse_platen_bcs_tension_sign_and_odd_layers():
+    coords = _grid([0.0, 1.0], [0.0, 3.0], [0.0, 0.2, 0.4, 0.6])
+    bcs = transverse_platen_bcs(coords, applied_strain=0.02)
+    assert max(_constrained(bcs, 1).values()) == pytest.approx(0.06)
+    uz = _constrained(bcs, 2)
+    assert set(uz) == set(np.flatnonzero(np.isclose(coords[:, 2], 0.2)))
+
+
+def test_transverse_platen_bcs_remove_every_rigid_body_mode():
+    """The two pairs of platens and the mid-surface layer leave no
+    rigid-body mode without a single-node restraint: the reduced
+    stiffness is positive definite."""
+    mesh, _, K = _small_fe3d_model([0.0, 45.0, -45.0, 90.0])
+    bcs = transverse_platen_bcs(mesh.node_coords, -0.01)
+    dofs = np.array(sorted({b.dof for b in bcs}))
+    assert np.linalg.matrix_rank(_rigid_body_modes(mesh.node_coords)[dofs]) == 6
+    free = np.setdiff1d(np.arange(mesh.n_dof), dofs)
+    eig = np.linalg.eigvalsh(K[np.ix_(free, free)])
+    assert eig.min() > 1e-8 * eig.max()
+
+
+def test_transverse_platen_bcs_mid_surface_restraint_carries_no_load():
+    """As for the x platens: on a symmetric laminate the mid-plane u_z = 0
+    is a symmetry condition, and the two y platens' reactions balance."""
+    delam = DelaminationEllipse(1, (10.0, 5.0), 6.0, 3.0, 0.0)
+    mesh, elements, K = _small_fe3d_model([0.0, 90.0, 90.0, 0.0], [delam])
+    bcs = transverse_platen_bcs(mesh.node_coords, -0.01)
+    u = solve_linear_static(elements, mesh.element_dof_maps, mesh.n_dof, bcs)
+    reaction = K @ u
+    y = mesh.node_coords[:, 1]
+    top = reaction[3 * np.flatnonzero(y == y.max()) + 1].sum()
+    bottom = reaction[3 * np.flatnonzero(y == y.min()) + 1].sum()
+    assert top < 0 and bottom == pytest.approx(-top, rel=1e-9)
+    uz = [b.dof for b in bcs if b.dof % 3 == 2]
+    assert np.abs(reaction[uz]).max() < 1e-9 * abs(top)
