@@ -209,7 +209,10 @@ def test_rotation_symmetry_on_a_square_panel(loading):
 
 
 # fe3d at beta = 0 before biaxial loading (the code of PR 2 of #115), on
-# _cfg()'s 60 x 40 mm panel.
+# _cfg()'s 60 x 40 mm panel, as computed on Linux. The iterative solver's
+# round-off differs across platforms (about 1e-13 relative on Windows), so the
+# pin is compared to 1e-9; the same-platform bit-identity of the beta = 0 path
+# is the solve count and the absence of any biaxial state above.
 _PINNED_BETA0 = {
     "compression": 239.68139734212997,
     "tension": 662.741008758128,
@@ -226,7 +229,7 @@ def test_zero_ratio_solves_once_per_mesh(loading, solve_count):
     assert r.residual_transverse_stress_MPa is None
     assert not any("Biaxial" in n or "biaxial" in n for n in r.notes)
     assert fe_tier._ACTIVE_BASIS_CACHE.get() is None
-    assert r.residual_strength_MPa == _PINNED_BETA0[loading]
+    assert r.residual_strength_MPa == pytest.approx(_PINNED_BETA0[loading], rel=1e-9)
 
 
 @pytest.mark.parametrize("loading", ["compression", "tension"])
