@@ -10,6 +10,12 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: read
+# One BLAS/OpenMP thread per process. The solvers make many small dense and
+# sparse calls, and a multi-threaded BLAS on the shared runner cores spends
+# more time synchronising than computing (locally 10-50x slower solves without
+# this); the ubuntu cells ran 3-4x longer than the macOS and Windows ones.
+env:
+  OMP_NUM_THREADS: "1"
 jobs:
   test:
     strategy:
