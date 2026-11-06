@@ -69,6 +69,7 @@ import pandas as pd
 from bvidfe._types import _ON_ERROR_MODES, OnErrorMode
 from bvidfe._validation import require_choice
 from bvidfe.analysis import AnalysisConfig, AnalysisResults, BvidAnalysis
+from bvidfe.analysis.fe_tier import Fe3dBasisCache, fe3d_basis_cache
 from bvidfe.impact.mapping import DPACapClipWarning, SmallMassQuasiStaticWarning
 
 logger = logging.getLogger(__name__)
@@ -410,13 +411,24 @@ def _nan_row_ratio() -> dict:
 def _ratio_point_runner(base_cfg: AnalysisConfig) -> Callable[[AnalysisConfig], dict]:
     """The per-point runner of ``sweep_transverse_ratios``.
 
-    Every point is a full ``BvidAnalysis`` run today, in every tier. This is
-    the seam for a tier that can share work across ratios: fe3d's design
-    (issue #115) solves two basis load cases (unit sigma_x, unit sigma_y)
-    per mesh, damage and loading and superposes them for each ratio, so a
-    runner that caches those solves by (mesh signature, damage, loading)
-    goes here, returning the same row as ``_run_one_ratio``."""
-    return _run_one_ratio
+    Every point is a full ``BvidAnalysis`` run, returning the row of
+    ``_run_one_ratio``. For ``tier="fe3d"`` the runner keeps one
+    :class:`~bvidfe.analysis.fe_tier.Fe3dBasisCache` for the whole sweep:
+    the basis solves of a mesh (issue #115) do not depend on the ratio, so
+    the damaged and the undamaged mesh are built and solved once each
+    (two solves each with a nonzero ratio in the sweep, one for a sweep of
+    ratio 0 alone) instead of once per point, and each row equals a
+    ``BvidAnalysis`` run of its config. The cache is dropped with the
+    runner when the sweep returns."""
+    if base_cfg.tier != "fe3d":
+        return _run_one_ratio
+    cache = Fe3dBasisCache(max_entries=2)
+
+    def run(cfg: AnalysisConfig) -> dict:
+        with fe3d_basis_cache(cache):
+            return _run_one_ratio(cfg)
+
+    return run
 
 
 def sweep_transverse_ratios(

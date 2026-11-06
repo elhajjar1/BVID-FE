@@ -60,8 +60,8 @@ All notable changes to BVID-FE are documented in this file.
     `biaxial_interaction_factor` (residual over the uniaxial residual of the
     same damage), `None` for a uniaxial run, and a `notes` line on every
     biaxial run saying it is experimental and not validated;
-  - `fe3d` raises `NotImplementedError` for a nonzero ratio until its
-    follow-up PR (`semi_analytical`: see the next entry).
+  - `fe3d` raised `NotImplementedError` for a nonzero ratio until its
+    follow-up (`semi_analytical` and `fe3d`: see the next entries).
 
   No biaxial residual-strength data are known, so nothing at β ≠ 0 is
   validated; under biaxial tension the pristine envelope ends,
@@ -146,6 +146,43 @@ All notable changes to BVID-FE are documented in this file.
   - Docs: a biaxial example in the Quickstart, `sweep_transverse_ratios`
     and `biaxial_envelope_plot` in the Python API, both run by the docs
     tests.
+- **Biaxial loading in `fe3d`, experimental and unvalidated** (issue #115,
+  third part). A nonzero `transverse_stress_ratio` no longer raises on
+  `tier="fe3d"`, so every tier supports it (the `NotImplementedError`
+  guard is removed). Each mesh gets a second linear solve between y
+  platens with the x faces held (new
+  `bvidfe.solver.boundary.transverse_platen_bcs`: `u_y` on both y faces,
+  `u_x = 0` on both x faces, `u_z = 0` on the mid-surface layer, no
+  single-node restraint), superposed on the uniaxial solve so that the
+  face-averaged reaction stresses satisfy σy = β σx; the y faces then
+  carry the platen solve's ply-wise traction, not a uniform one.
+  First-ply failure is scaled along that ray with the existing analytic
+  scaling (the path is proportional, the solve linear). CAI is
+  `min(semi_analytical's biaxial growth stress, λ0(β)·min(1, D/U))`; TAI
+  notches the fibre damage by `1/(k_h·F(β))`, the empirical tier's
+  Lekhnitskii factor, and under lateral compression also takes the growth
+  stress (the same value and interface as `semi_analytical`). The damage
+  zone is softened for the sense of σx alone, `E11_knockdown` is the
+  uniaxial one, and the buckling-onset notes use the biaxial closed forms.
+  `biaxial_interaction_factor`'s uniaxial residual reuses the run's own x
+  solves, so a biaxial run solves four systems instead of two (8-ply QI
+  150 × 100 mm at 5 mm: 7.1 s against 3.3 s in compression). Undamaged
+  unidirectional panels match plane-stress CLT first-ply failure along the
+  ray to 1e-6; an 8-ply QI panel is up to 4.5% (compression) and 8.1%
+  (tension) below it, by basis X's free edges.
+  - New `fe_tier.fe3d_basis_cache` / `Fe3dBasisCache`: inside the block
+    the fe3d entry points reuse a mesh's basis solves across ratios.
+    `sweep_transverse_ratios` keeps one per sweep, so N fe3d ratios cost
+    four FE solves and two mesh builds (five ratios: 4 solves, not 18),
+    each row still equal to its `BvidAnalysis` run.
+  - `fe_tier._edge_force(mesh, elements, u, axis, component)` generalises
+    `_loaded_edge_force` (kept), and `_first_ply_failure_stress_and_modulus`
+    gains keyword-only `transverse_stress_ratio`.
+
+  At β = 0 nothing new runs: one solve per mesh, and every result, note
+  and warning is bit-identical (checked on 10 configs at 5 and 10 mm, and
+  on the fe3d calibration coupons). Nothing at β ≠ 0 is validated. See
+  [Biaxial loading](docs/physics_models.md#biaxial-loading-fe3d).
 
 ### Changed
 

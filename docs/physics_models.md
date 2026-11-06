@@ -965,7 +965,7 @@ cannot move these in opposite directions.
 | --- | --- | --- |
 | `empirical` | Soutis: `σ₀ / (1 + k_s·(DPA/A_ref)^m)`, `A_ref` = 15,000 mm² | Whitney-Nuismer point stress on a hole of diameter `tai_notch_fraction` × footprint width, finite-width corrected |
 | `semi_analytical` | `min(Soutis, σ_growth)` | Delegates to the empirical TAI model (identical to `empirical`; under a lateral compression, β < 0, also `min(…, σ_growth)`, see [Biaxial loading](#biaxial-loading)) |
-| `fe3d` | `min(σ_growth, σ₀ × min(1, D/U))` with `D`, `U` = `FPF_LaRC05` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged (fibre-damage hole as a notch at the impact site) / undamaged |
+| `fe3d` | `min(σ_growth, σ₀ × min(1, D/U))` with `D`, `U` = `FPF_LaRC05` on the damaged / undamaged panel | `σ₀ × min(1, D/U)` with `D`, `U` = `FPF_Tsai-Wu` damaged (fibre-damage hole as a notch at the impact site) / undamaged (under a lateral compression, β < 0, also `min(…, σ_growth)`, see [Biaxial loading](#biaxial-loading-fe3d)) |
 
 fe3d's first-ply-failure stress is not the same kind of quantity as σ₀,
 so it is normalised by an undamaged fe3d run of the same panel (a second
@@ -1103,9 +1103,8 @@ boundary conditions fe3d does not have), about 40% more run time.
     nothing at `transverse_stress_ratio ≠ 0` is validated. The results are
     verified (limits, symmetries, closed forms) but not checked against
     measurements. Every biaxial run says so in `AnalysisResults.notes`.
-    The `empirical` and `semi_analytical` tiers support a nonzero ratio;
-    `fe3d` raises `NotImplementedError` until the follow-up PR of issue
-    #115 (biaxial fe3d boundary conditions).
+    Every tier supports a nonzero ratio (`fe3d` since the third PR of
+    issue #115, [below](#biaxial-loading-fe3d)).
 
 **Load path.** `AnalysisConfig.transverse_stress_ratio = β` (default `0.0`,
 `−1 ≤ β ≤ 1`) makes the in-plane load a proportional (radial) ray
@@ -1144,7 +1143,8 @@ unloaded and loaded afterwards; impact under preload is out of scope.
   changes the damaged axial strength against the uniaxial CAI or TAI value
   of the same damage (1 = no effect, below 1 = the lateral stress costs
   strength). λd(0) is a second closed-form evaluation in the same run
-  (for `semi_analytical` a second growth solve).
+  (for `semi_analytical` a second growth solve; for `fe3d` it comes from
+  the run's own x solves, at no extra solve).
 
 The three new fields are `None` at β = 0, and a β = 0 run gives the same
 results, notes and warnings as a config without the field
@@ -1323,6 +1323,97 @@ fold (the snap), or below it if `G` reaches `G_c` on the branch first.
 The growth stress then moves by 0.6% between β = −0.045 and −0.05. No
 uniaxial result changes: the fallback replaces what was an error.
 
+<a id="biaxial-loading-fe3d"></a>
+**fe3d: two basis solves superposed.** Basis X is the uniaxial solve
+(`uniaxial_x_bcs`: x platens, y faces free, `u_z = 0` on the mid-surface
+layer). Basis Y (`transverse_platen_bcs`) holds `u_y = 0` on the y_min
+face and `u_y = ε·Ly` on the y_max face (rigid, frictionless platens),
+`u_x = 0` on both x faces and `u_z = 0` on the mid-surface layer; the two
+pairs of platens leave no rigid-body mode, so no single node is
+restrained. The solve is linear, so `u = u_X + b·u_Y` is an exact elastic
+state in which the y faces carry `b` times basis Y's platen traction: the
+ply-wise σy of a laminate under a lateral strain, which a uniform traction
+through the thickness would not be (it would add load-introduction
+stresses at the y edges). `b` comes from the face reactions (`F_Xx`,
+`F_Xy` of X; `F_Yx`, `F_Yy` of Y; signed, on the x_max and y_max faces),
+so that the face-averaged stresses are on the ray:
+
+```text
+b  = (β F_Xx/A_x − F_Xy/A_y) / (F_Yy/A_y − β F_Yx/A_x),   A_x = Ly·h,  A_y = Lx·h
+σx = (F_Xx + b F_Yx)/A_x,    σy = (F_Xy + b F_Yy)/A_y = β σx
+```
+
+`F_Xy`, the free face's force, is zero to the solver tolerance; keeping it
+makes the ratio exact to round-off. The denominator is about
+`ε (Q22 − β Q12)` of the laminate, far from zero for |β| ≤ 1. The ratio
+holds on average over each face; near the softened damage zone the local
+ratio differs, by design. At β = 0 nothing of this runs: the one uniaxial
+solve per mesh is today's, bit for bit, and no transverse solve is made.
+
+- **First-ply failure** is scaled along the ray from the superposed
+  reference state with the same analytic scaling as the uniaxial solve
+  (Tsai-Wu quadratic, LaRC05 degree 2, Puck degree 1), which holds
+  because the path is proportional and the solve linear; the failure
+  stress is `c·|σx|`. As at β = 0, the damaged over the undamaged panel's
+  first-ply failure scales λ0(β).
+- **CAI**: `min(σ_growth(β), λ0(β)·min(1, D/U))`, where `σ_growth(β)` is
+  `semi_analytical`'s biaxial growth stress (the same call, so the same
+  value and `critical_sublaminate`).
+- **TAI**: `λ0(β)·min(1, D/U)` with the fibre-damage notch `1/(k_h·F(β))`,
+  the empirical tier's Lekhnitskii factor on the hole's knockdown (no new
+  constant); under lateral compression (β < 0) also `min(…, σ_growth(β))`,
+  as in `semi_analytical`, and `critical_sublaminate` is then filled in.
+- The damage zone is softened for the sense of σx (`loading`) alone, as in
+  the uniaxial model, so the solve stays linear and β = 0 unchanged (D9 of
+  the design); see Limitations. `E11_knockdown` is basis X's, the
+  uniaxial secant modulus. Buckling onset (notes and
+  `buckling_eigenvalues` only) uses the biaxial `panel_buckling_load` and
+  sublaminate kernel of `semi_analytical`.
+- **Cost.** A β ≠ 0 run solves four systems instead of two (X and Y of the
+  damaged and the undamaged mesh); the uniaxial residual of
+  `biaxial_interaction_factor` reuses the x solves. On the 8-ply QI
+  150 × 100 mm panel at 5 mm (17,577 DOFs, single-threaded): 3.3 s at
+  β = 0 against 7.1 s at β = −1 in compression (with the biaxial growth
+  search) and 2.9 against 6.0 s in tension; at 2.5 mm 18 s against 37 s.
+  The basis solves do not depend on β, so `sweep_transverse_ratios` keeps
+  them for the whole sweep (`fe_tier.fe3d_basis_cache`): five ratios cost
+  four solves and two mesh builds (14 s in compression at 5 mm), not 18
+  solves and 10 meshes.
+
+Undamaged first-ply failure against plane-stress CLT first-ply failure
+with the same criterion along the ray (60 × 40 mm, 5 mm mesh):
+unidirectional [0]4 and [90]4 panels agree to 1e-6 (the uniform state
+satisfies every boundary condition of both solves), [0/90]s to 0.03%. A
+quasi-isotropic panel is below CLT by the free-edge stresses of basis X:
+
+| 8-ply QI | β = −1 | −0.5 | 0 | +0.5 | +1 |
+|---|---|---|---|---|---|
+| compression (LaRC05) | −2.9% | −4.5% | −0.4% | −0.7% | −2.3% |
+| tension (Tsai-Wu) | −0.8% | −1.1% | −1.7% | −2.9% | −8.1% |
+
+The D/U normalisation cancels most of it. Knockdowns of the 8-ply QI
+IM7/8552 panel, 150 × 100 mm, 10 J (16 mm hemisphere, 5.5 kg), fe3d at
+5 mm (`tests/analysis/test_fe3d_biaxial.py`, slow), with the interaction
+factor in brackets:
+
+| Loading, tier | β = −1 | −0.5 | 0 | +0.5 | +1 |
+|---|---|---|---|---|---|
+| CAI, `fe3d` | 0.331 (0.817) | 0.316 (0.970) | 0.277 | 0.258 (1.089) | 0.172 (0.877) |
+| CAI, `semi_analytical` | 0.448 | 0.448 | 0.448 | 0.448 | 0.394 |
+| CAI, `empirical` | 0.448 | 0.448 | 0.448 | 0.448 | 0.448 |
+| TAI, `fe3d` | 0.768 (0.550) | 0.762 (0.856) | 0.763 | 0.780 (1.207) | 0.831 (0.840) |
+| TAI, `semi_analytical` and `empirical` | 0.841 | 0.830 | 0.820 | 0.809 | 0.799 |
+
+First-ply failure governs fe3d on this panel at every β (in tension its
+films grow far above, 1,014 MPa at β = −1). On the [0/90]2s panel at 10 J
+in tension at β = −1 growth governs (578.4 MPa along the major axis of
+interface 4), and fe3d (at 10 mm) and `semi_analytical` give the same
+0.704. At
+2.5 mm the fe3d knockdowns at β = −1 and +1 are 0.355 and 0.193 (CAI),
+0.766 and 0.919 (TAI): halving the mesh moves them by up to 13%, against
+up to 4% for the uniaxial one, since the 10 J damage zone is only a few
+elements across at 5 mm (see [3D FE tier](#3d-fe-tier)).
+
 **Verification** (in the tests): β = 0 bit-identity in all three tiers and
 both load senses (and, in `semi_analytical`, that no biaxial code runs); continuity at β = ±1e−9; `unnotched_strength_along(lam,
 (±1, 0, 0))` equal to the uniaxial strength for every preset; the 90°
@@ -1341,7 +1432,17 @@ monotone lateral-tension stabilisation of the film, `inf` for a film in
 tension along both axes, the 90° rotation of the load and the ellipse,
 continuity at β = ±1e−9, the pruned search against the full minimum,
 pinned knockdowns, and `semi_analytical ≤ empirical` on a β grid
-(`tests/test_cross_tier_consistency.py`).
+(`tests/test_cross_tier_consistency.py`). For `fe3d`: β = 0 bit-identity
+with one solve per mesh and β ≠ 0 with two (a counted
+`solve_linear_static`), the achieved face-averaged σy/σx (to 1e−8, from
+the combined displacement), the undamaged CLT comparison above, an
+undamaged knockdown of exactly 1, the TAI notch `1/(k_h·F(β))`, the growth
+stress and interface of `semi_analytical` in compression and in tension
+with lateral compression, the 90° rotation symmetry on a square panel
+(undamaged to 0.2%, damaged knockdown to 2%: the two basis solves' edges
+are not each other's rotation), continuity at β = ±1e−9, the
+`transverse_platen_bcs` DOF sets and rigid-body modes, and a sweep whose
+rows equal the runs one by one with four solves for five ratios.
 
 **Limitations.**
 
@@ -1376,6 +1477,20 @@ pinned knockdowns, and `semi_analytical ≤ empirical` on a β grid
   growth channel is itself effectively unvalidated. The whole-panel
   buckling in the note keeps the uniaxial clamped and free panel factors,
   and a free edge that carries σy is not free.
+- **fe3d damage zone by the sense of σx.** The zone is softened as for
+  compression (the whole in-plane stiffness) or tension (the
+  matrix-dominated terms only, the fibres intact) by `loading` alone.
+  Softening each ply by the sign of its own fibre strain would change β = 0
+  results (90° plies have tensile fibre strain under uniaxial compression)
+  and make the solve nonlinear. Under axial tension with lateral
+  compression this keeps the intact fibre stiffness and strength of 90°
+  plies whose fibres are compressed, which is unconservative.
+- **fe3d ratio on average.** The ratio is that of the face-averaged
+  reactions; near the damage zone the local ratio differs. Free-edge
+  stresses of basis X lower the undamaged first-ply failure of a
+  quasi-isotropic panel by up to 8% (tension, β = 1) against CLT, mostly
+  cancelled by D/U. fe3d does not report a transverse modulus (basis Y
+  could give one; a follow-up).
 
 ## Limitations
 
@@ -1403,11 +1518,13 @@ pinned knockdowns, and `semi_analytical ≤ empirical` on a β grid
   fe3d TAI item below).
 - **Biaxial loading (`transverse_stress_ratio ≠ 0`) is experimental and
   not validated**: no biaxial residual-strength data are known.
-  `empirical` and `semi_analytical` support it (`fe3d` not yet); the
+  Every tier supports it; the
   empirical CAI knockdown is assumed independent of the ratio, its TAI
   adds the Lekhnitskii far-field σy term at the characteristic point,
   `semi_analytical` adds the film's lateral stress (the applied σy only,
-  Option A) to the sublaminate buckling and growth, and the pristine
+  Option A) to the sublaminate buckling and growth, `fe3d` superposes two
+  basis solves and softens its damage zone for the sense of σx alone, and
+  the pristine
   envelope ends, conservatively,
   when every ply has cracked under biaxial tension (equibiaxial QI8:
   580.8 MPa against about 1,120 MPa for the fibres). See

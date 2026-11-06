@@ -132,7 +132,7 @@ bounds it.
 | `damage` | `None` | A `DamageState` in the frame of `panel` (exactly one of `impact` and `damage`) |
 | `mesh` | `None` | `MeshParams` for fe3d; filled with `MeshParams()` when `tier="fe3d"`, ignored by the other tiers |
 | `impact_panel` | `None` | The panel the impact was applied on, when it is not `panel` (see above); its `boundary` is the one the impact model uses |
-| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; `tier="empirical"` and `"semi_analytical"` support a nonzero ratio (`"fe3d"` raises `NotImplementedError` so far). See [Biaxial loading](physics_models.md#biaxial-loading) |
+| `transverse_stress_ratio` | `0.0` | **Experimental, unvalidated.** Signed σy/σx of a proportional biaxial load `(σx, σy) = λ·(s, s·β)` (`s` = −1 for compression, +1 for tension), `−1 ≤ β ≤ 1`; every tier supports a nonzero ratio (`"fe3d"` with four FE solves instead of two). See [Biaxial loading](physics_models.md#biaxial-loading) |
 
 `MeshParams` fields (fe3d only):
 
@@ -168,7 +168,7 @@ print(estimate_fe_mesh_size(fine)["n_dof"])   # 67527 (fe3d refuses more than 15
 | `damage`, `dpa_mm2` | The `DamageState` used and its projected damage area (mm²) |
 | `tier_used`, `config_snapshot` | Provenance |
 | `buckling_eigenvalues` | Buckling *onset*, not strength, as a one-element list: sublaminate `N_cr` (N/mm) for `semi_analytical` CAI, lower of panel and sublaminate buckling stress (MPa) for `fe3d` CAI; `None` for `empirical`, for TAI (except `semi_analytical` under a lateral compression, `transverse_stress_ratio < 0`, where a film can buckle and grow) and for `semi_analytical` without delaminations |
-| `critical_sublaminate` | `semi_analytical` and `fe3d` CAI: interface whose delamination grows at the lowest stress; else `None` |
+| `critical_sublaminate` | `semi_analytical` and `fe3d` CAI, and their TAI under a lateral compression (`transverse_stress_ratio < 0`) when a film grows: interface whose delamination grows at the lowest stress; else `None` |
 | `notes` | Human-readable diagnostics; fe3d records its raw damaged / undamaged stresses here (and, for CAI, the delamination-growth and whole-panel buckling stresses). Impact-mapping regimes are Python warnings, not notes |
 | `warnings` | Every `UserWarning` raised during the run, as `"<WarningClass>: <message>"` (also emitted as Python warnings) |
 | `field_results` | Always `None` for now |
@@ -290,8 +290,13 @@ works with impact or C-scan damage. Its columns are
 damaged and pristine failure), `biaxial_interaction_factor` and `error`.
 A row equals a `BvidAnalysis` run at that ratio; at β = 0, whose result
 fields are `None`, the sweep writes σy = 0 and an interaction factor of
-1. A tier without a biaxial model yet raises `NotImplementedError` at a
-nonzero ratio, which `on_error="skip"` or `"warn"` records in `error`.
+1. For `tier="fe3d"` the sweep keeps the basis solves of the damaged and
+the undamaged mesh (they do not depend on the ratio), so any number of
+ratios costs four FE solves and two mesh builds (for a loop of your own,
+`with bvidfe.analysis.fe_tier.fe3d_basis_cache():` around the runs does
+the same). A tier that raises
+`NotImplementedError` at a ratio (none at present) is a failed point
+under `on_error="skip"` or `"warn"`.
 Run it once per `loading` for both halves of the envelope:
 
 ```python
@@ -461,7 +466,7 @@ bvidfe --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 --thickness 0.152 \
 | `--panel 150x100` | required | Panel size in mm, e.g. `150x100` |
 | `--boundary` | `simply_supported` | `PanelGeometry.boundary`: `clamped`, `simply_supported` or `free` |
 | `--loading` | `compression` | `compression` or `tension` |
-| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; `empirical` and `semi_analytical` tiers (not `fe3d` yet) |
+| `--transverse-stress-ratio BETA` | `0.0` | **Experimental, unvalidated** biaxial load: `AnalysisConfig.transverse_stress_ratio`, signed σy/σx in [−1, 1]; every tier |
 | `--tier` | `empirical` | One tier, or a comma-separated list such as `empirical,semi_analytical,fe3d` |
 | `--energy J` | — | Impact energy in J, `>= 0` (impact-driven); exactly one of `--energy` and `--cscan` |
 | `--cscan PATH` | — | C-scan JSON file (inspection-driven) |

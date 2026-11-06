@@ -357,13 +357,25 @@ def test_transverse_stress_ratio_help_says_experimental():
     assert "--transverse-stress-ratio" in text and "EXPERIMENTAL" in text
 
 
-@pytest.mark.parametrize("tier", ["fe3d", "empirical,fe3d"])
-def test_transverse_stress_ratio_on_an_unsupported_tier_is_an_error(tier, capsys):
-    code, out, err = _main(
-        ["--energy", "10", "--tier", tier, "--transverse-stress-ratio", "0.5"], capsys
+def test_transverse_stress_ratio_runs_on_fe3d(capsys):
+    """Every tier models biaxial loading since PR 3 of #115 (fe3d at a
+    10 mm mesh here, to stay fast)."""
+    data = _json(
+        [
+            "--energy",
+            "10",
+            "--tier",
+            "fe3d",
+            "--in-plane-size",
+            "10",
+            "--transverse-stress-ratio",
+            "0.5",
+        ],
+        capsys,
     )
-    assert code == 1 and out == ""
-    assert "not yet supported" in err and "#115" in err
+    assert data["tier_used"] == "fe3d"
+    assert data["biaxial_interaction_factor"] is not None
+    assert "fe3d superposes two linear solves" in data["notes"][0]
 
 
 def test_transverse_stress_ratio_runs_on_semi_analytical(capsys):

@@ -189,7 +189,7 @@ def test_empty_sweep():
 
 def test_point_runner_is_the_per_point_seam(monkeypatch):
     """Each point goes through the runner ``_ratio_point_runner`` returns
-    (where an fe3d basis-solve cache would plug in)."""
+    (where fe3d's basis-solve cache plugs in)."""
     calls: list = []
 
     def _runner(base_cfg):
@@ -203,3 +203,72 @@ def test_point_runner_is_the_per_point_seam(monkeypatch):
     df = sweep_transverse_ratios(_cfg(), [0.0, 0.5])
     assert calls == [0.0, 0.5]
     assert df["error"].isna().all()
+
+
+def _count_fe3d(monkeypatch) -> dict:
+    """Count fe3d's linear solves and mesh builds."""
+    from bvidfe.analysis import fe_tier
+
+    calls = {"solves": 0, "meshes": 0}
+    solve, preflight = fe_tier.solve_linear_static, fe_tier._fe3d_preflight
+
+    def _solve(*a, **k):
+        calls["solves"] += 1
+        return solve(*a, **k)
+
+    def _preflight(*a, **k):
+        calls["meshes"] += 1
+        return preflight(*a, **k)
+
+    monkeypatch.setattr(fe_tier, "solve_linear_static", _solve)
+    monkeypatch.setattr(fe_tier, "_fe3d_preflight", _preflight)
+    return calls
+
+
+def _small_fe3d_cfg(loading: str) -> AnalysisConfig:
+    """A fast fe3d config: a 60 x 40 mm panel at 5 mm with two delaminations."""
+    from bvidfe.analysis import MeshParams
+    from bvidfe.damage.state import DamageState, DelaminationEllipse
+
+    damage = DamageState(
+        [
+            DelaminationEllipse(2, (30.0, 20.0), 10.0, 6.0, 0.0),
+            DelaminationEllipse(5, (30.0, 20.0), 9.0, 5.0, 90.0),
+        ]
+    )
+    return _cfg(
+        tier="fe3d",
+        loading=loading,
+        panel=PanelGeometry(60.0, 40.0),
+        impact=None,
+        damage=damage,
+        mesh=MeshParams(in_plane_size_mm=5.0),
+    )
+
+
+@pytest.mark.parametrize("loading", ["compression", "tension"])
+def test_fe3d_sweep_solves_each_basis_once(loading, monkeypatch):
+    """fe3d (issue #115, PR 3): the basis solves of a mesh do not depend on
+    the ratio, so the sweep builds the damaged and the undamaged mesh once
+    and solves each twice (x and y) for all five ratios, instead of 18
+    solves and 10 meshes for the runs one by one; every row equals the
+    run's."""
+    calls = _count_fe3d(monkeypatch)
+    cfg = _small_fe3d_cfg(loading)
+    df = sweep_transverse_ratios(cfg, RATIOS)
+    assert calls == {"solves": 4, "meshes": 2}
+    calls.update(solves=0, meshes=0)
+    rows = [ps._run_one_ratio(replace(cfg, transverse_stress_ratio=b)) for b in RATIOS]
+    assert calls == {"solves": 18, "meshes": 10}
+    expected = pd.DataFrame(rows)
+    for col in expected.columns:
+        assert df[col].tolist() == expected[col].tolist(), col
+    assert df["error"].isna().all()
+
+
+def test_fe3d_sweep_of_zero_alone_solves_once_per_mesh(monkeypatch):
+    cfg = _small_fe3d_cfg("compression")
+    calls = _count_fe3d(monkeypatch)
+    df = sweep_transverse_ratios(cfg, [0.0, 0.0])
+    assert calls == {"solves": 2, "meshes": 2}
+    assert df["knockdown"].iloc[0] == BvidAnalysis(cfg).run().knockdown

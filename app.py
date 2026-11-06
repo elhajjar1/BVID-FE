@@ -159,9 +159,10 @@ _DF_FORMATS = {
 }
 
 # Biaxial loading (issue #115): the sidebar's sigma_y / sigma_x ratio and the
-# Sweep tab's ratio sweep. Experimental and not validated, in every tier; a
-# tier without a biaxial model raises NotImplementedError, which the page
-# reports instead of crashing (see ``_unsupported_tier_note``).
+# Sweep tab's ratio sweep. Experimental and not validated, in every tier
+# (all three model it); a tier that raises NotImplementedError for a
+# configuration is reported instead of crashing (see
+# ``_unsupported_tier_note``).
 BIAXIAL_CAVEAT = (
     "Biaxial loading is **experimental and not validated**: no biaxial "
     "residual-strength data exist to check it. Do not use these numbers or "
@@ -1231,8 +1232,8 @@ with st.sidebar:
             "sign for β > 0 (compression with β = 1 is equibiaxial compression) "
             "and the other sign for β < 0. 0 (default) is the uniaxial load. The "
             "strengths are then |σx| at failure along the load ray. No biaxial "
-            "residual-strength data validate it; a tier without a biaxial model "
-            "yet says so when it runs (`AnalysisConfig.transverse_stress_ratio`)."
+            "residual-strength data validate it. Every tier supports it; fe3d "
+            "solves twice as many FE systems (`AnalysisConfig.transverse_stress_ratio`)."
         ),
     )
     if transverse_stress_ratio != 0:

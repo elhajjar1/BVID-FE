@@ -25,6 +25,9 @@ import math
 import pytest
 
 from bvidfe.analysis import AnalysisConfig, BvidAnalysis
+from bvidfe.analysis.semi_analytical import weakest_sublaminate_growth
+from bvidfe.core.laminate import Laminate
+from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry
 from bvidfe.damage.state import DamageState
 from bvidfe.impact.mapping import ImpactEvent
@@ -130,3 +133,43 @@ def test_biaxial_semi_analytical_le_empirical(layup, loading, beta):
     if loading == "tension" and beta > 0:
         assert s.knockdown == e.knockdown
     assert 0.0 < s.knockdown <= 1.0
+
+
+@pytest.mark.parametrize(
+    ("loading", "beta"), [("compression", -1.0), ("tension", -1.0), ("tension", 0.5)]
+)
+def test_biaxial_fe3d_shares_pristine_and_growth_with_semi_analytical(loading, beta):
+    """fe3d at a nonzero ratio (10 mm mesh, to stay fast): the pristine
+    envelope point is every tier's, and its growth channel is
+    semi_analytical's biaxial growth stress, on the same interface, so its
+    residual is never above that growth stress."""
+    from bvidfe.analysis import MeshParams
+
+    kw = _base_kwargs(loading)
+    s = BvidAnalysis(
+        AnalysisConfig(tier="semi_analytical", transverse_stress_ratio=beta, **kw)
+    ).run()
+    f = BvidAnalysis(
+        AnalysisConfig(
+            tier="fe3d",
+            transverse_stress_ratio=beta,
+            mesh=MeshParams(in_plane_size_mm=10.0),
+            **kw,
+        )
+    ).run()
+    assert f.pristine_strength_MPa == s.pristine_strength_MPa
+    assert f.critical_sublaminate == s.critical_sublaminate
+    growth = weakest_sublaminate_growth(
+        Laminate(MATERIAL_LIBRARY["IM7/8552"], kw["layup_deg"], 0.152),
+        f.damage,
+        loading=loading,
+        transverse_stress_ratio=beta,
+    )
+    assert growth is not None
+    if loading == "tension" and beta > 0:
+        assert f.critical_sublaminate is None and math.isinf(growth.growth_stress_MPa)
+    else:
+        assert f.critical_sublaminate == growth.interface_index
+        assert f.residual_strength_MPa <= growth.growth_stress_MPa
+        assert f"grows at {growth.growth_stress_MPa:.1f} MPa" in " ".join(f.notes)
+    assert 0.0 < f.knockdown <= 1.0

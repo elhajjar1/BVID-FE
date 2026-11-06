@@ -153,8 +153,8 @@ class AnalysisResults:
     critical_sublaminate : int, optional
         Interface index from
         :func:`~bvidfe.analysis.semi_analytical.weakest_sublaminate_growth`
-        for semi_analytical and fe3d CAI, and semi_analytical TAI when a
-        laterally compressed film can grow; ``None`` otherwise.
+        for semi_analytical and fe3d CAI, and semi_analytical and fe3d TAI
+        when a laterally compressed film can grow; ``None`` otherwise.
     field_results : FieldResults, optional
         Always ``None`` at present.
     notes : list of str

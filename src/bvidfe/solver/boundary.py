@@ -10,6 +10,10 @@ Standard patterns:
   layer and ``u_y = 0`` at one node. The sign of ``applied_strain`` selects
   compression (negative) or tension (positive) — the BC topology is
   identical either way.
+- transverse_platen_bcs: the second basis load case of a biaxial fe3d run
+  (issue #115): prescribed y strain between rigid, frictionless platens on
+  the y faces, the x faces held at ``u_x = 0``, ``u_z = 0`` on the
+  mid-surface node layer.
 - apply_dirichlet_penalty: multiply K[i,i] by penalty and F[i] = penalty * value.
 """
 
@@ -162,6 +166,54 @@ def uniaxial_x_bcs(
     for n in xmax_nodes:
         bcs.append(BoundaryCondition(dof=3 * int(n) + 0, value=applied_strain * Lx))
     bcs.append(BoundaryCondition(dof=3 * y_node + 1, value=0.0))
+    for n in mid_nodes:
+        bcs.append(BoundaryCondition(dof=3 * int(n) + 2, value=0.0))
+    return bcs
+
+
+def transverse_platen_bcs(
+    node_coords: np.ndarray, applied_strain: float
+) -> List[BoundaryCondition]:
+    """Build BCs for the transverse basis load case of a biaxial fe3d run.
+
+    The second of the two linear solves that fe3d superposes for a biaxial
+    in-plane load (issue #115; the first is :func:`uniaxial_x_bcs`, whose
+    ``y`` faces are free):
+
+    - every ``y_min`` face node: ``u_y = 0``; every ``y_max`` face node:
+      ``u_y = applied_strain * Ly`` (rigid, frictionless platens: ``u_x``
+      and ``u_z`` stay free on the ``y`` faces);
+    - every ``x_min`` and every ``x_max`` face node: ``u_x = 0``;
+    - every node of the mid-surface layer (``mid_surface_z``): ``u_z = 0``.
+
+    No other DOF is constrained, and no DOF twice. The two pairs of platens
+    fix the translations in x and y and the rotation about z, and the
+    mid-surface layer the z translation and the rotations about x and y,
+    so there is no single-node restraint. As in ``uniaxial_x_bcs``, a
+    uniform stress state satisfies every restraint (each ply's
+    through-thickness Poisson expansion stays free), so an undamaged
+    balanced laminate carries the uniform CLT stress of the in-plane strain
+    ``(0, applied_strain, 0)``; no face is free, so there are no free-edge
+    stresses. Superposed on the x solve, the ``y`` faces then carry a
+    multiple of this ply-wise platen traction, which a uniform traction
+    through the thickness would not reproduce.
+    """
+    Ly = node_coords[:, 1].max() - node_coords[:, 1].min()
+    xmin_nodes = _nodes_on_plane(node_coords, 0, node_coords[:, 0].min())
+    xmax_nodes = _nodes_on_plane(node_coords, 0, node_coords[:, 0].max())
+    ymin_nodes = _nodes_on_plane(node_coords, 1, node_coords[:, 1].min())
+    ymax_nodes = _nodes_on_plane(node_coords, 1, node_coords[:, 1].max())
+    mid_nodes = _nodes_on_plane(node_coords, 2, mid_surface_z(node_coords))
+
+    bcs: List[BoundaryCondition] = []
+    for n in ymin_nodes:
+        bcs.append(BoundaryCondition(dof=3 * int(n) + 1, value=0.0))
+    for n in ymax_nodes:
+        bcs.append(BoundaryCondition(dof=3 * int(n) + 1, value=applied_strain * Ly))
+    for n in xmin_nodes:
+        bcs.append(BoundaryCondition(dof=3 * int(n) + 0, value=0.0))
+    for n in xmax_nodes:
+        bcs.append(BoundaryCondition(dof=3 * int(n) + 0, value=0.0))
     for n in mid_nodes:
         bcs.append(BoundaryCondition(dof=3 * int(n) + 2, value=0.0))
     return bcs
