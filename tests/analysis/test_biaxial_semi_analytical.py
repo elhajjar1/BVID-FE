@@ -499,11 +499,44 @@ def test_pruned_search_finds_the_full_minimum(layup, energy, loading, beta):
     _check_pruned_is_full_minimum(layup, energy, loading, beta)
 
 
+QI16 = [0, 45, -45, 90] * 2 + [90, -45, 45, 0] * 2
+
+# A subset of the 90-case grid (QI8, CP8, QI16 x 5 / 10 / 20 J x both
+# loadings x beta = -1, -0.5, -0.05, 0.5, 1) on which the pruned search was
+# checked against the full minimum when the biaxial search was written (all
+# 90 equal). The grid took about 16 min on a GitHub runner; these 18 cases
+# keep every layup and loading, every energy and every beta, and the three
+# cases that found a defect while it was written:
+# - QI8, 10 J, compression, beta = -0.05: Newton cannot follow the branch
+#   past a fold inside the growth bracket (the fold fallback);
+# - QI8, 20 J, compression, beta = -1: a capped solve jumped to another
+#   post-buckled branch (why biaxial solves are not capped);
+# - CP8, 10 J, compression, beta = 1: the strip lower bound fails under a
+#   biaxial load (391.3 against a strip "bound" of 487.8 MPa).
+_PRUNE_CASES = [
+    pytest.param(QI8, 10.0, "compression", -0.05, id="QI8-10J-c--0.05-fold"),
+    pytest.param(QI8, 20.0, "compression", -1.0, id="QI8-20J-c--1-capped-branch"),
+    pytest.param(CP8, 10.0, "compression", 1.0, id="CP8-10J-c-+1-strip-bound"),
+    pytest.param(QI8, 5.0, "compression", 0.5, id="QI8-5J-c-+0.5"),
+    pytest.param(QI8, 5.0, "tension", -0.5, id="QI8-5J-t--0.5"),
+    pytest.param(QI8, 20.0, "tension", -1.0, id="QI8-20J-t--1"),
+    pytest.param(QI8, 10.0, "tension", -0.05, id="QI8-10J-t--0.05"),
+    pytest.param(CP8, 5.0, "compression", -0.5, id="CP8-5J-c--0.5"),
+    pytest.param(CP8, 20.0, "compression", -0.05, id="CP8-20J-c--0.05"),
+    pytest.param(CP8, 20.0, "compression", 1.0, id="CP8-20J-c-+1"),
+    pytest.param(CP8, 5.0, "tension", -1.0, id="CP8-5J-t--1"),
+    pytest.param(CP8, 20.0, "tension", -0.5, id="CP8-20J-t--0.5"),
+    pytest.param(QI16, 10.0, "compression", -1.0, id="QI16-10J-c--1"),
+    pytest.param(QI16, 20.0, "compression", 0.5, id="QI16-20J-c-+0.5"),
+    pytest.param(QI16, 5.0, "compression", 1.0, id="QI16-5J-c-+1"),
+    pytest.param(QI16, 10.0, "tension", -0.5, id="QI16-10J-t--0.5"),
+    pytest.param(QI16, 20.0, "tension", -1.0, id="QI16-20J-t--1"),
+    pytest.param(QI16, 5.0, "tension", 0.5, id="QI16-5J-t-+0.5"),
+]
+
+
 @pytest.mark.slow
-@pytest.mark.parametrize("layup", [QI8, CP8, [0, 45, -45, 90] * 2 + [90, -45, 45, 0] * 2])
-@pytest.mark.parametrize("energy", [5.0, 10.0, 20.0])
-@pytest.mark.parametrize("loading", ["compression", "tension"])
-@pytest.mark.parametrize("beta", [-1.0, -0.5, -0.05, 0.5, 1.0])
+@pytest.mark.parametrize("layup, energy, loading, beta", _PRUNE_CASES)
 def test_pruned_search_finds_the_full_minimum_grid(layup, energy, loading, beta):
     _check_pruned_is_full_minimum(layup, energy, loading, beta)
 

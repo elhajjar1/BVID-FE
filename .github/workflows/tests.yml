@@ -79,7 +79,9 @@ jobs:
       - name: "Slow tests: fe3d h-refinement on the 150 x 100 mm reference panel"
         # The `slow` marker is deselected by default (pyproject addopts), so
         # the 9-cell matrix skips it; the fe3d mesh is platform-independent,
-        # so one run here covers it. About 2.5 min.
+        # so one run here covers it. About 11 min: the fe3d h-refinement
+        # and biaxial tables, and the semi_analytical biaxial pruned-search
+        # cases (18 of the original 90-case grid).
         run: pytest -m slow -v
       - name: "Validation: fe3d tier (smoke run; first 3 cases)"
         # Exercises the fe3d path end to end and prints its errors. Not a
