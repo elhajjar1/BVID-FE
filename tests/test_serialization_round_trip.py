@@ -303,6 +303,17 @@ def test_config_with_schema_versioned_damage_matches_the_config_schema():
     AnalysisConfig.from_dict(d)
 
 
+def test_custom_material_without_the_zone_factor_still_loads():
+    """A custom material written before ``fe3d_zone_inplane_factor``
+    existed takes the default, and still matches the schema."""
+    d = json.loads(json.dumps(_config_snapshot_dict(CONFIGS["custom_material_damage"]())))
+    del d["material"]["fe3d_zone_inplane_factor"]
+    _validator("analysis_config.json").validate(d)
+    cfg = AnalysisConfig.from_dict(d)
+    assert cfg.material.fe3d_zone_inplane_factor == 0.15
+    assert cfg == CONFIGS["custom_material_damage"]()
+
+
 def test_results_json_matches_the_results_schema():
     result = BvidAnalysis(_impact_cfg()).run()
     _validator("analysis_results.json").validate(json.loads(json.dumps(result.to_dict())))

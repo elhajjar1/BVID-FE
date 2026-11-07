@@ -15,7 +15,9 @@ First-ply failure: one linear static solve of the structured hex mesh
 (:mod:`bvidfe.analysis.fe_mesh`) at a reference end strain along x, scaled
 analytically to the load at which the failure index reaches 1. The damage
 zone (every ply under the union of the delamination footprints) is softened
-in-plane by ``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``, each element weighted by
+in-plane by the material's ``fe3d_zone_inplane_factor`` (default
+``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``; the same factor in CAI, TAI and the
+biaxial solves), each element weighted by
 the fraction of its area inside the zone, and its elements see the effective
 stress of strain equivalence. In compression the factor scales the whole
 in-plane stiffness; in tension only its matrix-dominated terms, since

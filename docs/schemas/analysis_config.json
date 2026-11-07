@@ -204,6 +204,9 @@
         "dent_gamma": {
           "type": "number"
         },
+        "fe3d_zone_inplane_factor": {
+          "type": "number"
+        },
         "fiber_break_E_threshold": {
           "type": "number"
         },

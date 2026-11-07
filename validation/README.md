@@ -7,8 +7,8 @@ composite-after-impact test data.
 
 | Dataset | Material | Loading | Cases | Target MAE | Empirical | Semi-analytical | Calibration role |
 |---|---|---|---|---|---|---|---|
-| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the fe3d zone factor (coupon #0); damage area out of sample |
-| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.8% | 8.8% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the fe3d zone factor (QI #0, hard #4) |
+| `ncamp_as4_8552_cai` | AS4/8552 | CAI | 7 | 15% | 1.5% | 1.5% | In-sample for `soutis_k_s` (pooled fit) and the AS4/8552 fe3d zone factor (coupon #0); damage area out of sample |
+| `lovejoy_scotti_im7_8552_cai` | IM7/8552 | CAI | 8 | 15% | 8.8% | 8.8% | In-sample for `soutis_k_s`, `olsson_alpha` (areas) and the IM7/8552 (default) fe3d zone factor (QI #0, hard #4) |
 | `hasebe_t800s_3900_2b_cai` (not gated) | T800S/3900-2B | CAI | 343 | 15% | 21.5% | 21.5% | Areas in-sample (T800S `olsson_alpha`, impactor shape and diameter factors); strengths not fitted |
 | `korbelin_m21_t800s_tai` (not gated) | M21/T800S (T800S/3900-2B card) | TAI | 5 | 15% | 3.5% | 3.5% | In-sample for `tai_notch_fraction` (the only TAI fit) |
 | `gonzalez_as4_8552_cai` (reported, not gated) | AS4/8552 | CAI | 19 | 15% | 14.3% | 14.3% | Out of sample: nothing is fitted to it |
@@ -64,10 +64,11 @@ energy. The report does not give the impactor mass or tup, so the ASTM
 D7136 standard values (5.5 kg, 0.625 in hemispherical) are used, and the
 plate is impacted on the standard's 125 × 75 mm support window
 (`impact_panel_*`), which also confines the predicted delaminations. It
-reports no dent depth or damage area. The fe3d tier gives 141.0 MPa on
-the first coupon (20.6% low; it is one of the three coupons the
-damage-zone factor is fitted to, see below). At about 20 s per coupon it
-is not run in CI.
+reports no dent depth or damage area. The fe3d tier gives 177.5 MPa on
+the first coupon (0.1% low), to which the AS4/8552 damage-zone factor is
+fitted (see below; 141.0 MPa, 20.6% low, at the earlier shared 0.15).
+On the other six it scores 1.4% MAE (20.0% at 0.15).
+At about 20 s per coupon it is not run in CI.
 
 **`lovejoy_scotti_im7_8552_cai`** is measured data: Lovejoy & Scotti, NASA
 LaRC 2019 (NTRS 20200002432), Tables 1 and 4. It has the eight standard-ply
@@ -91,7 +92,8 @@ a single ply thickness.
 ### fe3d damage-zone factor
 
 fe3d softens the in-plane stiffness of every ply under the damage
-footprint by `DAMAGE_ZONE_INPLANE_FACTOR`. It was an unfitted 0.30. With
+footprint by a factor, now the material's `fe3d_zone_inplane_factor`
+(see *One factor per material* below). It was an unfitted 0.30. With
 the energy-balance damage area the zone shrank, and 0.30 put the
 quasi-isotropic coupons 30–36% high. A first sweep on three coupons (error
 of the fe3d strength against the measured CAI), with the delaminations
@@ -157,7 +159,7 @@ mid-surface `u_z` restraint as well (the final code; coupon damage areas
 | 0.17 | −14.6% | +9.0% | +7.9% | 10.5% |
 | 0.20 | −5.6% | +20.6% | +15.0% | 13.7% |
 
-0.15 is kept, with the lowest mean error, 7.4%: 141.0 MPa (177.7
+0.15 was kept, with the lowest mean error, 7.4%: 141.0 MPa (177.7
 measured), 148.6 MPa (146.8) and 236.4 MPa (235.7). First-ply failure
 sets all three up to 0.17; at 0.20 the hard laminate is set by its
 delamination growth stress (270.9 MPa), which the factor does not change.
@@ -166,20 +168,19 @@ stress was 227.5 MPa and set the hard laminate from 0.15 up (−3.5% at
 0.15 / 0.17 / 0.20, mean errors 8.4% / 9.0% / 9.9%; the factor was not
 refitted, and 0.15 stays the lowest either way); before issue #166 fe3d
 rescaled it by σ0 / FPF_undamaged and first-ply failure set it. No single factor fits
-both families within 5%: NCAMP wants about 0.22 and Lovejoy & Scotti
-about 0.15, and any factor that moves one family towards its measured
+both families within 5%: NCAMP wants 0.219 and Lovejoy & Scotti
+0.147–0.149, and any factor that moves one family towards its measured
 strength moves the other away. The earlier fit of all three within 5%
 (0.17: −3.2%, −1.2%, +4.7%) rested on the old template, whose ply
 mismatch was not wrapped modulo 180° and whose −45/90 interfaces were
 elongated ellipses at 22.5°; with the near-round footprints of the
 corrected template the two families part. Which part of the model
 separates them (material, thickness, energy or damage area: 2,783 mm² on
-the NCAMP coupon against 5,269 and 6,542 mm²) is not established, and
-with fe3d run on a single NCAMP coupon the factor cannot be split by
-family without over-fitting. The fit is in-sample on three coupons:
-Lovejoy & Scotti within about 1%, NCAMP about 21% low. Treat fe3d
-strengths as qualitative. fe3d takes about 20 s on the 24-ply NCAMP
-coupon and about 45 s on the 40-ply hard laminate (5 mm mesh).
+the NCAMP coupon against 5,269 and 6,542 mm²) could not be told from
+these two datasets. The Girona AS4/8552 coupons below settle as much of
+it as one more dataset can: the factor follows the material (or the
+lab), not the energy. fe3d takes about 20 s on the 24-ply NCAMP coupon
+and about 45 s on the 40-ply hard laminate (5 mm mesh).
 
 **Why fe3d's knockdown does not fall with damage area.** fe3d's CAI
 knockdown is set by the strain concentration at the soft zone's flank,
@@ -189,7 +190,8 @@ zone gives the same knockdown from 700 to 5,269 mm². On the NCAMP coupon
 the template grows self-similarly until its width reaches the 75 mm
 impact window at about 4,200 mm². Beyond that, all further area goes
 along the load direction, which lowers the flank concentration. fe3d on
-the NCAMP coupon therefore gives a knockdown with a minimum at the cap:
+the NCAMP coupon therefore gives a knockdown with a minimum at the cap
+(at the earlier factor 0.15):
 
 | Damage area (mm²) | 1,400 | 2,783 | 3,500 | 4,200 | 5,269 | 6,023 |
 |---|---|---|---|---|---|---|
@@ -209,12 +211,17 @@ the NCAMP coupon therefore gives a knockdown with a minimum at the cap:
     about 1,400 mm² for d0 = 1–4 mm.
 - **What the data cannot separate:** with the width pinned by the window,
   no elastic zone model makes the knockdown fall with area. The measured
-  fall needs either damage wider than the window or damage severity that
-  rises with energy (6.7 J/mm on the NCAMP coupon, 8.9 J/mm on the Lovejoy
-  & Scotti QI). The two datasets move both together and cannot tell them
-  apart.
+  fall between NCAMP and Lovejoy & Scotti needs damage wider than the
+  window, damage severity that rises with energy (6.7 J/mm on the NCAMP
+  coupon, 8.9 J/mm on the Lovejoy & Scotti QI), or a difference between
+  the materials. The two datasets move all three together and cannot
+  tell them apart.
 - **What would decide it:** measured damage widths from large-area ASTM
-  C-scans, and an energy series on a single laminate and coupon.
+  C-scans, and an energy series on a single laminate and coupon. The
+  Girona AS4/8552 coupons below are such a series, with C-scan areas.
+  Their clustered laminates need no damage wider than the window, and no
+  severity law strong enough to split the two families, so the factor is
+  now per material.
 - **What is not adopted:**
   - Bounding the footprint by the coupon edges (with the factor refitted
     to 0.22) brings back the area dependence. It scores NCAMP +0.2%,
@@ -223,6 +230,166 @@ the NCAMP coupon therefore gives a knockdown with a minimum at the cap:
     hard laminate, and no measured widths support it.
   - Softening only the plies bounding a delamination gives no size
     effect in 3D.
+
+**One factor per material.** The factor is now a material constant,
+`OrthotropicMaterial.fe3d_zone_inplane_factor`, and
+`DAMAGE_ZONE_INPLANE_FACTOR` (0.15) is its default:
+
+| Material | Factor | Fitted on | Error at the fit |
+|---|---|---|---|
+| AS4/8552 | 0.219 | NCAMP #0 alone | −0.1% (177.5 MPa) |
+| IM7/8552 (the default) | 0.15 | Lovejoy & Scotti QI #0 and hard #4 | +1.2%, +0.3% |
+| AS4/3501-6, T700/2510, T800S/3900-2B, T800/epoxy | 0.15 | nothing (uncalibrated) | – |
+
+The AS4/8552 value is fitted to the NCAMP coupon alone, so that the
+Girona coupons test it out of sample. fe3d at 5 mm on NCAMP #0 is linear
+in the factor: 172.9, 175.5, 178.1 and 180.7 MPa at 0.21, 0.215, 0.22
+and 0.225. It matches the measured 177.65 MPa at 0.2192.
+- **Why three significant figures:** 0.219 leaves the coupon 0.06% low,
+  so the value tested on Girona is the fit itself.
+- **What the third digit is worth:** it is below the coupon scatter.
+  NCAMP's seven coupons span 171–182 MPa, and the factor that matches
+  each spans 0.209–0.224, so 0.22 would do as well.
+- **The Girona study's 0.2175** was read off the sweep table above,
+  extrapolated past 0.20, not solved at these factors.
+- **NCAMP's other six coupons** (same lab and laminate, out of sample for
+  fe3d): 1.4% MAE at 0.219, against 20.0% at 0.15.
+
+Lovejoy & Scotti is the only IM7/8552 CAI source, so for IM7/8552 the
+material and the lab are confounded. A second IM7/8552 CAI dataset would
+settle which of the two the factor follows. fe3d strengths remain
+qualitative: each material rests on one or two coupons from one lab.
+
+**The Girona AS4/8552 energy series** (`gonzalez_as4_8552_cai`; not run in
+CI):
+- **Runs:** fe3d at the default 5 mm mesh against the model's pristine
+  strength (543.2 MPa), on the 12 L02–L04 coupons that have C-scan areas.
+- **Damage with the C-scan area:** the predicted template is re-scaled
+  by `distribute_damage` to the measured area, kept inside the 125 × 75 mm
+  window, with the predicted dent and core (no core on these coupons).
+- **Pristine:** the ratios below cancel it. Against NCAMP's measured
+  25/50/25 unnotched strength (560.7 MPa) every factor would be about 0.01
+  lower.
+- **What governs:** first-ply failure, on every run.
+
+| Coupon | E (J) | C-scan (mm²) | Measured (MPa) | fe3d at 0.15 | fe3d at 0.219 | f\* |
+|---|---|---|---|---|---|---|
+| L02-S01 | 38.6 | 3,045 | 160.3 | 132.1 (−17.6%) | 167.9 (+4.7%) | 0.204 |
+| L02-S02 | 38.6 | 2,710 | 170.7 | 137.9 (−19.2%) | 174.7 (+2.3%) | 0.211 |
+| L02-S04 | 28.6 | 1,990 | 177.6 | 160.2 (−9.8%) | 195.4 (+10.0%) | 0.184 |
+| L02-S05 | 19.3 | 1,295 | 229.3 | 183.2 (−20.1%) | 215.7 (−6.0%) | 0.248 |
+| L03-S01 | 38.6 | 4,430 | 153.4 | 124.2 (−19.1%) | 161.1 (+5.0%) | 0.205 |
+| L03-S02 | 38.6 | 4,115 | 156.9 | 128.0 (−18.4%) | 165.7 (+5.6%) | 0.203 |
+| L03-S04 | 28.6 | 3,300 | 172.4 | 143.8 (−16.6%) | 180.8 (+4.9%) | 0.203 |
+| L03-S05 | 19.3 | 2,185 | 231.0 | 169.7 (−26.5%) | 206.0 (−10.8%) | 0.267 |
+| L04-S01 | 38.6 | 6,270 | 169.0 | 136.9 (−19.0%) | 171.6 (+1.5%) | 0.214 |
+| L04-S02 | 38.6 | 5,930 | 167.2 | 139.6 (−16.5%) | 174.7 (+4.4%) | 0.204 |
+| L04-S04 | 28.6 | 5,686 | 177.6 | 138.9 (−21.8%) | 174.9 (−1.5%) | 0.224 |
+| L04-S05 | 19.3 | 4,000 | 181.0 | 126.6 (−30.1%) | 168.8 (−6.7%) | 0.239 |
+
+f\* is the factor at which fe3d matches the measured strength, linear in
+the factor through the two runs. It is 0.203–0.214 at 38.6 J, 0.184–0.224 at
+28.6 J and 0.239–0.267 at 19.3 J. NCAMP #0 gives 0.219, and the Lovejoy &
+Scotti coupons 0.147 and 0.149 (from the sweep above). The two AS4/8552
+labs agree, at two thicknesses, from 3.3 to 6.7 J/mm, and with areas
+below and above the window cap.
+
+With a fixed factor, fe3d reproduces the shape of the data. In the ratios
+below the pristine strength cancels. First, the energy trend:
+kd(E) / kd(38.6 J), with 38.6 J the mean of S01 and S02:
+
+| Laminate | Energy | Measured | fe3d at 0.15 | fe3d at 0.219 | Empirical (Soutis) |
+|---|---|---|---|---|---|
+| L02 | 28.6 J | 1.073 | 1.186 | 1.141 | 1.128 |
+| L02 | 19.3 J | 1.385 | 1.357 | 1.259 | 1.286 |
+| L03 | 28.6 J | 1.111 | 1.141 | 1.107 | 1.095 |
+| L03 | 19.3 J | 1.489 | 1.346 | 1.261 | 1.257 |
+| L04 | 28.6 J | 1.056 | 1.005 | 1.010 | 1.027 |
+| L04 | 19.3 J | 1.077 | 0.916 | 0.975 | 1.167 |
+
+- **L02 and L03:** area alone, at a fixed factor, gives the direction
+  and most of the size of the measured fall with energy. At 0.219, fe3d
+  has 71% (L02) and 58% (L03) of the log-rise from 38.6 to 19.3 J; no
+  severity term is needed for it.
+- **L04-S05 (4,000 mm²)** sits at fe3d's minimum at the window cap, so
+  fe3d gives no rise there. The thesis singles that coupon out as low.
+- **L02-S04** (28.6 J, one coupon) is weaker than the trend in every
+  column.
+
+Second, ply clustering at constant energy (38.6 J): kd(L0x) / kd(L02),
+means of S01 and S02:
+
+| Ratio | C-scan area ratio | Measured | fe3d, C-scan, 0.15 | fe3d, C-scan, 0.219 | fe3d, predicted, 0.219 | Empirical, C-scan |
+|---|---|---|---|---|---|---|
+| L03/L02 | 1.48 | 0.938 | 0.934 | 0.954 | 1.119 | 0.871 |
+| L04/L02 | 2.12 | 1.016 | 1.024 | 1.011 | 1.230 | 0.764 |
+
+- **With the C-scan areas:** the clustered laminates double the damage
+  area at nearly constant CAI. fe3d reproduces this within 2% at either
+  factor, because the area above the window cap goes into length along
+  the load, which is benign. An area law (the empirical tier's Soutis
+  knockdown, same areas) gives L04 25% low.
+- **With the predicted damage, fe3d's ratios are 19% and 21% high** (23%
+  and 27% at 0.15). The cause is the damage mapping, not fe3d:
+  - The template gives all three laminates the same area at 38.6 J
+    (3,670 mm²), against C-scans of 2,877, 4,272 and 6,100 mm².
+  - It also gives the clustered ones narrower footprints: 70.9, 67.8 and
+    66.7 mm across the load. The C-scan areas give 61–65, 72–75 and
+    75 mm, the window cap.
+  - The impact mapping does not see ply clustering. That is a separate
+    issue.
+
+**No severity law.** The factor could instead follow damage severity,
+the energy per thickness (6.7 J/mm on NCAMP, 8.9 J/mm on Lovejoy &
+Scotti) or the dent. Girona rules out a law strong enough to split the
+two families:
+- **Energy per thickness:** a power law fitted on Girona's C-scan coupons,
+  f = 0.202 (E/h / 6.67 J/mm)^(−p), gives p = 0.26 ± 0.07 (f\* against
+  log E/h: r = −0.75). All of it comes from the 19.3 J coupons; from
+  28.6 to 38.6 J, p ≈ 0 (−0.06).
+- **The split would need p = 1.36**, 15 standard errors away. From NCAMP's
+  0.219 at 6.69 J/mm that law gives 0.33 at 28.6 J and 0.57 at 19.3 J on
+  Girona, against f\* means of 0.204 and 0.251.
+- **The measured dent** does not organise f\* (r = −0.14 over the 7
+  coupons with a dent). Girona's dent jumps from 0.21 to 0.84 mm between
+  28.6 and 38.6 J (L02-S04 against L02-S02), presumably with fibre
+  damage, while the mean f\* stays at 0.204–0.207.
+- **A law fitted on Girona alone** scores 2.7% in-sample, against 4.4%
+  for the best constant (0.2045): under two points, near the 2.1%
+  replicate floor, all from three coupons, and it cannot reach Lovejoy &
+  Scotti.
+
+What is left is the material, or the lab: AS4/8552 on two labs wants
+about 0.20–0.22 (0.25 at Girona's lowest energy), IM7/8552 on one lab
+0.15.
+
+**Out of sample, before and after** (5 mm; Girona is fitted to nothing):
+
+| Set | n | Damage | MAE (bias) at 0.15 | MAE (bias) at 0.219 |
+|---|---|---|---|---|
+| Girona L02 | 4 | C-scan | 16.7% (−16.7%) | 5.8% (+2.8%) |
+| Girona L03 | 4 | C-scan | 20.2% (−20.2%) | 6.6% (+1.2%) |
+| Girona L04 | 4 | C-scan | 21.8% (−21.8%) | 3.6% (−0.6%) |
+| Girona L02–L04 | 12 | C-scan | 19.6% (−19.6%) | 5.3% (+1.1%) |
+| Girona L02 | 4 | predicted | 24.6% (−24.6%) | 4.6% (−4.6%) |
+| Girona L03, L04 | 8 | predicted | 8.5% (−8.1%) | 14.3% (+13.0%) |
+| Girona L06 cross-ply | 4 | predicted | 37.6% (−37.6%) | 13.4% (−13.4%) |
+| Girona L05 48-ply | 3 | predicted | 29.5% (−29.5%) | 10.8% (−10.8%) |
+| Girona, all | 19 | predicted | 21.3% (−21.2%) | 11.5% (0.0%) |
+| NCAMP #1–6 | 6 | predicted | 20.0% (−20.0%) | 1.4% (+0.9%) |
+
+- **Clustered L03 and L04, predicted damage:** they get worse, 8.5% →
+  14.3%. At 0.15, two errors cancelled: the template's too-small,
+  too-narrow footprint and the too-soft zone. At 0.219 only the mapping
+  error above is left.
+- **Cross-ply L06 and 48-ply L05** stay low, by 13% and 11% (no C-scan
+  areas).
+- **NCAMP #1–6** (same lab and laminate as the fit) are 1.4%. Their f\*
+  is 0.209–0.224.
+
+The factor is fitted at the default 5 mm mesh. At 2.5 mm the knockdowns
+with the C-scan areas are 6.5% (L02-S01) and 5.9% (L02-S05) lower, and
+their ratio holds (1.292 against 1.284 at 5 mm; measured 1.430).
 
 ### Calibration of `soutis_k_s`
 
@@ -585,10 +752,17 @@ straight-sided strip's energy release rate, before the 2D blister,
 delamination growth governed 3: L03 at 28.6 and 19.3 J and L06 at
 19.3 J, making L03 at 19.3 J worse, −17% against −8%, and the other two
 3–4 points better; semi-analytical MAE 14.4%.) fe3d at the default 5 mm
-mesh, on three coupons (not run in CI; first-ply failure governs all
-three): L02-S01 119.7 against 160.3 MPa (−25%), L06-S01 110.1 against
-166.2 MPa (−34%), L05 at 38.6 J 126.1 against 206 MPa (−39%), about 1 to
-1.5 minutes each.
+mesh scores 11.5% MAE on all 19 coupons with the predicted damage
+(21.3% at the earlier 0.15), and 5.3% on the 12 with C-scan areas
+(19.6%). The AS4/8552 damage-zone factor is fitted
+to one NCAMP coupon, so these are out of sample. First-ply failure
+governs every run, and fe3d is not run in CI.
+- L02-S01: 156.2 against 160.3 MPa (−2.6%; was −25.4%).
+- L06-S01: 153.2 against 166.2 MPa (−7.8%; was −33.8%).
+- L05 at 38.6 J: 161.7 against 206 MPa (−21.5%; was −38.8%).
+
+See *fe3d damage-zone factor* above for the energy trend and clustering
+with the C-scan areas.
 
 The per-layup pattern:
 - **Clustering.** The 5.8 mm laminates score within 4–7%, but for the
@@ -608,10 +782,11 @@ The per-layup pattern:
   ASTM coupons, so it is not the JIS fixture. It is the opposite of
   Lovejoy & Scotti's hard 50/40/10 laminate, which needs about 26% more
   than its quasi-isotropic coupons. fe3d does not show the cross-ply
-  excess: its damaged first-ply failure stress is 110 MPa on L06 and
-  117 MPa on L02, so it puts the cross-ply 8% below the
-  quasi-isotropic coupon, where the measurement is 4% above and the
-  closed-form tiers 39% above.
+  excess: at 38.6 J it gives 153.2 MPa on L06-S01 and 156.2 MPa on
+  L02-S01, so it puts the cross-ply 2% below the quasi-isotropic coupon,
+  where the measurement is 4% above and the closed-form tiers 39% above.
+  (At the earlier factor 0.15 its damaged first-ply failure stresses,
+  110 and 117 MPa, put it 8% below.)
 - **Thickness.** The 48-ply laminate keeps more strength than the model
   gives (21% low). Its C-scans are not tabulated; the thesis says that
   at equal impact they are "quite similar" to L02's, and the predicted
