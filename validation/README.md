@@ -841,6 +841,82 @@ realised inside a laminate and puts the 50/40/10 laminates at
 (AS4/8552) high, 10/80/10 tension 10% low and 10/80/10 compression
 15–17% low.
 
+### Compression: a cap on the 0° ply strain
+
+In compression no ply cracks before the 0° fibres fail, so the model is a
+cap on the 0° ply strain. Every laminate fails at the card's `Xc / E11`
+(1.098% for AS4/8552 and 0.964% for IM7/8552; within 0.6% in the NCAMP
+layups and the [90/0/90]ns cross-ply). Its strength is therefore the
+CLT modulus times one strain.
+
+NCAMP's measured unnotched compression moduli split each error into a
+stiffness part and a failure-strain part. Measured failure strain is
+strength over the measured modulus; the brackets give it relative to the
+material's 25/50/25:
+
+| Material | Cross-ply (UNC0) | 25/50/25 | 50/40/10 | 10/80/10 | Card `Xc / E11` | NCAMP `F1cu / E1c` |
+|---|---|---|---|---|---|---|
+| AS4/8552 | 1.288% (1.02) | 1.265% (1) | 1.361% (1.08) | 1.452% (1.15) | 1.098% | 1.254% |
+| IM7/8552 | 1.265% (1.14) | 1.108% (1) | 1.015% (0.92) | 1.356% (1.22) | 0.964% | 1.242% |
+
+- **The stiffness part is not the problem.** With NCAMP's compression
+  constants (`E1c` 111.5 and 138.2 GPa, where the cards use the tension
+  `E11`), CLT reproduces the measured moduli within 2% on the
+  multidirectional laminates and within 4% on the cross-plies. The cards'
+  moduli are 9–19% stiff and their failure strains low, and the two
+  roughly cancel.
+- **The failure strain depends on layup and material together.**
+  - IM7/8552's 50/40/10 fails at 0.92× its 25/50/25 strain, the lowest of
+    any IM7/8552 laminate. AS4/8552's fails at 1.08×, with the same
+    stacking, resin, lab and method. That is about a 17% gap, against
+    standard errors of the means of 0.7–2.3%, and NCAMP lists no outliers
+    for either.
+  - The 10/80/10 laminates fail 15–22% above their 25/50/25 strain. That
+    is the opposite of what kinking under the transverse tension their
+    Poisson mismatch puts in the 0° plies predicts.
+- **So no layup-only correction can fix it.** None of the following
+  improves on the current model's 10.2% mean |log error| over the six
+  laminates, with literature constants and no per-layup fitting:
+  - ply-discount factor, first-fibre against last-ply failure, in-situ
+    matrix strengths, or a Budiansky-Fleck shear term: unchanged, because
+    the 0° plies carry no shear;
+  - LaRC03 kinking: 14.1%;
+  - LaRC03 with in-situ shear strength: 15.8%;
+  - NCAMP's full cards: 10.8%;
+  - one-constant laws in the ±45 fraction, the 0° fraction or the Poisson
+    mismatch: 8.4% at best held out, against 8.6% unchanged, and each
+    leaves IM7/8552 50/40/10 13–28% high. The Poisson-mismatch law also
+    puts the cross-plies 16–20% low.
+
+**What a pristine correction would do to CAI.** The knockdown error
+against the measured pristine strength does not depend on the model's
+pristine strength. Lovejoy & Scotti stays at 13.6% (QI +10.0%, hard
+−17.3%), so correcting the pristine strength alone only moves the gated
+strength MAE:
+- with the measured pristine strength in place of the model's, NCAMP goes
+  from 1.5% to 3.6% and Lovejoy & Scotti from 8.8% to 13.6%;
+- with NCAMP-consistent IM7/8552 constants (`E1c` 138.2 GPa, `F1cu` 1716
+  MPa), the IM7/8552 pristine strengths become 10% (QI) and 21% (hard)
+  high, and the synthetic self-check fails its gate.
+
+The fix belongs in the knockdown map. It would need IM7/8552's hard
+laminate about a third higher relative to its quasi-isotropic laminate
+(measured knockdown against NCAMP's pristine 0.290 hard, 0.237 QI; the
+model gives 0.240 and 0.260). The leave-one-dataset-out cross-validation of the layup terms (in the
+González dataset's section) rejects such a layup term, because the
+cross-plies want the opposite move. `Xc` stays at the card's 1590 MPa.
+
+**Data that would decide it:**
+- Undamaged D7137 coupons of Lovejoy & Scotti's two layups, from the same
+  panels.
+- A second-source IM7/8552 50/40/10 unnotched compression strength with
+  its modulus.
+- The failure modes of NCAMP's 50/40/10 laminates.
+
+Sources: NCAMP NCP-RP-2009-028 Rev B (IM7/8552) and NCP-RP-2010-008 Rev D
+(AS4/8552) statistical analysis reports, and the NCP-RP-2013-015 IM7/8552
+shared database, whose 11 units reproduce the cross-ply strength.
+
 ## Next datasets
 
 From the literature survey of open CAI/TAI data, in priority order. Each

@@ -186,6 +186,18 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **Documented why the unnotched compression strength is not corrected
+  per layup** (documentation only; no results change). In compression
+  every laminate fails at the card's 0° ply strain `Xc / E11`, so its
+  strength is the CLT modulus times one strain. NCAMP's measured moduli
+  put the errors in the failure strain, which depends on layup and
+  material together: IM7/8552 50/40/10 fails at 0.92× its 25/50/25
+  strain and AS4/8552 50/40/10 at 1.08×. No candidate improves on the
+  current model's 10.2% mean error over the six NCAMP laminates: kinking
+  (LaRC03), in-situ strengths, NCAMP's full cards, or one-constant
+  layup laws. Correcting the pristine strength would not change the
+  knockdown error against it either. See `validation/README.md`,
+  *Compression: a cap on the 0° ply strain*.
 - **The delamination growth stress uses the 2D blister's energy release
   rate, not the straight-sided strip's.** Results change in
   `semi_analytical` CAI, and in fe3d CAI where growth governs. No fitted
