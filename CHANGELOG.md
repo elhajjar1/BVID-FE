@@ -6,6 +6,249 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-11-08
+
+The closed-form tiers are now calibrated on, and scored against,
+measured CAI data, and the fe3d tier's first-ply failure sees the impact
+damage. The semi-analytical tier's delamination growth uses a 2D blister
+model, fe3d's damage-zone stiffness is set per material, and an
+experimental biaxial in-plane load is available in every tier. Most
+results change and a few APIs break: read *Breaking changes and
+migration* before upgrading. The fit histories and sweeps behind the new
+constants are in [`validation/README.md`](validation/README.md).
+
+### Breaking changes and migration
+
+**Renamed and removed arguments**
+
+- `soutis_cai` (`bvidfe.failure.soutis_openhole`): the third argument is
+  renamed `A_panel_mm2` -> `A_ref_mm2` and is now a fixed reference area,
+  not the analysed panel's area. Pass `SOUTIS_REFERENCE_AREA_MM2`
+  (15,000 mm^2, the 150 x 100 mm ASTM D7137 coupon) to match
+  `BvidAnalysis`:
+
+  ```python
+  # 0.2.0
+  soutis_cai(m, dpa_mm2, A_panel_mm2=Lx * Ly, sigma_pristine_MPa=s0)
+  # now
+  from bvidfe.failure.soutis_openhole import SOUTIS_REFERENCE_AREA_MM2
+  soutis_cai(m, dpa_mm2, A_ref_mm2=SOUTIS_REFERENCE_AREA_MM2, sigma_pristine_MPa=s0)
+  ```
+
+- `semi_analytical_cai` (`bvidfe.analysis.semi_analytical`): the required
+  `A_panel_mm2` argument is removed; the optional `A_ref_mm2` defaults to
+  `SOUTIS_REFERENCE_AREA_MM2`. A call that passes the panel area as the
+  fourth positional argument still runs, but uses it as the reference
+  area, so drop it:
+
+  ```python
+  # 0.2.0
+  semi_analytical_cai(lam, damage, s0, Lx * Ly, boundary="clamped")
+  # now
+  semi_analytical_cai(lam, damage, s0, boundary="clamped")
+  ```
+
+  Its `critical_interface_index` is now the interface whose delamination
+  grows at the lowest stress, not the largest area-times-depth.
+- `AnalysisResults.warnings`: fe3d no longer emits
+  `fe3d_buckling_unconverged` or `fe3d_buckling_artefact_dropped`
+  (buckling no longer sets the fe3d strength). The list now holds every
+  `UserWarning` raised during `run()` as `"<Class>: <message>"` (it was
+  always empty); the warnings are still re-emitted, at the end of `run()`,
+  so a caller's `"error"` filter now raises there. fe3d diagnostics are in
+  `AnalysisResults.notes`.
+- Inputs are validated where they are constructed: non-finite or
+  out-of-range numbers, numeric fields given as strings, a string or empty
+  layup, a tuple instead of `PanelGeometry`, an unknown material name
+  (formerly a `KeyError` at run time), zero or negative impactor mass and
+  negative impact energy now raise `ValueError` naming the field.
+- The library no longer logs fe3d progress to stderr by default (the
+  `bvidfe.fe3d` logger has a `NullHandler`); call
+  `bvidfe.analysis.fe_tier.enable_stderr_logging()` to restore it. The CLI
+  and the app do.
+- Errors where there was silent behaviour: `AnalysisConfig` raises
+  `ValueError` for a delamination `interface_index` outside the layup (an
+  n-ply laminate has interfaces 0 to n-2); fe3d raises `ValueError` for a
+  failure criterion other than `"tsai_wu"`, `"larc05"` or `"puck"`;
+  `FailureEvaluator.evaluate` raises `ValueError`, not `AssertionError`,
+  for a wrong-shaped stress array; `lekhnitskii_kt_infinity` raises a
+  descriptive `ValueError` for constants outside the orthotropic stability
+  bound.
+- An unknown panel boundary or impactor shape passed straight to a
+  public helper raises `ValueError` listing the valid values (#82):
+  `sublaminate_buckling_load`, `panel_buckling_load`,
+  `sublaminate_growth_stress`, `weakest_sublaminate_growth` and
+  `semi_analytical_cai` (`boundary`), and `dent_depth_mm` (`shape`). A
+  typo was silently treated as `"simply_supported"` or a hemisphere.
+  `PanelGeometry` and `ImpactorGeometry` already rejected one; their
+  message now lists the valid values too.
+- Streamlit is no longer installed with the package. Install
+  `pip install "bvidfe[app]"` (or `pip install -r requirements.txt`) for
+  the web app; the `dev` extra still includes it.
+- `ImpactEvent.location_xy_mm` defaults to `None`, the panel centre, not
+  the `(0.0, 0.0)` sentinel (#171). `(0, 0)` (and JSON `[0, 0]`, so old
+  configs still load) is still read as the centre and stored as `None`,
+  with a `DeprecationWarning`; a later release will reject it, since the
+  corner is not inside the panel. Code that tests
+  `location_xy_mm == (0.0, 0.0)` for "centre" should test `is None`:
+
+  ```python
+  # 0.2.0
+  ImpactEvent(energy_J=10.0, location_xy_mm=(0.0, 0.0))  # centre
+  # now
+  ImpactEvent(energy_J=10.0)  # or location_xy_mm=None
+  ```
+
+  The CLI's `--location` defaults to the centre (`None`); `--location 0 0`
+  still runs a centre impact, with a deprecation warning on stderr. The
+  JSON schema allows `null` for `location_xy_mm`.
+
+**Changed definitions** (all results move; see *Results change*)
+
+- `pristine_strength_MPa` is the unnotched laminate strength (ply-discount
+  last-ply failure on classical lamination theory,
+  `bvidfe.failure.laminate_strength.unnotched_strength`), not the
+  thickness-weighted average of the ply strengths along the load. Every
+  absolute strength drops: a 16-ply IM7/8552 quasi-isotropic laminate goes
+  887.5 -> 601.3 MPa in compression and 1316.5 -> 753.2 MPa in tension.
+- The delamination threshold load is `pi sqrt(32 D* G_IIc / 3)` with
+  Olsson's `D* = sqrt(D11 D22 (A + 1) / 2)`, about 3.5x the 0.2.0 value,
+  and the onset energy is the energy the plate (large-deflection law
+  `k_b w + k_m w^3`) and the contact store at that load. On a
+  150 x 100 mm IM7/8552 panel the onset is 0.8 J (8 plies), 3.3 J (16)
+  and 5.7 J (24 plies), was 0.6-0.9 J: a low-energy impact on a thick
+  laminate that used to predict damage may now predict none (see
+  *Fixed*).
+- The damage area is an energy balance,
+  `DPA = olsson_alpha (E - E_onset) / G_IIc` (mm^2), times the impactor
+  mass, shape and diameter factors and capped at 80% of the panel. It was
+  also divided by the laminate thickness. The delaminations are kept
+  inside the impacted panel.
+- The Soutis CAI knockdown is `1 / (1 + k_s (DPA / A_ref)^m)` with the
+  fixed `A_ref` above, instead of the analysed panel's `Lx * Ly`, which
+  sent the knockdown to 1 as the panel grew.
+- The dent depth is `dent_beta (E - E_onset) ** dent_gamma` (mm, E in J)
+  times an impactor-shape factor (8.5 conical, 0.03 flat), capped at
+  `h / 2`; it was `h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
+  dent_gamma`. A custom material that sets `dent_beta` / `dent_gamma`
+  gets the new meaning. No strength uses the dent.
+- `semi_analytical` and `fe3d` CAI strength is the far-field stress at
+  which the weakest buckled sublaminate grows its delamination, not the
+  stress at which it buckles. `buckling_eigenvalues` still reports
+  buckling onset, which no longer sets the strength.
+- The `fe3d` knockdown is fe3d's damaged strength over its own undamaged
+  strength (capped at 1), applied to the shared pristine strength, so an
+  undamaged panel gives 1.0 in every tier. fe3d runs two FE solves.
+
+**Changed defaults**
+
+| Constant | 0.2.0 | Now |
+|---|---|---|
+| `OrthotropicMaterial.soutis_k_s` | 2.5 | 4.8 |
+| Soutis reference area | panel `Lx * Ly` | `SOUTIS_REFERENCE_AREA_MM2` = 15,000 mm^2 |
+| `OrthotropicMaterial.olsson_alpha` | 0.8 (area divided by thickness) | 0.0855 (energy balance); 0.0605 for T800S/3900-2B |
+| Impactor shape factor on the damage area, flat / conical | 1.4 / 0.7 | 0.2 / 1.9 |
+| Delamination threshold load `P_c` | `pi sqrt(8 G_IIc sqrt(D11 D22) / 9)` | `pi sqrt(32 D* G_IIc / 3)`, Olsson's `D*` (3.5x higher) |
+| Onset energy at `P_c` | `P_c^2 / (2 k_cb)`, linear plate and linearised contact | plate `k_b w + k_m w^3` (single-term membrane stiffness) plus the exact contact energy |
+| Impactor diameter exponent on the damage area | 0.3 | 0.2 (not applied to cones) |
+| IM7/8552 `Xt` | 2560 MPa | 2238 MPa (NCAMP cross-ply back-out) |
+| fe3d `DAMAGE_ZONE_INPLANE_FACTOR` | (no damage zone) | 0.15 |
+| `OrthotropicMaterial.dent_beta`, `dent_gamma` | 0.05, 0.5 (`G_Ic`, thickness form) | 0.044 mm/J^0.57, 0.57 |
+
+A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
+`olsson_alpha` defaults should set them explicitly, or be recalibrated
+(`validation/README.md`).
+
+**Validation-case schema** (`validation/datasets/*.json`)
+
+- Each case must give `impactor_diameter_mm` and `impactor_mass_kg`; they
+  used to default silently to 16 mm and 5.5 kg. A dataset whose source
+  omits them says in its `reference` what it assumes:
+
+  ```json
+  {"impact_energy_J": 30.0, "impactor_diameter_mm": 15.875, "impactor_mass_kg": 5.5}
+  ```
+
+- Each dataset must give a top-level `"kind"`, `"measured"` or
+  `"synthetic"`; the validator refuses a file without it (`Invalid
+  dataset: <file>: top-level "kind" is missing ...`, exit 1) before any
+  case runs. Add it to a dataset of your own:
+
+  ```json
+  {"name": "my_cai", "kind": "measured", "reference": "...", "cases": []}
+  ```
+
+**Dependencies**
+
+- The `[app]` and `dev` extras and `requirements.txt` need
+  `streamlit>=1.51,<2` (was `>=1.32`): 1.51 is the first release whose
+  `st.plotly_chart` takes `width="stretch"`. Upgrade with
+  `pip install -U "bvidfe[app]"`.
+
+### Results change
+
+Closed-form knockdowns, IM7/8552 with 0.152 mm plies on a simply
+supported panel, 16 mm hemispherical 5.5 kg impactor (0.2.0 recomputed
+with the 0.2.0 code):
+
+| Case | Empirical, 0.2.0 -> now | Semi-analytical, 0.2.0 -> now |
+|---|---|---|
+| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.651 | 0.007 -> 0.651 |
+| same, 20 J, CAI | 0.353 -> 0.375 | 0.002 -> 0.375 |
+| same, 20 J, TAI | 0.349 -> 0.774 | 0.349 -> 0.774 |
+| same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 0.415 | 0.003 -> 0.415 |
+| 8-ply QI [0/45/-45/90]s, 150 x 100 mm, 10 J, CAI | 0.356 -> 0.448 | 0.010 -> 0.448 |
+| 8-ply cross-ply [0/90]2s, 150 x 100 mm, 10 J, CAI | 0.360 -> 0.447 | 0.001 -> 0.447 |
+
+The predicted damage area falls several-fold on thin laminates (16-ply
+QI at 20 J: 8,090 -> 1,811 mm^2), and the absolute strengths fall with
+the pristine strength (the same case: 312.9 -> 225.4 MPa). The 500 x 500
+mm panel keeps more of its strength (1,290 mm^2 of damage; the onset is
+8.1 J there against 3.3 J on 150 x 100 mm). 0.2.0's semi-analytical CAI
+was the sublaminate buckling onset, hence its near-zero values; now the
+Soutis bound governs every case in the table, so the two closed-form
+tiers agree. fe3d results are not comparable with 0.2.0, whose fe3d
+knockdown was below 1 for an undamaged panel and whose first-ply failure
+did not see the damage.
+
+Mean absolute error against measured CAI strength (empirical /
+semi-analytical; 0.2.0 recomputed on the same cases, with the damage
+mapped on the tested coupon since 0.2.0 has no `impact_panel`):
+
+| Dataset | 0.2.0 | Now |
+|---|---|---|
+| `ncamp_as4_8552_cai`, 7 coupons | no AS4/8552 preset | 1.5% / 1.5% |
+| `lovejoy_scotti_im7_8552_cai`, 8 coupons | 91.6% / 82.8% | 8.8% / 8.8% |
+| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.5% / 21.5% |
+| `gonzalez_as4_8552_cai`, 19 coupons (new, not gated) | no AS4/8552 preset | 14.3% / 14.3% |
+
+The two gated datasets were used to fit `soutis_k_s` and `olsson_alpha`,
+so these errors are in-sample. Fitted on one dataset alone, `soutis_k_s`
+predicts the other at 5.0-8.8%, the error to expect on a new material or
+layup. On the Hasebe set a constant knockdown scores 30.3%.
+
+TAI, against the one measured TAI condition (`korbelin_m21_t800s_tai`,
+five M21/T800S coupons at 25 J, not gated): 3.5% for both closed-form
+tiers, in-sample (`tai_notch_fraction` is fitted to it), against 57.2%
+for the previous whole-footprint hole on the same damage mapping
+(knockdown 0.380 against 0.889 measured). fe3d scores 3.6% on it
+(knockdown 0.870), partly in-sample, since its damage zone now keeps its
+fibres in tension and its broken fibres are the closed-form hole (62.2%
+and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
+
+fe3d CAI (5 mm mesh), against measured strength: NCAMP #0 −0.1% and the
+other six NCAMP coupons 1.4% MAE (AS4/8552 damage-zone factor 0.219,
+fitted on #0); Lovejoy & Scotti QI #0 +1.2% and hard #4 +0.3% (factor
+0.15, fitted on them); González, out of sample, 5.3% MAE with the
+measured C-scan areas and 11.5% with the predicted damage. fe3d is not
+run on the measured datasets in CI.
+
+### Added
+
 - `validation/datasets/gonzalez_as4_8552_cai.json`, a measured CAI
   dataset reported but not gated (`"gate": false`): 19 AS4/8552 coupons
   from E.V. González's Girona PhD thesis (2010, open on TDX; the tests of
@@ -183,6 +426,127 @@ All notable changes to BVID-FE are documented in this file.
   and warning is bit-identical (checked on 10 configs at 5 and 10 mm, and
   on the fe3d calibration coupons). Nothing at β ≠ 0 is validated. See
   [Biaxial loading](docs/physics_models.md#biaxial-loading-fe3d).
+- Residual in-plane stiffness beside the strength knockdown (#114).
+  `AnalysisResults` gains `pristine_E11_MPa`, `residual_E11_MPa`,
+  `E11_knockdown` and the same for `E22` and `G12` (laminate membrane
+  moduli in the panel axes, `Optional`, in `to_dict()`, the CLI JSON,
+  `summary()` and the Streamlit Summary tab; `--quick` / `--quick-json`
+  are unchanged). `pristine_*` is CLT's `Ex`, `Ey`, `Gxy` for every tier.
+  fe3d reports the E11 residual: its damaged over undamaged panel's secant
+  axial modulus, from the loaded-edge reaction forces its two first-ply
+  failure solves already compute (no extra solve), in the run's loading
+  sense (8-ply QI IM7/8552 150 x 100 mm: 0.950 / 0.818 / 0.650 in CAI and
+  0.997 / 0.989 / 0.978 in TAI at 5 / 15 / 30 J), with the raw moduli in
+  `notes`. The closed-form tiers model no damaged-material stiffness and
+  leave their residuals `None`, as does fe3d for `E22` and `G12`. No
+  residual-stiffness measurement validates it, and the damage-zone factor
+  behind it was fitted to CAI strength (see "Residual stiffness" in
+  `docs/physics_models.md`). New `fe_tier` helpers:
+  `axial_secant_modulus`, `fe3d_cai_channels_and_modulus` and
+  `fe3d_tai_and_modulus`; strength knockdowns are unchanged.
+- `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
+  `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
+  `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its
+  JSON) back into an equal config, including a custom material (a dict of
+  `OrthotropicMaterial` fields), `damage` (read with
+  `damage_state_from_dict`) and `impact_panel`. Unknown and missing keys
+  are a `ValueError`. The Streamlit app's `_config_from_dict` now calls
+  it, so it no longer drops `impact_panel` or rejects a custom material.
+- CLI `--save-damage PATH` (#170) writes the analysed damage state as
+  C-scan JSON for a `--cscan PATH` rerun.
+- CLI options `--boundary`, `--impactor-shape`, `--location X Y`,
+  `--in-plane-size` and `--elements-per-ply` (#169), mapped onto
+  `PanelGeometry.boundary`, `ImpactorGeometry.shape`,
+  `ImpactEvent.location_xy_mm` and `MeshParams` with the library's
+  defaults and choices. The CLI used to run every impact as a centred
+  hemisphere on a simply supported panel and fe3d at `MeshParams()`. A
+  `ValueError` raised by the run (e.g. a `--location` on or outside the
+  panel edge) is a one-line error (exit 1), not a traceback.
+- fe3d per-stage progress log (#110): one INFO line at the start and end
+  of each stage of each fe3d run (mesh build, element build, stiffness
+  assembly, BCs, the solve with the solver that produced the answer and
+  its iterations, first-ply-failure evaluation), with DOF counts and wall
+  time, on the `bvidfe.fe3d` and `bvidfe.fe3d.solver` loggers; the damaged
+  and undamaged runs are labelled. The Streamlit app shows the latest
+  stage as the label of an `st.status` block while an fe3d run is in
+  progress and the whole log in it afterwards. Numerical results are
+  unchanged.
+- CycloneDX SBOM on every release (#118): a `sbom` job in
+  `.github/workflows/publish.yml`, after the PyPI upload, installs the
+  uploaded wheel into a clean venv, writes a CycloneDX 1.6 JSON SBOM of
+  it with `cyclonedx-py environment` (bvidfe as the root component, then
+  numpy, scipy and the rest of what `pip install bvidfe==X.Y.Z` pulls),
+  and attaches it to the GitHub Release for the tag as
+  `bvidfe-X.Y.Z.cdx.json`. Only that job can write repo contents; the
+  PyPI job's permissions are unchanged. `cyclonedx-bom` is installed in
+  the job only, not added to the `dev` extra.
+- CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
+  `pip-audit` on the installed runtime + dev dependencies on every PR,
+  on pushes to main and weekly; any known vulnerability fails it.
+  `pip-audit` is in the `dev` extra, so `pip-audit --skip-editable` runs
+  the same check locally.
+- `AS4/8552` (NCAMP CAM-RP-2010-002 RTD means) and `T800S/3900-2B`
+  (Hasebe et al. 2025 and the Toray 3900 data sheet) material presets.
+- `AnalysisConfig.impact_panel`: the panel the impact is applied on when
+  it is not the one tested (an ASTM D7136 125 x 75 mm window, or a
+  60 x 60 mm clamped window and an 80 x 50 mm coupon). The damage is
+  mapped on it, centred on `panel` and kept inside it.
+- Three measured CAI datasets: `ncamp_as4_8552_cai` and
+  `lovejoy_scotti_im7_8552_cai`, gated in CI for both closed-form tiers,
+  and `hasebe_t800s_3900_2b_cai`, reported but not gated.
+- A measured TAI dataset, `korbelin_m21_t800s_tai` (Körbelin, Dreiner &
+  Fiedler 2020, CC BY 4.0): five M21/T800S [45/0/-45/90]2s tension
+  coupons impacted at 25 J, digitized from the article's vector figure,
+  with T800S/3900-2B standing in for the missing M21/T800S preset. Not
+  gated: it is one condition and `tai_notch_fraction` is fitted to it.
+- `OrthotropicMaterial.tai_notch_fraction` (default 0.05, `0 < f <= 1`),
+  and in `bvidfe.failure.soutis_openhole` `fibre_damage_tai`,
+  `finite_width_factor` (Tan 1988), `transverse_damage_width_mm` and
+  `tai_hole_radius_mm`. `semi_analytical_tai` takes an optional
+  `panel_width_mm`. Closed-form TAI runs add a note to
+  `AnalysisResults.notes` with the equivalent hole and the validation
+  status.
+- Validation harness: case fields `boundary`, `impactor_shape`,
+  `measured_pristine_MPa`, `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and
+  `impact_boundary`; `"gate": false` with a `gate_note` for a known miss;
+  `--dataset` takes several names; `--measured` runs every
+  `"kind": "measured"` dataset, so CI's semi-analytical gate and the
+  smoke tests pick up a new measured dataset from its file alone (#178).
+  `validation/README.md` and
+  `validation/reference_data.json` list the open datasets found by a
+  literature survey, replacing the v0.2.0 roadmap.
+- `bvidfe.failure.laminate_strength.unnotched_strength`, and in
+  `bvidfe.analysis.semi_analytical` the growth model's pieces:
+  `sublaminate_growth_stress`, `weakest_sublaminate_growth`,
+  `mixed_mode_toughness` and `panel_buckling_load`.
+- `distribute_damage(..., max_half_extent_mm=...)`, and
+  `Hex8Element.stress_at_gauss_points_material` (both stress methods take
+  an optional stiffness).
+- An `app` extra (Streamlit), PyPI classifiers and keywords, and an SPDX
+  license expression (PEP 639).
+- `tests/test_docs_examples.py` runs the Python examples of the README,
+  the quickstart and the API page. CI also checks the JSON schemas against
+  the dataclasses (`scripts/generate_schemas.py --check`), and
+  `tests/test_package.py` the four version strings against each other.
+- `bvidfe.impact.mapping.SHAPE_DPA_FACTOR`, `DIAMETER_DPA_EXPONENT` and
+  `DIAMETER_REF_MM`, public names for the impactor-shape and -diameter
+  damage-area corrections (the underscore names remain as aliases). The
+  app's impactor help is formatted from them and the `ImpactorGeometry`
+  docstring names them instead of quoting values; both had quoted a stale
+  cone factor (1.3x and 1.5x; it is 1.9x) (#174).
+- fe3d h-refinement tests (#89) in
+  `tests/analysis/test_fe3d_mesh_convergence.py`: the `BvidAnalysis`
+  knockdown and E11 knockdown, CAI and TAI, on a 40 x 30 mm coupon at
+  5 / 2.5 / 1.25 / 1.0 mm (every CI cell, about 10 s) and on the 8-ply QI
+  150 x 100 mm panel at 25 J at 5 / 3.33 / 2.5 / 2.0 mm (about 2.5 min,
+  marked `slow`). They check that results are bounded, that every
+  resolved mesh is within 5% of the finest and the two finest within 2%,
+  and that the compression E11 knockdown falls at each refinement by less
+  each time. The strength knockdown does not converge monotonically (a
+  2–4% band set by where the zone's edge falls on the grid), so that is
+  not asserted; the measured sweeps are in the mesh limitation in
+  `docs/physics_models.md`. New pytest marker `slow`, deselected by
+  default (`addopts`); the validation CI job runs `pytest -m slow`.
 
 ### Changed
 
@@ -404,362 +768,7 @@ All notable changes to BVID-FE are documented in this file.
   mean error 8.4% -> 7.4%. `DAMAGE_ZONE_INPLANE_FACTOR` is not refitted
   (still 0.15): re-measured, the factor sweep gives mean errors of 13.8% /
   7.4% / 10.5% / 13.7% at 0.13 / 0.15 / 0.17 / 0.20 (was 13.8% / 8.4% /
-  9.0% / 9.9%), so 0.15 stays the lowest. These changes came after 0.3.0 was prepared; its notes
-  describe the code before them.
-
-### Fixed
-
-## [0.3.0] - 2026-11-03
-
-The closed-form tiers are now calibrated on, and scored against, measured
-CAI data, and the fe3d tier's first-ply failure sees the impact damage.
-Most results change and a few APIs break: read *Breaking changes and
-migration* before upgrading. The fit histories and sweeps behind the new
-constants are in [`validation/README.md`](validation/README.md).
-
-### Breaking changes and migration
-
-**Renamed and removed arguments**
-
-- `soutis_cai` (`bvidfe.failure.soutis_openhole`): the third argument is
-  renamed `A_panel_mm2` -> `A_ref_mm2` and is now a fixed reference area,
-  not the analysed panel's area. Pass `SOUTIS_REFERENCE_AREA_MM2`
-  (15,000 mm^2, the 150 x 100 mm ASTM D7137 coupon) to match
-  `BvidAnalysis`:
-
-  ```python
-  # 0.2.0
-  soutis_cai(m, dpa_mm2, A_panel_mm2=Lx * Ly, sigma_pristine_MPa=s0)
-  # now
-  from bvidfe.failure.soutis_openhole import SOUTIS_REFERENCE_AREA_MM2
-  soutis_cai(m, dpa_mm2, A_ref_mm2=SOUTIS_REFERENCE_AREA_MM2, sigma_pristine_MPa=s0)
-  ```
-
-- `semi_analytical_cai` (`bvidfe.analysis.semi_analytical`): the required
-  `A_panel_mm2` argument is removed; the optional `A_ref_mm2` defaults to
-  `SOUTIS_REFERENCE_AREA_MM2`. A call that passes the panel area as the
-  fourth positional argument still runs, but uses it as the reference
-  area, so drop it:
-
-  ```python
-  # 0.2.0
-  semi_analytical_cai(lam, damage, s0, Lx * Ly, boundary="clamped")
-  # now
-  semi_analytical_cai(lam, damage, s0, boundary="clamped")
-  ```
-
-  Its `critical_interface_index` is now the interface whose delamination
-  grows at the lowest stress, not the largest area-times-depth.
-- `AnalysisResults.warnings`: fe3d no longer emits
-  `fe3d_buckling_unconverged` or `fe3d_buckling_artefact_dropped`
-  (buckling no longer sets the fe3d strength). The list now holds every
-  `UserWarning` raised during `run()` as `"<Class>: <message>"` (it was
-  always empty); the warnings are still re-emitted, at the end of `run()`,
-  so a caller's `"error"` filter now raises there. fe3d diagnostics are in
-  `AnalysisResults.notes`.
-- Inputs are validated where they are constructed: non-finite or
-  out-of-range numbers, numeric fields given as strings, a string or empty
-  layup, a tuple instead of `PanelGeometry`, an unknown material name
-  (formerly a `KeyError` at run time), zero or negative impactor mass and
-  negative impact energy now raise `ValueError` naming the field.
-- The library no longer logs fe3d progress to stderr by default (the
-  `bvidfe.fe3d` logger has a `NullHandler`); call
-  `bvidfe.analysis.fe_tier.enable_stderr_logging()` to restore it. The CLI
-  and the app do.
-- Errors where there was silent behaviour: `AnalysisConfig` raises
-  `ValueError` for a delamination `interface_index` outside the layup (an
-  n-ply laminate has interfaces 0 to n-2); fe3d raises `ValueError` for a
-  failure criterion other than `"tsai_wu"`, `"larc05"` or `"puck"`;
-  `FailureEvaluator.evaluate` raises `ValueError`, not `AssertionError`,
-  for a wrong-shaped stress array; `lekhnitskii_kt_infinity` raises a
-  descriptive `ValueError` for constants outside the orthotropic stability
-  bound.
-- An unknown panel boundary or impactor shape passed straight to a
-  public helper raises `ValueError` listing the valid values (#82):
-  `sublaminate_buckling_load`, `panel_buckling_load`,
-  `sublaminate_growth_stress`, `weakest_sublaminate_growth` and
-  `semi_analytical_cai` (`boundary`), and `dent_depth_mm` (`shape`). A
-  typo was silently treated as `"simply_supported"` or a hemisphere.
-  `PanelGeometry` and `ImpactorGeometry` already rejected one; their
-  message now lists the valid values too.
-- Streamlit is no longer installed with the package. Install
-  `pip install "bvidfe[app]"` (or `pip install -r requirements.txt`) for
-  the web app; the `dev` extra still includes it.
-- `ImpactEvent.location_xy_mm` defaults to `None`, the panel centre, not
-  the `(0.0, 0.0)` sentinel (#171). `(0, 0)` (and JSON `[0, 0]`, so old
-  configs still load) is still read as the centre and stored as `None`,
-  with a `DeprecationWarning`; a later release will reject it, since the
-  corner is not inside the panel. Code that tests
-  `location_xy_mm == (0.0, 0.0)` for "centre" should test `is None`:
-
-  ```python
-  # 0.2.0
-  ImpactEvent(energy_J=10.0, location_xy_mm=(0.0, 0.0))  # centre
-  # now
-  ImpactEvent(energy_J=10.0)  # or location_xy_mm=None
-  ```
-
-  The CLI's `--location` defaults to the centre (`None`); `--location 0 0`
-  still runs a centre impact, with a deprecation warning on stderr. The
-  JSON schema allows `null` for `location_xy_mm`.
-
-**Changed definitions** (all results move; see *Results change*)
-
-- `pristine_strength_MPa` is the unnotched laminate strength (ply-discount
-  last-ply failure on classical lamination theory,
-  `bvidfe.failure.laminate_strength.unnotched_strength`), not the
-  thickness-weighted average of the ply strengths along the load. Every
-  absolute strength drops: a 16-ply IM7/8552 quasi-isotropic laminate goes
-  887.5 -> 601.3 MPa in compression and 1316.5 -> 753.2 MPa in tension.
-- The delamination threshold load is `pi sqrt(32 D* G_IIc / 3)` with
-  Olsson's `D* = sqrt(D11 D22 (A + 1) / 2)`, about 3.5x the 0.2.0 value,
-  and the onset energy is the energy the plate (large-deflection law
-  `k_b w + k_m w^3`) and the contact store at that load. On a
-  150 x 100 mm IM7/8552 panel the onset is 0.8 J (8 plies), 3.3 J (16)
-  and 5.7 J (24 plies), was 0.6-0.9 J: a low-energy impact on a thick
-  laminate that used to predict damage may now predict none (see
-  *Fixed*).
-- The damage area is an energy balance,
-  `DPA = olsson_alpha (E - E_onset) / G_IIc` (mm^2), times the impactor
-  mass, shape and diameter factors and capped at 80% of the panel. It was
-  also divided by the laminate thickness. The delaminations are kept
-  inside the impacted panel.
-- The Soutis CAI knockdown is `1 / (1 + k_s (DPA / A_ref)^m)` with the
-  fixed `A_ref` above, instead of the analysed panel's `Lx * Ly`, which
-  sent the knockdown to 1 as the panel grew.
-- The dent depth is `dent_beta (E - E_onset) ** dent_gamma` (mm, E in J)
-  times an impactor-shape factor (8.5 conical, 0.03 flat), capped at
-  `h / 2`; it was `h * dent_beta * ((E - E_onset) / (G_Ic h^2)) **
-  dent_gamma`. A custom material that sets `dent_beta` / `dent_gamma`
-  gets the new meaning. No strength uses the dent.
-- `semi_analytical` and `fe3d` CAI strength is the far-field stress at
-  which the weakest buckled sublaminate grows its delamination, not the
-  stress at which it buckles. `buckling_eigenvalues` still reports
-  buckling onset, which no longer sets the strength.
-- The `fe3d` knockdown is fe3d's damaged strength over its own undamaged
-  strength (capped at 1), applied to the shared pristine strength, so an
-  undamaged panel gives 1.0 in every tier. fe3d runs two FE solves.
-
-**Changed defaults**
-
-| Constant | 0.2.0 | Now |
-|---|---|---|
-| `OrthotropicMaterial.soutis_k_s` | 2.5 | 4.8 |
-| Soutis reference area | panel `Lx * Ly` | `SOUTIS_REFERENCE_AREA_MM2` = 15,000 mm^2 |
-| `OrthotropicMaterial.olsson_alpha` | 0.8 (area divided by thickness) | 0.0855 (energy balance); 0.0605 for T800S/3900-2B |
-| Impactor shape factor on the damage area, flat / conical | 1.4 / 0.7 | 0.2 / 1.9 |
-| Delamination threshold load `P_c` | `pi sqrt(8 G_IIc sqrt(D11 D22) / 9)` | `pi sqrt(32 D* G_IIc / 3)`, Olsson's `D*` (3.5x higher) |
-| Onset energy at `P_c` | `P_c^2 / (2 k_cb)`, linear plate and linearised contact | plate `k_b w + k_m w^3` (single-term membrane stiffness) plus the exact contact energy |
-| Impactor diameter exponent on the damage area | 0.3 | 0.2 (not applied to cones) |
-| IM7/8552 `Xt` | 2560 MPa | 2238 MPa (NCAMP cross-ply back-out) |
-| fe3d `DAMAGE_ZONE_INPLANE_FACTOR` | (no damage zone) | 0.15 |
-| `OrthotropicMaterial.dent_beta`, `dent_gamma` | 0.05, 0.5 (`G_Ic`, thickness form) | 0.044 mm/J^0.57, 0.57 |
-
-A custom `OrthotropicMaterial` that relied on the old `soutis_k_s` or
-`olsson_alpha` defaults should set them explicitly, or be recalibrated
-(`validation/README.md`).
-
-**Validation-case schema** (`validation/datasets/*.json`)
-
-- Each case must give `impactor_diameter_mm` and `impactor_mass_kg`; they
-  used to default silently to 16 mm and 5.5 kg. A dataset whose source
-  omits them says in its `reference` what it assumes:
-
-  ```json
-  {"impact_energy_J": 30.0, "impactor_diameter_mm": 15.875, "impactor_mass_kg": 5.5}
-  ```
-
-- Each dataset must give a top-level `"kind"`, `"measured"` or
-  `"synthetic"`; the validator refuses a file without it (`Invalid
-  dataset: <file>: top-level "kind" is missing ...`, exit 1) before any
-  case runs. Add it to a dataset of your own:
-
-  ```json
-  {"name": "my_cai", "kind": "measured", "reference": "...", "cases": []}
-  ```
-
-**Dependencies**
-
-- The `[app]` and `dev` extras and `requirements.txt` need
-  `streamlit>=1.51,<2` (was `>=1.32`): 1.51 is the first release whose
-  `st.plotly_chart` takes `width="stretch"`. Upgrade with
-  `pip install -U "bvidfe[app]"`.
-
-### Results change
-
-Closed-form knockdowns, IM7/8552 with 0.152 mm plies on a simply
-supported panel, 16 mm hemispherical 5.5 kg impactor (0.2.0 recomputed
-with the 0.2.0 code):
-
-| Case | Empirical, 0.2.0 -> now | Semi-analytical, 0.2.0 -> now |
-|---|---|---|
-| 16-ply QI `[0, 45, -45, 90] * 4` (the README example), 150 x 100 mm, 5 J, CAI | 0.533 -> 0.651 | 0.007 -> 0.557 |
-| same, 20 J, CAI | 0.353 -> 0.375 | 0.002 -> 0.375 |
-| same, 20 J, TAI | 0.349 -> 0.774 | 0.349 -> 0.774 |
-| same on a 500 x 500 mm panel, 20 J, CAI | 0.759 -> 0.415 | 0.003 -> 0.415 |
-| 8-ply QI [0/45/-45/90]s, 150 x 100 mm, 10 J, CAI | 0.356 -> 0.448 | 0.010 -> 0.448 |
-| 8-ply cross-ply [0/90]2s, 150 x 100 mm, 10 J, CAI | 0.360 -> 0.447 | 0.001 -> 0.389 |
-
-The predicted damage area falls several-fold on thin laminates (16-ply QI
-at 20 J: 8,090 -> 1,811 mm^2), and the absolute strengths fall with the
-pristine strength (the same case: 312.9 -> 225.4 MPa). The 500 x 500 mm
-panel keeps more of its strength (1,290 mm^2 of damage; the onset is
-8.1 J there against 3.3 J on 150 x 100 mm). 0.2.0's
-semi-analytical CAI was the sublaminate buckling onset, hence its
-near-zero values. fe3d results are not comparable with 0.2.0, whose fe3d
-knockdown was below 1 for an undamaged panel and whose first-ply failure
-did not see the damage.
-
-Mean absolute error against measured CAI strength (empirical /
-semi-analytical; 0.2.0 recomputed on the same cases, with the damage
-mapped on the tested coupon since 0.2.0 has no `impact_panel`):
-
-| Dataset | 0.2.0 | Now |
-|---|---|---|
-| `ncamp_as4_8552_cai`, 7 coupons | no AS4/8552 preset | 1.5% / 1.5% |
-| `lovejoy_scotti_im7_8552_cai`, 8 coupons | 91.6% / 82.8% | 8.8% / 8.8% |
-| `hasebe_t800s_3900_2b_cai`, 343 coupons (not gated) | no T800S/3900-2B preset | 21.5% / 23.4% |
-
-The two gated datasets were used to fit `soutis_k_s` and `olsson_alpha`,
-so these errors are in-sample. Fitted on one dataset alone, `soutis_k_s`
-predicts the other at 5.0-8.8%, the error to expect on a new material or
-layup. On the Hasebe set a constant knockdown scores 30.3%.
-
-TAI, against the one measured TAI condition (`korbelin_m21_t800s_tai`,
-five M21/T800S coupons at 25 J, not gated): 3.5% for both closed-form
-tiers, in-sample (`tai_notch_fraction` is fitted to it), against 57.2%
-for the previous whole-footprint hole on the same damage mapping
-(knockdown 0.380 against 0.889 measured). fe3d scores 3.6% on it
-(knockdown 0.870), partly in-sample, since its damage zone now keeps its
-fibres in tension and its broken fibres are the closed-form hole (62.2%
-and 0.335 before, 9.0% and 0.965 with the zone alone; see *Fixed*).
-
-### Added
-
-- Residual in-plane stiffness beside the strength knockdown (#114).
-  `AnalysisResults` gains `pristine_E11_MPa`, `residual_E11_MPa`,
-  `E11_knockdown` and the same for `E22` and `G12` (laminate membrane
-  moduli in the panel axes, `Optional`, in `to_dict()`, the CLI JSON,
-  `summary()` and the Streamlit Summary tab; `--quick` / `--quick-json`
-  are unchanged). `pristine_*` is CLT's `Ex`, `Ey`, `Gxy` for every tier.
-  fe3d reports the E11 residual: its damaged over undamaged panel's secant
-  axial modulus, from the loaded-edge reaction forces its two first-ply
-  failure solves already compute (no extra solve), in the run's loading
-  sense (8-ply QI IM7/8552 150 x 100 mm: 0.950 / 0.818 / 0.650 in CAI and
-  0.997 / 0.989 / 0.978 in TAI at 5 / 15 / 30 J), with the raw moduli in
-  `notes`. The closed-form tiers model no damaged-material stiffness and
-  leave their residuals `None`, as does fe3d for `E22` and `G12`. No
-  residual-stiffness measurement validates it, and the damage-zone factor
-  behind it was fitted to CAI strength (see "Residual stiffness" in
-  `docs/physics_models.md`). New `fe_tier` helpers:
-  `axial_secant_modulus`, `fe3d_cai_channels_and_modulus` and
-  `fe3d_tai_and_modulus`; strength knockdowns are unchanged.
-- `AnalysisConfig.from_dict` (#170), with `PanelGeometry.from_dict`,
-  `ImpactorGeometry.from_dict`, `ImpactEvent.from_dict` and
-  `MeshParams.from_dict`: loads `AnalysisResults.config_snapshot` (or its
-  JSON) back into an equal config, including a custom material (a dict of
-  `OrthotropicMaterial` fields), `damage` (read with
-  `damage_state_from_dict`) and `impact_panel`. Unknown and missing keys
-  are a `ValueError`. The Streamlit app's `_config_from_dict` now calls
-  it, so it no longer drops `impact_panel` or rejects a custom material.
-- CLI `--save-damage PATH` (#170) writes the analysed damage state as
-  C-scan JSON for a `--cscan PATH` rerun.
-- CLI options `--boundary`, `--impactor-shape`, `--location X Y`,
-  `--in-plane-size` and `--elements-per-ply` (#169), mapped onto
-  `PanelGeometry.boundary`, `ImpactorGeometry.shape`,
-  `ImpactEvent.location_xy_mm` and `MeshParams` with the library's
-  defaults and choices. The CLI used to run every impact as a centred
-  hemisphere on a simply supported panel and fe3d at `MeshParams()`. A
-  `ValueError` raised by the run (e.g. a `--location` on or outside the
-  panel edge) is a one-line error (exit 1), not a traceback.
-- fe3d per-stage progress log (#110): one INFO line at the start and end
-  of each stage of each fe3d run (mesh build, element build, stiffness
-  assembly, BCs, the solve with the solver that produced the answer and
-  its iterations, first-ply-failure evaluation), with DOF counts and wall
-  time, on the `bvidfe.fe3d` and `bvidfe.fe3d.solver` loggers; the damaged
-  and undamaged runs are labelled. The Streamlit app shows the latest
-  stage as the label of an `st.status` block while an fe3d run is in
-  progress and the whole log in it afterwards. Numerical results are
-  unchanged.
-- CycloneDX SBOM on every release (#118): a `sbom` job in
-  `.github/workflows/publish.yml`, after the PyPI upload, installs the
-  uploaded wheel into a clean venv, writes a CycloneDX 1.6 JSON SBOM of
-  it with `cyclonedx-py environment` (bvidfe as the root component, then
-  numpy, scipy and the rest of what `pip install bvidfe==X.Y.Z` pulls),
-  and attaches it to the GitHub Release for the tag as
-  `bvidfe-X.Y.Z.cdx.json`. Only that job can write repo contents; the
-  PyPI job's permissions are unchanged. `cyclonedx-bom` is installed in
-  the job only, not added to the `dev` extra.
-- CI dependency CVE scan (#117): `.github/workflows/audit.yml` runs
-  `pip-audit` on the installed runtime + dev dependencies on every PR,
-  on pushes to main and weekly; any known vulnerability fails it.
-  `pip-audit` is in the `dev` extra, so `pip-audit --skip-editable` runs
-  the same check locally.
-- `AS4/8552` (NCAMP CAM-RP-2010-002 RTD means) and `T800S/3900-2B`
-  (Hasebe et al. 2025 and the Toray 3900 data sheet) material presets.
-- `AnalysisConfig.impact_panel`: the panel the impact is applied on when
-  it is not the one tested (an ASTM D7136 125 x 75 mm window, or a
-  60 x 60 mm clamped window and an 80 x 50 mm coupon). The damage is
-  mapped on it, centred on `panel` and kept inside it.
-- Three measured CAI datasets: `ncamp_as4_8552_cai` and
-  `lovejoy_scotti_im7_8552_cai`, gated in CI for both closed-form tiers,
-  and `hasebe_t800s_3900_2b_cai`, reported but not gated.
-- A measured TAI dataset, `korbelin_m21_t800s_tai` (Körbelin, Dreiner &
-  Fiedler 2020, CC BY 4.0): five M21/T800S [45/0/-45/90]2s tension
-  coupons impacted at 25 J, digitized from the article's vector figure,
-  with T800S/3900-2B standing in for the missing M21/T800S preset. Not
-  gated: it is one condition and `tai_notch_fraction` is fitted to it.
-- `OrthotropicMaterial.tai_notch_fraction` (default 0.05, `0 < f <= 1`),
-  and in `bvidfe.failure.soutis_openhole` `fibre_damage_tai`,
-  `finite_width_factor` (Tan 1988), `transverse_damage_width_mm` and
-  `tai_hole_radius_mm`. `semi_analytical_tai` takes an optional
-  `panel_width_mm`. Closed-form TAI runs add a note to
-  `AnalysisResults.notes` with the equivalent hole and the validation
-  status.
-- Validation harness: case fields `boundary`, `impactor_shape`,
-  `measured_pristine_MPa`, `impact_panel_Lx_mm`, `impact_panel_Ly_mm` and
-  `impact_boundary`; `"gate": false` with a `gate_note` for a known miss;
-  `--dataset` takes several names; `--measured` runs every
-  `"kind": "measured"` dataset, so CI's semi-analytical gate and the
-  smoke tests pick up a new measured dataset from its file alone (#178).
-  `validation/README.md` and
-  `validation/reference_data.json` list the open datasets found by a
-  literature survey, replacing the v0.2.0 roadmap.
-- `bvidfe.failure.laminate_strength.unnotched_strength`, and in
-  `bvidfe.analysis.semi_analytical` the growth model's pieces:
-  `sublaminate_growth_stress`, `weakest_sublaminate_growth`,
-  `mixed_mode_toughness` and `panel_buckling_load`.
-- `distribute_damage(..., max_half_extent_mm=...)`, and
-  `Hex8Element.stress_at_gauss_points_material` (both stress methods take
-  an optional stiffness).
-- An `app` extra (Streamlit), PyPI classifiers and keywords, and an SPDX
-  license expression (PEP 639).
-- `tests/test_docs_examples.py` runs the Python examples of the README,
-  the quickstart and the API page. CI also checks the JSON schemas against
-  the dataclasses (`scripts/generate_schemas.py --check`), and
-  `tests/test_package.py` the four version strings against each other.
-- `bvidfe.impact.mapping.SHAPE_DPA_FACTOR`, `DIAMETER_DPA_EXPONENT` and
-  `DIAMETER_REF_MM`, public names for the impactor-shape and -diameter
-  damage-area corrections (the underscore names remain as aliases). The
-  app's impactor help is formatted from them and the `ImpactorGeometry`
-  docstring names them instead of quoting values; both had quoted a stale
-  cone factor (1.3x and 1.5x; it is 1.9x) (#174).
-- fe3d h-refinement tests (#89) in
-  `tests/analysis/test_fe3d_mesh_convergence.py`: the `BvidAnalysis`
-  knockdown and E11 knockdown, CAI and TAI, on a 40 x 30 mm coupon at
-  5 / 2.5 / 1.25 / 1.0 mm (every CI cell, about 10 s) and on the 8-ply QI
-  150 x 100 mm panel at 25 J at 5 / 3.33 / 2.5 / 2.0 mm (about 2.5 min,
-  marked `slow`). They check that results are bounded, that every
-  resolved mesh is within 5% of the finest and the two finest within 2%,
-  and that the compression E11 knockdown falls at each refinement by less
-  each time. The strength knockdown does not converge monotonically (a
-  2–4% band set by where the zone's edge falls on the grid), so that is
-  not asserted; the measured sweeps are in the mesh limitation in
-  `docs/physics_models.md`. New pytest marker `slow`, deselected by
-  default (`addopts`); the validation CI job runs `pytest -m slow`.
-
-### Changed
-
+  9.0% / 9.9%), so 0.15 stays the lowest.
 - **The string options are `Literal` types throughout (#82).** `tier`,
   `loading`, failure `criterion`, panel `boundary`, impactor `shape` and
   the sweeps' `on_error` are typed with the `TierName`, `LoadingMode`,

@@ -49,7 +49,7 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | `solver/` | `static.py` | `solve_linear_static`: sparse-direct linear static solve (SciPy). |
 | | `assembler.py` | COO → CSC global stiffness matrix assembly from element contributions. |
 | | `boundary.py` | `BoundaryCondition`, `apply_dirichlet_penalty`, `uniaxial_x_bcs`: penalty-method Dirichlet BCs for displacement-controlled compression and tension; `transverse_platen_bcs`, the y-platen basis solve of a biaxial fe3d run. |
-| | `buckling.py` | Generic linear eigenvalue buckling utility (`scipy.sparse.linalg.eigsh`). Not called from the `fe3d` tier since #129; kept for future plate/shell-element buckling work. |
+| | `buckling.py` | Generic linear eigenvalue buckling utility (`scipy.sparse.linalg.eigsh`). Not called from the `fe3d` tier since #129; kept, with `elements/hex8s.py`, should FE sublaminate buckling (#132, not planned) be revisited. |
 | `failure/` | `laminate_strength.py` | `unnotched_strength(lam, loading)`: unnotched laminate strength by ply-discount last-ply failure on CLT (max-stress per ply, cracked plies keep 1% of E22 and G12). This is `pristine_strength_MPa` for every tier. |
 | | `larc05.py` | Minimal LaRC05 composite failure criterion (Hashin-3D reduction); scalar + batch index. |
 | | `tsai_wu.py` | Full 3D Tsai-Wu failure criterion with interaction terms; scalar + batch index. |
@@ -162,7 +162,7 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
 - **Sweep `on_error` / `progress_callback`** preserving partial results on per-iteration failure.
 - **Validation harness** in CI, against a synthetic self-check dataset only.
 
-### Unreleased (since v0.2.0; see CHANGELOG)
+### v0.3.0 (see CHANGELOG)
 - **Rayleigh-Ritz closed-form buckling** in the `fe3d` tier (`fe3d_cai_buckling`, delegated to `semi_analytical.panel_buckling_load`, #129), replacing the 3D K_g eigensolve. It reports buckling onset only.
 - **Pristine strength** is the unnotched laminate strength from ply-discount last-ply failure (`failure/laminate_strength.py`), not a thickness-weighted ply-strength average.
 - **Delamination-growth CAI** in `semi_analytical` and `fe3d`: compression strength is the stress at which a buckled sublaminate grows its delamination, not the stress at which it buckles.
@@ -175,13 +175,17 @@ from bvidfe.sweep.parametric_sweep import sweep_energies, sweep_layups, sweep_th
 - **Delaminations confined to the impacted panel** (`distribute_damage(max_half_extent_mm=...)`); the NCAMP and Lovejoy & Scotti cases are impacted on the ASTM D7136 125 × 75 mm window.
 - **fe3d damage-zone in-plane factor** 0.30 -> 0.20 -> 0.17 -> 0.15, fitted to the first NCAMP, Lovejoy & Scotti quasi-isotropic and Lovejoy & Scotti hard CAI coupons. 0.15 followed the axial damage template (ply angles modulo 180°), `ν23` in the 3D ply compliance and the corrected Olsson threshold, and was kept after the membrane onset and the mid-surface `u_z` restraint; it has the lowest mean error (8.4%; 7.4% before fe3d stopped rescaling the growth stress, #166) but no longer fits both families (Lovejoy & Scotti +1.2% / −3.5%, NCAMP −20.6%). It is fitted on CAI only. In tension it softens only the zone's matrix-dominated moduli (`E22`, `G12`), since delaminations and matrix cracks cut no fibres; softened in every direction, as before, fe3d TAI was about a third of the closed-form TAI and 62% low on the one measured TAI dataset.
 - **fe3d damage-zone factor per material** (`OrthotropicMaterial.fe3d_zone_inplane_factor`, read by `fe_mesh.build_fe_mesh`): the Girona AS4/8552 coupons with their C-scan areas want about 0.21, like NCAMP, while Lovejoy & Scotti's IM7/8552 coupons want 0.15, and no severity law (energy per thickness, dent) splits them. AS4/8552 takes 0.219, fitted to the first NCAMP coupon alone, which predicts the Girona coupons out of sample at 5.3% MAE with their C-scan areas (19.6% at 0.15); IM7/8552 and the uncalibrated presets keep 0.15.
-- **Solid-shell element** `elements/hex8s.py` (Hex8 incompatible modes + assumed transverse shear, #132), verified on SSSS plate buckling; an internal building block, not yet used by any tier.
+- **Solid-shell element** `elements/hex8s.py` (Hex8 incompatible modes + assumed transverse shear, #132), verified on SSSS plate buckling; an internal building block, not used by any tier.
+- **2D blister delamination growth** in `semi_analytical` (and fe3d where growth governs): the post-buckled elliptical film's energy release rate replaces the straight-sided strip's; with it the Soutis bound or first-ply failure governs every measured coupon.
+- **Biaxial in-plane loading** (`AnalysisConfig.transverse_stress_ratio`, #115) in every tier, experimental and not validated, with a ratio sweep, an envelope plot and an app input.
 - **fe3d failure-index averaging disk weighted by element overlap** (`_disk_kernel`), so it keeps its area as the mesh is refined.
 - CI checks the generated JSON schemas (`scripts/generate_schemas.py --check`) and gates the semi-analytical tier on the measured datasets.
 
 ### Planned
 - **True cohesive surfaces**: replace the stiffness-reduction approximation with a bilinear traction-separation law in the `fe3d` tier, which would also give fe3d first-ply failure a characteristic length.
-- **FE sublaminate buckling** for fe3d (#132), opt-in, feeding only the delamination-growth channel: a windowed buckling model with intact plies and node-split delaminations, built on the solid-shell element (`elements/hex8s.py`). The element and its pristine-plate verification are done (Unreleased); the static prestress and eigen-BCs, the node split and window, and the wiring into `weakest_sublaminate_growth` are still to come. Whole-panel buckling stays with the closed form.
 - **More validated datasets**: the candidates and what each needs are listed in `validation/README.md` ("Next datasets").
 - **Calibrated material constants**: `dent_beta` and related parameters against material test data (`soutis_k_s`, the default `olsson_alpha`, the impactor shape and diameter factors and the fe3d damage-zone factor are done; the last is fitted per material, in-sample on one NCAMP coupon for AS4/8552 and two Lovejoy & Scotti coupons for IM7/8552, the latter from one lab only), with held-out data to check them.
 - **fe3d on measured data in CI**: CI runs fe3d on three synthetic cases as an ungated smoke run, because each measured coupon takes 40-80 s.
+
+### Not planned
+- **FE sublaminate buckling** for fe3d (#132, closed): a windowed buckling model with node-split delaminations on the solid-shell element would feed only the delamination-growth channel, which governs no measured coupon since the 2D blister. The closed-form fixes and the element shipped in v0.3.0; the rest is worth revisiting only with growth-governed data.
