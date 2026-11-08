@@ -29,6 +29,7 @@ reaction force on the loaded edge at failure over the gross area.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -86,9 +87,40 @@ def test_damage_zone_softens_in_plane_stiffness_through_the_thickness():
 
 
 def test_damage_zone_factor_is_the_soft_inclusion_value():
-    """Fitted to the NCAMP and Lovejoy & Scotti quasi-isotropic and hard CAI
-    coupons (see the comment in fe_mesh.py)."""
+    """The default, fitted to the NCAMP and Lovejoy & Scotti quasi-isotropic
+    and hard CAI coupons together and kept for IM7/8552 (see the comment in
+    fe_mesh.py); AS4/8552 has its own, fitted to the NCAMP coupon."""
     assert DAMAGE_ZONE_INPLANE_FACTOR == pytest.approx(0.15)
+    assert MATERIAL_LIBRARY["IM7/8552"].fe3d_zone_inplane_factor == DAMAGE_ZONE_INPLANE_FACTOR
+    assert MATERIAL_LIBRARY["AS4/8552"].fe3d_zone_inplane_factor == 0.219
+
+
+@pytest.mark.parametrize(
+    "loading, beta", [("compression", 0.0), ("tension", 0.0), ("compression", 0.5)]
+)
+def test_every_fe3d_path_takes_the_zone_factor_of_the_material(loading, beta, monkeypatch):
+    """CAI, TAI and the biaxial solves all build their mesh with the
+    material's fe3d_zone_inplane_factor, and the residual follows it."""
+    ell = DelaminationEllipse(1, (10.0, 5.0), 6.0, 3.0, 0.0)
+    damage = DamageState([ell], dent_depth_mm=0.3)
+    real_build = ft.build_fe_mesh
+    seen: list[float] = []
+
+    def spy(config, damage):
+        mesh = real_build(config, damage)
+        if damage.delaminations:
+            seen.append(float(mesh.in_plane_damage_factors.min()))
+        return mesh
+
+    monkeypatch.setattr(ft, "build_fe_mesh", spy)
+    knockdown = {}
+    for f in (DAMAGE_ZONE_INPLANE_FACTOR, 0.4):
+        seen.clear()
+        material = replace(MATERIAL_LIBRARY["IM7/8552"], name="t", fe3d_zone_inplane_factor=f)
+        cfg = replace(_small_cfg(loading, damage), material=material, transverse_stress_ratio=beta)
+        knockdown[f] = BvidAnalysis(cfg).run().knockdown
+        assert seen and all(v == pytest.approx(f) for v in seen)
+    assert knockdown[0.4] != pytest.approx(knockdown[DAMAGE_ZONE_INPLANE_FACTOR], rel=1e-3)
 
 
 @pytest.mark.parametrize("loading", ["tension", "compression"])

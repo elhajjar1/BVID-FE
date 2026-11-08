@@ -186,6 +186,63 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Changed
 
+- **fe3d's damage-zone in-plane factor is a material constant; AS4/8552
+  takes 0.219** (results change: fe3d, AS4/8552 only).
+  - New field `OrthotropicMaterial.fe3d_zone_inplane_factor`, validated
+    in `(0, 1]`. Its default 0.15 is `fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR`,
+    which stays.
+  - `fe_mesh.build_fe_mesh` reads the factor from the config's material,
+    so it applies to every fe3d solve: CAI, TAI, the biaxial solves and
+    the app's 3D mesh. `apply_damage` takes it as an argument, defaulting
+    to the constant.
+  - The AS4/8552 preset takes 0.219, fitted to the first NCAMP coupon
+    alone. fe3d (5 mm mesh) matches that coupon's CAI at 0.2192, so the
+    Girona coupons stay out of sample. IM7/8552 keeps 0.15. The other
+    presets take 0.15 uncalibrated.
+  - Why: with their C-scan areas, the 12 Girona AS4/8552 coupons
+    (`gonzalez_as4_8552_cai`) are 19.6% low on average at 0.15.
+    They want about 0.21, as NCAMP does, while Lovejoy & Scotti's
+    IM7/8552 coupons want 0.15. A severity law (energy per thickness or
+    dent) cannot split the two families.
+  - fe3d CAI at 5 mm:
+    - NCAMP #0: 141.0 → 177.5 MPa (−20.6% → −0.1%, in-sample).
+    - NCAMP #1–6, out of sample: 20.0% → 1.4% MAE.
+    - Girona, out of sample: 19.6% → 5.3% MAE with the
+      C-scan areas (12 coupons), 21.3% → 11.5% with the
+      predicted damage (19). L02-S01 −25.4% → −2.6%, cross-ply L06-S01
+      −33.8% → −7.8%, 48-ply L05 at 38.6 J −38.8% → −21.5%.
+    - Lovejoy & Scotti #0 and #4 are unchanged (148.6 and 236.4 MPa).
+  - AS4/8552 fe3d TAI changes slightly. In tension the factor softens
+    only the zone's `E22` and `G12`, whose strengths drop with them
+    (strain equivalence); the fibres and the closed-form fibre-damage
+    hole are untouched. The TAI knockdown rises by about 1% (predicted damage):
+    0.674 → 0.681 on NCAMP #0's coupon, 0.641 → 0.647 on Girona
+    L02-S01's. No AS4/8552 TAI data exist, so this is not validated.
+    Körbelin's M21/T800S coupons run on the T800S/3900-2B card and do
+    not change.
+  - Biaxial fe3d runs on AS4/8552 move with the factor too. NCAMP #0 at
+    `transverse_stress_ratio = -0.5`: knockdown 0.286 → 0.357. So does
+    fe3d's compression E11 knockdown, since the zone is stiffer: NCAMP
+    #0 0.692 → 0.739.
+  - The gated empirical and semi-analytical results are unchanged, and
+    no test pin moved.
+  - The JSON Schemas are regenerated. A config or JSON without the field
+    loads with the default 0.15. That includes a custom material card
+    saved before this change, even one copied from AS4/8552; a preset
+    given by name takes the preset's value.
+  - See `validation/README.md`, *fe3d damage-zone factor*.
+- **Documented why the unnotched compression strength is not corrected
+  per layup** (documentation only; no results change). In compression
+  every laminate fails at the card's 0° ply strain `Xc / E11`, so its
+  strength is the CLT modulus times one strain. NCAMP's measured moduli
+  put the errors in the failure strain, which depends on layup and
+  material together: IM7/8552 50/40/10 fails at 0.92× its 25/50/25
+  strain and AS4/8552 50/40/10 at 1.08×. No candidate improves on the
+  current model's 10.2% mean error over the six NCAMP laminates: kinking
+  (LaRC03), in-situ strengths, NCAMP's full cards, or one-constant
+  layup laws. Correcting the pristine strength would not change the
+  knockdown error against it either. See `validation/README.md`,
+  *Compression: a cap on the 0° ply strain*.
 - **The delamination growth stress uses the 2D blister's energy release
   rate, not the straight-sided strip's.** Results change in
   `semi_analytical` CAI, and in fe3d CAI where growth governs. No fitted

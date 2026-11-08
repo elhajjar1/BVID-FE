@@ -92,6 +92,37 @@ def test_mesh_delamination_only_softens_damage_zone_in_plane():
     assert np.all(mesh.fiber_tension_factors == 1.0)
 
 
+def test_mesh_damage_zone_takes_the_material_factor():
+    """The damage zone's in-plane factor is the material's
+    fe3d_zone_inplane_factor (a preset by name or a custom card);
+    apply_damage defaults to DAMAGE_ZONE_INPLANE_FACTOR."""
+    import dataclasses
+
+    from bvidfe.analysis.fe_mesh import (
+        DAMAGE_ZONE_INPLANE_FACTOR,
+        apply_damage,
+        build_fe_mesh_skeleton,
+    )
+    from bvidfe.core.material import MATERIAL_LIBRARY
+
+    ds = DamageState([DelaminationEllipse(1, (10, 5), 8, 4, 0)], dent_depth_mm=0.3)
+    custom = dataclasses.replace(
+        MATERIAL_LIBRARY["IM7/8552"], name="t", fe3d_zone_inplane_factor=0.4
+    )
+    for material, f in (("IM7/8552", 0.15), ("AS4/8552", 0.219), (custom, 0.4)):
+        cfg = dataclasses.replace(_simple_config(), material=material)
+        factors = build_fe_mesh(cfg, ds).in_plane_damage_factors
+        assert factors.min() == pytest.approx(f)
+        assert np.all((factors >= f - 1e-12) & (factors <= 1.0))
+    skeleton = build_fe_mesh_skeleton(_simple_config())
+    assert apply_damage(skeleton, ds).in_plane_damage_factors.min() == pytest.approx(
+        DAMAGE_ZONE_INPLANE_FACTOR
+    )
+    for bad in (0.0, 1.5):
+        with pytest.raises(ValueError, match="zone_inplane_factor"):
+            apply_damage(skeleton, ds, bad)
+
+
 @pytest.mark.parametrize("interface", [0, 1, 2])
 def test_oop_factor_takes_the_two_plies_bounding_the_interface(interface):
     """Issue #167: the interface lies on an element face, so selecting the

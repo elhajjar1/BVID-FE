@@ -191,6 +191,7 @@ def test_material_puck_parameters_accept_zero(field_name):
         "soutis_m",
         "wn_d0_mm",
         "tai_notch_fraction",
+        "fe3d_zone_inplane_factor",
     ],
 )
 @pytest.mark.parametrize("bad", [NAN, INF, -INF, "0.3", True])
@@ -207,6 +208,8 @@ def test_material_rejects_non_finite_calibration_fields(field_name, bad):
         ({"nu23": 1.0}, "nu23"),
         ({"tai_notch_fraction": 0.0}, r"OrthotropicMaterial\.tai_notch_fraction"),
         ({"tai_notch_fraction": 1.5}, r"OrthotropicMaterial\.tai_notch_fraction"),
+        ({"fe3d_zone_inplane_factor": 0.0}, r"OrthotropicMaterial\.fe3d_zone_inplane_factor"),
+        ({"fe3d_zone_inplane_factor": 1.5}, r"OrthotropicMaterial\.fe3d_zone_inplane_factor"),
         ({"rho": 1e-2}, r"OrthotropicMaterial\.rho"),
     ],
 )

@@ -116,6 +116,19 @@ def test_as4_8552_derived_constants():
     assert (m.G_Ic, m.G_IIc) == (0.28, 0.79)
 
 
+def test_fe3d_zone_inplane_factor_presets():
+    """The default is fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR (kept for
+    IM7/8552, uncalibrated for the other presets); AS4/8552 is fitted to the
+    first NCAMP coupon (validation/README.md, fe3d damage-zone factor)."""
+    from bvidfe.analysis.fe_mesh import DAMAGE_ZONE_INPLANE_FACTOR
+
+    field = OrthotropicMaterial.__dataclass_fields__["fe3d_zone_inplane_factor"]
+    assert field.default == DAMAGE_ZONE_INPLANE_FACTOR == 0.15
+    assert MATERIAL_LIBRARY["AS4/8552"].fe3d_zone_inplane_factor == 0.219
+    others = {k: m.fe3d_zone_inplane_factor for k, m in MATERIAL_LIBRARY.items() if k != "AS4/8552"}
+    assert set(others.values()) == {DAMAGE_ZONE_INPLANE_FACTOR}
+
+
 # --- 3D compliance: nu23 ------------------------------------------------------
 
 

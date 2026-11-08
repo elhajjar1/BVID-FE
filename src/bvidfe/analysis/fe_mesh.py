@@ -23,8 +23,10 @@ to the 6x6 elasticity matrix in the global Voigt frame
 
   - `in_plane_damage_factors[e]`   — in-plane factor in (0, 1]. Scales
                                      the in-plane sub-block on rows/cols
-                                     {0, 1, 5}. Reduced to
-                                     DAMAGE_ZONE_INPLANE_FACTOR through
+                                     {0, 1, 5}. Reduced to the
+                                     material's fe3d_zone_inplane_factor
+                                     (default DAMAGE_ZONE_INPLANE_FACTOR)
+                                     through
                                      the thickness inside the union of
                                      the delamination footprints (the
                                      damage zone), interpolated by the
@@ -99,6 +101,7 @@ from typing import List, cast
 import numpy as np
 
 from bvidfe.analysis.config import AnalysisConfig, MeshParams
+from bvidfe.core.material import MATERIAL_LIBRARY
 from bvidfe.damage.state import DamageState, DelaminationEllipse
 
 # Out-of-plane stiffness fraction at delaminated interfaces. Representative
@@ -112,11 +115,14 @@ DAMAGE_OOP_FACTOR = 0.05
 DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 
 # In-plane stiffness fraction of the damage zone (soft inclusion over the
-# projected damage area, every ply). Its strengths drop with it (strain
+# projected damage area, every ply). It is a material property,
+# OrthotropicMaterial.fe3d_zone_inplane_factor, which build_fe_mesh reads
+# from the config's material; this is its default (apply_damage's too).
+# Its strengths drop with it (strain
 # equivalence, see fe_tier._failure_stress_material). Under tension it
 # scales only the matrix-dominated terms: the fibre-direction stiffness,
 # and so the fibre tension strength, stay intact (fiber_tension_factors).
-# Fitted to three
+# One factor was first fitted to three
 # measured CAI coupons with the delaminations kept inside the ASTM D7136
 # impact window: the first NCAMP AS4/8552 [45/0/-45/90]3s coupon, the first
 # Lovejoy & Scotti IM7/8552 [45/0/-45/90]4s coupon and their 40-ply hard
@@ -129,9 +135,16 @@ DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30
 # the enclosing-rectangle sublaminate before #132 that stress was 227.5 MPa
 # and set the hard laminate from 0.15 up (-3.5% at 0.15 to 0.20, mean
 # errors 8.4%, 9.0%, 9.9%). No single factor fits both
-# families: NCAMP wants about 0.22, Lovejoy & Scotti about 0.15. With the
-# old template (ply mismatch not wrapped modulo 180 deg) 0.17 fitted all
-# three within 5%.
+# families: NCAMP wants 0.219, Lovejoy & Scotti about 0.15 (0.147 and
+# 0.149). The Girona AS4/8552 coupons (gonzalez_as4_8552_cai, with their
+# C-scan areas) want about 0.21 too, and neither energy per thickness nor
+# the dent splits the two families, so the factor follows the material:
+# the AS4/8552 card takes 0.219, fitted to the NCAMP coupon alone (Girona
+# out of sample: 5.3% MAE with the C-scan areas, 19.6% at
+# 0.15). IM7/8552 keeps 0.15; its one source confounds material and lab.
+# The other presets take 0.15 uncalibrated. See validation/README.md (fe3d
+# damage-zone factor). With the old template (ply mismatch not wrapped
+# modulo 180 deg) 0.17 fitted all three within 5%.
 DAMAGE_ZONE_INPLANE_FACTOR = 0.15
 
 # Sub-sampling grid (per side) for the fraction of an element's area inside
@@ -401,12 +414,29 @@ def fibre_damage_hole_elements(
     return hit
 
 
-def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
+def material_zone_inplane_factor(config: AnalysisConfig) -> float:
+    """The damage zone's in-plane factor of ``config``'s material
+    (``OrthotropicMaterial.fe3d_zone_inplane_factor``; a preset name is
+    looked up in ``MATERIAL_LIBRARY``)."""
+    material = config.material
+    if isinstance(material, str):
+        material = MATERIAL_LIBRARY[material]
+    return float(material.fe3d_zone_inplane_factor)
+
+
+def apply_damage(
+    skeleton: FeMeshSkeleton,
+    damage: DamageState,
+    zone_inplane_factor: float = DAMAGE_ZONE_INPLANE_FACTOR,
+) -> FeMesh:
     """Fill per-element damage factors onto a skeleton, returning a FeMesh.
 
     Out-of-plane reduction of the elements of the two plies bounding a
     delaminated interface whose centroid lies in its ellipse; in-plane
-    reduction of every element overlapping any ellipse (the damage zone, all plies),
+    reduction to ``zone_inplane_factor`` (the material's
+    ``fe3d_zone_inplane_factor``, which ``build_fe_mesh`` passes; default
+    ``DAMAGE_ZONE_INPLANE_FACTOR``) of every element overlapping any
+    ellipse (the damage zone, all plies),
     interpolated by the fraction of its area inside the zone; then
     fiber-break-core reduction (both factors) of the elements whose centre
     is within ``fiber_break_radius_mm`` of any delamination centroid. The
@@ -415,8 +445,11 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     core's (``fe_tier.tai_fibre_damage_hole``), so softening the fibres of
     the meshed core as well would count the same broken fibres twice
     (issue #164). Warns (``FiberBreakCoreUnmeshedWarning``) when the core
-    holds no element centre.
+    holds no element centre. Raises ``ValueError`` for a
+    ``zone_inplane_factor`` outside ``(0, 1]``.
     """
+    if not 0.0 < zone_inplane_factor <= 1.0:
+        raise ValueError(f"zone_inplane_factor must be in (0, 1] (got {zone_inplane_factor})")
     n_elem = skeleton.element_connectivity.shape[0]
     cx = skeleton.centroid_x
     cy = skeleton.centroid_y
@@ -446,7 +479,7 @@ def apply_damage(skeleton: FeMeshSkeleton, damage: DamageState) -> FeMesh:
     # area-weighted factor.
     if damage.delaminations:
         frac = _zone_area_fraction(skeleton, damage)
-        in_plane_damage_factors = 1.0 - frac * (1.0 - DAMAGE_ZONE_INPLANE_FACTOR)
+        in_plane_damage_factors = 1.0 - frac * (1.0 - zone_inplane_factor)
 
     # Fiber-break core: within fiber_break_radius of any delamination
     # centroid → both factors reduced (OOP also forced to DAMAGE_OOP_FACTOR).
@@ -523,7 +556,9 @@ def build_fe_mesh(config: AnalysisConfig, damage: DamageState) -> FeMesh:
     The mesh spans ``0 <= x <= Lx_mm``, ``0 <= y <= Ly_mm`` and the laminate
     thickness from ``z = 0`` (ply 0) upwards, at the resolution of
     ``config.mesh`` (``MeshParams()`` when ``None``); ``damage`` sets the
-    per-element damage factors (see the module docstring). The
+    per-element damage factors (see the module docstring), the damage
+    zone's in-plane one from ``config.material``'s
+    ``fe3d_zone_inplane_factor``. The
     damage-independent skeleton of the last mesh is cached, so a sweep
     that changes only the damage rebuilds only the factors.
 
@@ -545,4 +580,4 @@ def build_fe_mesh(config: AnalysisConfig, damage: DamageState) -> FeMesh:
         # for the whole run; this bounds memory to one mesh).
         _SKELETON_CACHE.clear()
         _SKELETON_CACHE[sig] = skeleton
-    return apply_damage(skeleton, damage)
+    return apply_damage(skeleton, damage, material_zone_inplane_factor(config))

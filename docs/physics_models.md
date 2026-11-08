@@ -34,7 +34,7 @@ A structured hexahedral mesh is built for the damaged laminate. Delaminated inte
 
 #### Damage zone
 
-The damage zone as a whole (every ply under the projected delamination footprint, where matrix cracks and fibre damage accompany the delaminations) is a soft inclusion with in-plane stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.15, fitted to three measured CAI coupons; see [Limitations](#limitations); Soutis & Curtis 1996). The delaminations, and so the zone, are kept inside the impacted panel (`impact_panel`, else `panel`; for an ASTM D7136 coupon the 125 × 75 mm support window): each template ellipse is shrunk, aspect ratio kept, until it fits, and the union is re-solved for the same area. Elements straddling the zone's edge take the factor weighted by their area fraction inside it.
+The damage zone as a whole (every ply under the projected delamination footprint, where matrix cracks and fibre damage accompany the delaminations) is a soft inclusion with in-plane stiffness ×`fe3d_zone_inplane_factor`, a material constant: 0.219 for AS4/8552, fitted to one NCAMP coupon, and the default `DAMAGE_ZONE_INPLANE_FACTOR` = 0.15 for the other presets, fitted to Lovejoy & Scotti's IM7/8552 coupons and uncalibrated for the rest (see [Limitations](#limitations); Soutis & Curtis 1996). The delaminations, and so the zone, are kept inside the impacted panel (`impact_panel`, else `panel`; for an ASTM D7136 coupon the 125 × 75 mm support window): each template ellipse is shrunk, aspect ratio kept, until it fits, and the union is re-solved for the same area. Elements straddling the zone's edge take the factor weighted by their area fraction inside it.
 
 #### TAI fibre-damage hole and fibre-break core
 
@@ -715,8 +715,10 @@ release):
   delamination footprints, where matrix cracks and fibre damage accompany
   the delaminations; confined to the impacted panel, see
   [step 5](#impact-to-damage-mapping)) is a soft inclusion with in-plane
-  stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.15, fitted to three measured
-  CAI coupons, see [Limitations](#limitations); Soutis & Curtis 1996).
+  stiffness ×`fe3d_zone_inplane_factor`, a material constant (0.219 for
+  AS4/8552; the default `DAMAGE_ZONE_INPLANE_FACTOR` = 0.15 for IM7/8552
+  and, uncalibrated, the other presets), fitted to measured CAI coupons,
+  see [Limitations](#limitations); Soutis & Curtis 1996.
   Without it, delaminations left the in-plane stress field unchanged and
   first-ply failure could not see the impact. An element straddling the
   zone's edge takes the factor weighted by the fraction of its area inside
@@ -1058,7 +1060,7 @@ panel softens it less.
 
 The modulus is in the run's loading sense, because fe3d softens the
 damage zone differently in the two: in compression its whole in-plane
-stiffness ×`DAMAGE_ZONE_INPLANE_FACTOR` (0.15), in tension only its
+stiffness ×`fe3d_zone_inplane_factor` (0.15 for IM7/8552), in tension only its
 matrix-dominated terms (the fibres are intact). 8-ply QI IM7/8552,
 150×100 mm, 5 mm mesh:
 
@@ -1077,8 +1079,8 @@ boundary conditions fe3d does not have), about 40% more run time.
 **What it does not capture.**
 
 - **No stiffness measurement validates it.** The repository holds no
-  measured residual modulus, and `DAMAGE_ZONE_INPLANE_FACTOR` was fitted
-  to CAI *strength* (three coupons), where it stands for the zone's lost
+  measured residual modulus, and `fe3d_zone_inplane_factor` was fitted
+  to CAI *strength* (one or two coupons per material), where it stands for the zone's lost
   strength as much as its stiffness. Treat the compression E11 knockdown
   as that strength-calibrated model's, and expect it to overstate the
   loss.
@@ -1503,7 +1505,8 @@ rows equal the runs one by one with four solves for five ratios.
   to Hasebe et al.'s, and `dent_beta` and `dent_gamma` to both datasets'
   measured dents. The other calibration constants (`soutis_m`,
   `wn_d0_mm`, the impactor mass factor, the impact and whole-panel buckling boundary factors, the mixed-mode phase angle and B-K exponent, and the
-  fe3d out-of-plane and fibre-break factors) are uncalibrated defaults
+  fe3d out-of-plane and fibre-break factors, and the fe3d damage-zone
+  factor of the presets other than AS4/8552 and IM7/8552) are uncalibrated defaults
   chosen for typical CFRP systems. Precise values need calibration against
   material-specific coupon test data before use in certification.
 - **Material presets.** AS4/8552 and T800S/3900-2B cite their sources in
@@ -1511,11 +1514,12 @@ rows equal the runs one by one with four solves for five ratios.
   calls the rest generic values. AS4/3501-6, T700/2510 and T800/epoxy
   have no cited source.
 - Validation covers CAI, apart from one TAI condition, and fe3d is not
-  run on the measured datasets in CI (it gives 141.0 MPa against the
-  measured 177.7 MPa, 20.6% low, on the first NCAMP coupon, one of the
-  three coupons its damage-zone factor is fitted to, `validation/README.md`;
-  on the measured TAI dataset it is 3.6% off, partly in-sample, see the
-  fe3d TAI item below).
+  run on the measured datasets in CI. Its AS4/8552 damage-zone factor is
+  fitted to the first NCAMP coupon (177.5 against the measured
+  177.7 MPa) and predicts the Girona AS4/8552 coupons out of sample at
+  5.3% MAE with their C-scan areas, `validation/README.md`. On
+  the measured TAI dataset it is 3.6% off, partly in-sample; see the
+  fe3d TAI item below.
 - **Biaxial loading (`transverse_stress_ratio ≠ 0`) is experimental and
   not validated**: no biaxial residual-strength data are known.
   Every tier supports it; the
@@ -1563,27 +1567,40 @@ rows equal the runs one by one with four solves for five ratios.
   delaminated interfaces, in-plane over the damage zone) instead of true
   cohesive surfaces with bilinear traction-separation laws and a continuum
   damage model. Cohesive surfaces are deferred to a future release. The
-  damage-zone in-plane factor is uniform over the footprint. Its value,
-  0.15, is fitted in-sample to three measured CAI coupons, with the
-  delaminations kept inside the ASTM D7136 impact window: it puts the first
-  Lovejoy & Scotti IM7/8552 quasi-isotropic coupon 1.2% high, their first
-  40-ply hard laminate 0.3% high and the first NCAMP AS4/8552 coupon 20.6%
-  low, the lowest mean error (7.4%) of the factors tried (0.13 / 0.17 /
-  0.20 give 13.8% / 10.5% / 13.7%). First-ply failure sets all three up to
-  0.17; at 0.20 the hard laminate is set by its delamination growth stress
-  (270.9 MPa). With the enclosing-rectangle sublaminate before issue #132
-  that stress was 227.5 MPa and set the hard laminate from 0.15 up (3.5%
-  low, mean error 8.4% at 0.15). The NCAMP coupon wants about
-  0.22 and the Lovejoy & Scotti coupons about 0.15, so
-  no single factor fits both families within 5%; fe3d strengths are
-  qualitative. (With the template before it took ply angles modulo 180°,
-  step 5, and the ply stiffness before it used `ν23`, 0.17 fitted all
-  three within 5%.) Before the footprint was
-  confined, the hard laminate's template footprint was 108 × 108 mm on a
-  102 mm wide coupon: the soft zone spanned the whole section, the 0°
-  fibres failed at the coupon's side edge, and no single factor fitted
-  both families (0.20 left the hard laminate 47% low). A damage area at
-  the 80%-of-panel cap would put the soft zone across the loaded edges.
+  damage-zone in-plane factor is uniform over the footprint. It is a
+  material constant (`fe3d_zone_inplane_factor`), fitted in-sample with
+  the delaminations kept inside the ASTM D7136 impact window:
+  - **AS4/8552, 0.219:** fitted to the first NCAMP coupon alone (0.1%
+    low). Out of sample, it predicts the 12 Girona AS4/8552 coupons that
+    have C-scan areas at 5.3% MAE (19.6% at 0.15), and all
+    19 with the predicted damage at 11.5% (21.3%).
+  - **IM7/8552 and the default, 0.15:** it puts the first Lovejoy & Scotti
+    quasi-isotropic coupon 1.2% high and their first 40-ply hard laminate
+    0.3% high. Lovejoy & Scotti is the only IM7/8552 source, so material
+    and lab are confounded.
+  - **The other presets** take the default, uncalibrated.
+  - **Why one per material:** a single factor fitted the three
+    calibration coupons only to a mean error of 7.4% (0.15: NCAMP 20.6%
+    low; 0.13 / 0.17 / 0.20 gave 13.8% / 10.5% / 13.7%). NCAMP wants 0.219
+    and Lovejoy & Scotti 0.147–0.149. Girona's energy series rules out a
+    severity law (energy per thickness, dent) strong enough to reconcile
+    them, so the factor follows the material, or the lab.
+  - **What governs:** first-ply failure, on all three coupons up to 0.17
+    and on AS4/8552 at 0.219. At 0.20 the hard laminate is set by its
+    delamination growth stress (270.9 MPa). With the enclosing-rectangle
+    sublaminate before issue #132 that stress was 227.5 MPa and set the
+    hard laminate from 0.15 up (3.5% low, mean error 8.4% at 0.15).
+  - **Still qualitative:** each material rests on one or two coupons from
+    one lab, and the factor is fitted at the default 5 mm mesh (at 2.5 mm
+    the Girona knockdowns are 6–7% lower).
+  - **History:** with the template before it took ply angles modulo 180°
+    (step 5) and the ply stiffness before it used `ν23`, 0.17 fitted all
+    three within 5%. Before the footprint was confined, the hard
+    laminate's template footprint was 108 × 108 mm on a 102 mm wide
+    coupon: the soft zone spanned the whole section, the 0° fibres failed
+    at the coupon's side edge, and no single factor fitted both families
+    (0.20 left the hard laminate 47% low). A damage area at the
+    80%-of-panel cap would put the soft zone across the loaded edges.
 - **fe3d's CAI knockdown follows mainly the damage zone's width and
   shape, not its area.**
   - **Mechanism:** the knockdown is set by the strain concentration at
@@ -1592,13 +1609,23 @@ rows equal the runs one by one with four solves for five ratios.
   - **Effect of the window cap:** in an ASTM D7136 coupon the zone's
     width stops at the 75 mm impact window at about 4,200 mm². Beyond
     that, extra area lengthens the zone along the load and the knockdown
-    rises again. On the NCAMP coupon it is 0.260 / 0.217 / 0.253 at
-    2,783 / 4,200 / 5,269 mm².
-  - **What it means:** the NCAMP and Lovejoy & Scotti coupons sit on
-    either side of that minimum. fe3d does not reproduce the measured
-    fall in CAI with damage area above about 2,800 mm², and its
-    energy-scaling trend in coupons is not reliable. See
-    `validation/README.md`, *fe3d damage-zone factor*.
+    rises again. On the NCAMP coupon (at the earlier factor 0.15) it is
+    0.260 / 0.217 / 0.253 at 2,783 / 4,200 / 5,269 mm².
+  - **What it means across datasets:** the NCAMP and Lovejoy & Scotti
+    coupons sit on either side of that minimum. fe3d does not reproduce
+    the fall in CAI between them, which the factor per material now
+    carries instead.
+  - **What it means within one laminate and coupon:** Girona's energy
+    series and clustered laminates (AS4/8552, with their C-scan areas)
+    are the test. At a fixed factor fe3d gives most of the fall in CAI
+    with energy below the cap. It also gives the near-constant CAI of the
+    clustered laminates, whose area doubles past the cap, within 2%; an
+    area law misses that by up to 25%. With the predicted damage, fe3d
+    puts the clustered laminates 19–21% too strong relative to the
+    unclustered one. That is an error of the damage mapping (one
+    predicted area for all three, and narrower footprints for the
+    clustered ones), not of fe3d. See `validation/README.md`, *fe3d
+    damage-zone factor*.
 - **`fe3d` TAI takes its fibre damage from the closed form, and is
   validated on one condition only.** Tension strength after impact is
   set by the broken fibres under the impactor (Cantwell & Morton 1991);
@@ -1776,7 +1803,7 @@ rows equal the runs one by one with four solves for five ratios.
 
 The "Damage Severity" tab in the Streamlit app is **not** a simple count of damaged interfaces, nor is it a continuous physical damage variable (e.g. a Kachanov-style scalar). It is a through-thickness accumulation of the per-element stiffness-reduction metric used by the `fe3d` mesh:
 
-1. Each hex element in the damaged mesh carries an **out-of-plane** stiffness factor `damage_factor`: `1.0` if pristine, or `DAMAGE_OOP_FACTOR ≈ 0.05` if it is intersected by a delamination interface inside an ellipse footprint, or sits inside the fiber-break core. (Every element in a column under a delamination footprint also carries a reduced **in-plane** factor `in_plane_damage_factor = DAMAGE_ZONE_INPLANE_FACTOR = 0.15`, weighted by the fraction of its area inside the footprint where it straddles the edge, and fiber-break-core elements `DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30`.) The out-of-plane and fiber-break factors are **categorical per element** (geometric overlap tests in `bvidfe.analysis.fe_mesh.build_fe_mesh`), not a continuum damage variable.
+1. Each hex element in the damaged mesh carries an **out-of-plane** stiffness factor `damage_factor`: `1.0` if pristine, or `DAMAGE_OOP_FACTOR ≈ 0.05` if it is intersected by a delamination interface inside an ellipse footprint, or sits inside the fiber-break core. (Every element in a column under a delamination footprint also carries a reduced **in-plane** factor `in_plane_damage_factor`, the material's `fe3d_zone_inplane_factor` (default `DAMAGE_ZONE_INPLANE_FACTOR` = 0.15; 0.219 for AS4/8552), weighted by the fraction of its area inside the footprint where it straddles the edge, and fiber-break-core elements `DAMAGE_FIBER_BREAK_INPLANE_FACTOR = 0.30`.) The out-of-plane and fiber-break factors are **categorical per element** (geometric overlap tests in `bvidfe.analysis.fe_mesh.build_fe_mesh`), not a continuum damage variable.
 2. The heatmap metric is `1 − damage_factor` (the OOP factor) — `0.0` for pristine, `0.95` for fully delaminated.
 3. For each in-plane column `(x, y)` the metric is **summed over the through-thickness elements** to produce the heatmap value (see the "Damage Severity" tab in `app.py`).
 

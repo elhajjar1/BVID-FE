@@ -80,6 +80,15 @@ class OrthotropicMaterial:
         :func:`bvidfe.failure.soutis_openhole.fibre_damage_tai`. Default
         0.05, fitted (with ``wn_d0_mm`` = 1.0) to one measured TAI
         condition (Körbelin et al. 2020, M21/T800S).
+    fe3d_zone_inplane_factor : float
+        fe3d only: in-plane stiffness fraction of the damage zone (every
+        ply under the delamination footprints, a soft inclusion), ``0 < f
+        <= 1``, see :mod:`bvidfe.analysis.fe_mesh`. In compression it
+        scales the zone's whole in-plane stiffness, in tension only E22
+        and G12. Default 0.15 (``fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR``),
+        fitted to Lovejoy & Scotti's IM7/8552 CAI coupons; 0.219 for
+        AS4/8552, fitted to one NCAMP coupon. The other presets keep the
+        default, which is not calibrated for them.
     nu23 : float, optional
         Transverse (2-3) Poisson's ratio of the 3D compliance; ``None``
         resolves (``nu23_resolved``) to ``E22 / (2 G23) - 1``, the value G23
@@ -93,7 +102,8 @@ class OrthotropicMaterial:
     Raises ``ValueError`` for a non-positive modulus, strength, toughness or
     density, ``nu12`` outside ``(-1, 0.5)``, ``rho`` outside
     ``[1e-7, 1e-5]``, a non-positive ``Zt`` / ``Zc`` / ``S13``, a
-    negative Puck parameter, or ``tai_notch_fraction`` outside ``(0, 1]``.
+    negative Puck parameter, or ``tai_notch_fraction`` or
+    ``fe3d_zone_inplane_factor`` outside ``(0, 1]``.
     """
 
     name: str
@@ -169,6 +179,14 @@ class OrthotropicMaterial:
     # transversely isotropic value E22 / (2 G23) - 1 implied by G23 (see
     # ``nu23_resolved``); set it when nu23 is measured independently of G23.
     nu23: Optional[float] = None
+    # fe3d damage zone: in-plane stiffness fraction of every ply under the
+    # delamination footprints (fe_mesh.apply_damage). The default is
+    # fe_mesh.DAMAGE_ZONE_INPLANE_FACTOR, fitted with the AS4/8552 and
+    # IM7/8552 coupons together and kept for IM7/8552 (Lovejoy & Scotti
+    # within about 1%); see the comment there and validation/README.md
+    # (fe3d damage-zone factor). AS4/8552 sets its own value. The last
+    # field, so positional construction is unchanged.
+    fe3d_zone_inplane_factor: float = 0.15
 
     def __post_init__(self) -> None:
         # Every numeric field goes through bvidfe._validation so that NaN,
@@ -208,14 +226,14 @@ class OrthotropicMaterial:
             "soutis_m",
             "wn_d0_mm",
             "tai_notch_fraction",
+            "fe3d_zone_inplane_factor",
         ):
             require_finite(getattr(self, k), f"{cls}.{k}")
         if self.nu23 is not None:
             require_finite(self.nu23, f"{cls}.nu23")
-        if not 0.0 < self.tai_notch_fraction <= 1.0:
-            raise ValueError(
-                f"{cls}.tai_notch_fraction must be in (0, 1] (got {self.tai_notch_fraction})"
-            )
+        for k in ("tai_notch_fraction", "fe3d_zone_inplane_factor"):
+            if not 0.0 < getattr(self, k) <= 1.0:
+                raise ValueError(f"{cls}.{k} must be in (0, 1] (got {getattr(self, k)})")
         if not -1.0 < self.nu12 < 0.5:
             raise ValueError(f"{cls}.nu12 out of physical range (-1, 0.5) (got {self.nu12})")
         nu23 = self.nu23_resolved
@@ -337,7 +355,11 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
     # LaRC03 transverse shear strength from Yc at a 53 deg fracture plane
     # (Davila, Camanho & Rose, J Compos Mater 39, 2005). G_Ic and G_IIc are the
     # IM7/8552 values (same 8552 matrix), as Gonzalez et al. (Compos Struct 94,
-    # 2012) use for AS4/8552.
+    # 2012) use for AS4/8552. fe3d_zone_inplane_factor is fitted to the first
+    # NCAMP coupon alone (fe3d at the default 5 mm mesh matches its measured
+    # CAI at 0.2192; 0.219 is 0.1% low), so the Girona AS4/8552 coupons
+    # (validation/datasets/gonzalez_as4_8552_cai.json) are out of sample: 5.3%
+    # MAE with their C-scan areas, 19.6% at the default 0.15.
     "AS4/8552": OrthotropicMaterial(
         name="AS4/8552",
         E11=127300,
@@ -355,6 +377,7 @@ MATERIAL_LIBRARY: dict[str, OrthotropicMaterial] = {
         G_Ic=0.28,
         G_IIc=0.79,
         rho=1.59e-6,
+        fe3d_zone_inplane_factor=0.219,
     ),
     # Xt is NCAMP's F1tu derived from the [0/90] cross-ply tension tests with
     # the back-out factor: CAM-RP-2009-015 Rev B (2019), Table 2-1, RTD,
