@@ -54,7 +54,7 @@ dev = [
     "coverage>=7.10",
     # ruff and black are pinned exactly, to the revs in .pre-commit-config.yaml;
     # bump both files together.
-    "ruff==0.17.3",
+    "ruff==0.17.4",
     "black==26.10.1",
     "mypy>=1.10,<2",
     "pandas-stubs>=2.0,<3",
