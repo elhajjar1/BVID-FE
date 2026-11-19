@@ -42,7 +42,7 @@ dependencies = [
     "matplotlib>=3.9,<4",
     "shapely>=2.0,<3",
     "pandas>=2.0,<3",
-    "plotly>=5.18,<7",
+    "plotly>=5.18,<8",
 ]
 
 [project.optional-dependencies]
