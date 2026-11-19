@@ -9,7 +9,7 @@ h-refinement check are ``slow``.
 from __future__ import annotations
 
 import math
-from dataclasses import replace
+from dataclasses import fields, replace
 
 import numpy as np
 import pytest
@@ -24,6 +24,25 @@ from bvidfe.failure.laminate_strength import _ply_stresses_per_unit_direction, u
 from bvidfe.failure.larc05 import larc05_index
 from bvidfe.failure.lekhnitskii import biaxial_point_stress_factor
 from bvidfe.failure.tsai_wu import tsai_wu_index
+
+
+def _same_growth(a, b, rel=1e-12):
+    """Two SublaminateGrowth results agree: the same interface and axes,
+    and the stresses to round-off. Two calls of the same computation can
+    differ in the last bits where the BLAS threads its reductions (macOS
+    Accelerate ignores OMP_NUM_THREADS), so floats are not compared with
+    ``==``."""
+    if a is None or b is None:
+        return a is b
+    for f in fields(a):
+        x, y = getattr(a, f.name), getattr(b, f.name)
+        if isinstance(x, float) and isinstance(y, float):
+            if not (x == pytest.approx(y, rel=rel, nan_ok=True)):
+                return False
+        elif x != y:
+            return False
+    return True
+
 
 _IM7 = MATERIAL_LIBRARY["IM7/8552"]
 QI8 = [0, 45, -45, 90, 90, -45, 45, 0]
@@ -348,7 +367,7 @@ def test_compression_growth_is_semi_analyticals(beta):
     growth, _, _ = fe_tier.fe3d_cai_channels_and_modulus(cfg, DAMAGE, lam, math.inf)
     sa = semi_analytical_cai(lam, DAMAGE, 1.0, transverse_stress_ratio=beta)
     assert sa.growth is not None and growth is not None
-    assert growth == sa.growth
+    assert _same_growth(growth, sa.growth)
     r = BvidAnalysis(cfg).run()
     assert r.critical_sublaminate == growth.interface_index
     assert r.residual_strength_MPa <= growth.growth_stress_MPa
