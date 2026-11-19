@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import fields
 
 import numpy as np
 import pytest
@@ -39,6 +40,24 @@ _STIFFNESS_KEYS = [
     for name in ("E11", "E22", "G12")
     for prefix, suffix in (("pristine_", "_MPa"), ("residual_", "_MPa"), ("", "_knockdown"))
 ]
+
+
+def _same_growth(a, b, rel=1e-12):
+    """Two SublaminateGrowth results agree: the same interface and axes,
+    and the stresses to round-off. Two calls of the same computation can
+    differ in the last bits where the BLAS threads its reductions (macOS
+    Accelerate ignores OMP_NUM_THREADS), so floats are not compared with
+    ``==``."""
+    if a is None or b is None:
+        return a is b
+    for f in fields(a):
+        x, y = getattr(a, f.name), getattr(b, f.name)
+        if isinstance(x, float) and isinstance(y, float):
+            if not (x == pytest.approx(y, rel=rel, nan_ok=True)):
+                return False
+        elif x != y:
+            return False
+    return True
 
 
 def _cfg(tier: str, loading: str, damage: DamageState) -> AnalysisConfig:
@@ -203,4 +222,6 @@ def test_fe3d_strength_is_unchanged_by_the_stiffness_output():
     assert np.isfinite(modulus) and modulus > 0
     cfg = _cfg("fe3d", "compression", _DELAMINATED)
     growth, fpf, modulus = ft.fe3d_cai_channels_and_modulus(cfg, _DELAMINATED, _LAM, math.inf)
-    assert ft.fe3d_cai_channels(cfg, _DELAMINATED, _LAM, math.inf) == (growth, fpf)
+    growth2, fpf2 = ft.fe3d_cai_channels(cfg, _DELAMINATED, _LAM, math.inf)
+    assert _same_growth(growth2, growth)
+    assert fpf2 == pytest.approx(fpf, rel=1e-12)
