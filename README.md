@@ -86,7 +86,7 @@ The [Quickstart](https://elhajjar1.github.io/BVID-FE/quickstart/) covers C-scan 
 
 ## Validation
 
-`validation/validate_bvid_public.py` scores a tier against measured residual strengths (mean absolute error, MAE):
+`validation/validate_bvid_public.py` scores a tier against measured residual strengths (mean absolute error, MAE). `validation/plot_validation.py` plots every coupon's predicted against measured strength, knockdown, damage area and dent depth with the 1:1 line ([figure](https://github.com/elhajjar1/BVID-FE/blob/main/docs/validation_plots/validation_overview.png)):
 
 | Dataset | Material and layup | Coupons | Measured strength (MPa) | Empirical MAE | Semi-analytical MAE |
 |---|---|---|---|---|---|
