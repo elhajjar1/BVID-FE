@@ -95,7 +95,7 @@ the first two (ASTM D7136/D7137) are gated in CI:
 | --- | --- | --- | --- | --- |
 | NCAMP CAM-RP-2010-002 | AS4/8552 [45/0/-45/90]3s, about 30 J | 7 | 1.5% | 1.5% |
 | Lovejoy & Scotti (NASA LaRC 2019) | IM7/8552 quasi-isotropic at 54 J and hard laminate at 68 J | 8 | 8.8% | 8.8% |
-| Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 23.4% |
+| Hasebe et al. 2025 (not gated) | T800S/3900-2B, 8 layups, 3 hemispheres, a flat-ended impactor and a cone, 80 × 50 mm JIS K 7089 coupons, 2–21 J | 343 | 21.5% | 21.5% |
 | González 2010 thesis, Girona (not gated) | AS4/8552 quasi-isotropic (unclustered and clustered, 32 and 48 plies) and cross-ply, ASTM D7136/D7137, 19–58 J | 19 | 14.3% | 14.3% |
 
 MAE is the mean absolute error between predicted and measured CAI strength.
@@ -115,6 +115,11 @@ validated: its one constant is fitted in-sample to a single measured
 condition (Körbelin et al. 2020, M21/T800S at 25 J). See
 [`validation/README.md`](https://github.com/elhajjar1/BVID-FE/blob/main/validation/README.md)
 for the data sources and the calibration.
+
+Every measured coupon, predicted against measured, with the 1:1 line and a
+±15% band (`python validation/plot_validation.py --fe3d`):
+
+![Predicted against measured: residual strength (closed-form tiers and fe3d), knockdown, damage area, dent depth and unnotched strength](validation_plots/validation_overview.png)
 
 ## Where to next
 

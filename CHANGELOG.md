@@ -6,9 +6,23 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- `validation/plot_validation.py`: predicted-against-measured plots for
+  every measured coupon, each with the 1:1 line and a ±15% band.
+  - Panels: residual strength (closed-form tiers, and fe3d with
+    `--fe3d`), knockdown against the measured pristine strength, damage
+    area against the C-scan area, dent depth, and unnotched strength
+    against NCAMP's twelve values.
+  - Output: figures and a CSV of every point in `docs/validation_plots/`.
+    The overview figure is on the docs home page and in
+    `validation/README.md`.
+
 ### Changed
 
 ### Fixed
+
+- `docs/index.md` gave the Hasebe et al. semi-analytical MAE as 23.4%;
+  it has been 21.5% (the empirical value) since the 2D-blister growth
+  law.
 
 ## [0.3.0] - 2026-11-08
 

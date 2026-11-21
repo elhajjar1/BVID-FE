@@ -1152,6 +1152,30 @@ multiplier is 1.25 for the closed-form tiers and 2.0 for fe3d.
 an error (exit 1). `--max-cases N` runs only the first N cases of each
 dataset.
 
+### Predicted-against-measured plots
+
+```bash
+python validation/plot_validation.py          # closed-form panels, about 30 s
+python validation/plot_validation.py --fe3d   # also fe3d residual strength, about 25 min
+```
+
+The script plots each model output against its measured value, one point
+per coupon, with the 1:1 line and a ±15% band:
+- residual strength (closed-form tiers, and fe3d with `--fe3d`);
+- knockdown against the measured pristine strength;
+- projected damage area against the C-scan area;
+- dent depth;
+- unnotched strength against NCAMP's twelve values.
+
+The figures and a CSV of every point go to `docs/validation_plots/`, and
+`--cache DIR` reuses per-dataset results from an earlier run. A zero value
+cannot be drawn on the logarithmic damage-area and dent panels, so those
+coupons are left off them. That is 17 of Hasebe et al.'s 343 coupons for
+the area (14 with no measured C-scan area, 3 with none predicted) and 38
+for the dent (35 with no measured dent, 3 with none predicted).
+
+![Predicted against measured](../docs/validation_plots/validation_overview.png)
+
 ## Adding a new dataset
 
 1. Create `datasets/<name>.json` with top-level `name`, `kind`
