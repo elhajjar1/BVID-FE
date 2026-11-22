@@ -206,17 +206,12 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         return super()._get_help_string(action) or ""
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="bvidfe",
-        description="BVID-FE: Barely Visible Impact Damage residual-strength analysis.",
-        formatter_class=_HelpFormatter,
-    )
-    p.add_argument(
-        "--version",
-        action="version",
-        version=f"bvidfe {bvidfe.__version__}",
-    )
+def _add_config_arguments(
+    p: argparse.ArgumentParser, *, tier: bool = True, mesh: bool = True
+) -> None:
+    """The options that describe the analysis (material, layup, panel,
+    impact or C-scan, ...), shared with ``bvidfe-animate``. ``tier=False``
+    and ``mesh=False`` leave out ``--tier`` and the fe3d mesh options."""
     # Defer the MATERIAL_LIBRARY import + choices population to parser-build
     # time so --material rejects typos early with the standard argparse
     # 'invalid choice' message listing the presets, instead of failing
@@ -272,15 +267,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "equibiaxial compression. Every tier supports a nonzero ratio "
         "(AnalysisConfig.transverse_stress_ratio).",
     )
-    p.add_argument(
-        "--tier",
-        type=_parse_tiers,
-        # A string default is run through _parse_tiers, giving ["empirical"].
-        default="empirical",
-        help="Analysis fidelity tier(s). A single tier (e.g. semi_analytical) "
-        "or a comma-separated list to compare in one invocation (e.g. "
-        f"empirical,semi_analytical,fe3d). Choices: {', '.join(_VALID_TIERS)}.",
-    )
+    if tier:
+        p.add_argument(
+            "--tier",
+            type=_parse_tiers,
+            # A string default is run through _parse_tiers, giving ["empirical"].
+            default="empirical",
+            help="Analysis fidelity tier(s). A single tier (e.g. semi_analytical) "
+            "or a comma-separated list to compare in one invocation (e.g. "
+            f"empirical,semi_analytical,fe3d). Choices: {', '.join(_VALID_TIERS)}.",
+        )
     p.add_argument(
         "--energy",
         type=_non_negative_float,
@@ -321,20 +317,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Impact point in mm in the frame of the panel, origin at a corner, "
         "strictly inside the panel (default: the panel centre). Impact-driven only.",
     )
-    p.add_argument(
-        "--in-plane-size",
-        type=_positive_float,
-        metavar="MM",
-        help="fe3d target in-plane element edge length in mm "
-        f"(default: {_DEFAULT_MESH.in_plane_size_mm!r}). fe3d tier only.",
+    if mesh:
+        p.add_argument(
+            "--in-plane-size",
+            type=_positive_float,
+            metavar="MM",
+            help="fe3d target in-plane element edge length in mm "
+            f"(default: {_DEFAULT_MESH.in_plane_size_mm!r}). fe3d tier only.",
+        )
+        p.add_argument(
+            "--elements-per-ply",
+            type=_positive_int,
+            metavar="N",
+            help="fe3d hex elements through each ply "
+            f"(default: {_DEFAULT_MESH.elements_per_ply}). fe3d tier only.",
+        )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="bvidfe",
+        description="BVID-FE: Barely Visible Impact Damage residual-strength analysis.",
+        formatter_class=_HelpFormatter,
     )
     p.add_argument(
-        "--elements-per-ply",
-        type=_positive_int,
-        metavar="N",
-        help="fe3d hex elements through each ply "
-        f"(default: {_DEFAULT_MESH.elements_per_ply}). fe3d tier only.",
+        "--version",
+        action="version",
+        version=f"bvidfe {bvidfe.__version__}",
     )
+    _add_config_arguments(p)
     p.add_argument(
         "--quick",
         action="store_true",
@@ -397,6 +408,108 @@ def _is_closed_pipe(exc: OSError) -> bool:
     return isinstance(exc, BrokenPipeError) or (os.name == "nt" and exc.errno == errno.EINVAL)
 
 
+def _check_config_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Usage errors in the config options (exit code 2): a required option
+    missing, ``--energy`` with ``--cscan``, an option that would have no
+    effect, a per-ply thickness list of the wrong length."""
+    # Base required args (always needed)
+    missing = [n for n in ("material", "layup", "thickness", "panel") if getattr(args, n) is None]
+    if missing:
+        parser.error(f"missing required arguments: {', '.join('--' + m for m in missing)}")
+    # Exactly one of --energy (impact-driven) or --cscan (inspection-driven)
+    if args.energy is None and args.cscan is None:
+        parser.error("must provide either --energy (impact-driven) or --cscan (inspection-driven)")
+    if args.energy is not None and args.cscan is not None:
+        parser.error("--energy and --cscan are mutually exclusive")
+    # Options that would have no effect are usage errors, like --energy with
+    # --cscan above: a stderr warning is easily lost behind --quick in a
+    # pipeline, and the result would silently not be the one asked for.
+    if args.cscan is not None:
+        given = [flag for dest, flag in _IMPACT_ONLY_OPTIONS if getattr(args, dest) is not None]
+        if given:
+            parser.error(
+                f"{', '.join(given)} describe the impact and cannot be combined with "
+                "--cscan (inspection-driven: the damage is the C-scan's)"
+            )
+    tiers = getattr(args, "tier", None) or ["empirical"]
+    if "fe3d" not in tiers:
+        given = [flag for dest, flag in _FE3D_ONLY_OPTIONS if getattr(args, dest, None) is not None]
+        if given:
+            parser.error(
+                f"{', '.join(given)} only apply to the fe3d tier; add fe3d to --tier "
+                f"(got --tier {','.join(tiers)})"
+            )
+
+    # If --thickness was given as a per-ply list, its length must match the layup.
+    if isinstance(args.thickness, list) and len(args.thickness) != len(args.layup):
+        parser.error(
+            f"--thickness has {len(args.thickness)} per-ply values but --layup "
+            f"has {len(args.layup)} plies; they must match."
+        )
+
+
+def _config_from_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> AnalysisConfig:
+    """The :class:`AnalysisConfig` of the config options (after
+    :func:`_check_config_args`); a C-scan that cannot be read or an invalid
+    value is a usage error."""
+    damage = None
+    if args.cscan is not None:
+        from bvidfe.damage.io import CScanSchemaError, load_cscan_json
+
+        # args.cscan is already a validated Path (see _existing_path).
+        try:
+            damage = load_cscan_json(args.cscan)
+        except CScanSchemaError as exc:
+            parser.error(f"--cscan {args.cscan}: invalid C-scan file: {exc}")
+        except (OSError, UnicodeDecodeError) as exc:
+            parser.error(f"--cscan {args.cscan}: cannot read file: {exc}")
+    location = None if args.location is None else tuple(args.location)
+    if location is not None and location[0] == 0 and location[1] == 0:
+        # The pre-0.3 centre sentinel (#171). Said here, since the library's
+        # DeprecationWarning is hidden by default outside __main__.
+        sys.stderr.write(
+            f"{parser.prog}: warning: --location 0 0 for the panel centre is deprecated "
+            "and will be rejected (the corner is not inside the panel); leave out "
+            "--location for the centre. Running a centre impact.\n"
+        )
+        location = None
+    try:
+        impact = None
+        if args.energy is not None:
+            impact = ImpactEvent(
+                energy_J=args.energy,
+                impactor=ImpactorGeometry(
+                    diameter_mm=_given(args.impactor_diameter, _DEFAULT_IMPACTOR.diameter_mm),
+                    shape=_given(args.impactor_shape, _DEFAULT_IMPACTOR.shape),
+                ),
+                mass_kg=_given(args.mass, _DEFAULT_MASS_KG),
+                location_xy_mm=location,
+            )
+        mesh = None
+        in_plane_size = getattr(args, "in_plane_size", None)
+        elements_per_ply = getattr(args, "elements_per_ply", None)
+        if in_plane_size is not None or elements_per_ply is not None:
+            mesh = MeshParams(
+                elements_per_ply=_given(elements_per_ply, _DEFAULT_MESH.elements_per_ply),
+                in_plane_size_mm=_given(in_plane_size, _DEFAULT_MESH.in_plane_size_mm),
+            )
+        cfg = AnalysisConfig(
+            material=args.material,
+            layup_deg=args.layup,
+            ply_thickness_mm=args.thickness,
+            panel=replace(args.panel, boundary=args.boundary),
+            loading=args.loading,
+            tier=(getattr(args, "tier", None) or ["empirical"])[0],
+            impact=impact,
+            damage=damage,
+            mesh=mesh,
+            transverse_stress_ratio=args.transverse_stress_ratio,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    return cfg
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         return _main(argv)
@@ -420,96 +533,12 @@ def _main(argv: Sequence[str] | None) -> int:
     if args.list_materials:
         _list_materials()
         return 0
-    # Base required args (always needed)
-    missing = [n for n in ("material", "layup", "thickness", "panel") if getattr(args, n) is None]
-    if missing:
-        parser.error(f"missing required arguments: {', '.join('--' + m for m in missing)}")
-    # Exactly one of --energy (impact-driven) or --cscan (inspection-driven)
-    if args.energy is None and args.cscan is None:
-        parser.error("must provide either --energy (impact-driven) or --cscan (inspection-driven)")
-    if args.energy is not None and args.cscan is not None:
-        parser.error("--energy and --cscan are mutually exclusive")
-    # Options that would have no effect are usage errors, like --energy with
-    # --cscan above: a stderr warning is easily lost behind --quick in a
-    # pipeline, and the result would silently not be the one asked for.
-    if args.cscan is not None:
-        given = [flag for dest, flag in _IMPACT_ONLY_OPTIONS if getattr(args, dest) is not None]
-        if given:
-            parser.error(
-                f"{', '.join(given)} describe the impact and cannot be combined with "
-                "--cscan (inspection-driven: the damage is the C-scan's)"
-            )
-    if "fe3d" not in args.tier:
-        given = [flag for dest, flag in _FE3D_ONLY_OPTIONS if getattr(args, dest) is not None]
-        if given:
-            parser.error(
-                f"{', '.join(given)} only apply to the fe3d tier; add fe3d to --tier "
-                f"(got --tier {','.join(args.tier)})"
-            )
-
-    # If --thickness was given as a per-ply list, its length must match the layup.
-    if isinstance(args.thickness, list) and len(args.thickness) != len(args.layup):
-        parser.error(
-            f"--thickness has {len(args.thickness)} per-ply values but --layup "
-            f"has {len(args.layup)} plies; they must match."
-        )
+    _check_config_args(parser, args)
 
     if args.quick and args.quick_json:
         parser.error("--quick and --quick-json are mutually exclusive")
 
-    damage = None
-    if args.cscan is not None:
-        from bvidfe.damage.io import CScanSchemaError, load_cscan_json
-
-        # args.cscan is already a validated Path (see _existing_path).
-        try:
-            damage = load_cscan_json(args.cscan)
-        except CScanSchemaError as exc:
-            parser.error(f"--cscan {args.cscan}: invalid C-scan file: {exc}")
-        except (OSError, UnicodeDecodeError) as exc:
-            parser.error(f"--cscan {args.cscan}: cannot read file: {exc}")
-    location = None if args.location is None else tuple(args.location)
-    if location is not None and location[0] == 0 and location[1] == 0:
-        # The pre-0.3 centre sentinel (#171). Said here, since the library's
-        # DeprecationWarning is hidden by default outside __main__.
-        sys.stderr.write(
-            "bvidfe: warning: --location 0 0 for the panel centre is deprecated "
-            "and will be rejected (the corner is not inside the panel); leave out "
-            "--location for the centre. Running a centre impact.\n"
-        )
-        location = None
-    try:
-        impact = None
-        if args.energy is not None:
-            impact = ImpactEvent(
-                energy_J=args.energy,
-                impactor=ImpactorGeometry(
-                    diameter_mm=_given(args.impactor_diameter, _DEFAULT_IMPACTOR.diameter_mm),
-                    shape=_given(args.impactor_shape, _DEFAULT_IMPACTOR.shape),
-                ),
-                mass_kg=_given(args.mass, _DEFAULT_MASS_KG),
-                location_xy_mm=location,
-            )
-        mesh = None
-        if args.in_plane_size is not None or args.elements_per_ply is not None:
-            mesh = MeshParams(
-                elements_per_ply=_given(args.elements_per_ply, _DEFAULT_MESH.elements_per_ply),
-                in_plane_size_mm=_given(args.in_plane_size, _DEFAULT_MESH.in_plane_size_mm),
-            )
-        cfg = AnalysisConfig(
-            material=args.material,
-            layup_deg=args.layup,
-            ply_thickness_mm=args.thickness,
-            panel=replace(args.panel, boundary=args.boundary),
-            loading=args.loading,
-            tier=args.tier[0],
-            impact=impact,
-            damage=damage,
-            mesh=mesh,
-            transverse_stress_ratio=args.transverse_stress_ratio,
-        )
-    except ValueError as exc:
-        parser.error(str(exc))
+    cfg = _config_from_args(parser, args)
 
     # fe3d stage logs go to stderr (the library itself only has a NullHandler).
     enable_stderr_logging()

@@ -363,6 +363,66 @@ in the mesh (see `bvidfe.analysis.fe_tier.tai_fibre_damage_hole`);
 `stress_field_figure(mesh, element_scalar, label=...)` renders any
 per-element array.
 
+## Animations
+
+`bvidfe.viz.anim` renders 1920 × 1080 videos of the damage (see
+[Animations](animations.md) for the scenes and `bvidfe-animate`). Each scene
+works in two steps: `build_*` runs the model once and returns a timeline of
+its outputs, and drawing a frame at clip time `t` (0 to 1) calls no model.
+`preview_frames` draws stills without encoding anything:
+
+```python
+from bvidfe import AnalysisConfig, ImpactEvent, PanelGeometry
+from bvidfe.viz.anim import build_damage_stack, build_energy_sweep, preview_frames
+
+cfg = AnalysisConfig(material="IM7/8552", layup_deg=[0, 45, -45, 90] * 4,
+                     ply_thickness_mm=0.152, panel=PanelGeometry(150, 100),
+                     impact=ImpactEvent(energy_J=30))
+sweep = build_energy_sweep(cfg, n_energies=12)   # 12 energies and the onset: 13 BvidAnalysis runs
+print(len(sweep.keyframes), round(sweep.onset_J, 2))   # 13 3.27
+k = sweep.keyframes[-1]                          # the outputs at 30 J
+print(round(k.dpa_mm2), round(k.dent_mm, 3), round(k.knockdown, 3))   # 2893 0.286 0.322
+stills = preview_frames(sweep, t=(0.0, 0.5, 1.0))   # three (1080, 1920, 4) RGBA arrays
+stack = build_damage_stack(cfg)                  # runs the impact mapping only
+print(stills[0].shape, len(stack.damage.delaminations))   # (1080, 1920, 4) 15
+```
+
+Rendering a clip takes about a minute at 1080p (0.2 s per frame):
+
+<!-- docs-test: skip (renders two 1080p videos, about two minutes, and needs ffmpeg) -->
+```python
+import numpy as np
+from bvidfe import load_cscan_json
+from bvidfe.viz.anim import AnimationSpec, render_damage_stack, render_energy_sweep
+
+render_energy_sweep(cfg, energies=np.linspace(2, 40, 80), path="energy_sweep.mp4")
+render_damage_stack(cfg, path="damage_stack.mp4", spec=AnimationSpec(duration_s=8))
+render_damage_stack(load_cscan_json("examples/sample_cscan.json"),
+                    layup_deg=[0, 45, -45, 90, 90, -45, 45, 0], ply_thickness_mm=0.152,
+                    path="cscan_stack.gif", spec=AnimationSpec(format="gif"))
+```
+
+- `render_energy_sweep(cfg, energies=None, path="energy_sweep.mp4", spec=None, *, energy_min=None, energy_max=None, n_energies=None, progress=None)`
+  and `render_damage_stack(source, path="damage_stack.mp4", spec=None, *, layup_deg=None, ply_thickness_mm=None, panel=None, intro=True, progress=None)`
+  write the clip and return the timeline. `progress(i, n)` is called after
+  each frame. The energy sweep takes an impact-driven config of the
+  `empirical` or `semi_analytical` tier (`ValueError` otherwise); the
+  damage stack a config or a `DamageState`.
+- `AnimationSpec(width=1920, height=1080, fps=30, duration_s=10.0, codec="libx264", crf=18, pix_fmt="yuv420p", format="mp4")`:
+  `format` is `"mp4"`, `"gif"` (default 640 × 360 at 12 fps), `"png"` (a
+  directory of frames) or `"auto"` (MP4 if ffmpeg is found, else PNG with
+  an `FFmpegFallbackWarning`). Frames are 16:9 with even sides;
+  `ValueError` otherwise.
+- `encode_timeline(timeline, path, spec=None, progress=None)` encodes a
+  timeline you built, and returns a `RenderResult` (`path`, `format`,
+  `width`, `height`, `fps`, `n_frames`, `elapsed_s`, `size_bytes`).
+- `find_ffmpeg()` returns the ffmpeg it would use (`BVIDFE_FFMPEG`, then
+  matplotlib's `animation.ffmpeg_path`, `PATH`, then `imageio-ffmpeg`), or
+  `None`; an MP4 render without one raises `FFmpegNotFoundError`, naming
+  the `anim` extra.
+- `bvidfe.citation` holds the citation every frame's footer carries
+  (`frame_credit()`).
+
 ## Failure criteria and building blocks
 
 The ply failure indices take a material and a material-frame Voigt stress
@@ -570,6 +630,9 @@ BVIDFE_LOG_LEVEL=WARNING bvidfe ...    # DEBUG, INFO (default), WARNING, ERROR
   warning on stderr. It is read once, at import.
 - `BVIDFE_LOG_LEVEL` — level of the `bvidfe.fe3d` logger; see above. An
   invalid value falls back to `INFO` with a warning on stderr.
+- `BVIDFE_FFMPEG` — the ffmpeg executable for MP4 animations, ahead of
+  any other (see [Animations](#animations)); a path that is not an
+  executable is an error.
 
 ## See also
 

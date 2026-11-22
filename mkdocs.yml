@@ -48,6 +48,7 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - Python API: python_api.md
+  - Animations: animations.md
   - C-Scan Schema: cscan_schema.md
   - Physics Models: physics_models.md
   - Deployment: deployment.md

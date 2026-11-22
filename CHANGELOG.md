@@ -6,6 +6,27 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- 1080p animations of the predicted damage (`bvidfe.viz.anim`, and the new
+  `bvidfe-animate` command): MP4 (H.264, 1920 × 1080, 30 fps) by default,
+  a PNG sequence, or a reduced-size GIF preview.
+  - `energy-sweep` (`render_energy_sweep`): the delaminations growing with
+    impact energy in plan view, beside the damage area, the dent depth
+    (with the 0.30 mm detectability threshold) and the knockdown against
+    energy. One `BvidAnalysis` per keyframe energy (`empirical` or
+    `semi_analytical`; `fe3d` is refused).
+  - `damage-stack` (`render_damage_stack`): the delaminations through the
+    thickness as an exploded 3D stack, the camera orbiting; from a config
+    or a C-scan damage state.
+  - Every frame carries the citation and version of BVID-FE
+    (`bvidfe.citation`, tested against `CITATION.cff`), the model tier,
+    "below damage onset" where there is no damage, and "experimental, not
+    validated" for a biaxial load.
+  - `preview_frames` gives stills, and `build_energy_sweep` /
+    `build_damage_stack` the model outputs, without encoding.
+  - ffmpeg comes from the new optional extra `anim` (`imageio-ffmpeg`, also
+    in `dev`), a system ffmpeg, or `BVIDFE_FFMPEG`. See
+    [Animations](docs/animations.md).
+
 - `validation/plot_validation.py`: predicted-against-measured plots for
   every measured coupon, each with the 1:1 line and a ±15% band.
   - Panels: residual strength (closed-form tiers, and fe3d with
@@ -30,6 +51,11 @@ All notable changes to BVID-FE are documented in this file.
     the existing path, which now calls them.
 
 ### Changed
+
+- The light-surface tokens and categorical colours of the validation plots
+  moved to `bvidfe.viz.style` (`SURFACE`, `TEXT`, `CATEGORICAL`, ...), shared
+  with the animations; `validation/plot_validation.py` imports them, and its
+  figures are unchanged.
 
 ### Fixed
 
