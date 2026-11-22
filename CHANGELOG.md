@@ -15,6 +15,19 @@ All notable changes to BVID-FE are documented in this file.
   - Output: figures and a CSV of every point in `docs/validation_plots/`.
     The overview figure is on the docs home page and in
     `validation/README.md`.
+- `bvidfe.analysis.fe_fields.fe3d_field_history` (internal, for the
+  planned fe3d CAI load-ramp animation): the fe3d fields of the damaged
+  and the undamaged mesh.
+  - Fields: the reference displacement with its reaction stress and end
+    shortening, and each element's first-ply-failure multiplier,
+    pointwise and disk-averaged.
+  - Strengths: first-ply failure, the growth stress, the governing
+    channel and the knockdowns, equal to `BvidAnalysis.run()`'s.
+  - `run()` does not call it, and its results are bit-identical:
+    `AnalysisResults.field_results` stays `None` and no schema changes.
+    The `fe_tier` helpers it reuses (per-element failure checks, the
+    first-ply-failure stress and the growth channels) are extracted from
+    the existing path, which now calls them.
 
 ### Changed
 

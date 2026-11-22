@@ -535,11 +535,34 @@ def _critical_strain_multiplier(
     ``notch`` (per element, >= 1) multiplies the averaged stress of each
     element before the check: the sub-mesh fibre-damage hole of fe3d TAI
     (``_tai_fibre_damage_notch``). The failure index at stress ``K sigma``
-    is ``K a c + K^2 b c^2``. It needs the averaged check."""
+    is ``K a c + K^2 b c^2``. It needs the averaged check.
+
+    The minimum over the elements of ``_averaged_critical_multipliers``
+    (or, pointwise, of ``_pointwise_critical_multipliers``)."""
     if averaging_radius_mm is None:
         if notch is not None:
             raise ValueError("notch needs averaging_radius_mm")
         return _critical_strain_multiplier_pointwise(cfg, mesh, elements, u_ref, criterion)
+    return float(
+        _averaged_critical_multipliers(
+            cfg, mesh, elements, u_ref, criterion, averaging_radius_mm, notch
+        ).min()
+    )
+
+
+def _averaged_critical_multipliers(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    u_ref: np.ndarray,
+    criterion: CriterionName,
+    averaging_radius_mm: float = FPF_AVERAGING_RADIUS_MM,
+    notch: np.ndarray | None = None,
+) -> np.ndarray:
+    """Per element (``(n_elements,)``), the smallest multiplier ``c`` on
+    ``u_ref`` at which its disk-averaged failure index reaches 1 (``inf``
+    where it never does): the check of ``_critical_strain_multiplier``
+    element by element, whose minimum it is. ``notch`` as there."""
     a, b = _index_coefficients(cfg, mesh, elements, u_ref, criterion)
     nz, ny, nx = element_grid_shape(cfg)
     if a.size != nz * ny * nx:
@@ -554,9 +577,9 @@ def _critical_strain_multiplier(
         [convolve(layer, kernel, mode="constant") / weight for layer in b.reshape(nz, ny, nx)]
     )
     if notch is None:
-        return float(_smallest_positive_root(a_avg.ravel(), b_avg.ravel()).min())
+        return _smallest_positive_root(a_avg.ravel(), b_avg.ravel())
     K = np.asarray(notch, dtype=float)
-    return float(_smallest_positive_root(K * a_avg.ravel(), K * K * b_avg.ravel()).min())
+    return _smallest_positive_root(K * a_avg.ravel(), K * K * b_avg.ravel())
 
 
 def _disk_kernel(hx: float, hy: float, radius_mm: float, samples: int = 16) -> np.ndarray:
@@ -631,10 +654,24 @@ def _critical_strain_multiplier_pointwise(
     criterion: CriterionName,
 ) -> float:
     """``_critical_strain_multiplier`` checked at every Gauss point on its
-    own (``inf`` when no Gauss point is loaded towards failure)."""
+    own (``inf`` when no Gauss point is loaded towards failure): the
+    minimum of ``_pointwise_critical_multipliers``."""
+    return float(_pointwise_critical_multipliers(cfg, mesh, elements, u_ref, criterion).min())
+
+
+def _pointwise_critical_multipliers(
+    cfg: AnalysisConfig,
+    mesh: FeMesh,
+    elements: List[Hex8Element],
+    u_ref: np.ndarray,
+    criterion: CriterionName,
+) -> np.ndarray:
+    """Per element (``(n_elements,)``), the smallest multiplier ``c`` on
+    ``u_ref`` at which the failure index at one of its Gauss points
+    reaches 1 (``inf`` where none is loaded towards failure)."""
     material = _resolve_material(cfg)
     in_plane = mesh.in_plane_damage_factors
-    c_crit_min = np.inf
+    c_elem = np.full(len(elements), np.inf)
     for eidx, elem in enumerate(elements):
         dof_map = mesh.element_dof_maps[eidx]
         sigma_ref = _failure_stress_material(elem, u_ref[dof_map], in_plane[eidx])  # (n_gp, 6)
@@ -686,9 +723,8 @@ def _critical_strain_multiplier_pointwise(
             c_crit = np.where(c_crit > 0, c_crit, np.inf)
             c_crit_elem_min = float(c_crit.min())
 
-        if c_crit_elem_min < c_crit_min:
-            c_crit_min = c_crit_elem_min
-    return c_crit_min
+        c_elem[eidx] = c_crit_elem_min
+    return c_elem
 
 
 def _edge_force(
@@ -832,13 +868,26 @@ def _basis_failure_stress_and_modulus(
     t0 = time.time()
     _log.info("FPF evaluation start: %s, %d elements", criterion, len(elements))
     c_crit = _critical_strain_multiplier(cfg, mesh, elements, u_ref, criterion, notch=notch)
+    sigma, modulus = _fpf_stress_and_modulus(cfg, basis, lam, c_crit, force_x)
+    _t(f"FPF evaluation done: failure stress {sigma:.1f} MPa", t0)
+    return sigma, modulus
+
+
+def _fpf_stress_and_modulus(
+    cfg: AnalysisConfig, basis: _Fe3dBasis, lam: Laminate, c_crit: float, force_x: float
+) -> tuple[float, float]:
+    """``(|sigma_x| at first-ply failure, E_x)`` (MPa) of
+    ``_basis_failure_stress_and_modulus`` from the critical multiplier
+    ``c_crit`` on the reference state whose x force on the ``x_max`` face
+    is ``force_x`` (N): ``c_crit`` capped at 1, the reference strain (1
+    also when nothing fails, ``c_crit`` infinite), times ``|force_x|``
+    over the gross section ``Ly * h``; ``E_x`` is basis X's."""
     if not np.isfinite(c_crit) or c_crit <= 0:
         c_crit = 1.0  # nothing failed up to strain_cap
     c_crit = min(c_crit, 1.0)
     area = cfg.panel.Ly_mm * lam.thickness_mm
     force = abs(force_x)
     sigma = c_crit * force / area
-    _t(f"FPF evaluation done: failure stress {sigma:.1f} MPa", t0)
     return sigma, abs(basis.force_x) / area / basis.strain_cap
 
 
@@ -1300,19 +1349,46 @@ def fe3d_cai_channels_and_modulus(
     as ``semi_analytical`` computes it) and ``sigma_fpf`` is ``|sigma_x|``
     at first-ply failure along the ray (``_ratio_displacement``); ``E_x``
     stays the uniaxial modulus."""
-    if cfg.transverse_stress_ratio == 0:
-        growth = weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
-    else:
-        growth = weakest_sublaminate_growth(
-            lam,
-            damage,
-            boundary=cfg.panel.boundary,
-            transverse_stress_ratio=cfg.transverse_stress_ratio,
-        )
+    growth = _fe3d_cai_growth(cfg, damage, lam)
     sigma_fpf, modulus = _fe3d_cai_first_ply_failure_and_modulus(
         cfg, damage, lam, sigma_pristine_MPa
     )
     return growth, sigma_fpf, modulus
+
+
+def _fe3d_cai_growth(
+    cfg: AnalysisConfig, damage: DamageState, lam: Laminate
+) -> Optional[SublaminateGrowth]:
+    """The growth channel of :func:`fe3d_cai_channels_and_modulus`: the
+    weakest delamination's growth along the compression ray of
+    ``cfg.transverse_stress_ratio`` (``None`` without delaminations)."""
+    if cfg.transverse_stress_ratio == 0:
+        return weakest_sublaminate_growth(lam, damage, boundary=cfg.panel.boundary)
+    return weakest_sublaminate_growth(
+        lam,
+        damage,
+        boundary=cfg.panel.boundary,
+        transverse_stress_ratio=cfg.transverse_stress_ratio,
+    )
+
+
+def _fe3d_tai_growth(
+    cfg: AnalysisConfig, damage: DamageState, lam: Laminate
+) -> Optional[SublaminateGrowth]:
+    """The growth channel of fe3d TAI (``BvidAnalysis._fe3d_tai``): on a
+    biaxial ray (``cfg.transverse_stress_ratio != 0``) the weakest
+    delamination's growth under the tension ray, the same call as
+    ``semi_analytical``'s (``_semi_analytical_tai_result``); ``None`` at
+    ``transverse_stress_ratio == 0``, where no film is compressed."""
+    if cfg.transverse_stress_ratio == 0:
+        return None
+    return weakest_sublaminate_growth(
+        lam,
+        damage,
+        boundary=cfg.panel.boundary,
+        loading="tension",
+        transverse_stress_ratio=cfg.transverse_stress_ratio,
+    )
 
 
 def fe3d_cai(
