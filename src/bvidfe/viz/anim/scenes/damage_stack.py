@@ -67,6 +67,7 @@ class DamageStackTimeline(Timeline):
     """
 
     scene: ClassVar[str] = SCENE
+    frame_seconds: ClassVar[float] = 0.20  # measured at 1080p, one core
 
     damage: DamageState
     n_plies: int

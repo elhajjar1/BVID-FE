@@ -1,10 +1,11 @@
 """``bvidfe-animate``: render the BVID-FE animations from the command line.
 
-Two subcommands, ``energy-sweep`` and ``damage-stack``, take the analysis
-options of ``bvidfe`` (``--material``, ``--layup``, ``--thickness``,
-``--panel``, ``--energy`` or ``--cscan``, ...) and the output options
-(``--out``, ``--format``, ``--fps``, ``--duration``, ``--width`` /
-``--height``, ``--preview``).
+Three subcommands, ``energy-sweep``, ``damage-stack`` and ``cai-ramp``,
+take the analysis options of ``bvidfe`` (``--material``, ``--layup``,
+``--thickness``, ``--panel``, ``--energy`` or ``--cscan``, ...; ``cai-ramp``
+also the fe3d mesh options ``--in-plane-size`` and ``--elements-per-ply``)
+and the output options (``--out``, ``--format``, ``--fps``, ``--duration``,
+``--width`` / ``--height``, ``--preview``).
 
 Examples::
 
@@ -12,6 +13,8 @@ Examples::
         --thickness 0.152 --panel 150x100 --energy-max 30 --out damage.mp4
     bvidfe-animate damage-stack --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 \\
         --thickness 0.152 --panel 150x100 --energy 20 --preview --out stack.png
+    bvidfe-animate cai-ramp --material IM7/8552 --layup 0,45,-45,90,90,-45,45,0 \\
+        --thickness 0.152 --panel 150x100 --energy 20 --in-plane-size 5 --out ramp.mp4
 """
 
 from __future__ import annotations
@@ -34,7 +37,7 @@ from bvidfe.cli import (
 from bvidfe.viz.anim.spec import AnimationSpec
 
 PROG = "bvidfe-animate"
-_SUBCOMMANDS = ("energy-sweep", "damage-stack")
+_SUBCOMMANDS = ("energy-sweep", "damage-stack", "cai-ramp")
 
 
 def _non_negative(spec: str) -> float:
@@ -145,6 +148,26 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_output_arguments(ds, "damage_stack.mp4")
     ds.set_defaults(subparser=ds)
+    cr = sub.add_parser(
+        "cai-ramp",
+        help="fe3d load ramp to failure, elements coloured by their load ratio",
+        description="The fe3d load ramp of the damaged panel to its residual "
+        "strength: the panel in 3D, cut open through the first element to fail, "
+        "each element coloured by its load ratio to local failure, beside the "
+        "stress against end shortening. Two fe3d solves (four for a biaxial "
+        "load), always fe3d whatever the analysis tier; linear elastic to "
+        "first-ply failure.",
+        formatter_class=_HelpFormatter,
+    )
+    _add_config_arguments(cr, tier=False)
+    cr.add_argument(
+        "--pointwise",
+        action="store_true",
+        help="Colour by each element's lowest Gauss point instead of the "
+        "disk-averaged check that sets first-ply failure (it can exceed 1 first)",
+    )
+    _add_output_arguments(cr, "cai_ramp.mp4")
+    cr.set_defaults(subparser=cr)
     return p
 
 
@@ -194,12 +217,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 f"--tier {args.tier[0]}: the energy sweep runs one analysis per keyframe "
                 f"energy; use {' or '.join(energy_sweep_tiers())}"
             )
+    if args.scene == "cai-ramp":
+        args.tier = ["fe3d"]  # the ramp is fe3d's; the mesh options apply
     _check_config_args(sub, args)
     spec = _spec(sub, args)
     cfg = _config_from_args(sub, args)
 
     from bvidfe.viz.anim import encode_timeline, preview_frames
-    from bvidfe.viz.anim.scenes import damage_stack, energy_sweep
+    from bvidfe.analysis.fe_tier import FE3DSizeError
+    from bvidfe.viz.anim.scenes import cai_ramp, damage_stack, energy_sweep
     from bvidfe.viz.anim.timeline import Timeline
 
     tl: Timeline
@@ -211,9 +237,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 energy_max=args.energy_max,
                 n_energies=args.n_energies,
             )
-        else:
+        elif args.scene == "damage-stack":
             tl = damage_stack.build_timeline(cfg, intro=not args.no_intro)
-    except ValueError as exc:
+        else:
+            tl = cai_ramp.build_timeline(cfg, ratio="pointwise" if args.pointwise else "averaged")
+    except (ValueError, FE3DSizeError) as exc:
         sys.stderr.write(f"{PROG}: error: {exc}\n")
         return 1
 

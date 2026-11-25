@@ -264,6 +264,24 @@ def test_preview_frames_writes_pngs(tmp_path, stack_timeline):
             assert im.size == (1920, 1080)
 
 
+@pytest.mark.parametrize("n", [1, 4])
+def test_caveats_fit_the_frame(n):
+    """Caveats that do not fit one row are all set smaller, and every one
+    is drawn inside the margins; one that fits keeps the 18 px type."""
+    fig = fr.new_figure()
+    notes = [f"caveat number {k}: experimental, not validated, qualitative only" for k in range(n)]
+    fr.draw_caveats(fig, notes)
+    drawn = [t for t in fig.texts if t.get_gid() == fr.CAVEAT_GID]
+    assert [t.get_text() for t in drawn] == notes
+    fig.canvas.draw()
+    right = max(t.get_window_extent().x1 for t in drawn) * 100.0 / fig.dpi
+    assert right <= fr.W - fr.MARGIN + 1
+    sizes = {round(t.get_fontsize(), 6) for t in drawn}
+    assert sizes == ({round(fr.pt(18), 6)} if n == 1 else {max(sizes)})
+    if n == 4:
+        assert max(sizes) < fr.pt(18)
+
+
 def test_layup_label():
     assert fr.layup_label([0, 45, -45, 90] * 4) == "[0/45/-45/90]4"
     assert fr.layup_label(LAYUP_8) == "[0/45/-45/90]s"

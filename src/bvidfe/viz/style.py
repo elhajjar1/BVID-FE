@@ -91,3 +91,31 @@ def series_linestyle(k: int) -> LineStyle:
     if k < 3:
         return "solid"
     return (0.0, _DASHES[(k - 3) % len(_DASHES)])
+
+
+# ---- Sequential ramp ----------------------------------------------------------
+# One hue, light to dark, for a magnitude (the load ratio to local failure
+# of the fe3d load ramp): the blue ramp of the validated palette, steps 100
+# to 700. The lightest step means "near zero" and recedes toward the surface.
+SEQUENTIAL: Tuple[str, ...] = (
+    "#cde2fb",  # 100
+    "#b7d3f6",  # 150
+    "#9ec5f4",  # 200
+    "#86b6ef",  # 250
+    "#6da7ec",  # 300
+    "#5598e7",  # 350
+    "#3987e5",  # 400
+    "#2a78d6",  # 450
+    "#256abf",  # 500
+    "#1c5cab",  # 550
+    "#184f95",  # 600
+    "#104281",  # 650
+    "#0d366b",  # 700
+)
+
+
+def sequential_cmap(name: str = "bvidfe_sequential"):
+    """The sequential ramp as a matplotlib colormap (light at 0, dark at 1)."""
+    from matplotlib.colors import LinearSegmentedColormap
+
+    return LinearSegmentedColormap.from_list(name, list(SEQUENTIAL))

@@ -77,7 +77,7 @@ def test_render_functions_return_the_timeline(tmp_path):
     assert (tmp_path / "a.gif").exists()
     tl2 = render_damage_stack(small_config(), path=tmp_path / "b.gif", spec=spec, intro=False)
     assert tl2.damage.delaminations and (tmp_path / "b.gif").exists()
-    assert set(list_animations()) == {"energy-sweep", "damage-stack"}
+    assert set(list_animations()) == {"energy-sweep", "damage-stack", "cai-ramp"}
 
 
 # ---- CLI -------------------------------------------------------------------------------

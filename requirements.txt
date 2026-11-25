@@ -16,3 +16,9 @@ pandas>=2.0,<3
 # --- Web app ---
 streamlit>=1.51,<2
 plotly>=5.18,<8
+
+# --- Animations (the app's Animate tab, bvidfe-animate) ---
+# MP4 encoding needs ffmpeg. A system ffmpeg on PATH is used first
+# (packages.txt installs one on Streamlit Community Cloud); imageio-ffmpeg
+# bundles a binary as the fallback (the "anim" extra of pyproject.toml).
+imageio-ffmpeg>=0.5,<1

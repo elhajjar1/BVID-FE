@@ -91,6 +91,7 @@ class EnergySweepTimeline(Timeline):
     """
 
     scene: ClassVar[str] = SCENE
+    frame_seconds: ClassVar[float] = 0.22  # measured at 1080p, one core
 
     config: AnalysisConfig
     keyframes: Tuple[EnergyKeyframe, ...]

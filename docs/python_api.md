@@ -387,19 +387,42 @@ stack = build_damage_stack(cfg)                  # runs the impact mapping only
 print(stills[0].shape, len(stack.damage.delaminations))   # (1080, 1920, 4) 15
 ```
 
-Rendering a clip takes about a minute at 1080p (0.2 s per frame):
+The fe3d load ramp solves the config's fe3d meshes once (two solves; the
+config's `tier` is not read) and scales them; its numbers are
+`BvidAnalysis.run()`'s with `tier="fe3d"`:
 
-<!-- docs-test: skip (renders two 1080p videos, about two minutes, and needs ffmpeg) -->
+<!-- docs-test: skip (two fe3d solves, about 10 s) -->
+```python
+from dataclasses import replace
+from bvidfe.viz.anim import build_cai_ramp, estimate_render_seconds
+
+ramp = build_cai_ramp(replace(cfg, impact=ImpactEvent(energy_J=20)))
+f = ramp.fields                                  # bvidfe.analysis.fe_fields.Fe3dFields
+print(f.governing, round(f.residual_strength_MPa, 1), round(f.knockdown, 3))
+# first_ply_failure 171.2 0.285
+print(round(ramp.max_ratio(ramp.end_stress_MPa), 9))   # 1.0: the first element fails at the end
+print(ramp.view.n_faces, round(estimate_render_seconds(ramp)))   # 1124 88
+```
+
+Rendering a clip takes one to two minutes at 1080p (0.2–0.3 s per frame):
+
+<!-- docs-test: skip (renders four videos, about four minutes, and needs ffmpeg) -->
 ```python
 import numpy as np
 from bvidfe import load_cscan_json
-from bvidfe.viz.anim import AnimationSpec, render_damage_stack, render_energy_sweep
+from bvidfe.viz.anim import (
+    AnimationSpec,
+    render_cai_ramp,
+    render_damage_stack,
+    render_energy_sweep,
+)
 
 render_energy_sweep(cfg, energies=np.linspace(2, 40, 80), path="energy_sweep.mp4")
 render_damage_stack(cfg, path="damage_stack.mp4", spec=AnimationSpec(duration_s=8))
 render_damage_stack(load_cscan_json("examples/sample_cscan.json"),
                     layup_deg=[0, 45, -45, 90, 90, -45, 45, 0], ply_thickness_mm=0.152,
                     path="cscan_stack.gif", spec=AnimationSpec(format="gif"))
+render_cai_ramp(cfg, path="cai_ramp.mp4")
 ```
 
 - `render_energy_sweep(cfg, energies=None, path="energy_sweep.mp4", spec=None, *, energy_min=None, energy_max=None, n_energies=None, progress=None)`
@@ -408,6 +431,17 @@ render_damage_stack(load_cscan_json("examples/sample_cscan.json"),
   each frame. The energy sweep takes an impact-driven config of the
   `empirical` or `semi_analytical` tier (`ValueError` otherwise); the
   damage stack a config or a `DamageState`.
+- `render_cai_ramp(cfg, path="cai_ramp.mp4", spec=None, *, damage=None, ratio="averaged", progress=None)`
+  and `build_cai_ramp(cfg, damage=None, *, ratio="averaged")`: the fe3d
+  load ramp. The timeline (`CaiRampTimeline`) holds the fe3d fields
+  (`fields`), `stress_at(t)` (fe3d's applied stress), `reported_stress_at(t)`
+  (the scale `run()` reports) and `load_ratio(stress)` per element.
+  `ValueError` when the 3D view would draw more than
+  `bvidfe.viz.anim.scenes.cai_ramp.MAX_FACES` faces (12,000; checked before
+  solving), `FE3DSizeError` above the fe3d size cap.
+- `estimate_render_seconds(timeline, spec=None, frame_seconds=None)`: a
+  rough wall time for `encode_timeline`, from the scene's measured frame
+  time or the `frame_seconds` you timed (the app times its stills).
 - `AnimationSpec(width=1920, height=1080, fps=30, duration_s=10.0, codec="libx264", crf=18, pix_fmt="yuv420p", format="mp4")`:
   `format` is `"mp4"`, `"gif"` (default 640 × 360 at 12 fps), `"png"` (a
   directory of frames) or `"auto"` (MP4 if ffmpeg is found, else PNG with

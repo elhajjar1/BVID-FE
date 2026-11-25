@@ -16,7 +16,10 @@ streamlit run app.py
 A browser tab should open at <http://localhost:8501>. Tweak parameters in
 the sidebar, click **Run analysis**, and verify the result tabs
 (Summary, Damage Map, Knockdown Curve, 3D Damage, Buckling, Damage
-Severity, Sweep, Export NCR) populate.
+Severity, Sweep, Export NCR) populate. The **Animate** tab renders 1080p
+MP4s on demand (see [Animations](animations.md#in-the-app)); its MP4
+encoding needs ffmpeg, which `requirements.txt` provides through
+`imageio-ffmpeg` (a system ffmpeg on `PATH` is used first).
 
 ## Streamlit Community Cloud
 
@@ -35,8 +38,10 @@ Severity, Sweep, Export NCR) populate.
    matrix (3.10–3.12), and is the version the CI validation job uses.
 5. Click **Deploy**.
 
-Streamlit Cloud then clones the repo, creates a virtualenv, runs
-`pip install -r requirements.txt` and starts `streamlit run app.py`. It
+Streamlit Cloud then clones the repo, installs the apt packages listed
+in `packages.txt` (`ffmpeg`, for the Animate tab's MP4s), creates a
+virtualenv, runs `pip install -r requirements.txt` and starts
+`streamlit run app.py`. It
 does not necessarily install the `bvidfe` package itself, so `app.py` adds
 the repository's `src/` directory to `sys.path` before importing it. The
 first build takes 2–4 minutes (numpy/scipy/shapely wheels); later
@@ -75,6 +80,14 @@ Implications for BVID-FE:
   and 0.5 GB at 2.5 mm, but the direct-solver fallback needs ~1.3 GB at
   2.5 mm. If you allow fe3d in the cloud, keep `elements_per_ply = 1` and
   `in_plane_size_mm >= 5` (the app's defaults).
+- The **Animate** tab renders on the same CPU. Drawing a 1080p frame
+  takes about 0.2–0.3 s on one core (300 frames for the default 10 s clip,
+  so about 1–1.5 min, plus the model run: about 60 empirical analyses for
+  the energy sweep, two fe3d solves for the fe3d load ramp); the tab
+  shows an estimate timed on the server before you render. The fe3d ramp
+  takes the same mesh cap as an fe3d run, plus a cap on the faces it
+  draws. A session renders one video at a time and keeps only the latest
+  one (a few MB) in memory; videos are not stored on the server.
 - Don't write user-supplied data anywhere except `tempfile`-scoped paths;
   the filesystem resets on every reboot.
 
@@ -88,6 +101,7 @@ Implications for BVID-FE:
 | Slow first run | Expected — numpy/scipy/shapely wheels are ~100 MB combined. Subsequent runs are cached. |
 | Out of memory on large fe3d run | Increase `in_plane_size_mm`, keep `elements_per_ply = 1`, or switch to the empirical / semi_analytical tier. |
 | `FE3DSizeError` or "exceeding the safe cap" | The mesh exceeds `BVIDFE_FE3D_MAX_DOF` (default 150,000). Coarsen the mesh — Streamlit Cloud doesn't have the headroom to raise this cap. |
+| Animate: "MP4 rendering needs ffmpeg" | Keep `packages.txt` (apt `ffmpeg`) at the repository root, or `imageio-ffmpeg` in `requirements.txt`; locally, `pip install "bvidfe[anim]"` or install ffmpeg. The preview stills work without it. |
 
 ## Optional next steps
 

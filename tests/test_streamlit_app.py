@@ -800,3 +800,151 @@ def test_ratio_sweep_does_not_need_impact_mode(_no_stats) -> None:
     at = _sweep_tab_select_ratio(at)
     assert any("Fix the sidebar inputs" in i.value for i in at.info)
     assert not any("require **Impact event** mode" in i.value for i in at.info)
+
+
+# ---------------------------------------------------------------------------
+# Animate tab: scene choice, preview stills, the render and its guards
+# ---------------------------------------------------------------------------
+
+
+def _anim_scene(at, label: str):
+    at.radio(key="anim_scene").set_value(label).run()
+    _no_exception(at)
+    return at
+
+
+def _click(at, label: str):
+    (button,) = [b for b in at.button if b.label == label]
+    return button.click().run()
+
+
+def _tiny_encode(monkeypatch) -> list:
+    """Replace the app's encode with a 1 s, 2 fps one; returns the specs it
+    was asked for."""
+    import bvidfe.viz.anim as anim
+
+    asked: list = []
+    real = anim.encode_timeline
+
+    def _encode(tl, path, spec=None, progress=None):
+        asked.append(spec)
+        return real(tl, path, anim.AnimationSpec(duration_s=1.0, fps=2), progress)
+
+    monkeypatch.setattr(anim, "encode_timeline", _encode)
+    return asked
+
+
+def test_animate_tab_offers_three_scenes(_no_stats) -> None:
+    at = _app_test()
+    _no_exception(at)
+    scene = at.radio(key="anim_scene")
+    assert scene.options == [
+        "Damage vs impact energy",
+        "Exploded delamination stack",
+        "fe3d load ramp to first-ply failure",
+    ]
+    assert scene.value == "Damage vs impact energy"
+    # The energy sweep picks its own fast tier; nothing runs before a click.
+    assert at.selectbox(key="anim_sweep_tier").value == "empirical"
+    assert any(b.label == "Preview stills" for b in at.button)
+    assert not [b for b in at.button if b.label == "Render 1080p MP4"]
+    assert not at.image
+    at = _anim_scene(at, "Exploded delamination stack")
+    assert not [s for s in at.selectbox if s.label == "Tier for the sweep"]
+
+
+def test_animate_energy_sweep_needs_impact_mode(_no_stats) -> None:
+    at = _app_test()
+    at.radio(key="input_mode").set_value("C-scan inspection").run()
+    _no_exception(at)
+    assert any("Complete the sidebar configuration" in i.value for i in at.info)
+    assert not [b for b in at.button if b.label == "Preview stills"]
+
+
+def test_animate_energy_sweep_preview_stills(_no_stats) -> None:
+    at = _click(_app_test(), "Preview stills")
+    _no_exception(at)
+    assert not at.error, [e.value for e in at.error]
+    assert [c for im in at.image for c in im.captions] == ["t = 0", "t = 0.5", "t = 1"]
+    preview = at.session_state["anim_preview"]
+    assert preview["key"][0] == "energy-sweep" and len(preview["pngs"]) == 3
+    assert preview["estimate_s"] > 0
+    assert any("Rendering 300 frames at 1920 × 1080" in c.value for c in at.caption)
+    assert any(b.label == "Render 1080p MP4" for b in at.button)
+    # Another scene has no preview until it is asked for.
+    at = _anim_scene(at, "Exploded delamination stack")
+    assert not at.image
+
+
+def test_animate_render_writes_a_video(_no_stats, monkeypatch) -> None:
+    from tests.viz.anim._anim_helpers import needs_ffmpeg
+
+    needs_ffmpeg()
+    asked = _tiny_encode(monkeypatch)
+    at = _anim_scene(_app_test(), "Exploded delamination stack")
+    at = _click(at, "Preview stills")
+    at = _click(at, "Render 1080p MP4")
+    _no_exception(at)
+    assert not at.error, [e.value for e in at.error]
+    assert len(asked) == 1 and asked[0].size == (1920, 1080) and asked[0].n_frames == 300
+    video = at.session_state["anim_video"]
+    assert video["bytes"][4:8] == b"ftyp"  # an MP4
+    assert video["name"] == "bvidfe_damage-stack_IM7-8552_8ply_30J_comp.mp4"
+    assert at.session_state["anim_busy"] is False
+    assert at.get("video")
+    assert [d.label for d in at.download_button if d.label == "Download MP4"]
+    assert any("1920 × 1080, 2 frames at 2 fps" in c.value for c in at.caption)
+
+
+def test_animate_without_ffmpeg_says_how_to_install_it(_no_stats, monkeypatch) -> None:
+    import bvidfe.viz.anim as anim
+
+    def _missing(*args, **kwargs):
+        raise anim.FFmpegNotFoundError("MP4 output needs ffmpeg, which was not found")
+
+    monkeypatch.setattr(anim, "find_ffmpeg", lambda: None)
+    monkeypatch.setattr(anim, "encode_timeline", _missing)
+    at = _anim_scene(_app_test(), "Exploded delamination stack")
+    at = _click(at, "Preview stills")
+    assert any('pip install "bvidfe[anim]"' in w.value for w in at.warning)
+    at = _click(at, "Render 1080p MP4")
+    _no_exception(at)
+    (err,) = [e.value for e in at.error]
+    assert "MP4 rendering needs ffmpeg" in err and "bvidfe[anim]" in err
+    assert "apt install ffmpeg" in err
+    assert at.session_state["anim_busy"] is False
+    assert "anim_video" not in at.session_state
+
+
+def test_animate_one_render_at_a_time(_no_stats, monkeypatch) -> None:
+    import bvidfe.viz.anim as anim
+
+    calls: list = []
+    monkeypatch.setattr(anim, "encode_timeline", lambda *a, **k: calls.append(1))
+    at = _anim_scene(_app_test(), "Exploded delamination stack")
+    at = _click(at, "Preview stills")
+    at.session_state["anim_busy"] = True  # a render of this session is running
+    at.run()
+    (render,) = [b for b in at.button if b.label == "Render 1080p MP4"]
+    assert render.disabled
+    assert [b for b in at.button if b.label == "Preview stills"][0].disabled
+    assert not calls
+
+
+def test_animate_fe3d_ramp_is_gated_by_the_mesh_cap(_no_stats) -> None:
+    at = _app_test({"lx": "1000", "ly": "1000"})
+    at = _anim_scene(at, "fe3d load ramp to first-ply failure")
+    assert any("exceeding the safe cap" in e.value for e in at.error), [e.value for e in at.error]
+    assert not [b for b in at.button if b.label == "Preview stills"]
+    assert any("default 5 mm fe3d mesh" in c.value for c in at.caption)
+
+
+def test_animate_fe3d_ramp_preview(_no_stats) -> None:
+    at = _anim_scene(_app_test(_SMALL_FE3D), "fe3d load ramp to first-ply failure")
+    assert any("the sidebar's fe3d mesh" in c.value for c in at.caption)
+    at = _click(at, "Preview stills")
+    _no_exception(at)
+    assert not at.error, [e.value for e in at.error]
+    assert len(at.image) == 3
+    scene, config_json = at.session_state["anim_preview"]["key"]
+    assert scene == "cai-ramp" and json.loads(config_json)["tier"] == "fe3d"

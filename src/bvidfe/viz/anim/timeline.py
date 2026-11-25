@@ -172,6 +172,13 @@ class Timeline:
 
     scene: ClassVar[str] = ""
     schedule: Schedule
+    #: Typical time to draw one 1080p frame on one core (s), for render
+    #: estimates; a scene sets its own.
+    frame_seconds: ClassVar[float] = 0.25
+
+    def frame_seconds_estimate(self) -> float:
+        """Drawing time of one 1080p frame of this timeline (s), roughly."""
+        return self.frame_seconds
 
     def draw(self, fig: "Figure", t: float) -> None:  # pragma: no cover - abstract
         raise NotImplementedError

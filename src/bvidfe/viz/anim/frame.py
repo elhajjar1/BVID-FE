@@ -203,13 +203,27 @@ def draw_title_band(
 
 def draw_caveats(fig: Figure, caveats: Sequence[str]) -> None:
     """Honest labels on the caveat row, each after a status-coloured mark
-    (the text stays in ink: the mark is the icon)."""
-    x = float(MARGIN)
-    for k, note in enumerate(caveats):
-        colour = STATUS["critical"] if k == 0 else STATUS["serious"]
-        text_px(fig, x, CAVEAT_Y, "▲", 16, colour, ha="left")
-        t = text_px(fig, x + 24, CAVEAT_Y, note, 18, TEXT, weight="bold", ha="left", gid=CAVEAT_GID)
-        x += 24 + (text_width_px(fig, t) or 0.6 * 18 * len(note)) + 48
+    (the text stays in ink: the mark is the icon). When they do not fit
+    the width of the frame, every label is set smaller (down to 13 px)."""
+    size = 18.0
+    room = float(W - 2 * MARGIN)
+    for attempt in range(3):
+        x = float(MARGIN)
+        texts = []
+        for k, note in enumerate(caveats):
+            colour = STATUS["critical"] if k == 0 else STATUS["serious"]
+            mark = text_px(fig, x, CAVEAT_Y, "▲", size * 16 / 18, colour, ha="left")
+            t = text_px(
+                fig, x + 24, CAVEAT_Y, note, size, TEXT, weight="bold", ha="left", gid=CAVEAT_GID
+            )
+            texts += [mark, t]
+            x += 24 + (text_width_px(fig, t) or 0.6 * size * len(note)) + 48 * size / 18
+        used = x - 48 * size / 18 - MARGIN
+        if used <= room or size <= 13.0 or attempt == 2:
+            return
+        for t in texts:
+            t.remove()
+        size = max(13.0, size * room / used * 0.99)
 
 
 def draw_footer(fig: Figure, summary: str) -> None:
