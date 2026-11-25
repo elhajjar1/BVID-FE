@@ -11,10 +11,10 @@ core, damage, solver          (no internal dependencies)
   ▼
 analysis         (core, damage, elements, failure, impact, solver)
   │
-  ├─► viz        (analysis, core, damage)
+  ├─► viz        (analysis, core, damage; viz.anim also report, sweep)
   ├─► sweep      (analysis, impact)
   ▼
-cli.py, app.py   (user-facing entry points)
+cli.py, app.py   (user-facing entry points; viz/anim/cli.py: bvidfe-animate)
 ```
 
 `core`, `damage` and `solver` import nothing else from `bvidfe` (`solver`
@@ -64,7 +64,9 @@ for its sweep tab and plots. The shared `Literal` aliases live in
 | | `fe_mesh.py` | Damaged hexahedral mesh construction from `DamageState`. Carries two per-element factors: `damage_factors` (out-of-plane, `DAMAGE_OOP_FACTOR` inside delamination footprints) and `in_plane_damage_factors` (the material's `fe3d_zone_inplane_factor`, default `DAMAGE_ZONE_INPLANE_FACTOR` = 0.15, 0.219 for AS4/8552, fitted in-sample to measured CAI coupons, through the thickness over the damage zone, a soft inclusion; `DAMAGE_FIBER_BREAK_INPLANE_FACTOR` inside the optional fiber-break core). |
 | `viz/` | `plots_2d.py` | Damage-map ellipse overlay (with impact location + fiber-break-core markers), knockdown curves, per-tier comparison charts and the experimental biaxial failure envelope (`biaxial_envelope_plot`) (matplotlib). |
 | | `plotly_3d.py` | Plotly 3D figures of the hex mesh coloured by damage factor (`mesh_damage_figure`) or any per-element scalar (`stress_field_figure`), for the Streamlit app. |
-| | `style.py` | Publication styling constants (fonts, DPI, color maps). |
+| | `style.py` | Styling constants shared by the plots, the validation plots and the animations: the light-surface tokens (`SURFACE`, `TEXT`, ...), the eight-slot `CATEGORICAL` colours with `series_color` / `series_linestyle` (a line style past the third series), fonts, DPI. |
+| | `anim/` | 1080p animations (`bvidfe-animate`, `anim/cli.py`): `spec.py` (`AnimationSpec`), `writer.py` (ffmpeg discovery, MP4 / GIF / PNG sinks), `frame.py` (the frame template: title band, caveats, citation footer), `timeline.py` (schedules, easing), `scenes/energy_sweep.py`, `scenes/damage_stack.py` and `scenes/cai_ramp.py` (the fe3d load ramp, from `analysis/fe_fields.py`). Each scene's `build_timeline` runs the model once; `draw_frame(fig, timeline, t)` calls no model. |
+| `citation.py` | — | The citation burned into every animation frame (`frame_credit`), checked against `CITATION.cff` by `tests/test_citation.py`. |
 | `report/` | `ncr.py` | Nonconformance Report for the app's Export NCR tab: `recommend_disposition` (proposed MRB path from the knockdown, dent and fibre-break bands; the `KD_*` bands are placeholders, not from a cited standard) and `build_ncr` (Markdown + dict). Pure functions. |
 | `sweep/` | `parametric_sweep.py` | `sweep_energies`, `sweep_layups`, `sweep_thicknesses`, `sweep_transverse_ratios` (biaxial ratio, experimental; fe3d basis solves cached per sweep) with `on_error` (`raise`/`skip`/`warn`) and optional `progress_callback`; CSV output, partial-result preserving. |
 | `cli.py` | — | `bvidfe` entry point; argparse with `choices=` for `--material` / `--loading` / `--boundary` / `--impactor-shape` (from the library's literals), comma-separated `--tier` list, impact (`--mass`, `--location`, ...) and fe3d mesh options mapped onto `ImpactEvent` / `MeshParams` with the library defaults, custom positive-float / existing-path types, `--quick` (bare scalar) and `--quick-json` (single-line object) output modes, `--list-materials`. |

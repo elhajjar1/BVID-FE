@@ -881,6 +881,24 @@ on every 5 mm panel measured. The fe3d run is refused with
 `FE3DSizeError` above 150,000 degrees of freedom (`BVIDFE_FE3D_MAX_DOF`),
 which admits an 8-ply 150 × 100 mm panel down to a ~1.7 mm mesh.
 
+Because the response is linear up to first-ply failure, one reference
+solve per mesh describes the whole load path. The internal function
+`bvidfe.analysis.fe_fields.fe3d_field_history` (not public API; for the
+planned load-ramp animation) returns, for the damaged and the undamaged
+mesh:
+
+- the reference displacement and the reaction stress σ_ref it carries,
+  so the displacement at an applied stress σ is σ / σ_ref times it;
+- each element's failure multiplier on that state, at its weakest Gauss
+  point and disk-averaged as above.
+
+The element with the smallest averaged multiplier is where first-ply
+failure is set. Its first-ply failure, growth stress and knockdowns equal
+`BvidAnalysis.run()`'s. `run()` does not call it, and
+`AnalysisResults.field_results` stays `None`. The pointwise check fails
+first, by 0.1–20% on the test panels; at a 5 mm or coarser mesh it does so
+element by element.
+
 ### Failure criteria
 
 All three take the ply-frame Voigt stress

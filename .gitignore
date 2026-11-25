@@ -128,6 +128,11 @@ examples/*.nbconvert.ipynb
 # Local MkDocs build output (CI rebuilds and deploys to GitHub Pages).
 site/
 
+# Rendered animations (bvidfe-animate): made on demand, never committed.
+# The small docs previews are docs/animations/*.gif and *.webm.
+*.mp4
+*_frames/
+
 # ---- Claude Code / superpowers / subagent outputs ----
 docs/superpowers/
 .superpowers/

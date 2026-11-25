@@ -82,6 +82,8 @@ result = BvidAnalysis(config).run()
 print(f"knockdown {result.knockdown:.3f}, DPA {result.dpa_mm2:.0f} mm²")  # knockdown 0.375, DPA 1811 mm²
 ```
 
+To see the damage, `bvidfe-animate` renders 1080p videos of it (the `anim` extra installs ffmpeg): the delaminations growing with impact energy, an exploded 3D stack of them, and the fe3d load ramp to first-ply failure; the app's **Animate** tab renders them too; see [Animations](https://elhajjar1.github.io/BVID-FE/animations/).
+
 The [Quickstart](https://elhajjar1.github.io/BVID-FE/quickstart/) covers C-scan import, parametric sweeps, [biaxial loading](https://elhajjar1.github.io/BVID-FE/quickstart/#biaxial-loading-experimental-not-validated) (experimental, not validated), the Streamlit app (`streamlit run app.py`) and the [Jupyter notebook](https://github.com/elhajjar1/BVID-FE/blob/main/examples/quickstart.ipynb).
 
 ## Validation

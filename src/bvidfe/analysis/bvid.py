@@ -12,6 +12,7 @@ from typing import ContextManager, Union
 from bvidfe._types import LoadingMode
 from bvidfe.analysis.config import AnalysisConfig
 from bvidfe.analysis.fe_tier import (
+    _fe3d_tai_growth,
     fe3d_basis_cache,
     fe3d_cai_buckling,
     fe3d_cai_channels_and_modulus,
@@ -26,7 +27,6 @@ from bvidfe.analysis.semi_analytical import (
     panel_buckling_load,
     semi_analytical_cai,
     semi_analytical_tai,
-    weakest_sublaminate_growth,
 )
 from bvidfe.core.laminate import Laminate
 from bvidfe.core.material import MATERIAL_LIBRARY, OrthotropicMaterial
@@ -637,13 +637,7 @@ class BvidAnalysis:
         critical_interface = None
         if beta != 0:
             # The same call as semi_analytical's (_semi_analytical_tai_result).
-            growth = weakest_sublaminate_growth(
-                lam,
-                damage,
-                boundary=cfg.panel.boundary,
-                loading="tension",
-                transverse_stress_ratio=beta,
-            )
+            growth = _fe3d_tai_growth(cfg, damage, lam)
             sigma_growth = _growth_stress(growth)
             if growth is not None and math.isfinite(sigma_growth):
                 critical_interface = growth.interface_index

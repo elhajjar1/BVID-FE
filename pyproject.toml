@@ -47,6 +47,9 @@ dependencies = [
 
 [project.optional-dependencies]
 app = ["streamlit>=1.51,<2"]
+# MP4 output of bvidfe.viz.anim (bvidfe-animate) needs an ffmpeg binary;
+# imageio-ffmpeg bundles one. A system ffmpeg on PATH is used first.
+anim = ["imageio-ffmpeg>=0.5,<1"]
 # streamlit is in dev so CI runs the app tests (tests/test_streamlit_app.py).
 dev = [
     "pytest>=7,<10",
@@ -62,6 +65,8 @@ dev = [
     "pre-commit>=3,<5",
     "streamlit>=1.51,<2",
     "pip-audit>=2.6,<3",
+    # ffmpeg on every CI runner, for the animation encode tests.
+    "imageio-ffmpeg>=0.5,<1",
 ]
 docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
 
@@ -74,6 +79,7 @@ Changelog = "https://github.com/elhajjar1/BVID-FE/blob/main/CHANGELOG.md"
 
 [project.scripts]
 bvidfe = "bvidfe.cli:main"
+bvidfe-animate = "bvidfe.viz.anim.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

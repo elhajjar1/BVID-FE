@@ -3,7 +3,7 @@
 Wraps ``bvidfe.analysis.BvidAnalysis`` in a browser UI: sidebar inputs
 build an ``AnalysisConfig``, the main area shows results across tabs
 (Summary, Damage Map, Knockdown Curve, 3D Damage, Buckling, Damage
-Severity, Sweep, Export NCR). The app does not expose
+Severity, Sweep, Export NCR, Animate). The app does not expose
 ``AnalysisConfig.impact_panel``: the impact is applied on the panel that
 is tested.
 
@@ -21,6 +21,7 @@ import json
 import logging
 import math
 import sys
+import tempfile
 import threading
 import time
 import warnings
@@ -50,7 +51,11 @@ from bvidfe.analysis.fe_mesh import (  # noqa: E402
     element_grid_shape,
     estimate_fe_mesh_size,
 )
-from bvidfe.analysis.fe_tier import FE3D_MAX_DOF, enable_stderr_logging  # noqa: E402
+from bvidfe.analysis.fe_tier import (  # noqa: E402
+    FE3D_MAX_DOF,
+    FE3DSizeError,
+    enable_stderr_logging,
+)
 from bvidfe.core.geometry import ImpactorGeometry, PanelGeometry  # noqa: E402
 from bvidfe.core.material import MATERIAL_LIBRARY  # noqa: E402
 from bvidfe.damage.io import (  # noqa: E402
@@ -83,6 +88,10 @@ from bvidfe.viz.plots_2d import (  # noqa: E402
     plot_knockdown_curve,
 )
 from bvidfe.viz.plotly_3d import mesh_damage_figure  # noqa: E402
+import bvidfe.viz.anim as anim  # noqa: E402
+from bvidfe.viz.anim.scenes import cai_ramp as anim_cai_ramp  # noqa: E402
+from bvidfe.viz.anim.scenes import damage_stack as anim_damage_stack  # noqa: E402
+from bvidfe.viz.anim.scenes import energy_sweep as anim_energy_sweep  # noqa: E402
 
 # fe3d stage logs to the terminal running `streamlit run` (idempotent across reruns).
 enable_stderr_logging()
@@ -1486,6 +1495,7 @@ tabs = st.tabs(
         "Damage Severity",
         "Sweep",
         "Export NCR",
+        "Animate",
     ]
 )
 
@@ -2040,4 +2050,253 @@ with tabs[7]:
                 file_name=f"{safe_id}.json",
                 mime="application/json",
                 width="stretch",
+            )
+
+
+# --- Animate tab ----------------------------------------------------------
+
+ANIM_SCENES: dict[str, str] = {
+    "Damage vs impact energy": "energy-sweep",
+    "Exploded delamination stack": "damage-stack",
+    "fe3d load ramp to first-ply failure": "cai-ramp",
+}
+ANIM_SWEEP_TIERS: list[str] = list(anim_energy_sweep.SUPPORTED_TIERS)
+ANIM_PREVIEW_TIMES = (0.0, 0.5, 1.0)
+ANIM_FFMPEG_HELP = (
+    "MP4 rendering needs ffmpeg, which was not found. Install the `anim` extra, "
+    '`pip install "bvidfe[anim]"` (it bundles ffmpeg through imageio-ffmpeg), or a '
+    "system ffmpeg (`apt install ffmpeg`, `brew install ffmpeg`, or ffmpeg.org on "
+    "Windows), then restart the app. On Streamlit Community Cloud, `packages.txt` "
+    "installs it. The preview stills do not need ffmpeg."
+)
+
+
+@st.cache_resource(show_spinner=False, max_entries=4)
+def _anim_timeline_cached(scene: str, config_json: str) -> anim.Timeline:
+    """The timeline of ``scene`` for a config (JSON of the config dict):
+    the model runs once per scene and config, shared by every session (a
+    timeline is immutable: drawing it changes nothing)."""
+    cfg = _config_from_dict(json.loads(config_json))
+    if scene == "energy-sweep":
+        return anim_energy_sweep.build_timeline(cfg)
+    if scene == "damage-stack":
+        return anim_damage_stack.build_timeline(cfg)
+    return anim_cai_ramp.build_timeline(cfg)
+
+
+def _anim_config(scene: str, base: dict, sweep_tier: str) -> tuple[dict | None, str | None]:
+    """The config dict ``scene`` animates (from the sidebar's), or ``None``
+    and why it cannot be animated (shown as an info box)."""
+    d = dict(base)
+    if scene == "energy-sweep":
+        if d.get("impact") is None:
+            return None, (
+                "The energy sweep needs **Impact event** mode in the sidebar: a C-scan "
+                "has no impact energy to sweep. The exploded stack and the fe3d ramp "
+                "take a C-scan."
+            )
+        d["tier"] = sweep_tier
+    elif scene == "cai-ramp":
+        d["tier"] = "fe3d"
+        if d.get("mesh") is None:
+            d["mesh"] = {
+                "elements_per_ply": MeshParams().elements_per_ply,
+                "in_plane_size_mm": MeshParams().in_plane_size_mm,
+            }
+    return d, None
+
+
+def _anim_file_name(scene: str, cfg: AnalysisConfig) -> str:
+    """``bvidfe_<scene>_<material>_<n>ply_<energy or cscan>_<load>[_<tier>].mp4``."""
+    material = "".join(ch if ch.isalnum() else "-" for ch in str(cfg.material))
+    what = f"{cfg.impact.energy_J:g}J" if cfg.impact is not None else "cscan"
+    parts = [scene, material, f"{len(cfg.layup_deg)}ply", what, cfg.loading[:4]]
+    if scene != "damage-stack":
+        parts.append("fe3d" if scene == "cai-ramp" else cfg.tier)
+    if cfg.transverse_stress_ratio != 0:
+        parts.append(f"beta{cfg.transverse_stress_ratio:+g}")
+    name = "_".join(["bvidfe", *parts])
+    return "".join(ch if ch.isalnum() or ch in "-_+." else "-" for ch in name) + ".mp4"
+
+
+def _png_bytes(rgba: np.ndarray) -> bytes:
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.fromarray(rgba, mode="RGBA").convert("RGB").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _anim_preview(scene: str, config_json: str, key: tuple) -> None:
+    """Build the timeline (cached) and draw the preview stills into
+    ``st.session_state["anim_preview"]``, timing them for the estimate."""
+    label = (
+        "Solving the fe3d meshes (two solves, four for a biaxial load) and drawing the stills…"
+        if scene == "cai-ramp"
+        else "Running the model and drawing the stills…"
+    )
+    with st.spinner(label):
+        try:
+            tl = _anim_timeline_cached(scene, config_json)
+        except (ValueError, NotImplementedError, FE3DSizeError) as exc:
+            st.session_state["anim_preview"] = None
+            st.error(f"Cannot animate this configuration: {exc}")
+            return
+        t0 = time.perf_counter()
+        frames = anim.preview_frames(tl, ANIM_PREVIEW_TIMES)
+        frame_s = (time.perf_counter() - t0) / len(ANIM_PREVIEW_TIMES)
+        st.session_state["anim_preview"] = {
+            "key": key,
+            "pngs": [_png_bytes(f) for f in frames],
+            "estimate_s": anim.estimate_render_seconds(
+                tl, anim.AnimationSpec(), frame_seconds=frame_s
+            ),
+        }
+
+
+def _anim_render(scene: str, config_json: str, key: tuple, name: str) -> None:
+    """Encode the 1080p MP4 with a progress bar into
+    ``st.session_state["anim_video"]``; one render at a time per session."""
+    if st.session_state.get("anim_busy"):
+        st.warning("A render is already running in this session; wait for it to finish.")
+        return
+    st.session_state["anim_busy"] = True
+    spec = anim.AnimationSpec()
+    prog = st.progress(0.0, text=f"Rendering frame 0/{spec.n_frames}…")
+
+    def _on_frame(i: int, n: int) -> None:
+        if i == n or i % 5 == 0:
+            prog.progress(i / n, text=f"Rendering frame {i}/{n}…")
+
+    try:
+        tl = _anim_timeline_cached(scene, config_json)
+        with tempfile.TemporaryDirectory(prefix="bvidfe-anim-") as tmp:
+            result = anim.encode_timeline(tl, Path(tmp) / name, spec, progress=_on_frame)
+            data = result.path.read_bytes()
+        st.session_state["anim_video"] = {
+            "key": key,
+            "bytes": data,
+            "name": name,
+            "caption": (
+                f"{result.width} × {result.height}, {result.n_frames} frames at "
+                f"{result.fps} fps, {len(data) / 1e6:.1f} MB, rendered in "
+                f"{result.elapsed_s:.0f} s"
+            ),
+        }
+    except anim.FFmpegNotFoundError:
+        st.error(ANIM_FFMPEG_HELP)
+    except (ValueError, NotImplementedError, FE3DSizeError) as exc:
+        st.error(f"Cannot animate this configuration: {exc}")
+    finally:
+        st.session_state["anim_busy"] = False
+        prog.empty()
+
+
+with tabs[8]:
+    st.subheader("Animate (1080p video)")
+    st.caption(
+        "Renders a 10 s, 1920 × 1080 MP4 of what the model computes, on demand: "
+        "preview three stills first, then render. Every frame carries the citation "
+        "of BVID-FE."
+    )
+    anim_label = st.radio(
+        "Scene",
+        list(ANIM_SCENES),
+        key="anim_scene",
+        help=(
+            "**Damage vs impact energy**: the delaminations, damage area, dent depth "
+            "and knockdown as the impact energy rises (one empirical or "
+            "semi_analytical analysis per keyframe energy; Impact event mode).\n\n"
+            "**Exploded delamination stack**: the delaminations through the thickness "
+            "as an exploded 3D stack, the camera orbiting (impact or C-scan).\n\n"
+            "**fe3d load ramp to first-ply failure**: the damaged panel cut open "
+            "through the first element to fail, each element coloured by its load "
+            "ratio to local failure as the load rises to the residual strength (the "
+            "sidebar config solved with fe3d: two solves)."
+        ),
+    )
+    anim_scene = ANIM_SCENES[anim_label]
+    anim_sweep_tier = "empirical"
+    if anim_scene == "energy-sweep":
+        anim_sweep_tier = st.selectbox(
+            "Tier for the sweep",
+            ANIM_SWEEP_TIERS,
+            index=ANIM_SWEEP_TIERS.index(tier) if tier in ANIM_SWEEP_TIERS else 0,
+            key="anim_sweep_tier",
+            help="One analysis per keyframe energy (about 60): fe3d would take far too long.",
+        )
+    if config_valid and config_dict is not None:
+        anim_cfg_dict, anim_problem = _anim_config(anim_scene, config_dict, anim_sweep_tier)
+    else:
+        anim_cfg_dict, anim_problem = None, "Complete the sidebar configuration to animate it."
+    if anim_problem:
+        st.info(anim_problem)
+    if anim_cfg_dict is not None and anim_scene == "cai-ramp":
+        anim_cfg = _config_from_dict(anim_cfg_dict)
+        mesh_note = (
+            "the sidebar's fe3d mesh"
+            if tier == "fe3d"
+            else "the default 5 mm fe3d mesh (choose the fe3d tier in the sidebar to change it)"
+        )
+        st.caption(
+            f"fe3d on {mesh_note}: linear elastic to first-ply failure, no progressive "
+            "damage; qualitative."
+        )
+        if _fe3d_mesh_too_big(anim_cfg):
+            anim_cfg_dict = None
+        else:
+            try:
+                anim_cai_ramp.check_config(anim_cfg)
+            except ValueError as exc:
+                st.error(f"Cannot animate this configuration: {exc}")
+                anim_cfg_dict = None
+    if anim_cfg_dict is not None:
+        anim_json = json.dumps(anim_cfg_dict, sort_keys=True)
+        anim_key = (anim_scene, anim_json)
+        anim_busy = bool(st.session_state.get("anim_busy"))
+        if st.button("Preview stills", key="anim_preview_button", disabled=anim_busy):
+            _anim_preview(anim_scene, anim_json, anim_key)
+        preview_state = st.session_state.get("anim_preview")
+        if preview_state is not None and preview_state["key"] == anim_key:
+            for col, png, t_s in zip(
+                st.columns(len(ANIM_PREVIEW_TIMES)), preview_state["pngs"], ANIM_PREVIEW_TIMES
+            ):
+                col.image(png, caption=f"t = {t_s:g}", width="stretch")
+            anim_spec = anim.AnimationSpec()
+            est = preview_state["estimate_s"]
+            est_text = f"{est / 60:.1f} min" if est >= 90 else f"{est:.0f} s"
+            st.caption(
+                f"Rendering {anim_spec.n_frames} frames at {anim_spec.width} × "
+                f"{anim_spec.height} ({anim_spec.duration_s:g} s at {anim_spec.fps} fps) "
+                f"takes about {est_text} on this server."
+            )
+            try:
+                ffmpeg_found = anim.find_ffmpeg() is not None
+            except anim.FFmpegNotFoundError:
+                ffmpeg_found = False
+            if not ffmpeg_found:
+                st.warning(ANIM_FFMPEG_HELP)
+            anim_name = _anim_file_name(anim_scene, _config_from_dict(anim_cfg_dict))
+            if st.button(
+                "Render 1080p MP4",
+                type="primary",
+                key="anim_render_button",
+                disabled=anim_busy,
+            ):
+                _anim_render(anim_scene, anim_json, anim_key, anim_name)
+            video = st.session_state.get("anim_video")
+            if video is not None and video["key"] == anim_key:
+                st.video(video["bytes"], format="video/mp4")
+                st.caption(video["caption"])
+                st.download_button(
+                    "Download MP4",
+                    data=video["bytes"],
+                    file_name=video["name"],
+                    mime="video/mp4",
+                    key="anim_download",
+                )
+        else:
+            st.info(
+                "Click **Preview stills** to run the model and see the frames at "
+                "t = 0, 0.5 and 1."
             )

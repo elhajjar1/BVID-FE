@@ -6,6 +6,48 @@ All notable changes to BVID-FE are documented in this file.
 
 ### Added
 
+- 1080p animations of the predicted damage (`bvidfe.viz.anim`, and the new
+  `bvidfe-animate` command): MP4 (H.264, 1920 × 1080, 30 fps) by default,
+  a PNG sequence, or a reduced-size GIF preview.
+  - `energy-sweep` (`render_energy_sweep`): the delaminations growing with
+    impact energy in plan view, beside the damage area, the dent depth
+    (with the 0.30 mm detectability threshold) and the knockdown against
+    energy. One `BvidAnalysis` per keyframe energy (`empirical` or
+    `semi_analytical`; `fe3d` is refused).
+  - `damage-stack` (`render_damage_stack`): the delaminations through the
+    thickness as an exploded 3D stack, the camera orbiting; from a config
+    or a C-scan damage state.
+  - `cai-ramp` (`render_cai_ramp`): the fe3d load ramp of the damaged
+    panel to its residual strength. The panel in 3D, impact face up, cut
+    open through the first element to fail (only the faces the camera
+    sees are drawn, so none is misordered), each element coloured by its
+    load ratio to local failure (disk-averaged, so the first to reach 1 is
+    fe3d's first-ply failure; `--pointwise` for the Gauss points), the
+    deformation and thickness exaggerated with the factors printed. Top
+    views of the damaged and undamaged panels at the same stress, stress
+    against end shortening, and the residual strength, knockdown and
+    governing channel of `run()` with `tier="fe3d"`. When delamination
+    growth governs, the ramp ends at the growth stress and says so. Two
+    fe3d solves (four biaxial), then linear scaling; CAI and TAI. A cap of
+    12,000 drawn faces, checked before solving, and
+    `estimate_render_seconds` for render times.
+  - The Streamlit app's new **Animate** tab renders the three scenes from
+    the sidebar's config at 1080p: preview stills with a render-time
+    estimate, then an MP4 with a progress bar, a player and a download
+    button; one render at a time per session; the fe3d ramp behind the
+    fe3d mesh cap; a message naming the `anim` extra or a system ffmpeg
+    when ffmpeg is missing. `packages.txt` (apt `ffmpeg`) for Streamlit
+    Community Cloud, and `imageio-ffmpeg` in `requirements.txt`.
+  - Every frame carries the citation and version of BVID-FE
+    (`bvidfe.citation`, tested against `CITATION.cff`), the model tier,
+    "below damage onset" where there is no damage, and "experimental, not
+    validated" for a biaxial load.
+  - `preview_frames` gives stills, and `build_energy_sweep` /
+    `build_damage_stack` the model outputs, without encoding.
+  - ffmpeg comes from the new optional extra `anim` (`imageio-ffmpeg`, also
+    in `dev`), a system ffmpeg, or `BVIDFE_FFMPEG`. See
+    [Animations](docs/animations.md).
+
 - `validation/plot_validation.py`: predicted-against-measured plots for
   every measured coupon, each with the 1:1 line and a ±15% band.
   - Panels: residual strength (closed-form tiers, and fe3d with
@@ -15,8 +57,26 @@ All notable changes to BVID-FE are documented in this file.
   - Output: figures and a CSV of every point in `docs/validation_plots/`.
     The overview figure is on the docs home page and in
     `validation/README.md`.
+- `bvidfe.analysis.fe_fields.fe3d_field_history` (internal, for the
+  fe3d load-ramp animation): the fe3d fields of the damaged and the
+  undamaged mesh.
+  - Fields: the reference displacement with its reaction stress and end
+    shortening, and each element's first-ply-failure multiplier,
+    pointwise and disk-averaged.
+  - Strengths: first-ply failure, the growth stress, the governing
+    channel and the knockdowns, equal to `BvidAnalysis.run()`'s.
+  - `run()` does not call it, and its results are bit-identical:
+    `AnalysisResults.field_results` stays `None` and no schema changes.
+    The `fe_tier` helpers it reuses (per-element failure checks, the
+    first-ply-failure stress and the growth channels) are extracted from
+    the existing path, which now calls them.
 
 ### Changed
+
+- The light-surface tokens and categorical colours of the validation plots
+  moved to `bvidfe.viz.style` (`SURFACE`, `TEXT`, `CATEGORICAL`, ...), shared
+  with the animations; `validation/plot_validation.py` imports them, and its
+  figures are unchanged.
 
 ### Fixed
 

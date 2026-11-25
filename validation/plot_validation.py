@@ -47,20 +47,18 @@ from bvidfe.core.laminate import Laminate  # noqa: E402
 from bvidfe.core.material import MATERIAL_LIBRARY  # noqa: E402
 from bvidfe.failure.laminate_strength import unnotched_strength  # noqa: E402
 
-# Light-surface tokens and a categorical set validated all-pairs for five
-# series (CVD ΔE 6.9, so every series also has its own marker shape).
-SURFACE = "#fcfcfb"
-TEXT = "#0b0b0b"
-TEXT_2 = "#52514e"
-GRID = "#e4e3df"
-BAND = "#efeeea"
+# The light-surface tokens and the categorical slots live in bvidfe.viz.style,
+# shared with the animations. These five slots are validated all-pairs for
+# five series (CVD ΔE 6.9), so every series also has its own marker shape.
+from bvidfe.viz.style import BAND, CATEGORICAL, GRID, SURFACE, TEXT, TEXT_2  # noqa: E402
+
 STYLE = {
     # dataset: (label, colour, marker)
-    "ncamp_as4_8552_cai": ("NCAMP AS4/8552", "#2a78d6", "o"),
-    "lovejoy_scotti_im7_8552_cai": ("Lovejoy & Scotti IM7/8552", "#e34948", "s"),
-    "hasebe_t800s_3900_2b_cai": ("Hasebe et al. T800S/3900-2B (not gated)", "#1baf7a", "^"),
-    "gonzalez_as4_8552_cai": ("González AS4/8552 (not gated)", "#008300", "D"),
-    "korbelin_m21_t800s_tai": ("Körbelin et al. M21/T800S, TAI (not gated)", "#eda100", "v"),
+    "ncamp_as4_8552_cai": ("NCAMP AS4/8552", CATEGORICAL[0], "o"),
+    "lovejoy_scotti_im7_8552_cai": ("Lovejoy & Scotti IM7/8552", CATEGORICAL[7], "s"),
+    "hasebe_t800s_3900_2b_cai": ("Hasebe et al. T800S/3900-2B (not gated)", CATEGORICAL[2], "^"),
+    "gonzalez_as4_8552_cai": ("González AS4/8552 (not gated)", CATEGORICAL[5], "D"),
+    "korbelin_m21_t800s_tai": ("Körbelin et al. M21/T800S, TAI (not gated)", CATEGORICAL[3], "v"),
 }
 BAND_PCT = 15.0
 
